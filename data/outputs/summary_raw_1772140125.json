@@ -1,0 +1,15 @@
+{
+  "total_pnl": 0.0,
+  "realized_pnl": 0.0,
+  "unrealized_pnl": 0.0,
+  "max_drawdown": 0.0,
+  "fill_count": 0,
+  "fill_rate": 0.0,
+  "avg_spread_captured": 0.0,
+  "avg_inventory": 0.0,
+  "inventory_stdev": 0.0,
+  "total_fees": 0.0,
+  "fills": [],
+  "total_inventory": 0.0,
+  "quote_count": 130
+}
