@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from dataclasses import dataclass
+from decimal import Decimal
 from heapq import heappush, heappop
 from itertools import count
 from pathlib import Path
@@ -16,17 +16,17 @@ from ..config import Config
 from ..replay.reader import RecordedEvent, iter_records
 from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
-from .mm_strategy import compute_quotes
+from .mm_strategy import MarketMakingStrategy
 from .orders import Order
 
 
 @dataclass(order=True)
-class _Action:
+class _EngineEvent:
     ts: float
     order: int
     kind: str
     symbol: str
-    data: Dict[str, Any]
+    payload: Dict[str, Any]
 
 
 class SimulationEngine:
@@ -34,17 +34,26 @@ class SimulationEngine:
         self.cfg = cfg
         self.metrics = SimulationMetrics(cfg)
         self.fill_model = PassiveFillModel()
+        self.strategy = MarketMakingStrategy(cfg)
         self._specs: Dict[str, SymbolSpec] = {}
         self._books: Dict[str, LocalOrderBook] = {}
         self._syncers: Dict[str, BookSynchronizer] = {}
         self._next_decision: Dict[str, float] = {}
-        self._actions: list[_Action] = []
+        self._actions: list[_EngineEvent] = []
         self._id_counter = count()
+        self._trading_halted = False
 
-    def _schedule(self, ts: float, kind: str, symbol: str, data: Dict[str, Any]) -> None:
-        heappush(self._actions, _Action(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, data=data))
+    def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
+        heappush(self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload))
+
+    def _emit_trade_event(self, ts: float, symbol: str, fills: list) -> None:
+        if not fills:
+            return
+        self._schedule(ts, "trade_execution", symbol, {"fills": fills})
 
     def _schedule_decisions_up_to(self, symbol: str, now: float) -> None:
+        if self._trading_halted:
+            return
         interval = self.cfg.mm_requote_ms / 1000.0
         next_due = self._next_decision.get(symbol)
         if next_due is None:
@@ -70,6 +79,7 @@ class SimulationEngine:
             self._books[symbol] = LocalOrderBook(symbol=symbol, spec=spec, top_n=self.cfg.book_top_n)
             self._syncers[symbol] = BookSynchronizer(self._books[symbol], resync_on_gap=self.cfg.resync_on_gap)
             self.metrics.register_symbol(symbol)
+            # seed both strategy and matching engine books with initial empty levels
         return self._books.get(symbol)
 
     def _get_sync(self, symbol: str) -> BookSynchronizer | None:
@@ -78,40 +88,83 @@ class SimulationEngine:
             return None
         return self._syncers[symbol]
 
+    def _disable_trading(self) -> None:
+        self._trading_halted = True
+        for symbol in list(self._books):
+            self.fill_model.cancel_all_for_symbol_side(symbol, "bid")
+            self.fill_model.cancel_all_for_symbol_side(symbol, "ask")
+
     def _handle_decision(self, symbol: str, ts: float) -> None:
-        if not self.cfg.mm_enabled:
+        if self._trading_halted or not self.cfg.mm_enabled:
             return
+
         syncer = self._syncers.get(symbol)
         book = self._books.get(symbol)
         if syncer is None or book is None or not syncer.synced:
             return
 
         inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
-        quote_tuple = compute_quotes(book, inventory, self.cfg)
-        if quote_tuple is None:
+        plan = self.strategy.propose(book, inventory_qty=inventory)
+        if plan.bid_tick is None and plan.ask_tick is None:
             return
-        bid_tick, ask_tick = quote_tuple
-        qty_lots = max(1, book.spec.qty_to_lot(self.cfg.mm_order_qty))
+
+        quote_size = max(1, plan.size_lots)
+        queue_positions = {
+            "bid": self.fill_model.queue_ahead_lots(symbol, self.fill_model.get_order(symbol, "bid")),
+            "ask": self.fill_model.queue_ahead_lots(symbol, self.fill_model.get_order(symbol, "ask")),
+        }
 
         for side in ("bid", "ask"):
+            existing = self.fill_model.get_order(symbol, side)
             if side == "bid" and inventory > self.cfg.mm_max_position:
+                if existing is not None:
+                    self._schedule(
+                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
+                        "order_cancel",
+                        symbol,
+                        {"order_id": existing.order_id},
+                    )
                 continue
             if side == "ask" and inventory < -self.cfg.mm_max_position:
+                if existing is not None:
+                    self._schedule(
+                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
+                        "order_cancel",
+                        symbol,
+                        {"order_id": existing.order_id},
+                    )
                 continue
 
-            desired_price = bid_tick if side == "bid" else ask_tick
-            existing = self.fill_model.get_order(symbol, side)
-            if existing is not None:
-                self._schedule(ts + self.cfg.sim_cancel_latency_ms / 1000.0, "cancel", symbol, {"order_id": existing.order_id})
+            desired = plan.bid_tick if side == "bid" else plan.ask_tick
+            if desired is None:
+                continue
+
+            refresh = self.strategy.should_refresh(book, side, existing)
+            if queue_positions[side] >= self.cfg.mm_queue_repost_lots:
+                refresh = True
+            if existing is not None and (existing.price_tick != desired or refresh):
+                self._schedule(
+                    ts + self.cfg.sim_cancel_latency_ms / 1000.0,
+                    "order_cancel",
+                    symbol,
+                    {"order_id": existing.order_id},
+                )
+                existing = None
+
+            if existing is not None and existing.price_tick == desired:
+                continue
 
             self._schedule(
                 ts + self.cfg.sim_order_latency_ms / 1000.0,
-                "place",
+                "order_arrival",
                 symbol,
-                {"side": side, "price_tick": desired_price, "qty_lots": qty_lots},
-            )
+                    {"side": side, "price_tick": desired, "qty_lots": quote_size},
+                )
 
-    def _handle_place(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
+    def _handle_arrival(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
+        if self._trading_halted:
+            return
+
         side = payload["side"]
         price_tick = int(payload["price_tick"])
         qty_lots = int(payload["qty_lots"])
@@ -119,25 +172,19 @@ class SimulationEngine:
         if book is None or qty_lots <= 0:
             return
 
-        inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
-        if side == "bid" and inventory > self.cfg.mm_max_position:
-            return
-        if side == "ask" and inventory < -self.cfg.mm_max_position:
-            return
-
-        queue_side = "bids" if side == "bid" else "asks"
-        queue_ahead = book.get_level_size(queue_side, price_tick)
         order = Order(
-            order_id=f"{symbol}-{side}-{int(now*1e6)}-{next(self._id_counter)}",
+            order_id=f"{symbol}-{side}-{int(now * 1_000_000)}-{next(self._id_counter)}",
             symbol=symbol,
             side=side,
             price_tick=price_tick,
             qty_lots=qty_lots,
-            queue_ahead_lots=queue_ahead,
+            queue_ahead_lots=0,
             created_ts=now,
             remaining_lots=qty_lots,
         )
-        self.fill_model.place_order(order)
+        fills = self.fill_model.place_order(order)
+        if fills:
+            self._emit_trade_event(now, symbol, fills)
         self.metrics.on_quote_requested()
 
     def _handle_cancel(self, payload: Dict[str, Any]) -> None:
@@ -146,22 +193,24 @@ class SimulationEngine:
             return
         self.fill_model.cancel_order(str(order_id))
 
-    def _drain_actions(self, now: float) -> None:
-        while self._actions and self._actions[0].ts <= now:
-            action = heappop(self._actions)
-            if action.kind == "decision":
-                self._handle_decision(action.symbol, action.ts)
-            elif action.kind == "place":
-                self._handle_place(action.symbol, action.data, action.ts)
-            elif action.kind == "cancel":
-                self._handle_cancel(action.data)
-
-    def _on_fills(self, fills: list):
+    def _handle_trades(self, fills: list) -> None:
         for fill in fills:
             book = self._books.get(fill.symbol)
             if book is None:
                 continue
             self.metrics.on_fill(fill, book, book.mid_price())
+
+    def _drain_events(self, now: float) -> None:
+        while self._actions and self._actions[0].ts <= now:
+            event = heappop(self._actions)
+            if event.kind == "decision":
+                self._handle_decision(event.symbol, event.ts)
+            elif event.kind == "order_arrival":
+                self._handle_arrival(event.symbol, event.payload, event.ts)
+            elif event.kind == "order_cancel":
+                self._handle_cancel(event.payload)
+            elif event.kind == "trade_execution":
+                self._handle_trades(event.payload.get("fills", []))
 
     def run(self, file_path: str | Path) -> SimulationMetrics:
         last_ts = 0.0
@@ -169,10 +218,10 @@ class SimulationEngine:
             now = float(rec.ts_local)
             if now > last_ts:
                 last_ts = now
-            self._drain_actions(now)
 
+            self._drain_events(now)
             if rec.type == "exchangeInfo":
-                spec = self._parse_exchange_info(rec)
+                self._parse_exchange_info(rec)
                 self._get_or_create_book(rec.symbol)
                 continue
 
@@ -190,8 +239,14 @@ class SimulationEngine:
                     asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("asks", [])],
                 )
                 syncer = self._get_sync(rec.symbol)
-                if syncer:
-                    syncer.on_snapshot(snapshot)
+                if syncer is None:
+                    continue
+                syncer.on_snapshot(snapshot)
+                self.fill_model.seed_from_snapshot(
+                    rec.symbol,
+                    snapshot.bids,
+                    snapshot.asks,
+                )
                 continue
 
             if rec.type == "depthUpdate":
@@ -199,6 +254,7 @@ class SimulationEngine:
                 syncer = self._get_sync(rec.symbol)
                 if syncer is None:
                     continue
+
                 event = DepthUpdateEvent(
                     symbol=rec.symbol,
                     first_update_id=int(rec.data["U"]),
@@ -212,13 +268,13 @@ class SimulationEngine:
                     changes: list[LevelChange] = syncer.on_depth_update(event)
                 except BookSyncGapError:
                     if self.cfg.resync_on_gap:
-                        # Replay file should include a newer snapshot to continue.
-                        # In this project scope, we report the first gap as unrecoverable.
                         continue
                     changes = []
+
                 if changes:
                     fills = self.fill_model.apply_depth_changes(rec.symbol, changes, now)
-                    self._on_fills(fills)
+                    if fills:
+                        self._emit_trade_event(now, rec.symbol, fills)
 
             if rec.type == "aggTrade":
                 spec = self._specs[rec.symbol]
@@ -230,16 +286,25 @@ class SimulationEngine:
                     ts_local=now,
                 )
                 fills = self.fill_model.apply_agg_trade(trade, now)
-                self._on_fills(fills)
+                if fills:
+                    self._emit_trade_event(now, rec.symbol, fills)
 
-            self.metrics.update_unrealized(self._books)
+            self._drain_events(now)
+            if self._books:
+                self.metrics.update_unrealized(self._books, now_ts=now)
+            if self.metrics.kill_switch_triggered and not self._trading_halted:
+                self._disable_trading()
 
         final_ts = last_ts + max(
             self.cfg.mm_requote_ms / 1000.0,
             max(self.cfg.sim_order_latency_ms, self.cfg.sim_cancel_latency_ms) / 1000.0,
+            self.cfg.sim_adverse_markout_seconds,
+            1.0,
         )
-        self._drain_actions(final_ts)
-        self.metrics.update_unrealized(self._books)
+        self._drain_events(final_ts)
+        self.metrics.update_unrealized(self._books, now_ts=final_ts)
+        if self.metrics.kill_switch_triggered and not self._trading_halted:
+            self._disable_trading()
         return self.metrics
 
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[Path, Path, dict]:
@@ -258,7 +323,19 @@ class SimulationEngine:
         with open(trades_path, "w", encoding="utf-8", newline="") as csv_file:
             writer = csv.DictWriter(
                 csv_file,
-                fieldnames=["ts_local", "symbol", "side", "price", "qty", "maker", "order_id"],
+                fieldnames=[
+                    "ts_local",
+                    "symbol",
+                    "side",
+                    "price",
+                    "qty",
+                    "maker",
+                    "order_id",
+                    "regime",
+                    "queue_ahead_lots",
+                    "time_in_book_ms",
+                    "markout_horizon",
+                ],
             )
             writer.writeheader()
             for row in summary.get("fills", []):

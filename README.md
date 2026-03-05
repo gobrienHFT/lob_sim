@@ -1,83 +1,136 @@
 # lob_sim
 
-`lob_sim` is a Python project for collecting Binance USD-M futures order book/aggTrade streams,
-reconstructing a local level-II book from snapshot+diff events, and running a basic market-making
-simulator on recorded data.
+`lob_sim` is a Python research simulator for Binance USD-M futures book/tick replay, explicit event-driven matching, and market-making strategy experiments.
 
-## What is implemented
+## What this version covers
 
-- Live collectors for Binance combined streams:
-  - `depthUpdate` from `<symbol>@depth@100ms`
-  - `aggTrade` from `<symbol>@aggTrade`
-- Symbol-level book sync using Binance's required algorithm:
-  1. Start websocket, buffer depth updates.
-  2. Fetch snapshot.
-  3. Drop `u < lastUpdateId`.
-  4. First usable update must satisfy `U <= lastUpdateId <= u`.
-  5. Subsequent updates require `pu == previous u` (unless `RESYNC_ON_GAP=0`).
-- NDJSON + optional gzip recording.
-- Offline replay by applying the same book sync path.
-- Simple passive market making strategy with quote schedule, queue-aware fill approximation, latency model, metrics and output files.
+This repository now demonstrates five concrete capabilities:
 
-### Limitations
+1. Matching engine correctness (tick-time FIFO matching, order types, queue position, partial fills).
+2. Event-driven architecture (order arrival/cancel/trade execution stream).
+3. Market-making strategy layer (dynamic quotes, volatility-based spread, skew, queue-repost controls).
+4. Reproducible experiment scripts (spread width, skew, latency, and drift-oriented adverse-selection runs with charts).
+5. Cleanly documented assumptions, internals, and data structures (with architecture diagram).
 
-- Binance provides aggregated book levels, so queue position/fills are approximated.
-- There is no true per-order FIFO or per-order book-level matching.
-- Fill model uses queue-ahead reduction on level decreases and matching aggTrades as a proxy.
+## 1) Matching engine correctness
 
-## Layout
+`lob_sim/sim/fill_model.py` implements an explicit matching engine model:
 
-- `lob_sim/` package with modules as requested.
-- `tests/` has unit tests for sync and fill logic.
+- Price-time priority is preserved with per-side FIFO deques at each tick level.
+- Supported order types:
+  - `limit` (resting post + passive matching)
+  - `market` (immediate book sweep)
+  - `cancel` (explicit cancel handling from strategy actions)
+- Queue position tracking:
+  - Strategy orders are tracked inside queue levels with explicit `queue_ahead_lots`.
+  - Every fill resolves whether the order was filled from front (`queue_ahead_lots = 0`) or after queue consumption.
+- Partial fills are supported whenever venue sweep quantity is greater than resting depth.
+- Depth changes from replay are applied as level deltas, venue additions/removals are inserted into the matching structure at the correct side and tick.
+- Queue positions and fills evolve tick-by-tick from the replay stream.
 
-## Setup
+### Exposed book interfaces
+
+From the matching layer and book:
+
+- best bid/ask: `best_bid_tick()`, `best_ask_tick()`, `best_ticks()` (book side)
+- spread / mid:
+  - spread from `best_ticks()`
+  - `mid_price()` from reconstructed venue book (`LocalOrderBook`)
+- depth:
+  - `depth_levels(symbol, side, levels=20)`
+  - `best_bid_tick`, `best_ask_tick`
+
+## 2) Event-driven architecture
+
+The simulation loop is driven by a single event queue (`heapq`):
+
+- `decision`  
+  periodic strategy planning event (`mm_requote_ms`)
+- `order_arrival`  
+  delayed by `SIM_ORDER_LATENCY_MS`
+- `order_cancel`  
+  delayed by `SIM_CANCEL_LATENCY_MS`
+- `trade_execution`  
+  generated from `depthUpdate` / `aggTrade` fills and fed through the same event pipeline
+
+Every event is processed in timestamp order, so the book evolves naturally at each market tick.
+
+## 3) Market-making strategy layer
+
+`lob_sim/sim/mm_strategy.py` adds a richer strategy module:
+
+- Quotes at bid/ask around live mid.
+- Spread expands/shrinks with realized short-horizon volatility:
+  - `MM_VOLATILITY_SPREAD_FACTOR`
+  - `MM_VOLATILITY_WINDOW`
+- Inventory skew:
+  - long inventory quotes more cautiously (ask wider / bid lower)
+  - short inventory does the opposite
+  - `MM_SKEW_BPS_PER_UNIT`
+- Queue deterioration controls:
+  - strategy reissues/reposts when queue ahead exceeds `MM_QUEUE_REPOST_LOTS`
+- Integration with engine metrics:
+  - outputs include fill rate, total/realized/unrealized PnL, max queue ahead, adverse fill metrics.
+
+## 4) Experiment suite
+
+`experiments/run_experiments.py` provides reproducible experiment scripts:
+
+- `spread_width_sweep` → effect on PnL / fill rate
+- `inventory_skew_sweep` → adverse selection vs skewing intensity
+- `latency_impact` → queue impact of order/cancel latency
+- `adverse_drift` → adverse-selection rate by mark-out drift regime (up/down)
+
+Run:
 
 ```bash
-cd lob_sim
-pip install -r requirements.txt
-cp .env.example .env
+python -m experiments.run_experiments --file data/raw_*.ndjson --env .env
 ```
 
-## Run
+Each run writes CSV + PNG artifacts into `experiments/output`.
+
+## 5) Matching and data structure docs
+
+### Core matching structures
+
+- `LocalOrderBook` (`lob_sim/book/local_book.py`)  
+  Reconstructed venue book from snapshots/diffs (for true exchange-like best/mid context).
+- `PassiveFillModel` (`lob_sim/sim/fill_model.py`)  
+  Matching/queue layer with FIFO queues per side/price:
+  - `dict[str, dict[str, dict[int, deque[Order]]]]`
+  - per-tick price levels store strategy + venue orders
+- `SimulationEngine` (`lob_sim/sim/engine.py`)  
+  Orchestrates event stream, routes market events into matching, emits decision/arrival/cancel/trade events.
+- `MarketMakingStrategy` (`lob_sim/sim/mm_strategy.py`)  
+  Strategy signal module, independent from execution concerns.
+- `SimulationMetrics` (`lob_sim/sim/metrics.py`)  
+  Tracks fills, PnL, markout/adverse-selection, inventory, queue behavior.
+
+## Architecture (high-level)
+
+```mermaid
+flowchart LR
+  A[Collector / Recorder] --> B[Replay Reader]
+  B --> C[Event Queue]
+  C --> D[SimulationEngine]
+  D --> E[BookSynchronizer]
+  D --> F[PassiveFillModel]
+  D --> G[MarketMakingStrategy]
+  G --> D
+  F --> H[Metrics / Fill Accounting]
+  H --> I[Summary JSON + CSV]
+```
+
+## Limitations and assumptions
+
+- Binance `aggTrade`/`depthUpdate` payloads are sampled/streamed from recorded data; all queue dynamics are reconstructed from this feed.
+- Per-strategy orderbook model is explicit for a single bot per side (`bid/ask`) and focuses on strategy execution quality signals, not full venue participant simulation.
+- Exchange-level queue estimates remain approximate where venue-only quantity changes are coarsely mapped into queue deques.
+
+## Quick run
 
 ```bash
 python -m lob_sim.cli collect
-python -m lob_sim.cli replay --file <path>
-python -m lob_sim.cli simulate --file <path>
+python -m lob_sim.cli replay --file data/raw_....ndjson
+python -m lob_sim.cli simulate --file data/raw_....ndjson
 ```
-
-## Recording format
-
-Each NDJSON row has:
-
-```json
-{
-  "ts_local": float,
-  "symbol": "BTCUSDT",
-  "type": "depthUpdate | aggTrade | snapshot | exchangeInfo",
-  "data": { ... }
-}
-```
-
-- `exchangeInfo` stores per-symbol `{tickSize, stepSize}`.
-- `snapshot` stores top levels from `/fapi/v1/depth` with `lastUpdateId`.
-- `depthUpdate` and `aggTrade` store original websocket payloads.
-
-## Simulation and fill model
-
-- Strategy computes mid from best bid/ask every `MM_REQUOTE_MS`.
-- Bids/asks are quantized to tick size.
-- On each decision cycle:
-  - existing orders are canceled with `SIM_CANCEL_LATENCY_MS`,
-  - new orders are placed with `SIM_ORDER_LATENCY_MS`.
-- For a passive order at level `P`:
-  - queue position initialized from current level size at `P`,
-  - only decreases at that level (and aggressor aggTrades at `P`) consume queue and fills.
-  - size increases at `P` never increase queue-ahead.
-- PnL is mark-to-mid for unrealized and fee-adjusted realized PnL for fills.
-
-## Outputs
-
-Simulation writes:
-- `RECORD_DIR/outputs/summary_<ts>.json`
-- `RECORD_DIR/outputs/trades_<ts>.csv`
