@@ -1,136 +1,203 @@
 # lob_sim
 
-`lob_sim` is a Python research simulator for Binance USD-M futures book/tick replay, explicit event-driven matching, and market-making strategy experiments.
+`lob_sim` is a Python research simulator for:
 
-## What this version covers
+- Binance USD-M futures order-book replay
+- explicit event-driven matching and queue-position modelling
+- market-making strategy experiments
+- an options market-making case study with Greeks, hedging, and PnL decomposition
 
-This repository now demonstrates five concrete capabilities:
+## What the core simulator does
 
-1. Matching engine correctness (tick-time FIFO matching, order types, queue position, partial fills).
-2. Event-driven architecture (order arrival/cancel/trade execution stream).
-3. Market-making strategy layer (dynamic quotes, volatility-based spread, skew, queue-repost controls).
-4. Reproducible experiment scripts (spread width, skew, latency, and drift-oriented adverse-selection runs with charts).
-5. Cleanly documented assumptions, internals, and data structures (with architecture diagram).
+The repo has two related pieces:
 
-## 1) Matching engine correctness
+1. A microstructure simulator for replaying recorded Binance futures depth/trade data and testing a passive market-making strategy.
+2. An options market-maker case study that demonstrates fair value, inventory-aware quoting, risk warehousing, and delta hedging.
 
-`lob_sim/sim/fill_model.py` implements an explicit matching engine model:
+## How the futures simulator works exactly
 
-- Price-time priority is preserved with per-side FIFO deques at each tick level.
-- Supported order types:
-  - `limit` (resting post + passive matching)
-  - `market` (immediate book sweep)
-  - `cancel` (explicit cancel handling from strategy actions)
-- Queue position tracking:
-  - Strategy orders are tracked inside queue levels with explicit `queue_ahead_lots`.
-  - Every fill resolves whether the order was filled from front (`queue_ahead_lots = 0`) or after queue consumption.
-- Partial fills are supported whenever venue sweep quantity is greater than resting depth.
-- Depth changes from replay are applied as level deltas, venue additions/removals are inserted into the matching structure at the correct side and tick.
-- Queue positions and fills evolve tick-by-tick from the replay stream.
+### Data capture
 
-### Exposed book interfaces
+`python -m lob_sim.cli collect` records four message types into NDJSON:
 
-From the matching layer and book:
+- `exchangeInfo`
+- `snapshot`
+- `depthUpdate`
+- `aggTrade`
 
-- best bid/ask: `best_bid_tick()`, `best_ask_tick()`, `best_ticks()` (book side)
-- spread / mid:
-  - spread from `best_ticks()`
-  - `mid_price()` from reconstructed venue book (`LocalOrderBook`)
-- depth:
-  - `depth_levels(symbol, side, levels=20)`
-  - `best_bid_tick`, `best_ask_tick`
+This gives the simulator a deterministic event stream to replay later.
 
-## 2) Event-driven architecture
+### Replay and book reconstruction
 
-The simulation loop is driven by a single event queue (`heapq`):
+`python -m lob_sim.cli replay --file ...` rebuilds the venue book from those files:
 
-- `decision`  
-  periodic strategy planning event (`mm_requote_ms`)
-- `order_arrival`  
-  delayed by `SIM_ORDER_LATENCY_MS`
-- `order_cancel`  
-  delayed by `SIM_CANCEL_LATENCY_MS`
-- `trade_execution`  
-  generated from `depthUpdate` / `aggTrade` fills and fed through the same event pipeline
+- `exchangeInfo` defines tick size and lot size
+- `snapshot` seeds the local book
+- `depthUpdate` applies incremental depth changes
+- `aggTrade` provides actual trade prints
 
-Every event is processed in timestamp order, so the book evolves naturally at each market tick.
+`lob_sim/book/sync.py` enforces diff continuity. If update IDs break, the replay detects a gap.
 
-## 3) Market-making strategy layer
+### Event-driven strategy simulation
 
-`lob_sim/sim/mm_strategy.py` adds a richer strategy module:
+`python -m lob_sim.cli simulate --file ...` runs an event-driven strategy loop in [lob_sim/sim/engine.py](/C:/bitbucket/kibert/lob_sim/lob_sim/sim/engine.py).
 
-- Quotes at bid/ask around live mid.
-- Spread expands/shrinks with realized short-horizon volatility:
-  - `MM_VOLATILITY_SPREAD_FACTOR`
-  - `MM_VOLATILITY_WINDOW`
-- Inventory skew:
-  - long inventory quotes more cautiously (ask wider / bid lower)
-  - short inventory does the opposite
-  - `MM_SKEW_BPS_PER_UNIT`
-- Queue deterioration controls:
-  - strategy reissues/reposts when queue ahead exceeds `MM_QUEUE_REPOST_LOTS`
-- Integration with engine metrics:
-  - outputs include fill rate, total/realized/unrealized PnL, max queue ahead, adverse fill metrics.
+The engine maintains one priority queue of internal events:
 
-## 4) Experiment suite
+- `decision`
+- `order_arrival`
+- `order_cancel`
+- `trade_execution`
 
-`experiments/run_experiments.py` provides reproducible experiment scripts:
+For each replay timestamp, the engine:
 
-- `spread_width_sweep` → effect on PnL / fill rate
-- `inventory_skew_sweep` → adverse selection vs skewing intensity
-- `latency_impact` → queue impact of order/cancel latency
-- `adverse_drift` → adverse-selection rate by mark-out drift regime (up/down)
+1. Drains all internal events due before that timestamp.
+2. Applies the market record to the reconstructed book.
+3. Converts book reductions or trade prints into passive fills in the matching model.
+4. Feeds those fills back through the same event queue as `trade_execution`.
+5. Updates PnL, inventory, markouts, and kill-switch state.
 
-Run:
+This means the book evolves tick by tick, not in batch.
+
+### Matching engine
+
+[lob_sim/sim/fill_model.py](/C:/bitbucket/kibert/lob_sim/lob_sim/sim/fill_model.py) stores price levels as FIFO queues:
+
+- `dict[symbol][side][price_tick] -> deque[Order]`
+
+That gives explicit exchange mechanics:
+
+- price-time priority
+- `limit`, `market`, and `cancel` order handling
+- queue-ahead tracking
+- partial fills
+- best bid / ask lookup
+- depth-level snapshots
+
+Strategy orders and venue liquidity live in the same queue model, so queue position matters directly.
+
+### Strategy layer
+
+[lob_sim/sim/mm_strategy.py](/C:/bitbucket/kibert/lob_sim/lob_sim/sim/mm_strategy.py) decides quotes by:
+
+- reading the live best bid / ask from the local book
+- computing midprice
+- widening spread as short-horizon realized volatility rises
+- skewing quotes when inventory builds
+- canceling and reposting when queue-ahead size deteriorates
+
+### Metrics and outputs
+
+[lob_sim/sim/metrics.py](/C:/bitbucket/kibert/lob_sim/lob_sim/sim/metrics.py) tracks:
+
+- realized and unrealized PnL
+- fill count and fill rate
+- queue-ahead statistics
+- inventory path
+- adverse selection markouts
+- regime performance buckets
+
+Simulation outputs are written as JSON summary plus trade CSV.
+
+## Why the options extension matters
+
+The futures simulator proves exchange and execution understanding. That is useful, but for an options market-making desk it is still incomplete. Traders will want to see that you also understand:
+
+- fair value
+- volatility skew / surface thinking
+- delta, gamma, and vega inventory
+- risk warehousing
+- hedge timing and hedge costs
+- PnL decomposition after customer flow
+
+To make that visible, the repo now includes an options MM case study.
+
+## Options market-making case study
+
+The options layer is implemented in:
+
+- [lob_sim/options/black_scholes.py](/C:/bitbucket/kibert/lob_sim/lob_sim/options/black_scholes.py)
+- [lob_sim/options/surface.py](/C:/bitbucket/kibert/lob_sim/lob_sim/options/surface.py)
+- [lob_sim/options/demo.py](/C:/bitbucket/kibert/lob_sim/lob_sim/options/demo.py)
+- [experiments/run_options_case_study.py](/C:/bitbucket/kibert/lob_sim/experiments/run_options_case_study.py)
+
+It simulates:
+
+- a small option chain across strikes and tenors
+- Black-Scholes fair value and Greeks
+- a skewed implied-vol surface
+- customer option flow
+- inventory-aware reservation pricing
+- delta hedging in the underlying
+- toxic flow / adverse selection
+- decomposition into spread capture, hedge costs, and residual inventory PnL
+
+The output includes:
+
+- `options_mm_summary.json`
+- `options_mm_path.csv`
+- `options_mm_trades.csv`
+- `options_mm_report.png`
+
+## How to run
+
+### Futures replay simulator
 
 ```bash
-python -m experiments.run_experiments --file data/raw_*.ndjson --env .env
+python -m lob_sim.cli --env .env collect
+python -m lob_sim.cli --env .env replay --file data/raw_....ndjson
+python -m lob_sim.cli --env .env simulate --file data/raw_....ndjson
 ```
 
-Each run writes CSV + PNG artifacts into `experiments/output`.
+Windows batch runner:
 
-## 5) Matching and data structure docs
+```bat
+run_futures_scenario.bat
+run_futures_scenario.bat data\raw_....ndjson 5000
+```
 
-### Core matching structures
+### Experiment sweeps
 
-- `LocalOrderBook` (`lob_sim/book/local_book.py`)  
-  Reconstructed venue book from snapshots/diffs (for true exchange-like best/mid context).
-- `PassiveFillModel` (`lob_sim/sim/fill_model.py`)  
-  Matching/queue layer with FIFO queues per side/price:
-  - `dict[str, dict[str, dict[int, deque[Order]]]]`
-  - per-tick price levels store strategy + venue orders
-- `SimulationEngine` (`lob_sim/sim/engine.py`)  
-  Orchestrates event stream, routes market events into matching, emits decision/arrival/cancel/trade events.
-- `MarketMakingStrategy` (`lob_sim/sim/mm_strategy.py`)  
-  Strategy signal module, independent from execution concerns.
-- `SimulationMetrics` (`lob_sim/sim/metrics.py`)  
-  Tracks fills, PnL, markout/adverse-selection, inventory, queue behavior.
+```bash
+python -m experiments.run_experiments --file data/raw_....ndjson --env .env
+```
 
-## Architecture (high-level)
+This writes CSV and PNG files to `experiments/output`.
+
+### Options MM case study
+
+```bash
+python -m lob_sim.cli options-demo --steps 450 --out-dir data/options_demo
+python -m experiments.run_options_case_study --steps 450 --out-dir data/options_demo
+```
+
+Windows batch runner:
+
+```bat
+run_options_mm_case.bat
+run_options_mm_case.bat data\options_demo 450 7 25
+```
+
+Both commands run the same options case study and write the report files above.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-  A[Collector / Recorder] --> B[Replay Reader]
-  B --> C[Event Queue]
-  C --> D[SimulationEngine]
-  D --> E[BookSynchronizer]
-  D --> F[PassiveFillModel]
-  D --> G[MarketMakingStrategy]
-  G --> D
-  F --> H[Metrics / Fill Accounting]
-  H --> I[Summary JSON + CSV]
+  A["Collector / Recorder"] --> B["Replay Reader"]
+  B --> C["BookSynchronizer"]
+  C --> D["LocalOrderBook"]
+  D --> E["SimulationEngine"]
+  E --> F["PassiveFillModel"]
+  E --> G["MarketMakingStrategy"]
+  F --> H["SimulationMetrics"]
+  H --> I["Summary JSON / trade CSV"]
+  E --> J["Options MM case study"]
+  J --> K["Greeks / hedging / PnL report"]
 ```
 
-## Limitations and assumptions
+## Limitations
 
-- Binance `aggTrade`/`depthUpdate` payloads are sampled/streamed from recorded data; all queue dynamics are reconstructed from this feed.
-- Per-strategy orderbook model is explicit for a single bot per side (`bid/ask`) and focuses on strategy execution quality signals, not full venue participant simulation.
-- Exchange-level queue estimates remain approximate where venue-only quantity changes are coarsely mapped into queue deques.
-
-## Quick run
-
-```bash
-python -m lob_sim.cli collect
-python -m lob_sim.cli replay --file data/raw_....ndjson
-python -m lob_sim.cli simulate --file data/raw_....ndjson
-```
+- The futures queue model is explicit but still an approximation of venue-only participant behaviour.
+- The options case study is synthetic rather than venue-calibrated; it is meant to show pricing, inventory, hedging, and risk logic clearly.
+- The repo is strongest as an interview/research artifact rather than a production exchange simulator.

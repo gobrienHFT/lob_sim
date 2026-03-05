@@ -46,6 +46,10 @@ class SimulationEngine:
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
         heappush(self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload))
 
+    def _verbose(self, enabled: bool, message: str) -> None:
+        if enabled:
+            print(message, flush=True)
+
     def _emit_trade_event(self, ts: float, symbol: str, fills: list) -> None:
         if not fills:
             return
@@ -212,17 +216,29 @@ class SimulationEngine:
             elif event.kind == "trade_execution":
                 self._handle_trades(event.payload.get("fills", []))
 
-    def run(self, file_path: str | Path) -> SimulationMetrics:
+    def run(
+        self,
+        file_path: str | Path,
+        verbose: bool = False,
+        progress_every: int = 5000,
+    ) -> SimulationMetrics:
         last_ts = 0.0
+        records_processed = 0
+        self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         for rec in iter_records(file_path):
+            records_processed += 1
             now = float(rec.ts_local)
             if now > last_ts:
                 last_ts = now
 
             self._drain_events(now)
             if rec.type == "exchangeInfo":
-                self._parse_exchange_info(rec)
+                spec = self._parse_exchange_info(rec)
                 self._get_or_create_book(rec.symbol)
+                self._verbose(
+                    verbose,
+                    f"[simulate] loaded symbol={rec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
+                )
                 continue
 
             if rec.symbol not in self._specs:
@@ -246,6 +262,10 @@ class SimulationEngine:
                     rec.symbol,
                     snapshot.bids,
                     snapshot.asks,
+                )
+                self._verbose(
+                    verbose,
+                    f"[simulate] snapshot synced for {rec.symbol} bids={len(snapshot.bids)} asks={len(snapshot.asks)}",
                 )
                 continue
 
@@ -294,6 +314,19 @@ class SimulationEngine:
                 self.metrics.update_unrealized(self._books, now_ts=now)
             if self.metrics.kill_switch_triggered and not self._trading_halted:
                 self._disable_trading()
+                self._verbose(
+                    verbose,
+                    f"[simulate] kill switch triggered: {self.metrics.kill_switch_reason}",
+                )
+
+            if verbose and progress_every > 0 and records_processed % progress_every == 0:
+                total_pnl = float(self.metrics.realized_pnl + self.metrics.unrealized_pnl)
+                self._verbose(
+                    verbose,
+                    f"[simulate] records={records_processed} fills={self.metrics.fill_count} "
+                    f"quotes={self.metrics.quote_count} pnl={total_pnl:.6f} pending_events={len(self._actions)} "
+                    f"last={rec.symbol}:{rec.type}",
+                )
 
         final_ts = last_ts + max(
             self.cfg.mm_requote_ms / 1000.0,
@@ -305,6 +338,15 @@ class SimulationEngine:
         self.metrics.update_unrealized(self._books, now_ts=final_ts)
         if self.metrics.kill_switch_triggered and not self._trading_halted:
             self._disable_trading()
+            self._verbose(
+                verbose,
+                f"[simulate] kill switch triggered at shutdown: {self.metrics.kill_switch_reason}",
+            )
+        self._verbose(
+            verbose,
+            f"[simulate] completed records={records_processed} fills={self.metrics.fill_count} "
+            f"quotes={self.metrics.quote_count}",
+        )
         return self.metrics
 
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[Path, Path, dict]:
@@ -331,10 +373,13 @@ class SimulationEngine:
                     "qty",
                     "maker",
                     "order_id",
+                    "mid_at_fill",
                     "regime",
                     "queue_ahead_lots",
                     "time_in_book_ms",
                     "markout_horizon",
+                    "book_bid_tick",
+                    "book_ask_tick",
                 ],
             )
             writer.writeheader()

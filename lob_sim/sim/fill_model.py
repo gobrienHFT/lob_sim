@@ -239,13 +239,15 @@ class PassiveFillModel:
                 maker_fill=maker_fill,
             )
             fills.extend(fills_level)
-            if not levels[tick]:
+            current_queue = levels.get(tick)
+            if current_queue is None or not current_queue:
                 levels.pop(tick, None)
             if remaining > 0:
                 # Venue liquidity at this level was only partially consumed, so
                 # price-time matching should stop for this side. This protects
                 # from crossing into worse prices too aggressively.
-                if levels[tick] and not levels[tick][0].is_strategy:
+                current_queue = levels.get(tick)
+                if current_queue and not current_queue[0].is_strategy:
                     break
 
         return fills

@@ -16,6 +16,7 @@ from .book.local_book import LocalOrderBook
 from .book.sync import BookSyncGapError, BookSynchronizer
 from .book.types import SnapshotEvent, SymbolSpec
 from .config import Config, load_config
+from .options.demo import OptionsMMConfig, OptionsMarketMakerDemo
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.writer import NDJSONWriter
 from .replay.runner import replay
@@ -62,6 +63,7 @@ async def _collect_symbol(
     initial_bids: list[tuple[int, int]],
     initial_asks: list[tuple[int, int]],
     stop_event: asyncio.Event,
+    verbose: bool = False,
 ) -> None:
     book = LocalOrderBook(symbol=symbol, spec=spec, top_n=config.book_top_n)
     sync = BookSynchronizer(book=book, resync_on_gap=config.resync_on_gap)
@@ -84,6 +86,11 @@ async def _collect_symbol(
             sync.reset()
             snapshot_data = await rest.get_depth_snapshot(symbol, config.snapshot_limit)
             bids, asks = await _write_snapshot(symbol, spec, snapshot_data, writer)
+            if verbose:
+                print(
+                    f"[collect] resynced snapshot for {symbol} last_update_id={snapshot_data['lastUpdateId']}",
+                    flush=True,
+                )
             sync.on_snapshot(
                 SnapshotEvent(
                     symbol=symbol,
@@ -107,12 +114,17 @@ async def _collect_symbol(
         )
 
 
-async def cmd_collect(config: Config) -> None:
+async def cmd_collect(config: Config, verbose: bool = False) -> None:
     random.seed(config.sim_seed)
     config.record_dir.mkdir(parents=True, exist_ok=True)
     timestamp = int(time.time())
     filename = f"raw_{timestamp}.ndjson.gz" if config.record_gzip else f"raw_{timestamp}.ndjson"
     path = config.record_dir / filename
+    if verbose:
+        print(
+            f"[collect] recording {', '.join(config.symbols)} for {config.collect_seconds}s into {path}",
+            flush=True,
+        )
 
     async with BinanceRESTClient(config) as rest:
         exchange = await rest.get_exchange_info()
@@ -132,6 +144,12 @@ async def cmd_collect(config: Config) -> None:
                 )
                 snapshot_data = await rest.get_depth_snapshot(symbol, config.snapshot_limit)
                 bids, asks = await _write_snapshot(symbol, spec, snapshot_data, writer)
+                if verbose:
+                    print(
+                        f"[collect] seeded {symbol} snapshot last_update_id={snapshot_data['lastUpdateId']} "
+                        f"bids={len(bids)} asks={len(asks)}",
+                        flush=True,
+                    )
                 tasks.append(
                     asyncio.create_task(
                         _collect_symbol(
@@ -144,6 +162,7 @@ async def cmd_collect(config: Config) -> None:
                             bids,
                             asks,
                             stop,
+                            verbose,
                         )
                     )
                 )
@@ -151,19 +170,40 @@ async def cmd_collect(config: Config) -> None:
             await asyncio.sleep(config.collect_seconds)
             stop.set()
             await asyncio.gather(*tasks, return_exceptions=True)
+    if verbose:
+        print(f"[collect] completed recording to {path}", flush=True)
 
 
-def cmd_replay(config: Config, file: str) -> None:
-    res = replay(file, config)
+def cmd_replay(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
+    res = replay(file, config, verbose=verbose, progress_every=progress_every)
     print("Replay complete")
     print(f"Events: {res.events_processed}, depth events: {res.depth_events}, gap count: {res.gap_count}")
     print(f"Rate: {res.events_per_sec:.2f} events/sec")
 
 
-def cmd_simulate(config: Config, file: str) -> None:
+def cmd_simulate(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
     engine = SimulationEngine(config)
-    metrics = engine.run(file)
-    _, _, summary = engine.write_outputs(file, metrics)
+    metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
+    summary_path, trades_path, summary = engine.write_outputs(file, metrics)
+    if verbose:
+        print(f"[simulate] summary written to {summary_path}", flush=True)
+        print(f"[simulate] trades written to {trades_path}", flush=True)
+    print(json.dumps(summary, indent=2))
+
+
+def cmd_options_demo(
+    out_dir: str,
+    steps: int,
+    seed: int,
+    verbose: bool = False,
+    progress_every: int = 25,
+) -> None:
+    options_cfg = OptionsMMConfig(steps=steps, seed=seed)
+    summary = OptionsMarketMakerDemo(options_cfg).run(
+        Path(out_dir),
+        verbose=verbose,
+        progress_every=progress_every,
+    )
     print(json.dumps(summary, indent=2))
 
 
@@ -176,20 +216,41 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     c = sub.add_parser("collect")
+    c.add_argument("--verbose", action="store_true")
     c.set_defaults(func=cmd_collect)
 
     r = sub.add_parser("replay")
     r.add_argument("--file", required=True)
+    r.add_argument("--verbose", action="store_true")
+    r.add_argument("--progress-every", type=int, default=5000)
     r.set_defaults(func=cmd_replay)
 
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
+    s.add_argument("--verbose", action="store_true")
+    s.add_argument("--progress-every", type=int, default=5000)
     s.set_defaults(func=cmd_simulate)
 
+    o = sub.add_parser("options-demo")
+    o.add_argument("--out-dir", default="data/options_demo")
+    o.add_argument("--steps", type=int, default=450)
+    o.add_argument("--seed", type=int, default=7)
+    o.add_argument("--verbose", action="store_true")
+    o.add_argument("--progress-every", type=int, default=25)
+    o.set_defaults(func=cmd_options_demo)
+
     args = parser.parse_args()
+    if args.command == "options-demo":
+        args.func(args.out_dir, args.steps, args.seed, args.verbose, args.progress_every)
+        return
+
     cfg = load_config(args.env)
     if args.command == "collect":
-        asyncio.run(args.func(cfg))
+        asyncio.run(args.func(cfg, args.verbose))
+    elif args.command == "replay":
+        args.func(cfg, args.file, args.verbose, args.progress_every)
+    elif args.command == "simulate":
+        args.func(cfg, args.file, args.verbose, args.progress_every)
     else:
         args.func(cfg, args.file)
 

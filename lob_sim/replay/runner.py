@@ -40,7 +40,12 @@ def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, 
     )
 
 
-def replay(path: str | Path, config: Config | None = None) -> ReplayResult:
+def replay(
+    path: str | Path,
+    config: Config | None = None,
+    verbose: bool = False,
+    progress_every: int = 5000,
+) -> ReplayResult:
     path = Path(path)
     start = time.perf_counter()
     symbols: Dict[str, SymbolSpec] = {}
@@ -51,6 +56,9 @@ def replay(path: str | Path, config: Config | None = None) -> ReplayResult:
     events_processed = 0
     depth_events = 0
     gap_count = 0
+
+    if verbose:
+        print(f"[replay] starting replay for {path}", flush=True)
 
     for rec in iter_records(path):
         events_processed += 1
@@ -64,6 +72,11 @@ def replay(path: str | Path, config: Config | None = None) -> ReplayResult:
                 syncers[symbol] = BookSynchronizer(
                     LocalOrderBook(symbol=symbol, spec=symbols[symbol], top_n=top_n),
                     resync_on_gap=resync,
+                )
+            if verbose:
+                print(
+                    f"[replay] loaded symbol={symbol} tick_size={tick_size} step_size={step_size}",
+                    flush=True,
                 )
             continue
 
@@ -111,6 +124,13 @@ def replay(path: str | Path, config: Config | None = None) -> ReplayResult:
             except BookSyncGapError:
                 gap_count += 1
                 logger.warning("Gap while replaying %s", rec.symbol)
+
+        if verbose and progress_every > 0 and events_processed % progress_every == 0:
+            print(
+                f"[replay] events={events_processed} depth={depth_events} gaps={gap_count} "
+                f"last={rec.symbol}:{rec.type}",
+                flush=True,
+            )
 
     elapsed = time.perf_counter() - start
     events_per_sec = events_processed / elapsed if elapsed > 0 else 0.0
