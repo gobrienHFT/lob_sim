@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import json
 import math
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
 
@@ -18,6 +21,28 @@ def to_decimal(value: Any) -> Decimal:
 
 def decimal_to_float(value: Decimal) -> float:
     return float(value)
+
+
+def _csv_cell(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Path):
+        return str(value)
+    return json.dumps(value, sort_keys=True)
+
+
+def write_summary_csv(path: Path, summary: dict[str, Any], exclude_keys: set[str] | None = None) -> None:
+    excluded = exclude_keys or set()
+    row = {key: _csv_cell(value) for key, value in summary.items() if key not in excluded}
+    if not row:
+        return
+
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row.keys()))
+        writer.writeheader()
+        writer.writerow(row)
 
 
 @dataclass

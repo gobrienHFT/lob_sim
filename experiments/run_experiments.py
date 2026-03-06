@@ -22,7 +22,7 @@ def _run_once(cfg, file_path: str, overrides: dict) -> dict:
     runtime_cfg = replace(cfg, **overrides)
     engine = SimulationEngine(runtime_cfg)
     metrics = engine.run(file_path)
-    _, _, summary = engine.write_outputs(file_path, metrics)
+    _, summary = engine.write_outputs(file_path, metrics)
     return summary
 
 

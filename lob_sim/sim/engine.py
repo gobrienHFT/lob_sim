@@ -14,6 +14,7 @@ from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SnapshotEvent, SymbolSpec
 from ..config import Config
 from ..replay.reader import RecordedEvent, iter_records
+from ..util import write_summary_csv
 from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy
@@ -349,18 +350,26 @@ class SimulationEngine:
         )
         return self.metrics
 
-    def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[Path, Path, dict]:
+    def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
         summary = metrics.get_summary(self._books)
         output_dir = self.cfg.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(file_path).stem.replace(".ndjson", "")
         summary_path = output_dir / f"summary_{stem}.json"
+        summary_csv_path = output_dir / f"summary_{stem}.csv"
         trades_path = output_dir / f"trades_{stem}.csv"
+        output_files = {
+            "summary": summary_path,
+            "summary_csv": summary_csv_path,
+            "trades": trades_path,
+        }
+        summary["output_files"] = {name: str(path) for name, path in output_files.items()}
 
         with open(summary_path, "w", encoding="utf-8") as fh:
             import json
 
             json.dump(summary, fh, indent=2)
+        write_summary_csv(summary_csv_path, summary, exclude_keys={"fills", "markout_events"})
 
         with open(trades_path, "w", encoding="utf-8", newline="") as csv_file:
             writer = csv.DictWriter(
@@ -385,4 +394,4 @@ class SimulationEngine:
             writer.writeheader()
             for row in summary.get("fills", []):
                 writer.writerow(row)
-        return summary_path, trades_path, summary
+        return output_files, summary

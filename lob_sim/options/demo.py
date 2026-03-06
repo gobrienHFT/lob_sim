@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from math import exp, log, sqrt
 from pathlib import Path
 import csv
@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from .black_scholes import OptionContract, OptionGreeks, option_metrics
 from .surface import SimpleVolSurface
+from ..util import write_summary_csv
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,12 @@ class Quote:
     implied_vol: float
     reservation: float
     half_spread: float
+    realized_vol: float
+    delta_reservation_component: float
+    vega_reservation_component: float
+    base_half_spread: float
+    vol_half_spread_component: float
+    gamma_half_spread_component: float
     greeks: OptionGreeks
 
 
@@ -161,15 +168,14 @@ class OptionsMarketMakerDemo:
             option_type=contract.option_type,
         )
         realized_vol = self._realized_vol()
-        reservation = (
-            (risk.delta * greeks.delta * self.cfg.delta_reservation_mult)
-            + (risk.vega * greeks.vega * self.cfg.vega_reservation_mult)
-        )
+        delta_reservation_component = risk.delta * greeks.delta * self.cfg.delta_reservation_mult
+        vega_reservation_component = risk.vega * greeks.vega * self.cfg.vega_reservation_mult
+        reservation = delta_reservation_component + vega_reservation_component
+        vol_half_spread_component = realized_vol * self.cfg.realized_vol_spread_mult
+        gamma_half_spread_component = abs(risk.gamma) * self.cfg.gamma_spread_mult
         half_spread = max(
             self.cfg.min_half_spread,
-            self.cfg.base_half_spread
-            + (realized_vol * self.cfg.realized_vol_spread_mult)
-            + (abs(risk.gamma) * self.cfg.gamma_spread_mult),
+            self.cfg.base_half_spread + vol_half_spread_component + gamma_half_spread_component,
         )
         bid = max(0.01, greeks.price - half_spread - reservation)
         ask = max(bid + 0.01, greeks.price + half_spread - reservation)
@@ -180,6 +186,12 @@ class OptionsMarketMakerDemo:
             implied_vol=implied_vol,
             reservation=reservation,
             half_spread=half_spread,
+            realized_vol=realized_vol,
+            delta_reservation_component=delta_reservation_component,
+            vega_reservation_component=vega_reservation_component,
+            base_half_spread=self.cfg.base_half_spread,
+            vol_half_spread_component=vol_half_spread_component,
+            gamma_half_spread_component=gamma_half_spread_component,
             greeks=greeks,
         )
 
@@ -200,9 +212,9 @@ class OptionsMarketMakerDemo:
         log_return = diffusion + jump + (directional_edge * self.cfg.toxic_flow_drift)
         return max(1.0, spot * exp(log_return))
 
-    def _hedge(self, spot: float, step: int) -> tuple[float, PortfolioRisk]:
-        risk = self._portfolio_risk(spot, step)
+    def _hedge(self, spot: float, step: int, risk: PortfolioRisk) -> tuple[float, float, PortfolioRisk]:
         hedge_qty = 0.0
+        hedge_cost = 0.0
         if abs(risk.delta) > self.cfg.hedge_threshold_delta:
             hedge_qty = -float(round(risk.delta))
             if hedge_qty != 0.0:
@@ -210,10 +222,11 @@ class OptionsMarketMakerDemo:
                 hedge_price = spot * (1.0 + slippage if hedge_qty > 0 else 1.0 - slippage)
                 self.stock_position += hedge_qty
                 self.cash -= hedge_qty * hedge_price
-                self.hedge_costs += abs(hedge_qty) * spot * slippage
+                hedge_cost = abs(hedge_qty) * spot * slippage
+                self.hedge_costs += hedge_cost
                 self.hedge_count += 1
                 risk = self._portfolio_risk(spot, step)
-        return hedge_qty, risk
+        return hedge_qty, hedge_cost, risk
 
     def _write_csv(self, path: Path, rows: list[dict]) -> None:
         if not rows:
@@ -255,6 +268,76 @@ class OptionsMarketMakerDemo:
         plt.savefig(path)
         plt.close(fig)
 
+    def _write_walkthrough(self, path: Path, summary: dict) -> None:
+        output_files = summary["output_files"]
+        config = asdict(self.cfg)
+        lines = [
+            "# Options MM demo walkthrough",
+            "",
+            "## What this run shows",
+            "- A synthetic 30-contract option chain across strikes and tenors.",
+            "- Black-Scholes fair values on a skewed implied-vol surface.",
+            "- Inventory-aware quoting via reservation pricing.",
+            "- Spread widening as realized volatility and portfolio gamma rise.",
+            "- Toxic customer flow causing adverse one-step markouts.",
+            "- Delta hedging once absolute portfolio delta breaches the threshold.",
+            "",
+            "## Core quote logic",
+            "`bid = fair_value - half_spread - reservation`",
+            "`ask = fair_value + half_spread - reservation`",
+            "",
+            "Reservation is split into two components written to the trade CSV:",
+            "- `delta_reservation_component`: inventory pressure from portfolio delta times option delta.",
+            "- `vega_reservation_component`: inventory pressure from portfolio vega times option vega.",
+            "",
+            "Half-spread is split into three components written to the trade CSV:",
+            "- `base_half_spread`: baseline option spread.",
+            "- `vol_half_spread_component`: extra width when realized vol rises.",
+            "- `gamma_half_spread_component`: extra width when short gamma risk increases.",
+            "",
+            "## How to explain a trade row",
+            "1. Start with `fair_value`, `implied_vol`, and the option Greeks.",
+            "2. Show how `reservation` shifts the quote because the book already has delta and vega risk.",
+            "3. Show how the final fill occurs at `ask` when the customer buys and at `bid` when the customer sells.",
+            "4. Explain `spread_capture_pnl` versus `mm_markout_1_step`: realized edge at the trade versus adverse selection one step later.",
+            "5. Explain `hedge_qty` and `hedge_cost` as the cost of keeping spot delta within the risk budget.",
+            "",
+            "## Best live-demo sequence",
+            "1. Start with `options_mm_config.csv` to show the knobs and assumptions.",
+            "2. Open `options_mm_trades.csv` and walk through one trade line in detail.",
+            "3. Open `options_mm_path.csv` and connect delta, gamma, vega, and PnL through time.",
+            "4. Finish with `options_mm_summary.csv` and `options_mm_report.png` for the headline results.",
+            "",
+            "## Strong points to make",
+            "- The goal is not to be perfectly hedged at all times; it is to warehouse option risk intelligently and hedge only when it is worth paying for liquidity.",
+            "- Reservation pricing is the mechanism that turns inventory into quote skew.",
+            "- One-step markout is the adverse-selection check: spread capture is meaningless if the option was mispriced against informed flow.",
+            "- The model is deliberately transparent: every quote component is exposed in CSV so the pricing logic can be audited.",
+            "",
+            "## Honest limitations",
+            "- Flow is synthetic rather than calibrated to a real options venue.",
+            "- Hedging is delta-only in the underlying; gamma and vega are warehoused rather than cross-hedged with other options.",
+            "- There is no explicit options order book or queue model yet; this is a dealer-pricing and risk-management study.",
+            "",
+            "## Current run configuration",
+        ]
+        for key, value in config.items():
+            lines.append(f"- `{key}`: `{value}`")
+
+        lines.extend(
+            [
+                "",
+                "## Output files",
+                f"- Summary JSON: `{output_files['summary']}`",
+                f"- Summary CSV: `{output_files['summary_csv']}`",
+                f"- Config CSV: `{output_files['config_csv']}`",
+                f"- Path CSV: `{output_files['path']}`",
+                f"- Trades CSV: `{output_files['trades']}`",
+                f"- Plot PNG: `{output_files['plot']}`",
+            ]
+        )
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
     def run(
         self,
         out_dir: Path,
@@ -267,6 +350,17 @@ class OptionsMarketMakerDemo:
             print(
                 f"[options] starting case study steps={self.cfg.steps} contracts={len(self.contracts)} "
                 f"seed={self.cfg.seed} out_dir={out_dir}",
+                flush=True,
+            )
+            print(
+                "[options] quote = fair +/- spread - reservation; "
+                "spread = base + realized-vol premium + gamma premium; "
+                "reservation = delta pressure + vega pressure",
+                flush=True,
+            )
+            print(
+                f"[options] hedge when |portfolio delta| > {self.cfg.hedge_threshold_delta:.1f} shares; "
+                "toxic flow biases the next spot move to test adverse selection",
                 flush=True,
             )
 
@@ -289,22 +383,26 @@ class OptionsMarketMakerDemo:
                 customer_side = "buy" if rng.random() < 0.5 else "sell"
                 toxic = rng.random() < self.cfg.toxic_flow_prob
                 quote = self._quote(spot, step, contract, risk_before)
+                option_position_before = self.option_positions[contract.symbol]
+                stock_position_before = self.stock_position
                 mm_position_change = -qty if customer_side == "buy" else qty
                 fill_price = quote.ask if customer_side == "buy" else quote.bid
                 self.option_positions[contract.symbol] += mm_position_change
                 self.cash -= mm_position_change * fill_price * self.cfg.contract_size
                 self.trade_count += 1
+                risk_after_trade = self._portfolio_risk(spot, step)
 
                 spread_edge = (
                     fill_price - quote.fair_value
                     if customer_side == "buy"
                     else quote.fair_value - fill_price
                 )
-                self.spread_capture_pnl += spread_edge * qty * self.cfg.contract_size
+                spread_capture_pnl = spread_edge * qty * self.cfg.contract_size
+                self.spread_capture_pnl += spread_capture_pnl
                 if toxic:
                     directional_edge = self._economic_direction(customer_side, quote.greeks)
 
-                hedge_qty, risk_after_trade = self._hedge(spot, step)
+                hedge_qty, hedge_cost, risk_after_hedge = self._hedge(spot, step, risk_after_trade)
                 next_spot = self._evolve_spot(spot, rng, directional_edge)
                 next_remaining = self._remaining_years(contract, step + 1)
                 next_vol = self.surface.implied_vol(next_spot, contract, next_remaining)
@@ -334,8 +432,15 @@ class OptionsMarketMakerDemo:
                         "strike": contract.strike,
                         "expiry_days": round(next_remaining * 252.0, 2),
                         "customer_side": customer_side,
+                        "mm_side": "sell" if customer_side == "buy" else "buy",
                         "qty_contracts": qty,
+                        "mm_position_change_contracts": mm_position_change,
+                        "option_position_before": option_position_before,
+                        "option_position_after": self.option_positions[contract.symbol],
                         "toxic_flow": toxic,
+                        "toxic_flow_direction": (
+                            "up" if directional_edge > 0 else "down" if directional_edge < 0 else "flat"
+                        ),
                         "spot_before": round(spot, 6),
                         "spot_after": round(next_spot, 6),
                         "fair_value": round(quote.fair_value, 6),
@@ -343,19 +448,45 @@ class OptionsMarketMakerDemo:
                         "ask": round(quote.ask, 6),
                         "fill_price": round(fill_price, 6),
                         "implied_vol": round(quote.implied_vol, 6),
+                        "realized_vol": round(quote.realized_vol, 6),
                         "reservation": round(quote.reservation, 6),
+                        "delta_reservation_component": round(quote.delta_reservation_component, 6),
+                        "vega_reservation_component": round(quote.vega_reservation_component, 6),
                         "half_spread": round(quote.half_spread, 6),
+                        "base_half_spread": round(quote.base_half_spread, 6),
+                        "vol_half_spread_component": round(quote.vol_half_spread_component, 6),
+                        "gamma_half_spread_component": round(quote.gamma_half_spread_component, 6),
+                        "spread_edge_per_contract": round(spread_edge, 6),
+                        "spread_capture_pnl": round(spread_capture_pnl, 6),
+                        "option_delta": round(quote.greeks.delta, 6),
+                        "option_gamma": round(quote.greeks.gamma, 6),
+                        "option_vega": round(quote.greeks.vega, 6),
                         "portfolio_delta_before": round(risk_before.delta, 6),
+                        "portfolio_gamma_before": round(risk_before.gamma, 6),
+                        "portfolio_vega_before": round(risk_before.vega, 6),
                         "portfolio_delta_after_trade": round(risk_after_trade.delta, 6),
+                        "portfolio_gamma_after_trade": round(risk_after_trade.gamma, 6),
+                        "portfolio_vega_after_trade": round(risk_after_trade.vega, 6),
+                        "stock_position_before": round(stock_position_before, 6),
                         "hedge_qty": round(hedge_qty, 6),
+                        "hedge_cost": round(hedge_cost, 6),
+                        "stock_position_after_hedge": round(self.stock_position, 6),
+                        "portfolio_delta_after_hedge": round(risk_after_hedge.delta, 6),
                         "mm_markout_1_step": round(mm_markout, 6),
+                        "mm_markout_1_step_per_contract": round(mm_markout / max(qty, 1), 6),
                     }
                 )
                 if verbose:
                     print(
                         f"[options] step={step + 1} trade {customer_side} {qty}x {contract.symbol} "
-                        f"toxic={toxic} fair={quote.fair_value:.3f} bid={quote.bid:.3f} ask={quote.ask:.3f} "
-                        f"fill={fill_price:.3f} hedge={hedge_qty:.0f}",
+                        f"toxic={toxic} fair={quote.fair_value:.3f} fill={fill_price:.3f} "
+                        f"spread={quote.half_spread:.3f} "
+                        f"(base={quote.base_half_spread:.3f} vol={quote.vol_half_spread_component:.3f} "
+                        f"gamma={quote.gamma_half_spread_component:.3f}) "
+                        f"reservation={quote.reservation:.3f} "
+                        f"(delta={quote.delta_reservation_component:.3f} vega={quote.vega_reservation_component:.3f}) "
+                        f"delta {risk_before.delta:.1f}->{risk_after_trade.delta:.1f}->{risk_after_hedge.delta:.1f} "
+                        f"hedge={hedge_qty:.0f} hedge_cost={hedge_cost:.2f} markout={mm_markout:.2f}",
                         flush=True,
                     )
             else:
@@ -381,8 +512,13 @@ class OptionsMarketMakerDemo:
                     "portfolio_delta": round(risk_now.delta, 6),
                     "portfolio_gamma": round(risk_now.gamma, 6),
                     "portfolio_vega": round(risk_now.vega, 6),
+                    "realized_vol": round(self._realized_vol(), 6),
                     "cash": round(self.cash, 6),
                     "total_pnl": round(equity, 6),
+                    "trade_count": self.trade_count,
+                    "hedge_count": self.hedge_count,
+                    "spread_capture_pnl": round(self.spread_capture_pnl, 6),
+                    "hedge_costs": round(self.hedge_costs, 6),
                 }
             )
             if verbose and progress_every > 0 and ((step + 1) % progress_every == 0 or step + 1 == self.cfg.steps):
@@ -429,24 +565,38 @@ class OptionsMarketMakerDemo:
         }
 
         summary_path = out_dir / "options_mm_summary.json"
+        summary_csv_path = out_dir / "options_mm_summary.csv"
+        config_path = out_dir / "options_mm_config.json"
+        config_csv_path = out_dir / "options_mm_config.csv"
         path_path = out_dir / "options_mm_path.csv"
         trades_path = out_dir / "options_mm_trades.csv"
         plot_path = out_dir / "options_mm_report.png"
+        walkthrough_path = out_dir / "options_mm_walkthrough.md"
         summary["output_files"] = {
             "summary": str(summary_path),
+            "summary_csv": str(summary_csv_path),
+            "config": str(config_path),
+            "config_csv": str(config_csv_path),
             "path": str(path_path),
             "trades": str(trades_path),
             "plot": str(plot_path),
+            "walkthrough": str(walkthrough_path),
         }
 
         with summary_path.open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, indent=2)
+        with config_path.open("w", encoding="utf-8") as handle:
+            json.dump(asdict(self.cfg), handle, indent=2)
+        write_summary_csv(summary_csv_path, summary)
+        write_summary_csv(config_csv_path, asdict(self.cfg))
         self._write_csv(path_path, self.path_rows)
         self._write_csv(trades_path, self.trade_rows)
         self._write_plot(plot_path)
+        self._write_walkthrough(walkthrough_path, summary)
         if verbose:
             print(
-                f"[options] completed total_pnl={total_pnl:.2f} trades={self.trade_count} hedges={self.hedge_count}",
+                f"[options] completed total_pnl={total_pnl:.2f} trades={self.trade_count} hedges={self.hedge_count} "
+                f"walkthrough={walkthrough_path}",
                 flush=True,
             )
         return summary

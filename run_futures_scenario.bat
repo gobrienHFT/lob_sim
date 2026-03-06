@@ -26,13 +26,21 @@ echo [futures] Simulating %FILE%
 python -u -m lob_sim.cli --env "%ENV_FILE%" simulate --file "%FILE%" --verbose --progress-every %PROGRESS_EVERY%
 if errorlevel 1 goto fail
 
-echo [futures] Finished. Inspect data\outputs for JSON and CSV outputs.
-exit /b 0
+echo [futures] Finished. Open data\outputs in Excel for summary_*.csv and trades_*.csv files.
+set "EXIT_CODE=0"
+goto end
 
 :nofile
 echo [futures] Unable to locate replay file in data\raw_*.ndjson*
-exit /b 2
+set "EXIT_CODE=2"
+goto end
 
 :fail
 echo [futures] Command failed. Check output above.
-exit /b 1
+set "EXIT_CODE=1"
+goto end
+
+:end
+echo.
+pause
+exit /b %EXIT_CODE%

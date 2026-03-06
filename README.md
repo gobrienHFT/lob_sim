@@ -135,9 +135,15 @@ It simulates:
 The output includes:
 
 - `options_mm_summary.json`
+- `options_mm_summary.csv`
+- `options_mm_config.json`
+- `options_mm_config.csv`
 - `options_mm_path.csv`
 - `options_mm_trades.csv`
 - `options_mm_report.png`
+- `options_mm_walkthrough.md`
+
+If you are using the options run as a demo artifact, read [docs/options_mm_demo_guide.md](/C:/bitbucket/kibert/lob_sim/docs/options_mm_demo_guide.md) first. It gives a clean talk track, explains the quote formula, and tells you which files to open in what order.
 
 ## How to run
 

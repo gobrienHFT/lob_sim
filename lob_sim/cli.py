@@ -184,10 +184,11 @@ def cmd_replay(config: Config, file: str, verbose: bool = False, progress_every:
 def cmd_simulate(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
     engine = SimulationEngine(config)
     metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
-    summary_path, trades_path, summary = engine.write_outputs(file, metrics)
+    output_files, summary = engine.write_outputs(file, metrics)
     if verbose:
-        print(f"[simulate] summary written to {summary_path}", flush=True)
-        print(f"[simulate] trades written to {trades_path}", flush=True)
+        print(f"[simulate] summary written to {output_files['summary']}", flush=True)
+        print(f"[simulate] summary CSV written to {output_files['summary_csv']}", flush=True)
+        print(f"[simulate] trades written to {output_files['trades']}", flush=True)
     print(json.dumps(summary, indent=2))
 
 
