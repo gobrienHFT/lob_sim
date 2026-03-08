@@ -8,12 +8,14 @@ set "STEPS=360"
 set "SEED=7"
 set "PROGRESS_EVERY=60"
 set "SCENARIO=calm_market"
+set "LOG_MODE=compact"
 
 if not "%~1"=="" set "OUT_DIR=%~1"
 if not "%~2"=="" set "STEPS=%~2"
 if not "%~3"=="" set "SEED=%~3"
 if not "%~4"=="" set "PROGRESS_EVERY=%~4"
 if not "%~5"=="" set "SCENARIO=%~5"
+if not "%~6"=="" set "LOG_MODE=%~6"
 
 call :banner
 call :check_python
@@ -27,20 +29,20 @@ echo [options] Steps: %STEPS%
 echo [options] Seed: %SEED%
 echo [options] Output folder: %OUT_DIR%
 echo [options] Guide: docs\options_mm_demo_guide.md
-echo [options] Screen-share flow: terminal wrap-up -> latest_summary.txt -> latest_trades.csv -> latest_pnl.csv -> latest_report.png
+echo [options] Screen-share flow: terminal summary -> demo_report.md -> fills.csv -> pnl_timeseries.csv -> pnl_over_time.png
 echo.
 
-python -u -m lob_sim.cli options-demo --out-dir "%OUT_DIR%" --steps %STEPS% --seed %SEED% --scenario %SCENARIO% --verbose --progress-every %PROGRESS_EVERY%
+python -u -m lob_sim.cli options-demo --out-dir "%OUT_DIR%" --steps %STEPS% --seed %SEED% --scenario %SCENARIO% --verbose --progress-every %PROGRESS_EVERY% --log-mode %LOG_MODE%
 if errorlevel 1 goto fail
 
 echo.
 echo [options] Run complete.
 echo [options] Screen-share order:
-echo [options]   1. %OUT_DIR%\latest_summary.txt
-echo [options]   2. %OUT_DIR%\latest_trades.csv
-echo [options]   3. %OUT_DIR%\latest_pnl.csv
-echo [options]   4. %OUT_DIR%\latest_report.png
-echo [options]   5. %OUT_DIR%\options_mm_walkthrough.md
+echo [options]   1. %OUT_DIR%\demo_report.md
+echo [options]   2. %OUT_DIR%\fills.csv
+echo [options]   3. %OUT_DIR%\pnl_timeseries.csv
+echo [options]   4. %OUT_DIR%\checkpoints.csv
+echo [options]   5. %OUT_DIR%\pnl_over_time.png
 set "EXIT_CODE=0"
 goto end
 

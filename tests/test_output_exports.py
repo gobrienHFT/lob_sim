@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import replace
 from decimal import Decimal
 import os
 from pathlib import Path
 
+import pytest
+
 from lob_sim.config import Config, load_config
 from lob_sim.options.demo import (
     OptionsMarketMakerDemo,
     build_options_config,
-    format_interview_summary,
-    format_terminal_wrapup,
+    format_brief_summary,
+    format_terminal_summary,
 )
+from lob_sim.options.markout import signed_markout
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.util import write_summary_csv
 
@@ -131,68 +135,85 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
     assert rows[0]["symbol"] == "BTCUSDT"
 
 
-def test_options_demo_writes_summary_csv(tmp_path: Path, monkeypatch):
-    def _write_plot_stub(self, path: Path) -> None:
-        path.write_bytes(b"")
+def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
+    def _write_plots_stub(self, out_dir: Path) -> dict[str, str]:
+        names = {
+            "pnl_over_time_plot": "pnl_over_time.png",
+            "realized_vs_unrealized_plot": "realized_vs_unrealized.png",
+            "spot_path_plot": "spot_path.png",
+            "inventory_over_time_plot": "inventory_over_time.png",
+            "net_delta_over_time_plot": "net_delta_over_time.png",
+            "markout_distribution_plot": "markout_distribution.png",
+            "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
+            "top_traded_contracts_plot": "top_traded_contracts.png",
+        }
+        paths: dict[str, str] = {}
+        for key, name in names.items():
+            path = out_dir / name
+            path.write_bytes(b"")
+            paths[key] = str(path)
+        return paths
 
-    monkeypatch.setattr(OptionsMarketMakerDemo, "_write_plot", _write_plot_stub)
-    summary = OptionsMarketMakerDemo(build_options_config(steps=8, seed=3, scenario="toxic_flow")).run(tmp_path)
+    monkeypatch.setattr(OptionsMarketMakerDemo, "_write_plots", _write_plots_stub)
+    summary = OptionsMarketMakerDemo(build_options_config(steps=8, seed=3, scenario="toxic_flow")).run(
+        tmp_path,
+        progress_every=4,
+    )
 
-    summary_csv = tmp_path / "options_mm_summary.csv"
-    config_csv = tmp_path / "options_mm_config.csv"
-    walkthrough = tmp_path / "options_mm_walkthrough.md"
-    trades_csv = tmp_path / "options_mm_trades.csv"
-    latest_summary = tmp_path / "latest_summary.txt"
-    latest_trades = tmp_path / "latest_trades.csv"
-    latest_pnl = tmp_path / "latest_pnl.csv"
-    latest_report = tmp_path / "latest_report.png"
-    assert summary_csv.exists()
-    assert config_csv.exists()
-    assert walkthrough.exists()
-    assert trades_csv.exists()
-    assert latest_summary.exists()
-    assert latest_trades.exists()
-    assert latest_pnl.exists()
-    assert latest_report.exists()
-    assert summary["output_files"]["summary_csv"] == str(summary_csv)
-    assert summary["output_files"]["config_csv"] == str(config_csv)
-    assert summary["output_files"]["walkthrough"] == str(walkthrough)
-    assert summary["output_files"]["latest_summary"] == str(latest_summary)
+    summary_json = tmp_path / "summary.json"
+    report_md = tmp_path / "demo_report.md"
+    fills_csv = tmp_path / "fills.csv"
+    checkpoints_csv = tmp_path / "checkpoints.csv"
+    pnl_timeseries_csv = tmp_path / "pnl_timeseries.csv"
+    positions_csv = tmp_path / "positions_final.csv"
+    pnl_plot = tmp_path / "pnl_over_time.png"
 
-    with summary_csv.open("r", encoding="utf-8", newline="") as handle:
-        row = next(csv.DictReader(handle))
+    assert summary_json.exists()
+    assert report_md.exists()
+    assert fills_csv.exists()
+    assert checkpoints_csv.exists()
+    assert pnl_timeseries_csv.exists()
+    assert positions_csv.exists()
+    assert pnl_plot.exists()
 
-    assert row["trade_count"] == str(summary["trade_count"])
-    assert "summary_csv" in row["output_files"]
-    assert "realized_pnl" in row
-    assert "avg_half_spread" in row
+    with summary_json.open("r", encoding="utf-8") as handle:
+        summary_on_disk = json.load(handle)
 
-    with trades_csv.open("r", encoding="utf-8", newline="") as handle:
-        trade_row = next(csv.DictReader(handle))
+    assert summary_on_disk["scenario"] == "toxic_flow"
+    assert summary_on_disk["output_files"]["fills"] == str(fills_csv)
+    assert summary["output_files"]["report"] == str(report_md)
+    assert summary_on_disk["markout_definition"].startswith("Signed markout")
 
-    assert "delta_reservation_component" in trade_row
-    assert "gamma_half_spread_component" in trade_row
-    assert "portfolio_delta_after_hedge" in trade_row
+    with fills_csv.open("r", encoding="utf-8", newline="") as handle:
+        fill_row = next(csv.DictReader(handle))
 
-    assert "Core quote logic" in walkthrough.read_text(encoding="utf-8")
-    latest_summary_text = latest_summary.read_text(encoding="utf-8")
-    assert "Options market making case study" in latest_summary_text
-    assert "Inventory and hedging" in latest_summary_text
+    assert "spot_before" in fill_row
+    assert "signed_markout" in fill_row
+    assert "markout_reference_fair_value" in fill_row
+    assert "comment_flag" in fill_row
 
-    with latest_trades.open("r", encoding="utf-8", newline="") as handle:
-        latest_trade_row = next(csv.DictReader(handle))
+    with checkpoints_csv.open("r", encoding="utf-8", newline="") as handle:
+        checkpoint_row = next(csv.DictReader(handle))
 
-    assert "option_position_after" in latest_trade_row
-    assert "portfolio_delta_before" in latest_trade_row
+    assert "ending_pnl" in checkpoint_row
+    assert "net_delta" in checkpoint_row
+    assert "total_signed_markout" in checkpoint_row
 
-    with latest_pnl.open("r", encoding="utf-8", newline="") as handle:
-        latest_pnl_row = next(csv.DictReader(handle))
+    with pnl_timeseries_csv.open("r", encoding="utf-8", newline="") as handle:
+        pnl_row = next(csv.DictReader(handle))
 
-    assert "stock_position" in latest_pnl_row
-    assert "hedge_costs" in latest_pnl_row
+    assert "spot" in pnl_row
+    assert "ending_pnl" in pnl_row
+    assert "inventory_contracts" in pnl_row
+    assert "net_delta" in pnl_row
+
+    report_text = report_md.read_text(encoding="utf-8")
+    assert "Options market making case study" in report_text
+    assert "Markout definition" in report_text
+    assert "Glossary" in report_text
 
 
-def test_options_presets_and_interview_summary():
+def test_options_presets_and_summary_helpers():
     calm = build_options_config(steps=12, seed=1, scenario="calm_market")
     toxic = build_options_config(steps=12, seed=1, scenario="toxic_flow")
 
@@ -202,20 +223,49 @@ def test_options_presets_and_interview_summary():
     summary = {
         "scenario": toxic.scenario_name,
         "scenario_description": toxic.scenario_description,
-        "total_pnl": 12.5,
+        "seed": toxic.seed,
+        "steps": toxic.steps,
+        "spot_start": 100.0,
+        "spot_final": 101.5,
+        "ending_pnl": 12.5,
         "realized_pnl": 9.0,
         "unrealized_pnl": 3.5,
-        "avg_half_spread": 0.12,
-        "hedge_trade_count": 4,
+        "gross_spread_captured": 14.2,
+        "hedge_costs": 1.2,
+        "total_signed_markout": -4.0,
+        "average_signed_markout": -0.5,
+        "avg_toxic_markout": -1.4,
+        "avg_non_toxic_markout": 0.6,
         "toxic_fill_count": 6,
-        "adverse_fill_rate_1_step": 0.55,
-        "max_abs_contract_position": 9,
-        "final_delta_exposure": 18.0,
+        "toxic_fill_rate": 0.55,
+        "adverse_fill_count": 4,
+        "adverse_fill_rate": 0.36,
+        "avg_abs_delta_before_hedge": 110.0,
+        "hedge_trigger_delta": 100.0,
+        "hedge_trade_count": 4,
+        "max_inventory_contracts": 9,
+        "max_single_contract_position": 5,
+        "worst_drawdown": 18.5,
+        "best_single_trade_markout": 6.0,
+        "worst_single_trade_markout": -8.5,
+        "final_net_delta": 18.0,
+        "final_net_vega": 4.5,
+        "markout_horizon_label": "1-step",
+        "most_traded_contracts": [
+            {"contract": "CALL_100.00_14D", "trade_count": 4, "signed_contract_qty": -2}
+        ],
     }
-    text = format_interview_summary(summary)
-    assert "Options MM interview mode" in text
-    assert "Interpretation:" in text
+    brief = format_brief_summary(summary)
+    assert "Options MM quick summary" in brief
+    assert "Adverse fills" in brief
+    assert "Interpretation" in brief
 
-    wrapup = format_terminal_wrapup(summary)
-    assert "OPTIONS MM RUN WRAP-UP" in wrapup
-    assert "Inventory and hedging" in wrapup
+    terminal = format_terminal_summary(summary)
+    assert "RUN SUMMARY" in terminal
+    assert "Markout definition" in terminal
+    assert "Most traded contracts" in terminal
+
+
+def test_signed_markout_sign_convention():
+    assert signed_markout("buy", 4.0, 4.2, 2, 100) == pytest.approx(40.0)
+    assert signed_markout("sell", 4.2, 4.4, 2, 100) == pytest.approx(-40.0)

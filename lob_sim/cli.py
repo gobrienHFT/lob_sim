@@ -20,7 +20,12 @@ from .options.demo import (
     DEFAULT_OPTIONS_SCENARIO,
     OptionsMarketMakerDemo,
     build_options_config,
-    format_interview_summary,
+    format_artifact_paths,
+    format_brief_summary,
+    format_run_intro,
+    format_scenario_card,
+    format_terminal_summary,
+    scenario_card,
     options_scenarios,
 )
 from .record.format import NDJSONRecord, snapshot_payload
@@ -206,19 +211,29 @@ def cmd_options_demo(
     verbose: bool = False,
     progress_every: int = 25,
     brief: bool = False,
+    log_mode: str = "compact",
 ) -> None:
     options_cfg = build_options_config(steps=steps, seed=seed, scenario=scenario)
+    out_path = Path(out_dir)
+    if not brief:
+        print(format_run_intro(options_cfg, out_path, log_mode))
+        print()
+        print(format_scenario_card(scenario_card(scenario)))
+        print()
     summary = OptionsMarketMakerDemo(options_cfg).run(
-        Path(out_dir),
+        out_path,
         verbose=verbose,
         progress_every=progress_every,
+        log_mode=log_mode,
     )
     if brief:
-        print(format_interview_summary(summary))
+        print(format_brief_summary(summary))
+        print()
+        print(format_artifact_paths(summary))
         return
-    if verbose:
-        return
-    print(json.dumps(summary, indent=2))
+    print(format_terminal_summary(summary))
+    print()
+    print(format_artifact_paths(summary))
 
 
 def main() -> None:
@@ -253,11 +268,21 @@ def main() -> None:
     o.add_argument("--verbose", action="store_true")
     o.add_argument("--progress-every", type=int, default=25)
     o.add_argument("--brief", action="store_true")
+    o.add_argument("--log-mode", choices=("compact", "verbose"), default="compact")
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
     if args.command == "options-demo":
-        args.func(args.out_dir, args.steps, args.seed, args.scenario, args.verbose, args.progress_every, args.brief)
+        args.func(
+            args.out_dir,
+            args.steps,
+            args.seed,
+            args.scenario,
+            args.verbose,
+            args.progress_every,
+            args.brief,
+            args.log_mode,
+        )
         return
 
     cfg = load_config(args.env)
