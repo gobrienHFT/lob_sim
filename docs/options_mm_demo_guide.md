@@ -16,12 +16,12 @@ That command runs the synthetic options dealer case study in [lob_sim/options/de
 
 ## Best live-demo order
 
-1. Start with `options_mm_config.csv`.
+1. Start with `latest_summary.txt`.
 2. Explain the quote formula.
-3. Open `options_mm_trades.csv` and walk through one trade row carefully.
-4. Open `options_mm_path.csv` and explain how inventory and risk evolve through time.
-5. Finish with `options_mm_summary.csv` and `options_mm_report.png`.
-6. Use `options_mm_walkthrough.md` for the run-specific explanation if you want a written crib sheet.
+3. Open `latest_trades.csv` and walk through one trade row carefully.
+4. Open `latest_pnl.csv` and explain how realized/unrealized PnL, inventory, and delta evolve through time.
+5. Finish with `latest_report.png`.
+6. Use `options_mm_walkthrough.md` and `options_mm_config.csv` when you want the fuller detail.
 
 ## The core quote formula
 
@@ -39,7 +39,7 @@ Explain each term precisely:
 
 ## How to explain one trade row
 
-Use one row from `options_mm_trades.csv` and walk left to right:
+Use one row from `latest_trades.csv` and walk left to right:
 
 - `contract`, `option_type`, `strike`, `expiry_days`: what is being quoted.
 - `fair_value`, `implied_vol`, `option_delta`, `option_gamma`, `option_vega`: how the option is valued and what risk it carries.
@@ -88,3 +88,8 @@ There is no explicit options exchange matching engine. This is primarily a deale
 - The pricing formula is decomposed into understandable parts.
 - The PnL is broken into spread capture, hedge costs, and residual inventory effects.
 - You can explain both the strengths and the limitations without hand-waving.
+
+## Quick run options
+
+- `run_options_mm_case.bat`: fuller case-study run with richer progress output.
+- `run_options_mm_interview_mode.bat`: fast preset with only the most important metrics and a short interpretation.

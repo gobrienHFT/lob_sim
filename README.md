@@ -1,11 +1,13 @@
 # lob_sim
 
-`lob_sim` is a Python research simulator for:
+`lob_sim` is a Python research repo for:
 
 - Binance USD-M futures order-book replay
 - explicit event-driven matching and queue-position modelling
 - market-making strategy experiments
-- an options market-making case study with Greeks, hedging, and PnL decomposition
+- an options market-making case study with Greeks, hedging, toxic flow, and PnL decomposition
+
+The repo is not meant to be production infrastructure. It is meant to show trader-relevant thinking in a way that is easy to run, inspect, and explain.
 
 ## What the core simulator does
 
@@ -130,7 +132,8 @@ It simulates:
 - inventory-aware reservation pricing
 - delta hedging in the underlying
 - toxic flow / adverse selection
-- decomposition into spread capture, hedge costs, and residual inventory PnL
+- decomposition into realized and unrealized PnL
+- scenario presets for calm, volatile, toxic, and inventory-stress regimes
 
 The output includes:
 
@@ -142,6 +145,10 @@ The output includes:
 - `options_mm_trades.csv`
 - `options_mm_report.png`
 - `options_mm_walkthrough.md`
+- `latest_summary.txt`
+- `latest_trades.csv`
+- `latest_pnl.csv`
+- `latest_report.png`
 
 If you are using the options run as a demo artifact, read [docs/options_mm_demo_guide.md](/C:/bitbucket/kibert/lob_sim/docs/options_mm_demo_guide.md) first. It gives a clean talk track, explains the quote formula, and tells you which files to open in what order.
 
@@ -173,18 +180,55 @@ This writes CSV and PNG files to `experiments/output`.
 ### Options MM case study
 
 ```bash
-python -m lob_sim.cli options-demo --steps 450 --out-dir data/options_demo
-python -m experiments.run_options_case_study --steps 450 --out-dir data/options_demo
+python -m lob_sim.cli options-demo --scenario calm_market --steps 360 --out-dir outputs
+python -m experiments.run_options_case_study --scenario toxic_flow --steps 360 --out-dir outputs
 ```
 
 Windows batch runner:
 
 ```bat
 run_options_mm_case.bat
-run_options_mm_case.bat data\options_demo 450 7 25
+run_options_mm_case.bat outputs 360 7 40 calm_market
+run_options_mm_interview_mode.bat
+run_options_mm_interview_mode.bat toxic_flow outputs 180 7
 ```
 
-Both commands run the same options case study and write the report files above.
+Both commands run the same options case study. The normal launcher gives the fuller walkthrough. The interview-mode launcher runs a fast preset and prints only the highest-signal metrics plus a short interpretation.
+
+## One-click demo flow
+
+If you want the cleanest interview-friendly run on Windows:
+
+1. Double-click `run_options_mm_case.bat`.
+2. Wait for the case study to finish.
+3. Open `outputs/latest_summary.txt`.
+4. Open `outputs/latest_trades.csv`.
+5. Open `outputs/latest_pnl.csv`.
+6. Open `outputs/latest_report.png`.
+
+If you want a fast high-level run first, use `run_options_mm_interview_mode.bat`.
+
+## Options MM concepts demonstrated
+
+The options demo is designed to make these points easy to explain:
+
+- fair value is set from Black-Scholes on a skewed vol surface
+- quotes are shifted by reservation pricing when delta and vega inventory build
+- spreads widen when realized vol or gamma risk increases
+- toxic flow is tracked through one-step markout / adverse selection
+- hedge trades reduce delta when the book breaches its risk threshold
+- PnL is split into realized edge and unrealized inventory effects
+
+## What to pay attention to in the outputs
+
+Open these files in order:
+
+- `latest_summary.txt`: the clean headline view of total PnL, realized/unrealized PnL, hedge trades, toxic fills, max position, and final delta exposure
+- `latest_trades.csv`: trade-by-trade view of fair value, spread capture, toxic flow, hedges, and markout
+- `latest_pnl.csv`: path of realized PnL, unrealized PnL, total PnL, inventory, and delta through time
+- `latest_report.png`: quick chart of PnL, delta, and inventory path
+
+The richer files (`options_mm_summary.csv`, `options_mm_trades.csv`, `options_mm_path.csv`, `options_mm_walkthrough.md`) are there when you want more detail.
 
 ## Architecture
 

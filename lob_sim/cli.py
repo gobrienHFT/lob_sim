@@ -16,7 +16,13 @@ from .book.local_book import LocalOrderBook
 from .book.sync import BookSyncGapError, BookSynchronizer
 from .book.types import SnapshotEvent, SymbolSpec
 from .config import Config, load_config
-from .options.demo import OptionsMMConfig, OptionsMarketMakerDemo
+from .options.demo import (
+    DEFAULT_OPTIONS_SCENARIO,
+    OptionsMarketMakerDemo,
+    build_options_config,
+    format_interview_summary,
+    options_scenarios,
+)
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.writer import NDJSONWriter
 from .replay.runner import replay
@@ -196,15 +202,22 @@ def cmd_options_demo(
     out_dir: str,
     steps: int,
     seed: int,
+    scenario: str,
     verbose: bool = False,
     progress_every: int = 25,
+    brief: bool = False,
 ) -> None:
-    options_cfg = OptionsMMConfig(steps=steps, seed=seed)
+    options_cfg = build_options_config(steps=steps, seed=seed, scenario=scenario)
     summary = OptionsMarketMakerDemo(options_cfg).run(
         Path(out_dir),
         verbose=verbose,
         progress_every=progress_every,
     )
+    if brief:
+        print(format_interview_summary(summary))
+        return
+    if verbose:
+        return
     print(json.dumps(summary, indent=2))
 
 
@@ -233,16 +246,18 @@ def main() -> None:
     s.set_defaults(func=cmd_simulate)
 
     o = sub.add_parser("options-demo")
-    o.add_argument("--out-dir", default="data/options_demo")
+    o.add_argument("--out-dir", default="outputs")
     o.add_argument("--steps", type=int, default=450)
     o.add_argument("--seed", type=int, default=7)
+    o.add_argument("--scenario", choices=options_scenarios(), default=DEFAULT_OPTIONS_SCENARIO)
     o.add_argument("--verbose", action="store_true")
     o.add_argument("--progress-every", type=int, default=25)
+    o.add_argument("--brief", action="store_true")
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
     if args.command == "options-demo":
-        args.func(args.out_dir, args.steps, args.seed, args.verbose, args.progress_every)
+        args.func(args.out_dir, args.steps, args.seed, args.scenario, args.verbose, args.progress_every, args.brief)
         return
 
     cfg = load_config(args.env)
