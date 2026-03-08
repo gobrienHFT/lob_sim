@@ -2,4 +2,64 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
-call "%~dp0run_options_mm_quick.bat" %*
+
+set "OUT_DIR=outputs"
+set "SCENARIO=toxic_flow"
+set "STEPS=180"
+set "SEED=7"
+
+if not "%~1"=="" set "SCENARIO=%~1"
+if not "%~2"=="" set "OUT_DIR=%~2"
+if not "%~3"=="" set "STEPS=%~3"
+if not "%~4"=="" set "SEED=%~4"
+
+echo =============================================================
+echo   Options MM Interview Mode
+echo   Concise run, brief, and clear screen-share order
+echo =============================================================
+
+where python >nul 2>nul
+if errorlevel 1 goto missing_python
+
+python -c "import matplotlib; import lob_sim.cli" >nul 2>nul
+if errorlevel 1 goto missing_deps
+
+echo [options] Scenario: %SCENARIO%
+echo [options] Steps: %STEPS%
+echo [options] Seed: %SEED%
+echo [options] Output folder: %OUT_DIR%
+echo.
+
+python -u -m lob_sim.cli options-demo --out-dir "%OUT_DIR%" --steps %STEPS% --seed %SEED% --scenario %SCENARIO% --brief --interview-mode
+if errorlevel 1 goto fail
+
+echo.
+echo [options] Screen-share order:
+echo [options]   1. %OUT_DIR%\interview_brief.md
+echo [options]   2. %OUT_DIR%\demo_report.md
+echo [options]   3. %OUT_DIR%\pnl_over_time.png
+echo [options]   4. %OUT_DIR%\inventory_over_time.png
+echo [options]   5. %OUT_DIR%\fills.csv
+echo [options] Open %OUT_DIR%\interview_brief.md first.
+set "EXIT_CODE=0"
+goto end
+
+:missing_python
+echo [options] Python was not found on PATH.
+set "EXIT_CODE=1"
+goto end
+
+:missing_deps
+echo [options] Python dependencies are missing.
+echo [options] Run: pip install -r requirements.txt
+set "EXIT_CODE=1"
+goto end
+
+:fail
+echo [options] Launch failed. See the messages above.
+set "EXIT_CODE=1"
+
+:end
+echo.
+pause
+exit /b %EXIT_CODE%

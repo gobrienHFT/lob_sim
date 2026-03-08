@@ -1,5 +1,2 @@
-aiohttp>=3.9
-websockets>=12.0
-python-dotenv>=1.0
-pytest>=8.0
-matplotlib>=3.9
+# Compatibility shim for launchers and quick local setup.
+-e .[dev]

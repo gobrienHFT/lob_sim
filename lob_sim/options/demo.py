@@ -332,6 +332,161 @@ def format_brief_summary(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_metric_table(rows: list[tuple[str, str]]) -> list[str]:
+    lines = [
+        "| Metric | Value |",
+        "|---|---:|",
+    ]
+    lines.extend(f"| {label} | {value} |" for label, value in rows)
+    return lines
+
+
+def _select_worked_fill(trade_rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not trade_rows:
+        return None
+    toxic_hedged = [
+        row for row in trade_rows if bool(row.get("toxic_flow")) and abs(float(row.get("hedge_qty", 0.0))) > 0.0
+    ]
+    if toxic_hedged:
+        return max(toxic_hedged, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
+    hedged = [row for row in trade_rows if abs(float(row.get("hedge_qty", 0.0))) > 0.0]
+    if hedged:
+        return max(hedged, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
+    return max(trade_rows, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
+
+
+def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] | None) -> str:
+    takeaways = [
+        (
+            f"Gross spread capture was {summary['gross_spread_captured']:.2f} while signed markout was "
+            f"{summary['total_signed_markout']:.2f}, so the run makes quoted edge versus adverse selection explicit."
+        ),
+        (
+            f"Inventory peaked at {summary['max_inventory_contracts']} contracts and triggered "
+            f"{summary['hedge_trade_count']} hedge trades, so warehousing risk is visible rather than hidden."
+        ),
+        (
+            f"The book finished with net delta {summary['final_net_delta']:.2f} and net vega "
+            f"{summary['final_net_vega']:.2f}, which shows delta control without pretending the book is fully hedged."
+        ),
+    ]
+    limitations = [
+        "This is a synthetic dealer study, not a replay of exchange options order-book data.",
+        "The strategy only hedges delta in the underlying; gamma and vega are intentionally warehoused.",
+        "The volatility surface and customer flow are transparent approximations, not venue-calibrated models.",
+    ]
+    next_steps = [
+        "Calibrate the implied-vol surface and customer-flow assumptions from real market data.",
+        "Add cross-option hedging so gamma and vega can be managed with listed options, not just underlying delta hedges.",
+        "Build a separate live options market-data recorder if venue microstructure realism becomes the primary goal.",
+    ]
+    executive_summary = [
+        f"- Scenario `{summary['scenario']}` with seed `{summary['seed']}` over `{summary['steps']}` steps.",
+        (
+            f"- Ending PnL `{summary['ending_pnl']:.2f}` with realized `{summary['realized_pnl']:.2f}` "
+            f"and unrealized `{summary['unrealized_pnl']:.2f}`."
+        ),
+        (
+            f"- Toxic fills were `{summary['toxic_fill_count']}` (`{summary['toxic_fill_rate']:.1%}`) and total "
+            f"signed markout at `{summary['markout_horizon_label']}` was `{summary['total_signed_markout']:.2f}`."
+        ),
+        (
+            f"- Hedge trades were `{summary['hedge_trade_count']}` with max inventory `{summary['max_inventory_contracts']}` "
+            f"and final net delta `{summary['final_net_delta']:.2f}`."
+        ),
+        f"- Readout: {_summary_interpretation(summary)[0]}",
+    ]
+    metric_rows = _format_metric_table(
+        [
+            ("Ending PnL", f"{summary['ending_pnl']:.2f}"),
+            ("Realized PnL", f"{summary['realized_pnl']:.2f}"),
+            ("Unrealized PnL", f"{summary['unrealized_pnl']:.2f}"),
+            ("Gross spread captured", f"{summary['gross_spread_captured']:.2f}"),
+            ("Signed markout", f"{summary['total_signed_markout']:.2f}"),
+            ("Toxic fill rate", f"{summary['toxic_fill_rate']:.1%}"),
+            ("Hedge trades", str(summary["hedge_trade_count"])),
+            ("Max inventory", str(summary["max_inventory_contracts"])),
+            ("Worst drawdown", f"{summary['worst_drawdown']:.2f}"),
+            ("Final net delta", f"{summary['final_net_delta']:.2f}"),
+            ("Final net vega", f"{summary['final_net_vega']:.2f}"),
+        ]
+    )
+    lines = [
+        "# Options MM interview brief",
+        "",
+        "## Executive summary",
+        *executive_summary,
+        "",
+        "## Metrics",
+        *metric_rows,
+        "",
+        "## Strongest takeaways",
+        *(f"- {item}" for item in takeaways),
+        "",
+        "## Key limitations",
+        *(f"- {item}" for item in limitations),
+        "",
+        "## Worked fill example",
+        "Selected directly from `fills.csv`.",
+    ]
+    if worked_fill is None:
+        lines.append("- No fills were recorded in this run.")
+    else:
+        lines.extend(
+            [
+                "| Field | Value |",
+                "|---|---|",
+                f"| Step | {worked_fill['step']} |",
+                f"| Underlying spot | {float(worked_fill['spot_before']):.2f} |",
+                f"| Contract | {worked_fill['contract']} |",
+                f"| Customer side | {worked_fill['customer_side']} |",
+                f"| Dealer side | {worked_fill['mm_side']} |",
+                f"| Quantity | {worked_fill['qty_contracts']} |",
+                f"| Fair value | {float(worked_fill['fair_value']):.3f} |",
+                f"| Quoted market | {float(worked_fill['bid']):.3f} / {float(worked_fill['ask']):.3f} |",
+                f"| Fill price | {float(worked_fill['fill_price']):.3f} |",
+                f"| Toxic flow | {worked_fill['toxic_flow']} |",
+                f"| Signed markout | {float(worked_fill['signed_markout']):+.2f} |",
+                f"| Delta after trade -> after hedge | {float(worked_fill['portfolio_delta_after_trade']):.1f} -> {float(worked_fill['portfolio_delta_after_hedge']):.1f} |",
+                f"| Hedge trade | {float(worked_fill['hedge_qty']):+.0f} |",
+                f"| Position after trade | {worked_fill['option_position_after']} |",
+                f"| Comment flag | {worked_fill['comment_flag']} |",
+                "",
+                "Interpretation:",
+                (
+                    f"- The dealer {worked_fill['mm_side']}s `{worked_fill['qty_contracts']}` lot(s) of "
+                    f"`{worked_fill['contract']}` against a customer `{worked_fill['customer_side']}`."
+                ),
+                (
+                    f"- The fill printed at `{float(worked_fill['fill_price']):.3f}` versus fair value "
+                    f"`{float(worked_fill['fair_value']):.3f}`, then produced signed markout "
+                    f"`{float(worked_fill['signed_markout']):+.2f}` at `{worked_fill['effective_markout_horizon_label']}`."
+                ),
+                (
+                    f"- Delta moved from `{float(worked_fill['portfolio_delta_after_trade']):.1f}` to "
+                    f"`{float(worked_fill['portfolio_delta_after_hedge']):.1f}` after a hedge of "
+                    f"`{float(worked_fill['hedge_qty']):+.0f}` underlying units."
+                ),
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## What I would build next",
+            *(f"- {item}" for item in next_steps),
+            "",
+            "## Files to open next",
+            f"- `interview_brief.md`: {summary['output_files']['interview_brief']}",
+            f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
+            f"- `demo_report.md`: {summary['output_files']['report']}",
+            f"- `fills.csv`: {summary['output_files']['fills']}",
+            f"- `pnl_timeseries.csv`: {summary['output_files']['pnl_timeseries']}",
+            f"- `pnl_over_time.png`: {summary['output_files']['pnl_over_time_plot']}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def format_demo_report(summary: dict[str, Any]) -> str:
     lines = [
         "# Options market making case study",
@@ -428,6 +583,7 @@ def format_demo_report(summary: dict[str, Any]) -> str:
             *_format_top_contracts(summary),
             "",
             "## Suggested artifact reading order",
+            f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
             f"- `demo_report.md`: {summary['output_files']['report']}",
             f"- `fills.csv`: {summary['output_files']['fills']}",
             f"- `pnl_timeseries.csv`: {summary['output_files']['pnl_timeseries']}",
@@ -452,24 +608,29 @@ def format_demo_report(summary: dict[str, Any]) -> str:
             f"- PnL timeseries CSV: `{summary['output_files']['pnl_timeseries']}`",
             f"- Final positions CSV: `{summary['output_files']['positions_final']}`",
             f"- Report Markdown: `{summary['output_files']['report']}`",
+            f"- Overview dashboard: `{summary['output_files']['overview_dashboard_plot']}`",
         ]
     )
     return "\n".join(lines) + "\n"
 
 
 def format_artifact_paths(summary: dict[str, Any]) -> str:
-    return "\n".join(
+    lines = ["Artifacts"]
+    if "interview_brief" in summary["output_files"]:
+        lines.append(f"- Interview brief: {summary['output_files']['interview_brief']}")
+    lines.extend(
         [
-            "Artifacts",
             f"- Report: {summary['output_files']['report']}",
             f"- Summary JSON: {summary['output_files']['summary']}",
             f"- Fills CSV: {summary['output_files']['fills']}",
             f"- Checkpoints CSV: {summary['output_files']['checkpoints']}",
             f"- PnL timeseries CSV: {summary['output_files']['pnl_timeseries']}",
             f"- Final positions CSV: {summary['output_files']['positions_final']}",
+            f"- Overview dashboard: {summary['output_files']['overview_dashboard_plot']}",
             f"- PnL chart: {summary['output_files']['pnl_over_time_plot']}",
         ]
     )
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -498,6 +659,11 @@ class Quote:
 
 
 class OptionsMarketMakerDemo:
+    _TITLE_FONT_SIZE = 14
+    _AXIS_LABEL_FONT_SIZE = 11
+    _TICK_LABEL_FONT_SIZE = 9
+    _LEGEND_FONT_SIZE = 9
+
     def __init__(self, cfg: OptionsMMConfig) -> None:
         self.cfg = cfg
         self.surface = SimpleVolSurface()
@@ -753,6 +919,27 @@ class OptionsMarketMakerDemo:
             if rows:
                 writer.writerows(rows)
 
+    def _style_axes(
+        self,
+        ax: plt.Axes,
+        *,
+        title: str,
+        xlabel: str,
+        ylabel: str,
+        legend: bool = False,
+        legend_loc: str = "best",
+        zero_line: bool = False,
+    ) -> None:
+        ax.set_title(title, fontsize=self._TITLE_FONT_SIZE, pad=10)
+        ax.set_xlabel(xlabel, fontsize=self._AXIS_LABEL_FONT_SIZE)
+        ax.set_ylabel(ylabel, fontsize=self._AXIS_LABEL_FONT_SIZE)
+        ax.tick_params(axis="both", labelsize=self._TICK_LABEL_FONT_SIZE)
+        ax.grid(True, alpha=0.25)
+        if zero_line:
+            ax.axhline(0.0, color="black", linewidth=1)
+        if legend:
+            ax.legend(loc=legend_loc, fontsize=self._LEGEND_FONT_SIZE, frameon=False)
+
     def _save_line_plot(
         self,
         path: Path,
@@ -764,12 +951,14 @@ class OptionsMarketMakerDemo:
         fig, ax = plt.subplots(figsize=(10, 4.8))
         for label, values, color in series:
             ax.plot(x, values, label=label, color=color, linewidth=2)
-        ax.set_title(title)
-        ax.set_xlabel("Step")
-        ax.set_ylabel(ylabel)
-        ax.grid(True, alpha=0.25)
-        if len(series) > 1:
-            ax.legend(loc="best")
+        self._style_axes(
+            ax,
+            title=title,
+            xlabel="Step",
+            ylabel=ylabel,
+            legend=len(series) > 1,
+            zero_line=any(any(value < 0.0 for value in values) for _, values, _ in series),
+        )
         fig.tight_layout()
         fig.savefig(path, dpi=140)
         plt.close(fig)
@@ -778,9 +967,7 @@ class OptionsMarketMakerDemo:
         fig, ax = plt.subplots(figsize=(8.5, 4.8))
         data = values or [0.0]
         ax.hist(data, bins=min(20, max(5, len(data))), color="tab:blue", alpha=0.8, edgecolor="white")
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel("Count")
+        self._style_axes(ax, title=title, xlabel=xlabel, ylabel="Count", zero_line=False)
         ax.grid(True, axis="y", alpha=0.25)
         fig.tight_layout()
         fig.savefig(path, dpi=140)
@@ -800,28 +987,87 @@ class OptionsMarketMakerDemo:
             labels = ["none"]
             values = [0.0]
         ax.bar(labels, values, color=color, alpha=0.85)
-        ax.set_title(title)
-        ax.set_ylabel(ylabel)
+        self._style_axes(ax, title=title, xlabel="", ylabel=ylabel)
         ax.grid(True, axis="y", alpha=0.25)
-        ax.tick_params(axis="x", rotation=20)
+        ax.tick_params(axis="x", rotation=20, labelsize=self._TICK_LABEL_FONT_SIZE)
         fig.tight_layout()
         fig.savefig(path, dpi=140)
         plt.close(fig)
 
     def _save_markout_comparison(self, path: Path) -> None:
+        fig, ax = plt.subplots(figsize=(7.5, 4.8))
+        self._render_markout_comparison_axis(ax)
+        fig.tight_layout()
+        fig.savefig(path, dpi=140)
+        plt.close(fig)
+
+    def _render_markout_comparison_axis(self, ax: plt.Axes) -> None:
         labels = ["toxic", "non-toxic"]
         values = [
             self._average(self.toxic_markout_sum, self.toxic_markout_count),
             self._average(self.non_toxic_markout_sum, self.non_toxic_markout_count),
         ]
         colors = ["tab:red", "tab:green"]
-        fig, ax = plt.subplots(figsize=(7.5, 4.8))
         ax.bar(labels, values, color=colors, alpha=0.85)
-        ax.axhline(0.0, color="black", linewidth=1)
-        ax.set_title("Average signed markout by flow type")
-        ax.set_ylabel("Signed markout")
+        self._style_axes(
+            ax,
+            title="Average Signed Markout by Flow Type",
+            xlabel="Flow type",
+            ylabel="Signed markout",
+            zero_line=True,
+        )
         ax.grid(True, axis="y", alpha=0.25)
-        fig.tight_layout()
+
+    def _save_overview_dashboard(
+        self,
+        path: Path,
+        steps: list[int],
+        ending_pnl: list[float],
+        inventory: list[float],
+        net_delta: list[float],
+    ) -> None:
+        fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+        fig.suptitle(
+            f"Options MM overview dashboard ({self.cfg.scenario_name})",
+            fontsize=self._TITLE_FONT_SIZE + 2,
+        )
+
+        pnl_ax = axes[0, 0]
+        pnl_ax.plot(steps, ending_pnl, color="tab:green", linewidth=2, label="Ending PnL")
+        self._style_axes(
+            pnl_ax,
+            title="Ending PnL Over Time",
+            xlabel="Step",
+            ylabel="PnL",
+            legend=True,
+            zero_line=any(value < 0.0 for value in ending_pnl),
+        )
+
+        inventory_ax = axes[0, 1]
+        inventory_ax.plot(steps, inventory, color="tab:purple", linewidth=2, label="Abs option inventory")
+        self._style_axes(
+            inventory_ax,
+            title="Inventory Over Time",
+            xlabel="Step",
+            ylabel="Contracts",
+            legend=True,
+        )
+
+        delta_ax = axes[1, 0]
+        delta_ax.plot(steps, net_delta, color="tab:red", linewidth=2, label="Net delta")
+        self._style_axes(
+            delta_ax,
+            title="Net Delta Over Time",
+            xlabel="Step",
+            ylabel="Delta",
+            legend=True,
+            zero_line=True,
+        )
+
+        markout_ax = axes[1, 1]
+        self._render_markout_comparison_axis(markout_ax)
+
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
         fig.savefig(path, dpi=140)
         plt.close(fig)
 
@@ -845,6 +1091,7 @@ class OptionsMarketMakerDemo:
             "markout_distribution_plot": out_dir / "markout_distribution.png",
             "toxic_vs_nontoxic_plot": out_dir / "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": out_dir / "top_traded_contracts.png",
+            "overview_dashboard_plot": out_dir / "overview_dashboard.png",
         }
 
         self._save_line_plot(
@@ -852,7 +1099,7 @@ class OptionsMarketMakerDemo:
             steps,
             [("Ending PnL", ending_pnl, "tab:green")],
             ylabel="PnL",
-            title=f"Ending PnL over time ({self.cfg.scenario_name})",
+            title=f"Ending PnL Over Time ({self.cfg.scenario_name})",
         )
         self._save_line_plot(
             paths["realized_vs_unrealized_plot"],
@@ -862,33 +1109,33 @@ class OptionsMarketMakerDemo:
                 ("Unrealized PnL", unrealized_pnl, "tab:orange"),
             ],
             ylabel="PnL",
-            title="Realized vs unrealized PnL",
+            title="Realized and Unrealized PnL Over Time",
         )
         self._save_line_plot(
             paths["spot_path_plot"],
             steps,
             [("Underlying spot", spot, "tab:brown")],
             ylabel="Spot",
-            title="Underlying spot path",
+            title="Underlying Spot Over Time",
         )
         self._save_line_plot(
             paths["inventory_over_time_plot"],
             steps,
             [("Abs option inventory", inventory, "tab:purple")],
             ylabel="Contracts",
-            title="Inventory over time",
+            title="Inventory Over Time",
         )
         self._save_line_plot(
             paths["net_delta_over_time_plot"],
             steps,
             [("Net delta", net_delta, "tab:red")],
             ylabel="Delta",
-            title="Net delta over time",
+            title="Net Delta Over Time",
         )
         self._save_histogram(
             paths["markout_distribution_plot"],
             markouts,
-            title=f"Signed markout distribution ({markout_horizon_label(self.cfg.markout_horizon_steps)})",
+            title=f"Signed Markout Distribution ({markout_horizon_label(self.cfg.markout_horizon_steps)})",
             xlabel="Signed markout",
         )
         self._save_markout_comparison(paths["toxic_vs_nontoxic_plot"])
@@ -896,9 +1143,16 @@ class OptionsMarketMakerDemo:
             paths["top_traded_contracts_plot"],
             [item[0] for item in top_contracts],
             [float(item[1]) for item in top_contracts],
-            title="Top traded contracts by fill count",
+            title="Top Traded Contracts by Fill Count",
             ylabel="Fills",
             color="tab:cyan",
+        )
+        self._save_overview_dashboard(
+            paths["overview_dashboard_plot"],
+            steps,
+            ending_pnl,
+            inventory,
+            net_delta,
         )
 
         return {key: str(value) for key, value in paths.items()}
@@ -1149,6 +1403,7 @@ class OptionsMarketMakerDemo:
         verbose: bool = False,
         progress_every: int = 25,
         log_mode: str = "compact",
+        interview_mode: bool = False,
     ) -> dict[str, Any]:
         rng = random.Random(self.cfg.seed)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -1344,6 +1599,8 @@ class OptionsMarketMakerDemo:
             "positions_final": str(out_dir / "positions_final.csv"),
             "report": str(out_dir / "demo_report.md"),
         }
+        if interview_mode:
+            output_files["interview_brief"] = str(out_dir / "interview_brief.md")
         output_files.update(self._write_plots(out_dir))
         summary["output_files"] = output_files
 
@@ -1454,6 +1711,12 @@ class OptionsMarketMakerDemo:
         self._write_csv(Path(output_files["pnl_timeseries"]), self.path_rows, fieldnames=pnl_fields)
         self._write_csv(Path(output_files["positions_final"]), positions_rows, fieldnames=positions_fields)
         Path(output_files["report"]).write_text(format_demo_report(summary), encoding="utf-8")
+        if interview_mode:
+            worked_fill = _select_worked_fill(self.trade_rows)
+            Path(output_files["interview_brief"]).write_text(
+                format_interview_brief(summary, worked_fill),
+                encoding="utf-8",
+            )
         with Path(output_files["summary"]).open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, indent=2)
 

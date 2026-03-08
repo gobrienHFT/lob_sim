@@ -12,15 +12,32 @@ Use `run_options_mm_case.bat` as a compact walkthrough of how an options dealer 
 python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --verbose --progress-every ... --log-mode compact
 ```
 
-That command runs the synthetic options dealer study in [lob_sim/options/demo.py](/C:/bitbucket/kibert/lob_sim/lob_sim/options/demo.py).
+That command runs the synthetic options dealer study in [lob_sim/options/demo.py](../lob_sim/options/demo.py).
+
+The non-Windows equivalent is:
+
+```bash
+bash run_options_mm_case.sh
+```
 
 ## Best screen-share order
 
 1. Start with the terminal summary block.
-2. Open `demo_report.md`.
-3. Open `fills.csv` and walk through one row carefully.
-4. Open `pnl_timeseries.csv` and connect spot, inventory, delta, and PnL through time.
-5. Finish with `pnl_over_time.png` and `inventory_over_time.png`.
+2. Open `overview_dashboard.png`.
+3. Open `demo_report.md`.
+4. Open `fills.csv` and walk through one row carefully.
+5. Open `pnl_timeseries.csv` and connect spot, inventory, delta, and PnL through time.
+6. Finish with the single-purpose charts only if you want more detail.
+
+If you want to show the case study is not one cherry-picked path, run:
+
+```bash
+python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir outputs
+```
+
+Then open `outputs/scenario_matrix.md` and `outputs/scenario_comparison.png`.
+
+If you want the same comparison without running the repo locally, open [`docs/sample_outputs/scenario_matrix_seed7/`](sample_outputs/scenario_matrix_seed7/).
 
 ## The core quote formula
 
@@ -76,11 +93,18 @@ The run writes:
 
 - `summary.json`: machine-readable run summary and artifact paths.
 - `demo_report.md`: the clean overview document.
+- `overview_dashboard.png`: one screen with headline PnL, inventory, delta, and toxic versus non-toxic markout.
 - `fills.csv`: event-level fill and hedge story.
 - `checkpoints.csv`: checkpoint snapshots from the run.
 - `pnl_timeseries.csv`: step-by-step PnL, spot, and risk path.
 - `positions_final.csv`: ending option and hedge inventory.
 - `pnl_over_time.png`, `realized_vs_unrealized.png`, `spot_path.png`, `inventory_over_time.png`, `net_delta_over_time.png`, `markout_distribution.png`, `toxic_vs_nontoxic_markout.png`, `top_traded_contracts.png`: lightweight plots for quick review.
+
+The cross-scenario comparison script writes:
+
+- `scenario_matrix.csv`: one row per scenario with headline PnL, markout, flow, and hedging metrics.
+- `scenario_matrix.md`: same-seed comparison table plus short scenario-by-scenario notes.
+- `scenario_comparison.png`: compact visual comparison across all presets.
 
 ## Strong follow-ups
 
@@ -102,4 +126,5 @@ There is no explicit options exchange matching engine. This is primarily a deale
 ## Quick run options
 
 - `run_options_mm_case.bat`: fuller run with compact fill events and checkpoints.
+- `run_options_mm_case.sh`: same flow for macOS/Linux shells.
 - `run_options_mm_quick.bat`: fast preset with just the summary and artifacts.

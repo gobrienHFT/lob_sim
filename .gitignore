@@ -3,4 +3,5 @@ __pycache__/
 .pytest_cache/
 data/
 outputs/
-summary.md
+latest_report.png
+pnl_over_time.png

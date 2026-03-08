@@ -37,13 +37,15 @@ class PassiveFillModel:
         bucket = self._book(order.symbol)[self._bucket(order.side)]
         queue = bucket.get(order.price_tick)
         if queue is None:
-            return 0
+            return max(0, order.queue_ahead_lots)
         ahead = 0
         for q in queue:
             if q.order_id == order.order_id:
                 break
             ahead += q.remaining_lots
-        return max(0, ahead)
+        if ahead > 0:
+            return max(0, ahead)
+        return max(0, order.queue_ahead_lots)
 
     def best_bid_tick(self, symbol: str) -> int | None:
         bid = self._book(symbol)["bids"]
@@ -144,6 +146,13 @@ class PassiveFillModel:
             if not head.active or head.remaining_lots <= 0:
                 queue.popleft()
                 continue
+
+            if head.is_strategy and head.queue_ahead_lots > 0:
+                consumed_ahead = min(remaining, head.queue_ahead_lots)
+                head.queue_ahead_lots -= consumed_ahead
+                remaining -= consumed_ahead
+                if remaining <= 0:
+                    break
 
             queue_ahead = self.queue_ahead_lots(symbol, head)
             take = min(remaining, head.remaining_lots)
@@ -284,7 +293,8 @@ class PassiveFillModel:
             return
         bucket = self._book(order.symbol)[self._bucket(order.side)]
         queue = bucket.setdefault(order.price_tick, deque())
-        order.queue_ahead_lots = sum(q.remaining_lots for q in queue)
+        visible_queue_ahead = sum(q.remaining_lots for q in queue)
+        order.queue_ahead_lots = 0 if visible_queue_ahead > 0 else max(0, order.queue_ahead_lots)
         order.active = True
         queue.append(order)
         self._orders[(order.symbol, order.side)] = order

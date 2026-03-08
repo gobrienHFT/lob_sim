@@ -14,6 +14,7 @@ from lob_sim.options.demo import (
     OptionsMarketMakerDemo,
     build_options_config,
     format_brief_summary,
+    format_interview_brief,
     format_terminal_summary,
 )
 from lob_sim.options.markout import signed_markout
@@ -146,6 +147,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
             "markout_distribution_plot": "markout_distribution.png",
             "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": "top_traded_contracts.png",
+            "overview_dashboard_plot": "overview_dashboard.png",
         }
         paths: dict[str, str] = {}
         for key, name in names.items():
@@ -167,6 +169,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     pnl_timeseries_csv = tmp_path / "pnl_timeseries.csv"
     positions_csv = tmp_path / "positions_final.csv"
     pnl_plot = tmp_path / "pnl_over_time.png"
+    dashboard_plot = tmp_path / "overview_dashboard.png"
 
     assert summary_json.exists()
     assert report_md.exists()
@@ -175,6 +178,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert pnl_timeseries_csv.exists()
     assert positions_csv.exists()
     assert pnl_plot.exists()
+    assert dashboard_plot.exists()
 
     with summary_json.open("r", encoding="utf-8") as handle:
         summary_on_disk = json.load(handle)
@@ -211,6 +215,47 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert "Options market making case study" in report_text
     assert "Markout definition" in report_text
     assert "Glossary" in report_text
+
+
+def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
+    def _write_plots_stub(self, out_dir: Path) -> dict[str, str]:
+        names = {
+            "pnl_over_time_plot": "pnl_over_time.png",
+            "realized_vs_unrealized_plot": "realized_vs_unrealized.png",
+            "spot_path_plot": "spot_path.png",
+            "inventory_over_time_plot": "inventory_over_time.png",
+            "net_delta_over_time_plot": "net_delta_over_time.png",
+            "markout_distribution_plot": "markout_distribution.png",
+            "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
+            "top_traded_contracts_plot": "top_traded_contracts.png",
+            "overview_dashboard_plot": "overview_dashboard.png",
+        }
+        paths: dict[str, str] = {}
+        for key, name in names.items():
+            path = out_dir / name
+            path.write_bytes(b"")
+            paths[key] = str(path)
+        return paths
+
+    monkeypatch.setattr(OptionsMarketMakerDemo, "_write_plots", _write_plots_stub)
+    summary = OptionsMarketMakerDemo(build_options_config(steps=8, seed=3, scenario="toxic_flow")).run(
+        tmp_path,
+        progress_every=4,
+        interview_mode=True,
+    )
+
+    interview_brief = tmp_path / "interview_brief.md"
+    assert interview_brief.exists()
+    assert summary["output_files"]["interview_brief"] == str(interview_brief)
+
+    interview_text = interview_brief.read_text(encoding="utf-8")
+    assert "Options MM interview brief" in interview_text
+    assert "Executive summary" in interview_text
+    assert "Strongest takeaways" in interview_text
+    assert "Key limitations" in interview_text
+    assert "Worked fill example" in interview_text
+    assert "What I would build next" in interview_text
+    assert "overview_dashboard.png" in interview_text
 
 
 def test_options_presets_and_summary_helpers():
@@ -264,6 +309,39 @@ def test_options_presets_and_summary_helpers():
     assert "RUN SUMMARY" in terminal
     assert "Markout definition" in terminal
     assert "Most traded contracts" in terminal
+
+    summary["output_files"] = {
+        "interview_brief": "outputs/interview_brief.md",
+        "report": "outputs/demo_report.md",
+        "fills": "outputs/fills.csv",
+        "pnl_timeseries": "outputs/pnl_timeseries.csv",
+        "pnl_over_time_plot": "outputs/pnl_over_time.png",
+        "overview_dashboard_plot": "outputs/overview_dashboard.png",
+    }
+    worked_fill = {
+        "step": 7,
+        "spot_before": 102.51,
+        "contract": "CALL_95.00_45D",
+        "customer_side": "buy",
+        "mm_side": "sell",
+        "qty_contracts": 2,
+        "fair_value": 9.27,
+        "bid": 8.20,
+        "ask": 8.46,
+        "fill_price": 8.46,
+        "toxic_flow": True,
+        "signed_markout": -331.37,
+        "effective_markout_horizon_label": "1-step",
+        "portfolio_delta_after_trade": -133.8,
+        "portfolio_delta_after_hedge": 0.2,
+        "hedge_qty": 134.0,
+        "option_position_after": -2,
+        "comment_flag": "picked off; hedged short delta",
+    }
+    interview_brief = format_interview_brief(summary, worked_fill)
+    assert "Options MM interview brief" in interview_brief
+    assert "Worked fill example" in interview_brief
+    assert "What I would build next" in interview_brief
 
 
 def test_signed_markout_sign_convention():
