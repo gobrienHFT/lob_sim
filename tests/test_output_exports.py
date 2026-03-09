@@ -148,6 +148,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
             "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": "top_traded_contracts.png",
             "overview_dashboard_plot": "overview_dashboard.png",
+            "implied_vol_surface_snapshot_plot": "implied_vol_surface_snapshot.png",
             "position_surface_heatmap_plot": "position_surface_heatmap.png",
             "vega_surface_heatmap_plot": "vega_surface_heatmap.png",
         }
@@ -172,6 +173,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     positions_csv = tmp_path / "positions_final.csv"
     pnl_plot = tmp_path / "pnl_over_time.png"
     dashboard_plot = tmp_path / "overview_dashboard.png"
+    vol_surface_plot = tmp_path / "implied_vol_surface_snapshot.png"
     position_surface_plot = tmp_path / "position_surface_heatmap.png"
     vega_surface_plot = tmp_path / "vega_surface_heatmap.png"
 
@@ -183,6 +185,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert positions_csv.exists()
     assert pnl_plot.exists()
     assert dashboard_plot.exists()
+    assert vol_surface_plot.exists()
     assert position_surface_plot.exists()
     assert vega_surface_plot.exists()
 
@@ -222,6 +225,8 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert "Markout definition" in report_text
     assert "Glossary" in report_text
     assert "Warehoused risk across the surface" in report_text
+    assert "Pricing surface used by the demo" in report_text
+    assert "Economics of the run" in report_text
 
 
 def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
@@ -236,6 +241,7 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
             "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": "top_traded_contracts.png",
             "overview_dashboard_plot": "overview_dashboard.png",
+            "implied_vol_surface_snapshot_plot": "implied_vol_surface_snapshot.png",
             "position_surface_heatmap_plot": "position_surface_heatmap.png",
             "vega_surface_heatmap_plot": "vega_surface_heatmap.png",
         }
@@ -262,12 +268,17 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
     assert "Executive summary" in interview_text
     assert "Strongest takeaways" in interview_text
     assert "Key limitations" in interview_text
-    assert "Worked fill example" in interview_text
+    assert "Worked fill examples" in interview_text
+    assert "Representative hedged fill" in interview_text
+    assert "Stress-case toxic fill" in interview_text
     assert "What I would build next" in interview_text
     assert "overview_dashboard.png" in interview_text
+    assert "implied_vol_surface_snapshot.png" in interview_text
     assert "position_surface_heatmap.png" in interview_text
     assert "vega_surface_heatmap.png" in interview_text
     assert "Warehoused risk across the surface" in interview_text
+    assert "Economics of the run" in interview_text
+    assert "Pricing surface used by the demo" in interview_text
 
 
 def test_options_presets_and_summary_helpers():
@@ -308,10 +319,19 @@ def test_options_presets_and_summary_helpers():
         "final_net_delta": 18.0,
         "final_net_vega": 4.5,
         "markout_horizon_label": "1-step",
+        "quote_price_units": "Per-option premium in underlying price units.",
+        "pnl_units": "Contract dollars unless otherwise stated.",
         "surface_risk": {
             "active_cells": 4,
             "largest_position_bucket": {"strike": 95.0, "expiry_days": 45, "contracts": -6.0},
             "largest_vega_bucket": {"strike": 100.0, "expiry_days": 45, "net_vega": 320.0},
+        },
+        "pricing_surface": {
+            "snapshot_label": "initial snapshot",
+            "spot": 100.0,
+            "strikes": [95.0, 100.0],
+            "expiry_days": [14, 45],
+            "implied_vols": [[0.22, 0.24], [0.23, 0.25]],
         },
         "most_traded_contracts": [
             {"contract": "CALL_100.00_14D", "trade_count": 4, "signed_contract_qty": -2}
@@ -334,33 +354,78 @@ def test_options_presets_and_summary_helpers():
         "pnl_timeseries": "outputs/pnl_timeseries.csv",
         "pnl_over_time_plot": "outputs/pnl_over_time.png",
         "overview_dashboard_plot": "outputs/overview_dashboard.png",
+        "implied_vol_surface_snapshot_plot": "outputs/implied_vol_surface_snapshot.png",
         "position_surface_heatmap_plot": "outputs/position_surface_heatmap.png",
         "vega_surface_heatmap_plot": "outputs/vega_surface_heatmap.png",
     }
-    worked_fill = {
-        "step": 7,
-        "spot_before": 102.51,
-        "contract": "CALL_95.00_45D",
-        "customer_side": "buy",
-        "mm_side": "sell",
-        "qty_contracts": 2,
-        "fair_value": 9.27,
-        "bid": 8.20,
-        "ask": 8.46,
-        "fill_price": 8.46,
-        "toxic_flow": True,
-        "signed_markout": -331.37,
-        "effective_markout_horizon_label": "1-step",
-        "portfolio_delta_after_trade": -133.8,
-        "portfolio_delta_after_hedge": 0.2,
-        "hedge_qty": 134.0,
-        "option_position_after": -2,
-        "comment_flag": "picked off; hedged short delta",
+    worked_examples = {
+        "representative": {
+            "step": 7,
+            "contract": "CALL_95.00_45D",
+            "option_type": "call",
+            "strike": 95.0,
+            "expiry_days": 45.0,
+            "customer_side": "buy",
+            "mm_side": "sell",
+            "qty_contracts": 2,
+            "contract_size": 100,
+            "spot_before": 102.51,
+            "fair_value": 9.27,
+            "base_half_spread": 0.09,
+            "vol_half_spread_component": 0.21,
+            "gamma_half_spread_component": 0.01,
+            "reservation_price": 0.12,
+            "delta_reservation_component": 0.05,
+            "vega_reservation_component": 0.07,
+            "bid": 8.20,
+            "ask": 8.46,
+            "fill_price": 8.46,
+            "toxic_flow": False,
+            "signed_markout": 31.37,
+            "portfolio_delta_before": -20.0,
+            "portfolio_delta_after_trade": -133.8,
+            "hedge_qty": 134.0,
+            "portfolio_delta_after_hedge": 0.2,
+            "option_position_after": -2,
+        },
+        "stress": {
+            "step": 19,
+            "contract": "PUT_100.00_14D",
+            "option_type": "put",
+            "strike": 100.0,
+            "expiry_days": 14.0,
+            "customer_side": "buy",
+            "mm_side": "sell",
+            "qty_contracts": 4,
+            "contract_size": 100,
+            "spot_before": 90.0,
+            "fair_value": 10.0,
+            "base_half_spread": 0.09,
+            "vol_half_spread_component": 0.50,
+            "gamma_half_spread_component": 0.01,
+            "reservation_price": -1.25,
+            "delta_reservation_component": -0.20,
+            "vega_reservation_component": -1.05,
+            "bid": 10.65,
+            "ask": 11.85,
+            "fill_price": 11.85,
+            "toxic_flow": True,
+            "signed_markout": -331.37,
+            "portfolio_delta_before": 70.0,
+            "portfolio_delta_after_trade": 190.0,
+            "hedge_qty": -190.0,
+            "portfolio_delta_after_hedge": 0.0,
+            "option_position_after": -6,
+        },
     }
-    interview_brief = format_interview_brief(summary, worked_fill)
+    interview_brief = format_interview_brief(summary, worked_examples)
     assert "Options MM interview brief" in interview_brief
-    assert "Worked fill example" in interview_brief
+    assert "Worked fill examples" in interview_brief
+    assert "Representative hedged fill" in interview_brief
+    assert "Stress-case toxic fill" in interview_brief
     assert "What I would build next" in interview_brief
+    assert "implied_vol_surface_snapshot.png" in interview_brief
+    assert "contract dollars" in interview_brief
 
 
 def test_signed_markout_sign_convention():

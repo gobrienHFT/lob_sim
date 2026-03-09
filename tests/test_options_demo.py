@@ -23,6 +23,7 @@ PLOT_FILE_NAMES = {
     "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
     "top_traded_contracts_plot": "top_traded_contracts.png",
     "overview_dashboard_plot": "overview_dashboard.png",
+    "implied_vol_surface_snapshot_plot": "implied_vol_surface_snapshot.png",
     "position_surface_heatmap_plot": "position_surface_heatmap.png",
     "vega_surface_heatmap_plot": "vega_surface_heatmap.png",
 }
@@ -83,6 +84,7 @@ def test_options_demo_smoke_run_is_deterministic_and_writes_required_artifacts(
         first_dir / "positions_final.csv",
         first_dir / "pnl_over_time.png",
         first_dir / "overview_dashboard.png",
+        first_dir / "implied_vol_surface_snapshot.png",
         first_dir / "position_surface_heatmap.png",
         first_dir / "vega_surface_heatmap.png",
     ]

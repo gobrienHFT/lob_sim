@@ -15,7 +15,9 @@
   "spot_final": 91.988394,
   "markout_horizon_steps": 1,
   "markout_horizon_label": "1-step",
-  "markout_definition": "Signed markout compares fill price with future option fair value at a fixed horizon. Positive is good for the dealer; negative is adverse selection.",
+  "markout_definition": "Signed markout compares fill price with future option fair value at a fixed horizon, in contract dollars after multiplying by quantity and contract size. Positive is good for the dealer; negative is adverse selection.",
+  "quote_price_units": "Per-option premium in underlying price units.",
+  "pnl_units": "Contract dollars unless otherwise stated.",
   "hedge_trigger_delta": 110.0,
   "trade_count": 152,
   "fill_count": 152,
@@ -173,6 +175,45 @@
       "net_vega": 18578.037889
     }
   },
+  "pricing_surface": {
+    "snapshot_label": "initial snapshot",
+    "spot": 100.0,
+    "strikes": [
+      90.0,
+      95.0,
+      100.0,
+      105.0,
+      110.0
+    ],
+    "expiry_days": [
+      14,
+      45,
+      90
+    ],
+    "implied_vols": [
+      [
+        0.275609,
+        0.260371,
+        0.249428,
+        0.242193,
+        0.238177
+      ],
+      [
+        0.283084,
+        0.267846,
+        0.256903,
+        0.249668,
+        0.245652
+      ],
+      [
+        0.290085,
+        0.274848,
+        0.263905,
+        0.25667,
+        0.252653
+      ]
+    ]
+  },
   "output_files": {
     "summary": "docs/sample_outputs/toxic_flow_seed7/summary.json",
     "fills": "docs/sample_outputs/toxic_flow_seed7/fills_head.csv",
@@ -182,6 +223,7 @@
     "report": "docs/sample_outputs/toxic_flow_seed7/demo_report.md",
     "interview_brief": "docs/sample_outputs/toxic_flow_seed7/interview_brief.md",
     "overview_dashboard_plot": "docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png",
+    "implied_vol_surface_snapshot_plot": "docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png",
     "pnl_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/pnl_over_time.png",
     "inventory_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/inventory_over_time.png",
     "net_delta_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/net_delta_over_time.png",

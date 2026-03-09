@@ -4,6 +4,7 @@ from collections import Counter, deque
 from dataclasses import asdict, dataclass, replace
 from math import exp, log, sqrt
 from pathlib import Path
+from statistics import median
 from typing import Any
 import csv
 import json
@@ -326,7 +327,8 @@ def format_terminal_summary(summary: dict[str, Any]) -> str:
             "Markout definition",
             (
                 f"- Signed markout ({summary['markout_horizon_label']}) compares fill price with the option fair "
-                "value at a fixed future step; positive is good for the dealer, negative indicates adverse selection."
+                "value at a fixed future step, in contract dollars after quantity and contract size; positive is "
+                "good for the dealer, negative indicates adverse selection."
             ),
         ]
     )
@@ -368,21 +370,178 @@ def _format_metric_table(rows: list[tuple[str, str]]) -> list[str]:
     return lines
 
 
-def _select_worked_fill(trade_rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not trade_rows:
+def _hedged_fills(trade_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [row for row in trade_rows if abs(float(row.get("hedge_qty", 0.0))) > 0.0]
+
+
+def _representative_hedged_fill(trade_rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    hedged = _hedged_fills(trade_rows)
+    if not hedged:
         return None
-    toxic_hedged = [
-        row for row in trade_rows if bool(row.get("toxic_flow")) and abs(float(row.get("hedge_qty", 0.0))) > 0.0
-    ]
+    target = median(abs(float(row.get("signed_markout", 0.0))) for row in hedged)
+    return min(
+        hedged,
+        key=lambda row: (
+            abs(abs(float(row.get("signed_markout", 0.0))) - target),
+            int(row.get("step", 0)),
+            str(row.get("contract", "")),
+        ),
+    )
+
+
+def _stress_toxic_fill(trade_rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    toxic_hedged = [row for row in _hedged_fills(trade_rows) if bool(row.get("toxic_flow"))]
     if toxic_hedged:
-        return max(toxic_hedged, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
-    hedged = [row for row in trade_rows if abs(float(row.get("hedge_qty", 0.0))) > 0.0]
+        return min(
+            toxic_hedged,
+            key=lambda row: (
+                float(row.get("signed_markout", 0.0)),
+                int(row.get("step", 0)),
+                str(row.get("contract", "")),
+            ),
+        )
+    hedged = _hedged_fills(trade_rows)
     if hedged:
-        return max(hedged, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
-    return max(trade_rows, key=lambda row: abs(float(row.get("signed_markout", 0.0))))
+        return min(
+            hedged,
+            key=lambda row: (
+                float(row.get("signed_markout", 0.0)),
+                int(row.get("step", 0)),
+                str(row.get("contract", "")),
+            ),
+        )
+    return None
 
 
-def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] | None) -> str:
+def select_worked_fill_examples(trade_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
+    return {
+        "representative": _representative_hedged_fill(trade_rows),
+        "stress": _stress_toxic_fill(trade_rows),
+    }
+
+
+def _worked_fill_rules() -> dict[str, str]:
+    return {
+        "representative": (
+            "Representative hedged fill = the hedged fill whose absolute signed markout is closest to the median "
+            "absolute signed markout across all hedged fills."
+        ),
+        "stress": "Stress-case toxic fill = the toxic hedged fill with the worst signed markout.",
+    }
+
+
+def _example_short_interpretation(fill: dict[str, Any]) -> str:
+    reservation = float(fill["reservation_price"])
+    half_spread = float(fill["base_half_spread"]) + float(fill["vol_half_spread_component"]) + float(
+        fill["gamma_half_spread_component"]
+    )
+    premium_value = float(fill["fill_price"]) * int(fill["qty_contracts"]) * int(fill["contract_size"])
+    if abs(reservation) > abs(float(fill["fair_value"])):
+        skew_note = (
+            f"Reservation pressure of {reservation:+.3f} premium per option dominated fair value, so the dealer "
+            f"{fill['mm_side']} side was skewed far from model mid."
+        )
+    else:
+        skew_note = (
+            f"Reservation pressure of {reservation:+.3f} and half-spread {half_spread:.3f} kept the quote close "
+            "to model fair value."
+        )
+    return (
+        f"{skew_note} The fill transacted {premium_value:.2f} contract dollars of premium before the 1-step "
+        f"signed markout of {float(fill['signed_markout']):+.2f} contract dollars."
+    )
+
+
+def _format_worked_fill_example(
+    heading: str,
+    selection_rule: str,
+    fill: dict[str, Any] | None,
+) -> list[str]:
+    lines = [f"### {heading}", "", selection_rule]
+    if fill is None:
+        lines.extend(["", "- No fill matched this rule in the run."])
+        return lines
+    lines.extend(
+        [
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            f"| step | {fill['step']} |",
+            f"| contract | {fill['contract']} |",
+            f"| option_type | {fill['option_type']} |",
+            f"| strike | {float(fill['strike']):.2f} |",
+            f"| expiry_days | {float(fill['expiry_days']):.2f} |",
+            f"| customer_side | {fill['customer_side']} |",
+            f"| dealer_side | {fill['mm_side']} |",
+            f"| quantity | {fill['qty_contracts']} |",
+            f"| contract_size | {fill['contract_size']} |",
+            f"| spot_before | {float(fill['spot_before']):.2f} spot units |",
+            f"| fair_value | {float(fill['fair_value']):.3f} premium per option |",
+            f"| base_half_spread | {float(fill['base_half_spread']):.3f} premium per option |",
+            (
+                f"| vol_half_spread_component | {float(fill['vol_half_spread_component']):.3f} "
+                "premium per option |"
+            ),
+            (
+                f"| gamma_half_spread_component | {float(fill['gamma_half_spread_component']):.3f} "
+                "premium per option |"
+            ),
+            f"| reservation_price | {float(fill['reservation_price']):+.3f} premium per option |",
+            (
+                f"| delta_reservation_component | {float(fill['delta_reservation_component']):+.3f} "
+                "premium per option |"
+            ),
+            (
+                f"| vega_reservation_component | {float(fill['vega_reservation_component']):+.3f} "
+                "premium per option |"
+            ),
+            f"| final bid | {float(fill['bid']):.3f} premium per option |",
+            f"| final ask | {float(fill['ask']):.3f} premium per option |",
+            f"| fill_price | {float(fill['fill_price']):.3f} premium per option |",
+            f"| toxic_flow | {fill['toxic_flow']} |",
+            f"| signed_markout | {float(fill['signed_markout']):+.2f} contract dollars |",
+            f"| portfolio_delta_before | {float(fill['portfolio_delta_before']):+.1f} |",
+            f"| portfolio_delta_after_trade | {float(fill['portfolio_delta_after_trade']):+.1f} |",
+            f"| hedge_qty | {float(fill['hedge_qty']):+.0f} underlying units |",
+            f"| portfolio_delta_after_hedge | {float(fill['portfolio_delta_after_hedge']):+.1f} |",
+            f"| option_position_after | {fill['option_position_after']} contracts |",
+            f"| short_interpretation | {_example_short_interpretation(fill)} |",
+        ]
+    )
+    return lines
+
+
+def _economics_notes(summary: dict[str, Any]) -> list[str]:
+    notes = [
+        "Gross spread capture can stay positive while signed markout is negative because the dealer still earns quoted edge at the fill even when the next fair-value move goes against the position.",
+        "Ending PnL can still finish positive when quoted edge and subsequent inventory moves outweigh hedge costs, even if post-trade markouts are poor on average.",
+        "Signed markout is a diagnostic in contract dollars, not a separate PnL line item that is added mechanically into ending PnL in this toy accounting.",
+    ]
+    if summary["ending_pnl"] > 0.0 and summary["total_signed_markout"] < 0.0:
+        notes.append("That combination means the strategy earned enough spread and inventory carry to survive adverse selection, but the fill quality still deserves skepticism.")
+    return notes
+
+
+def _pricing_surface_notes(summary: dict[str, Any]) -> list[str]:
+    snapshot = summary["pricing_surface"]
+    return [
+        (
+            f"The demo uses an {snapshot['snapshot_label']} implied-vol surface at spot `{snapshot['spot']:.2f}`; "
+            "that surface feeds Black-Scholes fair value for every quoted option."
+        ),
+        "Vega exposure should be read alongside this surface because the book can be close to delta-flat while still carrying large strike/expiry volatility risk.",
+        "The surface shape is synthetic and parametric here; real calibration would need live option quotes or trades across strike and expiry.",
+    ]
+
+
+def _representative_fill_reference(summary: dict[str, Any]) -> str:
+    interview_brief = summary["output_files"].get("interview_brief")
+    if interview_brief:
+        return f"{interview_brief}#representative-hedged-fill"
+    return summary["output_files"]["fills"]
+
+
+def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, dict[str, Any] | None]) -> str:
     takeaways = [
         (
             f"Gross spread capture was {summary['gross_spread_captured']:.2f} while signed markout was "
@@ -456,49 +615,44 @@ def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] 
         "## Warehoused risk across the surface",
         *(f"- {item}" for item in _surface_risk_notes(summary)),
         "",
-        "## Worked fill example",
-        "Selected directly from `fills.csv`.",
+        "## Pricing surface used by the demo",
+        *(f"- {item}" for item in _pricing_surface_notes(summary)),
+        "",
+        "## Economics of the run",
+        *(
+            _format_metric_table(
+                [
+                    ("Gross spread captured", f"{summary['gross_spread_captured']:.2f} contract dollars"),
+                    ("Hedge costs", f"{summary['hedge_costs']:.2f} contract dollars"),
+                    ("Total signed markout", f"{summary['total_signed_markout']:.2f} contract dollars"),
+                    ("Ending PnL", f"{summary['ending_pnl']:.2f} contract dollars"),
+                    ("Realized PnL", f"{summary['realized_pnl']:.2f} contract dollars"),
+                    ("Unrealized PnL", f"{summary['unrealized_pnl']:.2f} contract dollars"),
+                ]
+            )
+        ),
+        "",
+        "Signed markout is reported here as a contract-dollar fill-quality diagnostic. It is not treated as a separate additive PnL line item in this demo.",
+        "",
+        *(f"- {item}" for item in _economics_notes(summary)),
+        "",
+        "## Worked fill examples",
+        "Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.",
     ]
-    if worked_fill is None:
-        lines.append("- No fills were recorded in this run.")
-    else:
-        lines.extend(
-            [
-                "| Field | Value |",
-                "|---|---|",
-                f"| Step | {worked_fill['step']} |",
-                f"| Underlying spot | {float(worked_fill['spot_before']):.2f} |",
-                f"| Contract | {worked_fill['contract']} |",
-                f"| Customer side | {worked_fill['customer_side']} |",
-                f"| Dealer side | {worked_fill['mm_side']} |",
-                f"| Quantity | {worked_fill['qty_contracts']} |",
-                f"| Fair value | {float(worked_fill['fair_value']):.3f} |",
-                f"| Quoted market | {float(worked_fill['bid']):.3f} / {float(worked_fill['ask']):.3f} |",
-                f"| Fill price | {float(worked_fill['fill_price']):.3f} |",
-                f"| Toxic flow | {worked_fill['toxic_flow']} |",
-                f"| Signed markout | {float(worked_fill['signed_markout']):+.2f} |",
-                f"| Delta after trade -> after hedge | {float(worked_fill['portfolio_delta_after_trade']):.1f} -> {float(worked_fill['portfolio_delta_after_hedge']):.1f} |",
-                f"| Hedge trade | {float(worked_fill['hedge_qty']):+.0f} |",
-                f"| Position after trade | {worked_fill['option_position_after']} |",
-                f"| Comment flag | {worked_fill['comment_flag']} |",
-                "",
-                "Interpretation:",
-                (
-                    f"- The dealer {worked_fill['mm_side']}s `{worked_fill['qty_contracts']}` lot(s) of "
-                    f"`{worked_fill['contract']}` against a customer `{worked_fill['customer_side']}`."
-                ),
-                (
-                    f"- The fill printed at `{float(worked_fill['fill_price']):.3f}` versus fair value "
-                    f"`{float(worked_fill['fair_value']):.3f}`, then produced signed markout "
-                    f"`{float(worked_fill['signed_markout']):+.2f}` at `{worked_fill['effective_markout_horizon_label']}`."
-                ),
-                (
-                    f"- Delta moved from `{float(worked_fill['portfolio_delta_after_trade']):.1f}` to "
-                    f"`{float(worked_fill['portfolio_delta_after_hedge']):.1f}` after a hedge of "
-                    f"`{float(worked_fill['hedge_qty']):+.0f}` underlying units."
-                ),
-            ]
+    rules = _worked_fill_rules()
+    lines.extend(
+        _format_worked_fill_example(
+            "Representative hedged fill",
+            rules["representative"],
+            worked_examples.get("representative"),
         )
+    )
+    lines.extend(
+        [
+            "",
+            *(_format_worked_fill_example("Stress-case toxic fill", rules["stress"], worked_examples.get("stress"))),
+        ]
+    )
     lines.extend(
         [
             "",
@@ -508,9 +662,10 @@ def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] 
             "## Files to open next",
             f"- `interview_brief.md`: {summary['output_files']['interview_brief']}",
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
+            f"- `implied_vol_surface_snapshot.png`: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
             f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
-            f"- `fills.csv`: {summary['output_files']['fills']}",
+            "- representative worked fill: see the `Representative hedged fill` section in this file",
             f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
             f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
         ]
@@ -518,7 +673,11 @@ def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] 
     return "\n".join(lines) + "\n"
 
 
-def format_demo_report(summary: dict[str, Any]) -> str:
+def format_demo_report(
+    summary: dict[str, Any],
+    worked_examples: dict[str, dict[str, Any] | None] | None = None,
+) -> str:
+    worked_examples = worked_examples or {"representative": None, "stress": None}
     lines = [
         "# Options market making case study",
         "",
@@ -610,34 +769,72 @@ def format_demo_report(summary: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## Warehoused risk across the surface",
-            *(f"- {note}" for note in _surface_risk_notes(summary)),
-            "",
-            "## Most traded contracts",
-            *_format_top_contracts(summary),
-            "",
-            "## Suggested artifact reading order",
+        "## Warehoused risk across the surface",
+        *(f"- {note}" for note in _surface_risk_notes(summary)),
+        "",
+        "## Pricing surface used by the demo",
+        *(f"- {note}" for note in _pricing_surface_notes(summary)),
+        "",
+        "## Economics of the run",
+        *_markdown_metric_rows(
+            [
+                ("Gross spread captured", f"{summary['gross_spread_captured']:.2f} contract dollars"),
+                ("Hedge costs", f"{summary['hedge_costs']:.2f} contract dollars"),
+                ("Total signed markout", f"{summary['total_signed_markout']:.2f} contract dollars"),
+                ("Ending PnL", f"{summary['ending_pnl']:.2f} contract dollars"),
+                ("Realized PnL", f"{summary['realized_pnl']:.2f} contract dollars"),
+                ("Unrealized PnL", f"{summary['unrealized_pnl']:.2f} contract dollars"),
+            ]
+        ),
+        "",
+        "Signed markout is a contract-dollar diagnostic of fill quality. It is not used here as a separate additive PnL line item.",
+        *(f"- {note}" for note in _economics_notes(summary)),
+        "",
+        "## Worked fill examples",
+        "Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.",
+        "",
+        *(
+            _format_worked_fill_example(
+                "Representative hedged fill",
+                _worked_fill_rules()["representative"],
+                worked_examples.get("representative"),
+            )
+        ),
+        "",
+        *(
+            _format_worked_fill_example(
+                "Stress-case toxic fill",
+                _worked_fill_rules()["stress"],
+                worked_examples.get("stress"),
+            )
+        ),
+        "",
+        "## Most traded contracts",
+        *_format_top_contracts(summary),
+        "",
+        "## Suggested artifact reading order",
             *(
                 [f"- `interview_brief.md`: {summary['output_files']['interview_brief']}"]
                 if "interview_brief" in summary["output_files"]
                 else []
             ),
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
+            f"- `implied_vol_surface_snapshot.png`: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
             f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
-            f"- `fills.csv`: {summary['output_files']['fills']}",
+            f"- representative worked fill: {_representative_fill_reference(summary)}",
             f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
             f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
             "",
             "## Glossary",
             "- **Underlying spot**: the simulated price of the underlying used for option fair value and delta hedging.",
-            "- **Fair value**: Black-Scholes option value from current spot, time to expiry, and implied vol.",
+            "- **Fair value**: Black-Scholes option value per option, quoted in premium units from current spot, time to expiry, and implied vol.",
             "- **Reservation price**: inventory-driven quote adjustment that discourages more unwanted risk.",
             "- **Quote skew**: the directional shift in bid and ask caused by reservation price.",
-            "- **Signed markout**: future fair-value edge relative to fill price, positive when the fill ages well for the dealer.",
+            "- **Signed markout**: future fair-value edge relative to fill price, reported in contract dollars after multiplying by quantity and contract size.",
             "- **Toxic flow**: customer flow more likely to be informed against the current quote.",
-            "- **Realized PnL**: gross spread capture less hedge slippage costs.",
-            "- **Unrealized PnL**: residual mark-to-market of the option inventory and hedge book.",
+            "- **Realized PnL**: contract-dollar gross spread capture less hedge slippage costs.",
+            "- **Unrealized PnL**: residual contract-dollar mark-to-market of the option inventory and hedge book.",
             "- **Delta hedge**: underlying trade used to reduce net delta after option fills.",
             "",
             "## Output files",
@@ -648,6 +845,7 @@ def format_demo_report(summary: dict[str, Any]) -> str:
             f"- Final positions CSV: `{summary['output_files']['positions_final']}`",
             f"- Report Markdown: `{summary['output_files']['report']}`",
             f"- Overview dashboard: `{summary['output_files']['overview_dashboard_plot']}`",
+            f"- Implied-vol surface snapshot: `{summary['output_files']['implied_vol_surface_snapshot_plot']}`",
             f"- Position surface heatmap: `{summary['output_files']['position_surface_heatmap_plot']}`",
             f"- Vega surface heatmap: `{summary['output_files']['vega_surface_heatmap_plot']}`",
         ]
@@ -668,6 +866,7 @@ def format_artifact_paths(summary: dict[str, Any]) -> str:
             f"- PnL timeseries CSV: {summary['output_files']['pnl_timeseries']}",
             f"- Final positions CSV: {summary['output_files']['positions_final']}",
             f"- Overview dashboard: {summary['output_files']['overview_dashboard_plot']}",
+            f"- Implied-vol surface snapshot: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- Position surface heatmap: {summary['output_files']['position_surface_heatmap_plot']}",
             f"- Vega surface heatmap: {summary['output_files']['vega_surface_heatmap_plot']}",
             f"- PnL chart: {summary['output_files']['pnl_over_time_plot']}",
@@ -1194,6 +1393,29 @@ class OptionsMarketMakerDemo:
             },
         }
 
+    def _pricing_surface_snapshot(self) -> dict[str, Any]:
+        strikes = sorted({float(contract.strike) for contract in self.contracts})
+        expiry_days = sorted({int(round(contract.expiry_years * 252.0)) for contract in self.contracts})
+        vol_matrix: list[list[float]] = []
+        for expiry in expiry_days:
+            row: list[float] = []
+            for strike in strikes:
+                contract = next(
+                    item
+                    for item in self.contracts
+                    if int(round(item.expiry_years * 252.0)) == expiry and float(item.strike) == strike
+                )
+                implied_vol = self.surface.implied_vol(self.cfg.spot0, contract, contract.expiry_years)
+                row.append(round(implied_vol, 6))
+            vol_matrix.append(row)
+        return {
+            "snapshot_label": "initial snapshot",
+            "spot": round(self.cfg.spot0, 6),
+            "strikes": strikes,
+            "expiry_days": expiry_days,
+            "implied_vols": vol_matrix,
+        }
+
     def _save_surface_heatmap(
         self,
         path: Path,
@@ -1232,6 +1454,40 @@ class OptionsMarketMakerDemo:
         fig.savefig(path, dpi=140)
         plt.close(fig)
 
+    def _save_implied_vol_surface_snapshot(self, path: Path, snapshot: dict[str, Any]) -> None:
+        matrix = snapshot["implied_vols"]
+        strikes = snapshot["strikes"]
+        expiry_days = snapshot["expiry_days"]
+        fig, ax = plt.subplots(figsize=(10, 4.8))
+        image = ax.imshow(matrix, cmap="viridis", aspect="auto")
+        self._style_axes(
+            ax,
+            title=f"Implied Vol Surface Snapshot ({snapshot['snapshot_label']})",
+            xlabel="Strike",
+            ylabel="Expiry (days)",
+        )
+        ax.set_xticks(range(len(strikes)), [f"{strike:.0f}" for strike in strikes])
+        ax.set_yticks(range(len(expiry_days)), [str(expiry) for expiry in expiry_days])
+        max_vol = max((value for row in matrix for value in row), default=0.0)
+        for row_idx, row in enumerate(matrix):
+            for col_idx, value in enumerate(row):
+                text_color = "white" if max_vol and value > max_vol * 0.6 else "black"
+                ax.text(
+                    col_idx,
+                    row_idx,
+                    f"{value:.2%}",
+                    ha="center",
+                    va="center",
+                    fontsize=self._TICK_LABEL_FONT_SIZE,
+                    color=text_color,
+                )
+        colorbar = fig.colorbar(image, ax=ax)
+        colorbar.ax.set_ylabel("Implied vol", fontsize=self._AXIS_LABEL_FONT_SIZE)
+        colorbar.ax.tick_params(labelsize=self._TICK_LABEL_FONT_SIZE)
+        fig.tight_layout()
+        fig.savefig(path, dpi=140)
+        plt.close(fig)
+
     def _write_plots(self, out_dir: Path) -> dict[str, str]:
         steps = [int(row["step"]) for row in self.path_rows]
         ending_pnl = [float(row["ending_pnl"]) for row in self.path_rows]
@@ -1243,6 +1499,7 @@ class OptionsMarketMakerDemo:
         markouts = [float(row["signed_markout"]) for row in self.trade_rows]
         top_contracts = self.contract_trade_counts.most_common(6)
         surface_risk = self._surface_snapshot(spot[-1] if spot else self.cfg.spot0, self.cfg.steps)
+        pricing_surface = self._pricing_surface_snapshot()
 
         paths = {
             "pnl_over_time_plot": out_dir / "pnl_over_time.png",
@@ -1254,6 +1511,7 @@ class OptionsMarketMakerDemo:
             "toxic_vs_nontoxic_plot": out_dir / "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": out_dir / "top_traded_contracts.png",
             "overview_dashboard_plot": out_dir / "overview_dashboard.png",
+            "implied_vol_surface_snapshot_plot": out_dir / "implied_vol_surface_snapshot.png",
             "position_surface_heatmap_plot": out_dir / "position_surface_heatmap.png",
             "vega_surface_heatmap_plot": out_dir / "vega_surface_heatmap.png",
         }
@@ -1336,6 +1594,7 @@ class OptionsMarketMakerDemo:
             colorbar_label="Net vega",
             annotation_fmt="+.0f",
         )
+        self._save_implied_vol_surface_snapshot(paths["implied_vol_surface_snapshot_plot"], pricing_surface)
 
         return {key: str(value) for key, value in paths.items()}
 
@@ -1517,6 +1776,7 @@ class OptionsMarketMakerDemo:
         avg_markout = self._average(self.markout_sum, self.markout_count)
         avg_half_spread = self._average(self.half_spread_sum, self.trade_count)
         surface_risk = self._surface_snapshot(spot, self.cfg.steps)
+        pricing_surface = self._pricing_surface_snapshot()
         summary: dict[str, Any] = {
             "scenario": self.cfg.scenario_name,
             "scenario_description": self.cfg.scenario_description,
@@ -1528,9 +1788,12 @@ class OptionsMarketMakerDemo:
             "markout_horizon_steps": self.cfg.markout_horizon_steps,
             "markout_horizon_label": markout_horizon_label(self.cfg.markout_horizon_steps),
             "markout_definition": (
-                "Signed markout compares fill price with future option fair value at a fixed horizon. "
-                "Positive is good for the dealer; negative is adverse selection."
+                "Signed markout compares fill price with future option fair value at a fixed horizon, in contract "
+                "dollars after multiplying by quantity and contract size. Positive is good for the dealer; "
+                "negative is adverse selection."
             ),
+            "quote_price_units": "Per-option premium in underlying price units.",
+            "pnl_units": "Contract dollars unless otherwise stated.",
             "hedge_trigger_delta": round(self.cfg.hedge_threshold_delta, 6),
             "trade_count": self.trade_count,
             "fill_count": self.trade_count,
@@ -1584,6 +1847,7 @@ class OptionsMarketMakerDemo:
             "parameters": asdict(self.cfg),
             "simulation_scope": "Synthetic customer-flow dealer study; not a venue order-book replay.",
             "surface_risk": surface_risk,
+            "pricing_surface": pricing_surface,
         }
         return summary
 
@@ -1673,6 +1937,7 @@ class OptionsMarketMakerDemo:
                     "customer_side": customer_side,
                     "mm_side": mm_side,
                     "qty_contracts": qty,
+                    "contract_size": self.cfg.contract_size,
                     "fair_value": round(quote.fair_value, 6),
                     "bid": round(quote.bid, 6),
                     "ask": round(quote.ask, 6),
@@ -1810,6 +2075,7 @@ class OptionsMarketMakerDemo:
             "customer_side",
             "mm_side",
             "qty_contracts",
+            "contract_size",
             "fair_value",
             "bid",
             "ask",
@@ -1904,15 +2170,18 @@ class OptionsMarketMakerDemo:
             "net_vega_contribution",
         ]
         if write_artifacts:
+            worked_examples = select_worked_fill_examples(self.trade_rows)
             self._write_csv(Path(output_files["fills"]), self.trade_rows, fieldnames=fills_fields)
             self._write_csv(Path(output_files["checkpoints"]), self.checkpoint_rows, fieldnames=checkpoint_fields)
             self._write_csv(Path(output_files["pnl_timeseries"]), self.path_rows, fieldnames=pnl_fields)
             self._write_csv(Path(output_files["positions_final"]), positions_rows, fieldnames=positions_fields)
-            Path(output_files["report"]).write_text(format_demo_report(summary), encoding="utf-8")
+            Path(output_files["report"]).write_text(
+                format_demo_report(summary, worked_examples),
+                encoding="utf-8",
+            )
             if interview_mode:
-                worked_fill = _select_worked_fill(self.trade_rows)
                 Path(output_files["interview_brief"]).write_text(
-                    format_interview_brief(summary, worked_fill),
+                    format_interview_brief(summary, worked_examples),
                     encoding="utf-8",
                 )
             with Path(output_files["summary"]).open("w", encoding="utf-8") as handle:

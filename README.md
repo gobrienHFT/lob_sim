@@ -36,6 +36,7 @@ python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --
 Sample charts:
 
 [![Overview dashboard](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)
+[![Implied vol surface](docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png)](docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png)
 [![Position surface](docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png)](docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png)
 [![Vega surface](docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png)](docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png)
 [![Scenario comparison](docs/sample_outputs/scenario_matrix_seed7/scenario_comparison.png)](docs/sample_outputs/scenario_matrix_seed7/scenario_comparison.png)
@@ -44,6 +45,7 @@ Sample charts:
 Useful follow-up files when running locally:
 - `outputs/interview_brief.md`
 - `outputs/overview_dashboard.png`
+- `outputs/implied_vol_surface_snapshot.png`
 - `outputs/position_surface_heatmap.png`
 - `outputs/vega_surface_heatmap.png`
 
@@ -57,11 +59,12 @@ Useful follow-up files when running locally:
 
 1. `interview_brief.md`
 2. `overview_dashboard.png`
-3. `position_surface_heatmap.png`
-4. `vega_surface_heatmap.png`
-5. one worked fill from `fills.csv`
-6. `scenario_matrix.md`
-7. `toxicity_spread_sensitivity.md`
+3. `implied_vol_surface_snapshot.png`
+4. `position_surface_heatmap.png`
+5. `vega_surface_heatmap.png`
+6. representative worked fill in `interview_brief.md`
+7. `scenario_matrix.md`
+8. `toxicity_spread_sensitivity.md`
 
 If you are browsing on GitHub and not running the code, use the committed sample pack in [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/).
 For the same-seed preset comparison, open [docs/sample_outputs/scenario_matrix_seed7/](docs/sample_outputs/scenario_matrix_seed7/).
@@ -163,6 +166,12 @@ Signed markout is measured against option fair value at a fixed future horizon f
 - positive signed markout is good for the dealer
 - negative signed markout indicates adverse selection
 
+### Pricing Surface Used by the Demo
+
+- `implied_vol_surface_snapshot.png` shows the initial synthetic implied-vol surface used to feed Black-Scholes fair value across strike and expiry.
+- Vega should be read alongside this surface because delta can be hedged away while surface-specific volatility exposure remains warehoused.
+- The surface shape here is parametric and synthetic; real calibration would need live option quotes or trades across the listed surface.
+
 ### Output Artifacts
 
 Each options run writes a clean pack into `outputs/`:
@@ -175,6 +184,7 @@ Each options run writes a clean pack into `outputs/`:
 - `pnl_timeseries.csv`
 - `positions_final.csv`
 - `overview_dashboard.png`
+- `implied_vol_surface_snapshot.png`
 - `position_surface_heatmap.png`
 - `vega_surface_heatmap.png`
 - `pnl_over_time.png`

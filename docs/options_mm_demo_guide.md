@@ -26,11 +26,12 @@ If you want the fuller event-level walkthrough instead of the concise screen-sha
 
 1. Open `interview_brief.md`.
 2. Open `overview_dashboard.png`.
-3. Open `position_surface_heatmap.png`.
-4. Open `vega_surface_heatmap.png`.
-5. Open `fills.csv` and walk through one row carefully.
-6. Open `scenario_matrix.md`.
-7. Open `toxicity_spread_sensitivity.md`.
+3. Open `implied_vol_surface_snapshot.png`.
+4. Open `position_surface_heatmap.png`.
+5. Open `vega_surface_heatmap.png`.
+6. Open the representative worked fill in `interview_brief.md`.
+7. Open `scenario_matrix.md`.
+8. Open `toxicity_spread_sensitivity.md`.
 
 If you want to show the case study is not one cherry-picked path, run:
 
@@ -99,6 +100,13 @@ Use one row from `fills.csv` and walk left to right:
 - If delta finishes near flat while vega buckets stay large, that is the honest point: the underlying hedge fixed directional risk, not the whole options surface.
 - Concentrated buckets matter because they show where reservation pricing and future cross-option hedging would need to work harder.
 
+## Pricing surface used by the demo
+
+- `implied_vol_surface_snapshot.png` is the initial synthetic implied-vol surface used for the default case-study pack.
+- That surface feeds Black-Scholes fair value at quote time, so you should read it before interpreting reservation-price skew or markout.
+- Vega exposure belongs next to this surface because "delta-flat" does not mean "vol-flat."
+- The surface is synthetic here; real calibration would need live option quotes or trades across strikes and expiries.
+
 ## Artifact map
 
 The run writes:
@@ -107,6 +115,7 @@ The run writes:
 - `interview_brief.md`: concise screen-share order, metrics table, worked fill, takeaways, and limitations.
 - `demo_report.md`: the clean overview document.
 - `overview_dashboard.png`: one screen with headline PnL, inventory, delta, and toxic versus non-toxic markout.
+- `implied_vol_surface_snapshot.png`: initial synthetic implied-vol surface used by the default case-study pack.
 - `position_surface_heatmap.png`: signed contract inventory across strike and expiry at the final snapshot.
 - `vega_surface_heatmap.png`: warehoused vega across strike and expiry at the final snapshot.
 - `fills.csv`: event-level fill and hedge story.

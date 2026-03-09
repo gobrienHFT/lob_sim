@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from lob_sim.options.demo import format_demo_report, format_interview_brief
+from lob_sim.options.demo import format_demo_report, format_interview_brief, select_worked_fill_examples
 
 
 SCENARIO = "toxic_flow"
@@ -107,19 +107,6 @@ def _write_head_csv(src: Path, dst: Path, rows: int = 25) -> None:
             writer.writerows(data_rows[:rows])
 
 
-def _select_worked_fill(rows: list[dict[str, str]]) -> dict[str, str] | None:
-    if not rows:
-        return None
-
-    def _score(row: dict[str, str]) -> tuple[int, float]:
-        toxic = str(row.get("toxic_flow", "")).lower() == "true"
-        hedged = abs(float(row.get("hedge_qty", "0") or 0.0)) > 0.0
-        markout = abs(float(row.get("signed_markout", "0") or 0.0))
-        return (2 if toxic and hedged else 1 if hedged else 0, markout)
-
-    return max(rows, key=_score)
-
-
 def _sample_case_output_files() -> dict[str, str]:
     case_dir = CASE_STUDY_DIR.as_posix()
     return {
@@ -131,6 +118,7 @@ def _sample_case_output_files() -> dict[str, str]:
         "report": f"{case_dir}/demo_report.md",
         "interview_brief": f"{case_dir}/interview_brief.md",
         "overview_dashboard_plot": f"{case_dir}/overview_dashboard.png",
+        "implied_vol_surface_snapshot_plot": f"{case_dir}/implied_vol_surface_snapshot.png",
         "pnl_over_time_plot": f"{case_dir}/pnl_over_time.png",
         "inventory_over_time_plot": f"{case_dir}/inventory_over_time.png",
         "net_delta_over_time_plot": f"{case_dir}/net_delta_over_time.png",
@@ -143,16 +131,35 @@ def _sample_case_output_files() -> dict[str, str]:
 def _write_sanitized_case_artifacts(case_tmp: Path, case_study_dir: Path) -> None:
     summary = json.loads((case_tmp / "summary.json").read_text(encoding="utf-8"))
     fills_rows = _read_csv_rows(case_tmp / "fills.csv")
-    worked_fill = _select_worked_fill(fills_rows)
+    worked_examples = select_worked_fill_examples(fills_rows)
     summary["output_files"] = _sample_case_output_files()
 
-    (case_study_dir / "demo_report.md").write_text(format_demo_report(summary), encoding="utf-8")
+    (case_study_dir / "demo_report.md").write_text(
+        format_demo_report(summary, worked_examples),
+        encoding="utf-8",
+    )
     (case_study_dir / "interview_brief.md").write_text(
-        format_interview_brief(summary, worked_fill),
+        format_interview_brief(summary, worked_examples),
         encoding="utf-8",
     )
     with (case_study_dir / "summary.json").open("w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)
+
+
+def _validate_case_artifacts(repo_root: Path, case_study_dir: Path) -> None:
+    summary = json.loads((case_study_dir / "summary.json").read_text(encoding="utf-8"))
+    for relative_path in summary["output_files"].values():
+        target = repo_root / relative_path
+        if not target.exists():
+            raise FileNotFoundError(f"Missing committed sample artifact: {relative_path}")
+    for path in [
+        case_study_dir / "summary.json",
+        case_study_dir / "demo_report.md",
+        case_study_dir / "interview_brief.md",
+    ]:
+        text = path.read_text(encoding="utf-8")
+        if "AppData" in text or "Temp\\" in text or "lob_sim_options_sample_" in text:
+            raise ValueError(f"Temporary path leaked into committed sample artifact: {path}")
 
 
 def main() -> None:
@@ -174,6 +181,10 @@ def main() -> None:
         _run_sensitivity(sensitivity_tmp)
 
         _copy_file(case_study_tmp / "overview_dashboard.png", case_study_dir / "overview_dashboard.png")
+        _copy_file(
+            case_study_tmp / "implied_vol_surface_snapshot.png",
+            case_study_dir / "implied_vol_surface_snapshot.png",
+        )
         _copy_file(case_study_tmp / "pnl_over_time.png", case_study_dir / "pnl_over_time.png")
         _copy_file(case_study_tmp / "inventory_over_time.png", case_study_dir / "inventory_over_time.png")
         _copy_file(case_study_tmp / "net_delta_over_time.png", case_study_dir / "net_delta_over_time.png")
@@ -191,6 +202,7 @@ def main() -> None:
         _write_head_csv(case_study_tmp / "checkpoints.csv", case_study_dir / "checkpoints_head.csv", rows=25)
         _write_head_csv(case_study_tmp / "pnl_timeseries.csv", case_study_dir / "pnl_timeseries_head.csv", rows=25)
         _write_sanitized_case_artifacts(case_study_tmp, case_study_dir)
+        _validate_case_artifacts(repo_root, case_study_dir)
 
         _copy_file(matrix_tmp / "scenario_matrix.csv", matrix_dir / "scenario_matrix.csv")
         _copy_file(matrix_tmp / "scenario_matrix.md", matrix_dir / "scenario_matrix.md")

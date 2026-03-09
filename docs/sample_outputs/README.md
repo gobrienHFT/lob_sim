@@ -22,9 +22,11 @@ Single-run case study:
 
 1. [`toxic_flow_seed7/interview_brief.md`](toxic_flow_seed7/interview_brief.md)
 2. [`toxic_flow_seed7/overview_dashboard.png`](toxic_flow_seed7/overview_dashboard.png)
-3. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)
-4. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)
-5. [`toxic_flow_seed7/fills_head.csv`](toxic_flow_seed7/fills_head.csv)
+3. [`toxic_flow_seed7/implied_vol_surface_snapshot.png`](toxic_flow_seed7/implied_vol_surface_snapshot.png)
+4. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)
+5. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)
+6. representative worked fill in [`toxic_flow_seed7/interview_brief.md#representative-hedged-fill`](toxic_flow_seed7/interview_brief.md#representative-hedged-fill)
+7. [`toxic_flow_seed7/fills_head.csv`](toxic_flow_seed7/fills_head.csv)
 
 Cross-scenario credibility check:
 
