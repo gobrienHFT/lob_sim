@@ -397,23 +397,23 @@ def test_options_presets_and_summary_helpers():
             "customer_side": "buy",
             "mm_side": "sell",
             "qty_contracts": 4,
-            "contract_size": 100,
-            "spot_before": 90.0,
-            "fair_value": 10.0,
-            "base_half_spread": 0.09,
-            "vol_half_spread_component": 0.50,
-            "gamma_half_spread_component": 0.01,
-            "reservation_price": -1.25,
-            "delta_reservation_component": -0.20,
-            "vega_reservation_component": -1.05,
-            "bid": 10.65,
-            "ask": 11.85,
-            "fill_price": 11.85,
-            "toxic_flow": True,
-            "signed_markout": -331.37,
-            "portfolio_delta_before": 70.0,
-            "portfolio_delta_after_trade": 190.0,
-            "hedge_qty": -190.0,
+                "contract_size": 100,
+                "spot_before": 90.0,
+                "fair_value": 2.0,
+                "base_half_spread": 0.09,
+                "vol_half_spread_component": 0.50,
+                "gamma_half_spread_component": 0.01,
+                "reservation_price": -12.5,
+                "delta_reservation_component": -0.20,
+                "vega_reservation_component": -12.30,
+                "bid": 13.89,
+                "ask": 15.09,
+                "fill_price": 13.89,
+                "toxic_flow": True,
+                "signed_markout": -331.37,
+                "portfolio_delta_before": 70.0,
+                "portfolio_delta_after_trade": 190.0,
+                "hedge_qty": -190.0,
             "portfolio_delta_after_hedge": 0.0,
             "option_position_after": -6,
         },
@@ -426,6 +426,7 @@ def test_options_presets_and_summary_helpers():
     assert "What I would build next" in interview_brief
     assert "implied_vol_surface_snapshot.png" in interview_brief
     assert "contract dollars" in interview_brief
+    assert "This is not a units mismatch" in interview_brief
 
 
 def test_signed_markout_sign_convention():

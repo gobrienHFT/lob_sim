@@ -18,7 +18,7 @@ python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --
 
 ## What to Look at First
 
-Single-run case study:
+Canonical screen-share order:
 
 1. [`toxic_flow_seed7/interview_brief.md`](toxic_flow_seed7/interview_brief.md)
 2. [`toxic_flow_seed7/overview_dashboard.png`](toxic_flow_seed7/overview_dashboard.png)
@@ -26,7 +26,10 @@ Single-run case study:
 4. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)
 5. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)
 6. representative worked fill in [`toxic_flow_seed7/interview_brief.md#representative-hedged-fill`](toxic_flow_seed7/interview_brief.md#representative-hedged-fill)
-7. [`toxic_flow_seed7/fills_head.csv`](toxic_flow_seed7/fills_head.csv)
+7. [`scenario_matrix_seed7/scenario_matrix.md`](scenario_matrix_seed7/scenario_matrix.md)
+8. [`toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md`](toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
+
+If you want the raw event rows after the brief, open [`toxic_flow_seed7/fills_head.csv`](toxic_flow_seed7/fills_head.csv).
 
 Cross-scenario credibility check:
 
@@ -46,6 +49,14 @@ From the repo root:
 
 ```bash
 python scripts/refresh_sample_outputs.py
+```
+
+Exact deterministic commands behind each pack:
+
+```bash
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --interview-mode
+python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir outputs
+python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
 ```
 
 That regenerates:

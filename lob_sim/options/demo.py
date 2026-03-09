@@ -452,10 +452,28 @@ def _example_short_interpretation(fill: dict[str, Any]) -> str:
     )
 
 
+def _stress_fill_follow_up(fill: dict[str, Any]) -> list[str]:
+    reservation = float(fill["reservation_price"])
+    fair_value = float(fill["fair_value"])
+    if abs(reservation) <= abs(fair_value):
+        return []
+    return [
+        (
+            "This is not a units mismatch: the per-option fair value is low, but a large negative vega reservation "
+            "shifted the dealer bid above model mid to attract offsetting flow."
+        ),
+        (
+            "The trader read is that inventory transfer pricing became aggressive here, and the subsequent negative "
+            "markout is evidence to question whether that skew should have been capped or hedged earlier."
+        ),
+    ]
+
+
 def _format_worked_fill_example(
     heading: str,
     selection_rule: str,
     fill: dict[str, Any] | None,
+    follow_up_lines: list[str] | None = None,
 ) -> list[str]:
     lines = [f"### {heading}", "", selection_rule]
     if fill is None:
@@ -508,6 +526,8 @@ def _format_worked_fill_example(
             f"| short_interpretation | {_example_short_interpretation(fill)} |",
         ]
     )
+    if follow_up_lines:
+        lines.extend(["", *(f"- {line}" for line in follow_up_lines)])
     return lines
 
 
@@ -638,6 +658,7 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
         "",
         "## Worked fill examples",
         "Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.",
+        "",
     ]
     rules = _worked_fill_rules()
     lines.extend(
@@ -650,7 +671,16 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
     lines.extend(
         [
             "",
-            *(_format_worked_fill_example("Stress-case toxic fill", rules["stress"], worked_examples.get("stress"))),
+            *(
+                _format_worked_fill_example(
+                    "Stress-case toxic fill",
+                    rules["stress"],
+                    worked_examples.get("stress"),
+                    _stress_fill_follow_up(worked_examples.get("stress"))
+                    if worked_examples.get("stress") is not None
+                    else None,
+                )
+            ),
         ]
     )
     lines.extend(
@@ -806,6 +836,9 @@ def format_demo_report(
                 "Stress-case toxic fill",
                 _worked_fill_rules()["stress"],
                 worked_examples.get("stress"),
+                _stress_fill_follow_up(worked_examples.get("stress"))
+                if worked_examples.get("stress") is not None
+                else None,
             )
         ),
         "",

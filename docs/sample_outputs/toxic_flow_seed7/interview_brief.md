@@ -62,6 +62,7 @@ Signed markout is reported here as a contract-dollar fill-quality diagnostic. It
 
 ## Worked fill examples
 Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.
+
 ### Representative hedged fill
 
 Representative hedged fill = the hedged fill whose absolute signed markout is closest to the median absolute signed markout across all hedged fills.
@@ -131,6 +132,9 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 | portfolio_delta_after_hedge | +0.5 |
 | option_position_after | 0 contracts |
 | short_interpretation | Reservation pressure of -14.556 premium per option dominated fair value, so the dealer buy side was skewed far from model mid. The fill transacted 4828.54 contract dollars of premium before the 1-step signed markout of -4326.87 contract dollars. |
+
+- This is not a units mismatch: the per-option fair value is low, but a large negative vega reservation shifted the dealer bid above model mid to attract offsetting flow.
+- The trader read is that inventory transfer pricing became aggressive here, and the subsequent negative markout is evidence to question whether that skew should have been capped or hedged earlier.
 
 ## What I would build next
 - Calibrate the implied-vol surface and customer-flow assumptions from real market data.

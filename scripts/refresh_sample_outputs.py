@@ -9,7 +9,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from lob_sim.options.demo import format_demo_report, format_interview_brief, select_worked_fill_examples
+from scripts.verify_committed_artifacts import assert_no_artifact_issues
 
 
 SCENARIO = "toxic_flow"
@@ -22,7 +27,7 @@ SENSITIVITY_DIR = SAMPLE_ROOT / f"toxicity_spread_sensitivity_seed{SEED}"
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return REPO_ROOT
 
 
 def _run_demo(out_dir: Path) -> None:
@@ -146,22 +151,6 @@ def _write_sanitized_case_artifacts(case_tmp: Path, case_study_dir: Path) -> Non
         json.dump(summary, handle, indent=2)
 
 
-def _validate_case_artifacts(repo_root: Path, case_study_dir: Path) -> None:
-    summary = json.loads((case_study_dir / "summary.json").read_text(encoding="utf-8"))
-    for relative_path in summary["output_files"].values():
-        target = repo_root / relative_path
-        if not target.exists():
-            raise FileNotFoundError(f"Missing committed sample artifact: {relative_path}")
-    for path in [
-        case_study_dir / "summary.json",
-        case_study_dir / "demo_report.md",
-        case_study_dir / "interview_brief.md",
-    ]:
-        text = path.read_text(encoding="utf-8")
-        if "AppData" in text or "Temp\\" in text or "lob_sim_options_sample_" in text:
-            raise ValueError(f"Temporary path leaked into committed sample artifact: {path}")
-
-
 def main() -> None:
     repo_root = _repo_root()
     case_study_dir = repo_root / CASE_STUDY_DIR
@@ -202,7 +191,6 @@ def main() -> None:
         _write_head_csv(case_study_tmp / "checkpoints.csv", case_study_dir / "checkpoints_head.csv", rows=25)
         _write_head_csv(case_study_tmp / "pnl_timeseries.csv", case_study_dir / "pnl_timeseries_head.csv", rows=25)
         _write_sanitized_case_artifacts(case_study_tmp, case_study_dir)
-        _validate_case_artifacts(repo_root, case_study_dir)
 
         _copy_file(matrix_tmp / "scenario_matrix.csv", matrix_dir / "scenario_matrix.csv")
         _copy_file(matrix_tmp / "scenario_matrix.md", matrix_dir / "scenario_matrix.md")
@@ -221,6 +209,7 @@ def main() -> None:
             sensitivity_dir / "toxicity_spread_heatmap.png",
         )
 
+    assert_no_artifact_issues()
     print(f"Refreshed sample outputs in {repo_root / SAMPLE_ROOT}")
 
 

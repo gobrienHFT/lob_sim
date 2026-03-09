@@ -85,16 +85,23 @@ def _fmt_value(key: str, value: float | int | str) -> str:
     return f"{float(value):.2f}"
 
 
-def _scenario_paragraph(row: dict[str, float | int | str]) -> str:
+def _scenario_section(row: dict[str, float | int | str]) -> list[str]:
     card = scenario_card(str(row["scenario"]))
-    return (
-        f"### {row['scenario']}\n\n"
-        f"{card['description']} {card['volatility_regime']} {card['flow_characteristics']} "
-        f"{card['hedging_pressure']} In this run it finished with ending PnL `{float(row['ending_pnl']):.2f}`, "
-        f"signed markout `{float(row['total_signed_markout']):.2f}`, toxic fill rate "
-        f"`{float(row['toxic_fill_rate']):.1%}`, hedge trades `{int(row['hedge_trade_count'])}`, "
-        f"and max inventory `{int(row['max_inventory_contracts'])}` contracts.\n"
-    )
+    return [
+        f"### {row['scenario']}",
+        "",
+        f"- {card['description']}",
+        f"- {card['volatility_regime']}",
+        f"- {card['flow_characteristics']}",
+        f"- {card['hedging_pressure']}",
+        (
+            f"- In this run it finished with ending PnL `{float(row['ending_pnl']):.2f}`, signed markout "
+            f"`{float(row['total_signed_markout']):.2f}`, toxic fill rate `{float(row['toxic_fill_rate']):.1%}`, "
+            f"hedge trades `{int(row['hedge_trade_count'])}`, and max inventory "
+            f"`{int(row['max_inventory_contracts'])}` contracts."
+        ),
+        "",
+    ]
 
 
 def _write_markdown(path: Path, rows: list[dict[str, float | int | str]], steps: int, seed: int) -> None:
@@ -149,7 +156,7 @@ def _write_markdown(path: Path, rows: list[dict[str, float | int | str]], steps:
         ]
     )
     for row in rows:
-        lines.append(_scenario_paragraph(row))
+        lines.extend(_scenario_section(row))
 
     lines.extend(
         [

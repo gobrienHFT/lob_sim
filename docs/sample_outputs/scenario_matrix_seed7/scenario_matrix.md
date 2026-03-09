@@ -13,19 +13,35 @@ Same-seed comparison across all current options presets. Each run uses seed `7` 
 
 ### calm_market
 
-Lower-volatility quoting with modest toxic flow and lighter hedge pressure. Calm underlying path with smaller jumps and tighter option quote width. Lower customer arrival intensity and mostly non-toxic flow. Lower hedge pressure because delta excursions are less violent. In this run it finished with ending PnL `800.61`, signed markout `519.31`, toxic fill rate `6.9%`, hedge trades `45`, and max inventory `106` contracts.
+- Lower-volatility quoting with modest toxic flow and lighter hedge pressure.
+- Calm underlying path with smaller jumps and tighter option quote width.
+- Lower customer arrival intensity and mostly non-toxic flow.
+- Lower hedge pressure because delta excursions are less violent.
+- In this run it finished with ending PnL `800.61`, signed markout `519.31`, toxic fill rate `6.9%`, hedge trades `45`, and max inventory `106` contracts.
 
 ### volatile_market
 
-Higher realized volatility and jump risk, forcing wider quotes and faster hedging. Large spot swings and more jump risk push fair values around quickly. Healthy flow, but the fast underlying path makes inventory harder to warehouse. Higher hedge pressure because delta moves faster and wider. In this run it finished with ending PnL `13066.87`, signed markout `11644.42`, toxic fill rate `26.9%`, hedge trades `72`, and max inventory `143` contracts.
+- Higher realized volatility and jump risk, forcing wider quotes and faster hedging.
+- Large spot swings and more jump risk push fair values around quickly.
+- Healthy flow, but the fast underlying path makes inventory harder to warehouse.
+- Higher hedge pressure because delta moves faster and wider.
+- In this run it finished with ending PnL `13066.87`, signed markout `11644.42`, toxic fill rate `26.9%`, hedge trades `72`, and max inventory `143` contracts.
 
 ### toxic_flow
 
-Flow is more informed, so markouts matter and toxic fills are easier to discuss. Moderate volatility, but adverse-selection drift is deliberately stronger. A larger share of customer trades are informed against the quoted price. Moderate hedge pressure, but post-trade markouts are the real story. In this run it finished with ending PnL `4068.17`, signed markout `-5339.31`, toxic fill rate `55.9%`, hedge trades `76`, and max inventory `157` contracts.
+- Flow is more informed, so markouts matter and toxic fills are easier to discuss.
+- Moderate volatility, but adverse-selection drift is deliberately stronger.
+- A larger share of customer trades are informed against the quoted price.
+- Moderate hedge pressure, but post-trade markouts are the real story.
+- In this run it finished with ending PnL `4068.17`, signed markout `-5339.31`, toxic fill rate `55.9%`, hedge trades `76`, and max inventory `157` contracts.
 
 ### inventory_stress
 
-Larger clips and looser hedge thresholds force more inventory warehousing. Normal volatility, but inventory accumulates quickly because clips are larger. Faster flow and bigger trade sizes push single-contract positions harder. Delta is allowed to run further before hedging, so inventory skew dominates. In this run it finished with ending PnL `6587.10`, signed markout `3725.75`, toxic fill rate `16.0%`, hedge trades `81`, and max inventory `206` contracts.
+- Larger clips and looser hedge thresholds force more inventory warehousing.
+- Normal volatility, but inventory accumulates quickly because clips are larger.
+- Faster flow and bigger trade sizes push single-contract positions harder.
+- Delta is allowed to run further before hedging, so inventory skew dominates.
+- In this run it finished with ending PnL `6587.10`, signed markout `3725.75`, toxic fill rate `16.0%`, hedge trades `81`, and max inventory `206` contracts.
 
 ## What this proves
 

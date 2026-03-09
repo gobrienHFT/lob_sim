@@ -171,6 +171,9 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 | option_position_after | 0 contracts |
 | short_interpretation | Reservation pressure of -14.556 premium per option dominated fair value, so the dealer buy side was skewed far from model mid. The fill transacted 4828.54 contract dollars of premium before the 1-step signed markout of -4326.87 contract dollars. |
 
+- This is not a units mismatch: the per-option fair value is low, but a large negative vega reservation shifted the dealer bid above model mid to attract offsetting flow.
+- The trader read is that inventory transfer pricing became aggressive here, and the subsequent negative markout is evidence to question whether that skew should have been capped or hedged earlier.
+
 ## Most traded contracts
 - CALL_90.00_14D: count=18, signed_qty=10
 - CALL_95.00_14D: count=13, signed_qty=-5
