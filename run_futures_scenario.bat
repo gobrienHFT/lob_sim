@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
-set "ENV_FILE=.env"
+set "ENV_FILE=.env.example"
 set "PROGRESS_EVERY=5000"
 
 if not "%~2"=="" set "PROGRESS_EVERY=%~2"

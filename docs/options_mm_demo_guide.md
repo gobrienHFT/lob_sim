@@ -2,14 +2,14 @@
 
 ## Goal
 
-Use `run_options_mm_case.bat` as a compact walkthrough of how an options dealer prices, warehouses risk, hedges delta, and evaluates adverse selection. The point is not to claim this is production infrastructure. The point is to show clear pricing and risk reasoning with outputs that are easy to audit.
+Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of how an options dealer prices, warehouses risk across the surface, hedges delta, and evaluates adverse selection. The point is not to claim this is production infrastructure. The point is to show clear pricing and risk reasoning with outputs that are easy to audit.
 
 ## What the batch file does
 
-`run_options_mm_case.bat` launches:
+`run_options_mm_interview_mode.bat` launches:
 
 ```bat
-python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --verbose --progress-every ... --log-mode compact
+python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --brief --interview-mode
 ```
 
 That command runs the synthetic options dealer study in [lob_sim/options/demo.py](../lob_sim/options/demo.py).
@@ -20,14 +20,17 @@ The non-Windows equivalent is:
 bash run_options_mm_case.sh
 ```
 
+If you want the fuller event-level walkthrough instead of the concise screen-share path, use `run_options_mm_case.bat`.
+
 ## Best screen-share order
 
-1. Start with the terminal summary block.
+1. Open `interview_brief.md`.
 2. Open `overview_dashboard.png`.
-3. Open `demo_report.md`.
-4. Open `fills.csv` and walk through one row carefully.
-5. Open `pnl_timeseries.csv` and connect spot, inventory, delta, and PnL through time.
-6. Finish with the single-purpose charts only if you want more detail.
+3. Open `position_surface_heatmap.png`.
+4. Open `vega_surface_heatmap.png`.
+5. Open `fills.csv` and walk through one row carefully.
+6. Open `scenario_matrix.md`.
+7. Open `toxicity_spread_sensitivity.md`.
 
 If you want to show the case study is not one cherry-picked path, run:
 
@@ -38,6 +41,8 @@ python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir
 Then open `outputs/scenario_matrix.md` and `outputs/scenario_comparison.png`.
 
 If you want the same comparison without running the repo locally, open [`docs/sample_outputs/scenario_matrix_seed7/`](sample_outputs/scenario_matrix_seed7/).
+
+If you want one small economics trade-off study without running the repo locally, open [`docs/sample_outputs/toxicity_spread_sensitivity_seed7/`](sample_outputs/toxicity_spread_sensitivity_seed7/).
 
 ## The core quote formula
 
@@ -87,13 +92,23 @@ Use one row from `fills.csv` and walk left to right:
 - Delta is hedged with the underlying because it is the fastest and cheapest risk to reduce.
 - Gamma and vega are not fully hedged here; they are intentionally warehoused so the trade-off stays visible.
 
+## Warehoused risk across the surface
+
+- `position_surface_heatmap.png` shows where signed contract inventory ended up by strike and expiry.
+- `vega_surface_heatmap.png` shows where volatility exposure remained after delta hedging.
+- If delta finishes near flat while vega buckets stay large, that is the honest point: the underlying hedge fixed directional risk, not the whole options surface.
+- Concentrated buckets matter because they show where reservation pricing and future cross-option hedging would need to work harder.
+
 ## Artifact map
 
 The run writes:
 
 - `summary.json`: machine-readable run summary and artifact paths.
+- `interview_brief.md`: concise screen-share order, metrics table, worked fill, takeaways, and limitations.
 - `demo_report.md`: the clean overview document.
 - `overview_dashboard.png`: one screen with headline PnL, inventory, delta, and toxic versus non-toxic markout.
+- `position_surface_heatmap.png`: signed contract inventory across strike and expiry at the final snapshot.
+- `vega_surface_heatmap.png`: warehoused vega across strike and expiry at the final snapshot.
 - `fills.csv`: event-level fill and hedge story.
 - `checkpoints.csv`: checkpoint snapshots from the run.
 - `pnl_timeseries.csv`: step-by-step PnL, spot, and risk path.
@@ -105,6 +120,14 @@ The cross-scenario comparison script writes:
 - `scenario_matrix.csv`: one row per scenario with headline PnL, markout, flow, and hedging metrics.
 - `scenario_matrix.md`: same-seed comparison table plus short scenario-by-scenario notes.
 - `scenario_comparison.png`: compact visual comparison across all presets.
+
+The toxicity-versus-spread sensitivity script writes:
+
+- `toxicity_spread_sensitivity.csv`: one row per toxicity/spread pair.
+- `toxicity_spread_sensitivity.md`: compact table plus two short interpretation sections.
+- `toxicity_spread_heatmap.png`: visual trade-off across toxic share and baseline quote width.
+
+For a compact note on what desk-quality data would be needed to calibrate each synthetic component, open [what_real_data_would_change.md](what_real_data_would_change.md).
 
 ## Strong follow-ups
 

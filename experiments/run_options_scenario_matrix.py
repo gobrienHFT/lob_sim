@@ -39,7 +39,7 @@ SCENARIO_COLORS = {
 
 def _run_scenario(scenario: str, steps: int, seed: int, tmp_root: Path) -> dict[str, float | int | str]:
     config = build_options_config(steps=steps, seed=seed, scenario=scenario)
-    summary = OptionsMarketMakerDemo(config).run(tmp_root / scenario, progress_every=0)
+    summary = OptionsMarketMakerDemo(config).run(tmp_root / scenario, progress_every=0, write_artifacts=False)
     return {
         "scenario": scenario,
         "seed": seed,

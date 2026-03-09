@@ -36,10 +36,12 @@ if errorlevel 1 goto fail
 echo.
 echo [options] Screen-share order:
 echo [options]   1. %OUT_DIR%\interview_brief.md
-echo [options]   2. %OUT_DIR%\demo_report.md
-echo [options]   3. %OUT_DIR%\pnl_over_time.png
-echo [options]   4. %OUT_DIR%\inventory_over_time.png
+echo [options]   2. %OUT_DIR%\overview_dashboard.png
+echo [options]   3. %OUT_DIR%\position_surface_heatmap.png
+echo [options]   4. %OUT_DIR%\vega_surface_heatmap.png
 echo [options]   5. %OUT_DIR%\fills.csv
+echo [options]   6. docs\sample_outputs\scenario_matrix_seed7\scenario_matrix.md
+echo [options]   7. docs\sample_outputs\toxicity_spread_sensitivity_seed7\toxicity_spread_sensitivity.md
 echo [options] Open %OUT_DIR%\interview_brief.md first.
 set "EXIT_CODE=0"
 goto end

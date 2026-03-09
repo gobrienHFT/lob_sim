@@ -17,6 +17,10 @@ from .surface import SimpleVolSurface
 
 
 DEFAULT_OPTIONS_SCENARIO = "calm_market"
+SAMPLE_SCENARIO_MATRIX_ARTIFACT = "docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md"
+SAMPLE_SENSITIVITY_ARTIFACT = (
+    "docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md"
+)
 OPTIONS_SCENARIOS: dict[str, dict[str, Any]] = {
     "calm_market": {
         "description": "Lower-volatility quoting with modest toxic flow and lighter hedge pressure.",
@@ -234,6 +238,29 @@ def _summary_interpretation(summary: dict[str, Any]) -> list[str]:
     return notes
 
 
+def _surface_risk_notes(summary: dict[str, Any]) -> list[str]:
+    surface = summary["surface_risk"]
+    largest_position = surface["largest_position_bucket"]
+    largest_vega = surface["largest_vega_bucket"]
+    notes = [
+        (
+            f"Largest signed contract inventory sat in strike `{largest_position['strike']:.0f}` / "
+            f"`{largest_position['expiry_days']}` day expiry at `{largest_position['contracts']:+.0f}` contracts."
+        ),
+        (
+            f"Largest net vega sat in strike `{largest_vega['strike']:.0f}` / "
+            f"`{largest_vega['expiry_days']}` day expiry at `{largest_vega['net_vega']:+.0f}` vega."
+        ),
+        (
+            f"Risk was spread across `{surface['active_cells']}` non-zero strike/expiry buckets, so the book is "
+            "not just one contract position."
+        ),
+    ]
+    if abs(summary["final_net_delta"]) <= 50.0 and abs(summary["final_net_vega"]) > 0.0:
+        notes.append("Underlying hedges flattened delta, but the volatility surface exposure remained warehoused.")
+    return notes
+
+
 def format_terminal_summary(summary: dict[str, Any]) -> str:
     headline = _format_metric_rows(
         [
@@ -426,6 +453,9 @@ def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] 
         "## Key limitations",
         *(f"- {item}" for item in limitations),
         "",
+        "## Warehoused risk across the surface",
+        *(f"- {item}" for item in _surface_risk_notes(summary)),
+        "",
         "## Worked fill example",
         "Selected directly from `fills.csv`.",
     ]
@@ -478,10 +508,11 @@ def format_interview_brief(summary: dict[str, Any], worked_fill: dict[str, Any] 
             "## Files to open next",
             f"- `interview_brief.md`: {summary['output_files']['interview_brief']}",
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
-            f"- `demo_report.md`: {summary['output_files']['report']}",
+            f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
+            f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
             f"- `fills.csv`: {summary['output_files']['fills']}",
-            f"- `pnl_timeseries.csv`: {summary['output_files']['pnl_timeseries']}",
-            f"- `pnl_over_time.png`: {summary['output_files']['pnl_over_time_plot']}",
+            f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
+            f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -579,16 +610,24 @@ def format_demo_report(summary: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Warehoused risk across the surface",
+            *(f"- {note}" for note in _surface_risk_notes(summary)),
+            "",
             "## Most traded contracts",
             *_format_top_contracts(summary),
             "",
             "## Suggested artifact reading order",
+            *(
+                [f"- `interview_brief.md`: {summary['output_files']['interview_brief']}"]
+                if "interview_brief" in summary["output_files"]
+                else []
+            ),
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
-            f"- `demo_report.md`: {summary['output_files']['report']}",
+            f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
+            f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
             f"- `fills.csv`: {summary['output_files']['fills']}",
-            f"- `pnl_timeseries.csv`: {summary['output_files']['pnl_timeseries']}",
-            f"- `checkpoints.csv`: {summary['output_files']['checkpoints']}",
-            f"- `pnl_over_time.png`: {summary['output_files']['pnl_over_time_plot']}",
+            f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
+            f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
             "",
             "## Glossary",
             "- **Underlying spot**: the simulated price of the underlying used for option fair value and delta hedging.",
@@ -609,6 +648,8 @@ def format_demo_report(summary: dict[str, Any]) -> str:
             f"- Final positions CSV: `{summary['output_files']['positions_final']}`",
             f"- Report Markdown: `{summary['output_files']['report']}`",
             f"- Overview dashboard: `{summary['output_files']['overview_dashboard_plot']}`",
+            f"- Position surface heatmap: `{summary['output_files']['position_surface_heatmap_plot']}`",
+            f"- Vega surface heatmap: `{summary['output_files']['vega_surface_heatmap_plot']}`",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -627,6 +668,8 @@ def format_artifact_paths(summary: dict[str, Any]) -> str:
             f"- PnL timeseries CSV: {summary['output_files']['pnl_timeseries']}",
             f"- Final positions CSV: {summary['output_files']['positions_final']}",
             f"- Overview dashboard: {summary['output_files']['overview_dashboard_plot']}",
+            f"- Position surface heatmap: {summary['output_files']['position_surface_heatmap_plot']}",
+            f"- Vega surface heatmap: {summary['output_files']['vega_surface_heatmap_plot']}",
             f"- PnL chart: {summary['output_files']['pnl_over_time_plot']}",
         ]
     )
@@ -1071,6 +1114,124 @@ class OptionsMarketMakerDemo:
         fig.savefig(path, dpi=140)
         plt.close(fig)
 
+    def _surface_snapshot(self, spot: float, step: int) -> dict[str, Any]:
+        strikes = sorted({float(contract.strike) for contract in self.contracts})
+        expiry_days = sorted({int(round(contract.expiry_years * 252.0)) for contract in self.contracts})
+        strike_index = {strike: idx for idx, strike in enumerate(strikes)}
+        expiry_index = {expiry: idx for idx, expiry in enumerate(expiry_days)}
+
+        position_matrix = [[0.0 for _ in strikes] for _ in expiry_days]
+        vega_matrix = [[0.0 for _ in strikes] for _ in expiry_days]
+
+        for contract in self.contracts:
+            position = self.option_positions[contract.symbol]
+            if position == 0:
+                continue
+            expiry = int(round(contract.expiry_years * 252.0))
+            row_idx = expiry_index[expiry]
+            col_idx = strike_index[float(contract.strike)]
+            position_matrix[row_idx][col_idx] += float(position)
+
+            remaining = self._remaining_years(contract, step)
+            implied_vol = self.surface.implied_vol(spot, contract, remaining)
+            greeks = option_metrics(
+                spot=spot,
+                strike=contract.strike,
+                time_to_expiry=remaining,
+                rate=self.cfg.rate,
+                vol=implied_vol,
+                option_type=contract.option_type,
+            )
+            vega_matrix[row_idx][col_idx] += float(position) * self.cfg.contract_size * greeks.vega
+
+        active_cells = sum(
+            1
+            for row_idx in range(len(expiry_days))
+            for col_idx in range(len(strikes))
+            if position_matrix[row_idx][col_idx] != 0.0 or vega_matrix[row_idx][col_idx] != 0.0
+        )
+        largest_position = max(
+            (
+                {
+                    "strike": strike,
+                    "expiry_days": expiry,
+                    "contracts": position_matrix[expiry_index[expiry]][strike_index[strike]],
+                }
+                for expiry in expiry_days
+                for strike in strikes
+            ),
+            key=lambda bucket: abs(bucket["contracts"]),
+            default={"strike": strikes[0], "expiry_days": expiry_days[0], "contracts": 0.0},
+        )
+        largest_vega = max(
+            (
+                {
+                    "strike": strike,
+                    "expiry_days": expiry,
+                    "net_vega": vega_matrix[expiry_index[expiry]][strike_index[strike]],
+                }
+                for expiry in expiry_days
+                for strike in strikes
+            ),
+            key=lambda bucket: abs(bucket["net_vega"]),
+            default={"strike": strikes[0], "expiry_days": expiry_days[0], "net_vega": 0.0},
+        )
+        return {
+            "strikes": strikes,
+            "expiry_days": expiry_days,
+            "position_contracts": [[round(value, 6) for value in row] for row in position_matrix],
+            "net_vega": [[round(value, 6) for value in row] for row in vega_matrix],
+            "active_cells": active_cells,
+            "largest_position_bucket": {
+                "strike": round(float(largest_position["strike"]), 6),
+                "expiry_days": int(largest_position["expiry_days"]),
+                "contracts": round(float(largest_position["contracts"]), 6),
+            },
+            "largest_vega_bucket": {
+                "strike": round(float(largest_vega["strike"]), 6),
+                "expiry_days": int(largest_vega["expiry_days"]),
+                "net_vega": round(float(largest_vega["net_vega"]), 6),
+            },
+        }
+
+    def _save_surface_heatmap(
+        self,
+        path: Path,
+        matrix: list[list[float]],
+        strikes: list[float],
+        expiry_days: list[int],
+        *,
+        title: str,
+        colorbar_label: str,
+        annotation_fmt: str,
+    ) -> None:
+        fig, ax = plt.subplots(figsize=(10, 4.8))
+        max_abs = max((abs(value) for row in matrix for value in row), default=0.0)
+        if max_abs == 0.0:
+            max_abs = 1.0
+        image = ax.imshow(matrix, cmap="RdBu_r", vmin=-max_abs, vmax=max_abs, aspect="auto")
+        self._style_axes(ax, title=title, xlabel="Strike", ylabel="Expiry (days)")
+        ax.set_xticks(range(len(strikes)), [f"{strike:.0f}" for strike in strikes])
+        ax.set_yticks(range(len(expiry_days)), [str(expiry) for expiry in expiry_days])
+        for row_idx, row in enumerate(matrix):
+            for col_idx, value in enumerate(row):
+                text_color = "white" if abs(value) > max_abs * 0.55 else "black"
+                ax.text(
+                    col_idx,
+                    row_idx,
+                    format(value, annotation_fmt),
+                    ha="center",
+                    va="center",
+                    fontsize=self._TICK_LABEL_FONT_SIZE,
+                    color=text_color,
+                )
+        colorbar = fig.colorbar(image, ax=ax)
+        colorbar.ax.set_ylabel(colorbar_label, fontsize=self._AXIS_LABEL_FONT_SIZE)
+        colorbar.ax.tick_params(labelsize=self._TICK_LABEL_FONT_SIZE)
+        fig.tight_layout()
+        fig.savefig(path, dpi=140)
+        plt.close(fig)
+
     def _write_plots(self, out_dir: Path) -> dict[str, str]:
         steps = [int(row["step"]) for row in self.path_rows]
         ending_pnl = [float(row["ending_pnl"]) for row in self.path_rows]
@@ -1081,6 +1242,7 @@ class OptionsMarketMakerDemo:
         net_delta = [float(row["net_delta"]) for row in self.path_rows]
         markouts = [float(row["signed_markout"]) for row in self.trade_rows]
         top_contracts = self.contract_trade_counts.most_common(6)
+        surface_risk = self._surface_snapshot(spot[-1] if spot else self.cfg.spot0, self.cfg.steps)
 
         paths = {
             "pnl_over_time_plot": out_dir / "pnl_over_time.png",
@@ -1092,6 +1254,8 @@ class OptionsMarketMakerDemo:
             "toxic_vs_nontoxic_plot": out_dir / "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": out_dir / "top_traded_contracts.png",
             "overview_dashboard_plot": out_dir / "overview_dashboard.png",
+            "position_surface_heatmap_plot": out_dir / "position_surface_heatmap.png",
+            "vega_surface_heatmap_plot": out_dir / "vega_surface_heatmap.png",
         }
 
         self._save_line_plot(
@@ -1153,6 +1317,24 @@ class OptionsMarketMakerDemo:
             ending_pnl,
             inventory,
             net_delta,
+        )
+        self._save_surface_heatmap(
+            paths["position_surface_heatmap_plot"],
+            surface_risk["position_contracts"],
+            surface_risk["strikes"],
+            surface_risk["expiry_days"],
+            title="Final Position Surface",
+            colorbar_label="Signed contracts",
+            annotation_fmt="+.0f",
+        )
+        self._save_surface_heatmap(
+            paths["vega_surface_heatmap_plot"],
+            surface_risk["net_vega"],
+            surface_risk["strikes"],
+            surface_risk["expiry_days"],
+            title="Final Vega Surface",
+            colorbar_label="Net vega",
+            annotation_fmt="+.0f",
         )
 
         return {key: str(value) for key, value in paths.items()}
@@ -1280,6 +1462,9 @@ class OptionsMarketMakerDemo:
                 {
                     "instrument_type": "underlying",
                     "symbol": "UNDERLYING",
+                    "option_type": "",
+                    "strike": "",
+                    "expiry_days": "",
                     "quantity": round(self.stock_position, 6),
                     "mark_price": round(spot, 6),
                     "mark_value": round(self.stock_position * spot, 6),
@@ -1308,6 +1493,9 @@ class OptionsMarketMakerDemo:
                 {
                     "instrument_type": "option",
                     "symbol": contract.symbol,
+                    "option_type": contract.option_type,
+                    "strike": round(contract.strike, 6),
+                    "expiry_days": int(round(contract.expiry_years * 252.0)),
                     "quantity": position,
                     "mark_price": round(greeks.price, 6),
                     "mark_value": round(mark_value, 6),
@@ -1328,6 +1516,7 @@ class OptionsMarketMakerDemo:
     ) -> dict[str, Any]:
         avg_markout = self._average(self.markout_sum, self.markout_count)
         avg_half_spread = self._average(self.half_spread_sum, self.trade_count)
+        surface_risk = self._surface_snapshot(spot, self.cfg.steps)
         summary: dict[str, Any] = {
             "scenario": self.cfg.scenario_name,
             "scenario_description": self.cfg.scenario_description,
@@ -1394,6 +1583,7 @@ class OptionsMarketMakerDemo:
             ],
             "parameters": asdict(self.cfg),
             "simulation_scope": "Synthetic customer-flow dealer study; not a venue order-book replay.",
+            "surface_risk": surface_risk,
         }
         return summary
 
@@ -1404,9 +1594,11 @@ class OptionsMarketMakerDemo:
         progress_every: int = 25,
         log_mode: str = "compact",
         interview_mode: bool = False,
+        write_artifacts: bool = True,
     ) -> dict[str, Any]:
         rng = random.Random(self.cfg.seed)
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if write_artifacts:
+            out_dir.mkdir(parents=True, exist_ok=True)
 
         spot = self.cfg.spot0
         equity_peak = 0.0
@@ -1591,20 +1783,22 @@ class OptionsMarketMakerDemo:
             max_drawdown=max_drawdown,
         )
 
-        output_files: dict[str, str] = {
-            "summary": str(out_dir / "summary.json"),
-            "fills": str(out_dir / "fills.csv"),
-            "checkpoints": str(out_dir / "checkpoints.csv"),
-            "pnl_timeseries": str(out_dir / "pnl_timeseries.csv"),
-            "positions_final": str(out_dir / "positions_final.csv"),
-            "report": str(out_dir / "demo_report.md"),
-        }
-        if interview_mode:
-            output_files["interview_brief"] = str(out_dir / "interview_brief.md")
-        output_files.update(self._write_plots(out_dir))
+        positions_rows = self._build_positions_rows(spot, self.cfg.steps)
+        output_files: dict[str, str] = {}
+        if write_artifacts:
+            output_files = {
+                "summary": str(out_dir / "summary.json"),
+                "fills": str(out_dir / "fills.csv"),
+                "checkpoints": str(out_dir / "checkpoints.csv"),
+                "pnl_timeseries": str(out_dir / "pnl_timeseries.csv"),
+                "positions_final": str(out_dir / "positions_final.csv"),
+                "report": str(out_dir / "demo_report.md"),
+            }
+            if interview_mode:
+                output_files["interview_brief"] = str(out_dir / "interview_brief.md")
+            output_files.update(self._write_plots(out_dir))
         summary["output_files"] = output_files
 
-        positions_rows = self._build_positions_rows(spot, self.cfg.steps)
         fills_fields = [
             "step",
             "spot_before",
@@ -1700,24 +1894,28 @@ class OptionsMarketMakerDemo:
         positions_fields = [
             "instrument_type",
             "symbol",
+            "option_type",
+            "strike",
+            "expiry_days",
             "quantity",
             "mark_price",
             "mark_value",
             "net_delta_contribution",
             "net_vega_contribution",
         ]
-        self._write_csv(Path(output_files["fills"]), self.trade_rows, fieldnames=fills_fields)
-        self._write_csv(Path(output_files["checkpoints"]), self.checkpoint_rows, fieldnames=checkpoint_fields)
-        self._write_csv(Path(output_files["pnl_timeseries"]), self.path_rows, fieldnames=pnl_fields)
-        self._write_csv(Path(output_files["positions_final"]), positions_rows, fieldnames=positions_fields)
-        Path(output_files["report"]).write_text(format_demo_report(summary), encoding="utf-8")
-        if interview_mode:
-            worked_fill = _select_worked_fill(self.trade_rows)
-            Path(output_files["interview_brief"]).write_text(
-                format_interview_brief(summary, worked_fill),
-                encoding="utf-8",
-            )
-        with Path(output_files["summary"]).open("w", encoding="utf-8") as handle:
-            json.dump(summary, handle, indent=2)
+        if write_artifacts:
+            self._write_csv(Path(output_files["fills"]), self.trade_rows, fieldnames=fills_fields)
+            self._write_csv(Path(output_files["checkpoints"]), self.checkpoint_rows, fieldnames=checkpoint_fields)
+            self._write_csv(Path(output_files["pnl_timeseries"]), self.path_rows, fieldnames=pnl_fields)
+            self._write_csv(Path(output_files["positions_final"]), positions_rows, fieldnames=positions_fields)
+            Path(output_files["report"]).write_text(format_demo_report(summary), encoding="utf-8")
+            if interview_mode:
+                worked_fill = _select_worked_fill(self.trade_rows)
+                Path(output_files["interview_brief"]).write_text(
+                    format_interview_brief(summary, worked_fill),
+                    encoding="utf-8",
+                )
+            with Path(output_files["summary"]).open("w", encoding="utf-8") as handle:
+                json.dump(summary, handle, indent=2)
 
         return summary

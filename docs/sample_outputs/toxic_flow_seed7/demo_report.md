@@ -73,6 +73,12 @@
 - Hedge triggers were reached with meaningful delta, so underlying hedging mattered.
 - The book finished close to delta-flat after hedging.
 
+## Warehoused risk across the surface
+- Largest signed contract inventory sat in strike `95` / `14` day expiry at `-12` contracts.
+- Largest net vega sat in strike `105` / `90` day expiry at `+18578` vega.
+- Risk was spread across `12` non-zero strike/expiry buckets, so the book is not just one contract position.
+- Underlying hedges flattened delta, but the volatility surface exposure remained warehoused.
+
 ## Most traded contracts
 - CALL_90.00_14D: count=18, signed_qty=10
 - CALL_95.00_14D: count=13, signed_qty=-5
@@ -81,12 +87,13 @@
 - PUT_95.00_14D: count=9, signed_qty=-7
 
 ## Suggested artifact reading order
-- `overview_dashboard.png`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\overview_dashboard.png
-- `demo_report.md`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\demo_report.md
-- `fills.csv`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\fills.csv
-- `pnl_timeseries.csv`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\pnl_timeseries.csv
-- `checkpoints.csv`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\checkpoints.csv
-- `pnl_over_time.png`: C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\pnl_over_time.png
+- `interview_brief.md`: docs/sample_outputs/toxic_flow_seed7/interview_brief.md
+- `overview_dashboard.png`: docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png
+- `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png
+- `vega_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png
+- `fills.csv`: docs/sample_outputs/toxic_flow_seed7/fills_head.csv
+- `scenario_matrix.md`: docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md
+- `toxicity_spread_sensitivity.md`: docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md
 
 ## Glossary
 - **Underlying spot**: the simulated price of the underlying used for option fair value and delta hedging.
@@ -100,10 +107,12 @@
 - **Delta hedge**: underlying trade used to reduce net delta after option fills.
 
 ## Output files
-- Summary JSON: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\summary.json`
-- Fills CSV: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\fills.csv`
-- Checkpoints CSV: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\checkpoints.csv`
-- PnL timeseries CSV: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\pnl_timeseries.csv`
-- Final positions CSV: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\positions_final.csv`
-- Report Markdown: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\demo_report.md`
-- Overview dashboard: `C:\Users\PC\AppData\Local\Temp\lob_sim_options_sample_gbvbyk3w\case_study\overview_dashboard.png`
+- Summary JSON: `docs/sample_outputs/toxic_flow_seed7/summary.json`
+- Fills CSV: `docs/sample_outputs/toxic_flow_seed7/fills_head.csv`
+- Checkpoints CSV: `docs/sample_outputs/toxic_flow_seed7/checkpoints_head.csv`
+- PnL timeseries CSV: `docs/sample_outputs/toxic_flow_seed7/pnl_timeseries_head.csv`
+- Final positions CSV: `docs/sample_outputs/toxic_flow_seed7/positions_final.csv`
+- Report Markdown: `docs/sample_outputs/toxic_flow_seed7/demo_report.md`
+- Overview dashboard: `docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png`
+- Position surface heatmap: `docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png`
+- Vega surface heatmap: `docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png`

@@ -177,7 +177,7 @@ def _adverse_drift_experiment(cfg, file_path: str, out_dir: Path) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run simulation experiment sweeps")
-    parser.add_argument("--env", default=".env")
+    parser.add_argument("--env", default=".env", help="Path to .env file (falls back to .env.example)")
     parser.add_argument("--file", required=True)
     parser.add_argument("--out-dir", default="experiments/output")
     args = parser.parse_args()

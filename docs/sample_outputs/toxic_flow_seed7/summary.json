@@ -102,21 +102,91 @@
     "markout_horizon_steps": 1
   },
   "simulation_scope": "Synthetic customer-flow dealer study; not a venue order-book replay.",
+  "surface_risk": {
+    "strikes": [
+      90.0,
+      95.0,
+      100.0,
+      105.0,
+      110.0
+    ],
+    "expiry_days": [
+      14,
+      45,
+      90
+    ],
+    "position_contracts": [
+      [
+        7.0,
+        -12.0,
+        -5.0,
+        0.0,
+        4.0
+      ],
+      [
+        10.0,
+        5.0,
+        -9.0,
+        6.0,
+        0.0
+      ],
+      [
+        -7.0,
+        1.0,
+        1.0,
+        12.0,
+        0.0
+      ]
+    ],
+    "net_vega": [
+      [
+        5048.122713,
+        -7979.959015,
+        -1094.578706,
+        0.0,
+        7.570864
+      ],
+      [
+        14613.079792,
+        7302.06235,
+        -10073.788639,
+        4061.767694,
+        0.0
+      ],
+      [
+        -14800.18908,
+        2145.17919,
+        1924.932107,
+        18578.037889,
+        0.0
+      ]
+    ],
+    "active_cells": 12,
+    "largest_position_bucket": {
+      "strike": 95.0,
+      "expiry_days": 14,
+      "contracts": -12.0
+    },
+    "largest_vega_bucket": {
+      "strike": 105.0,
+      "expiry_days": 90,
+      "net_vega": 18578.037889
+    }
+  },
   "output_files": {
-    "summary": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\summary.json",
-    "fills": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\fills.csv",
-    "checkpoints": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\checkpoints.csv",
-    "pnl_timeseries": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\pnl_timeseries.csv",
-    "positions_final": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\positions_final.csv",
-    "report": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\demo_report.md",
-    "pnl_over_time_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\pnl_over_time.png",
-    "realized_vs_unrealized_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\realized_vs_unrealized.png",
-    "spot_path_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\spot_path.png",
-    "inventory_over_time_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\inventory_over_time.png",
-    "net_delta_over_time_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\net_delta_over_time.png",
-    "markout_distribution_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\markout_distribution.png",
-    "toxic_vs_nontoxic_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\toxic_vs_nontoxic_markout.png",
-    "top_traded_contracts_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\top_traded_contracts.png",
-    "overview_dashboard_plot": "C:\\Users\\PC\\AppData\\Local\\Temp\\lob_sim_options_sample_gbvbyk3w\\case_study\\overview_dashboard.png"
+    "summary": "docs/sample_outputs/toxic_flow_seed7/summary.json",
+    "fills": "docs/sample_outputs/toxic_flow_seed7/fills_head.csv",
+    "checkpoints": "docs/sample_outputs/toxic_flow_seed7/checkpoints_head.csv",
+    "pnl_timeseries": "docs/sample_outputs/toxic_flow_seed7/pnl_timeseries_head.csv",
+    "positions_final": "docs/sample_outputs/toxic_flow_seed7/positions_final.csv",
+    "report": "docs/sample_outputs/toxic_flow_seed7/demo_report.md",
+    "interview_brief": "docs/sample_outputs/toxic_flow_seed7/interview_brief.md",
+    "overview_dashboard_plot": "docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png",
+    "pnl_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/pnl_over_time.png",
+    "inventory_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/inventory_over_time.png",
+    "net_delta_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/net_delta_over_time.png",
+    "toxic_vs_nontoxic_plot": "docs/sample_outputs/toxic_flow_seed7/toxic_vs_nontoxic_markout.png",
+    "position_surface_heatmap_plot": "docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png",
+    "vega_surface_heatmap_plot": "docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png"
   }
 }

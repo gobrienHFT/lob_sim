@@ -148,6 +148,8 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
             "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": "top_traded_contracts.png",
             "overview_dashboard_plot": "overview_dashboard.png",
+            "position_surface_heatmap_plot": "position_surface_heatmap.png",
+            "vega_surface_heatmap_plot": "vega_surface_heatmap.png",
         }
         paths: dict[str, str] = {}
         for key, name in names.items():
@@ -170,6 +172,8 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     positions_csv = tmp_path / "positions_final.csv"
     pnl_plot = tmp_path / "pnl_over_time.png"
     dashboard_plot = tmp_path / "overview_dashboard.png"
+    position_surface_plot = tmp_path / "position_surface_heatmap.png"
+    vega_surface_plot = tmp_path / "vega_surface_heatmap.png"
 
     assert summary_json.exists()
     assert report_md.exists()
@@ -179,6 +183,8 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert positions_csv.exists()
     assert pnl_plot.exists()
     assert dashboard_plot.exists()
+    assert position_surface_plot.exists()
+    assert vega_surface_plot.exists()
 
     with summary_json.open("r", encoding="utf-8") as handle:
         summary_on_disk = json.load(handle)
@@ -215,6 +221,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert "Options market making case study" in report_text
     assert "Markout definition" in report_text
     assert "Glossary" in report_text
+    assert "Warehoused risk across the surface" in report_text
 
 
 def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
@@ -229,6 +236,8 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
             "toxic_vs_nontoxic_plot": "toxic_vs_nontoxic_markout.png",
             "top_traded_contracts_plot": "top_traded_contracts.png",
             "overview_dashboard_plot": "overview_dashboard.png",
+            "position_surface_heatmap_plot": "position_surface_heatmap.png",
+            "vega_surface_heatmap_plot": "vega_surface_heatmap.png",
         }
         paths: dict[str, str] = {}
         for key, name in names.items():
@@ -256,6 +265,9 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
     assert "Worked fill example" in interview_text
     assert "What I would build next" in interview_text
     assert "overview_dashboard.png" in interview_text
+    assert "position_surface_heatmap.png" in interview_text
+    assert "vega_surface_heatmap.png" in interview_text
+    assert "Warehoused risk across the surface" in interview_text
 
 
 def test_options_presets_and_summary_helpers():
@@ -296,6 +308,11 @@ def test_options_presets_and_summary_helpers():
         "final_net_delta": 18.0,
         "final_net_vega": 4.5,
         "markout_horizon_label": "1-step",
+        "surface_risk": {
+            "active_cells": 4,
+            "largest_position_bucket": {"strike": 95.0, "expiry_days": 45, "contracts": -6.0},
+            "largest_vega_bucket": {"strike": 100.0, "expiry_days": 45, "net_vega": 320.0},
+        },
         "most_traded_contracts": [
             {"contract": "CALL_100.00_14D", "trade_count": 4, "signed_contract_qty": -2}
         ],
@@ -317,6 +334,8 @@ def test_options_presets_and_summary_helpers():
         "pnl_timeseries": "outputs/pnl_timeseries.csv",
         "pnl_over_time_plot": "outputs/pnl_over_time.png",
         "overview_dashboard_plot": "outputs/overview_dashboard.png",
+        "position_surface_heatmap_plot": "outputs/position_surface_heatmap.png",
+        "vega_surface_heatmap_plot": "outputs/vega_surface_heatmap.png",
     }
     worked_fill = {
         "step": 7,

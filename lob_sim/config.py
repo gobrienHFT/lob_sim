@@ -181,7 +181,12 @@ class Config:
 
 
 def load_config(env_path: str = ".env") -> Config:
-    load_dotenv(env_path)
+    resolved_env_path = Path(env_path)
+    if not resolved_env_path.exists() and resolved_env_path.name == ".env":
+        example_path = resolved_env_path.with_name(".env.example")
+        if example_path.exists():
+            resolved_env_path = example_path
+    load_dotenv(resolved_env_path)
 
     cfg = Config(
         binance_api_key=_get_optional("BINANCE_API_KEY", "").strip(),

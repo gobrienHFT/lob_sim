@@ -243,7 +243,7 @@ def main() -> None:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     parser = argparse.ArgumentParser(prog="lob_sim")
-    parser.add_argument("--env", default=".env", help="Path to .env file")
+    parser.add_argument("--env", default=".env", help="Path to .env file (falls back to .env.example)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     c = sub.add_parser("collect")

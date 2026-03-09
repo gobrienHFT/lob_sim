@@ -1,0 +1,15 @@
+# What Real Data Would Change
+
+This repo is honest about the options side: it is a synthetic dealer study, not a venue-calibrated options backtest. The table below maps each synthetic component to the desk-quality data that would be needed to calibrate it properly.
+
+| Component | Current synthetic treatment | Real data needed | Calibration statistic or model | Limitation that remains |
+|---|---|---|---|---|
+| Flow arrival intensity | Each step samples customer arrival from a fixed scenario-level probability. | Time-stamped options trades or RFQ hits by contract and time-of-day. | Per-bucket arrival intensities, Hawkes-style clustering, or state-conditional Poisson rates. | Even good arrival models miss hidden liquidity and client-specific behavior. |
+| Trade size distribution | Trade size is sampled from a small integer range in each scenario. | Real fill size distribution by strike, expiry, moneyness, and regime. | Empirical size buckets or mixture distribution fit. | Posted size is not the same as the size a dealer would actually internalize. |
+| Toxic flow / adverse selection | A fixed toxic-flow share tilts the next spot move against the dealer. | Fill-to-future-mid markouts, order-flow imbalance, and client or venue segmentation. | Markout regression, conditional hazard model, or classifier for adverse selection probability. | Toxicity is path-dependent and changes with queue position, event timing, and news. |
+| Implied vol surface | Surface is a transparent skewed parametric approximation. | Live option quotes or trades across strike and expiry, plus underlying spot history. | SVI/SABR-style surface fit or smoothed strike-expiry interpolation with arbitrage checks. | A clean static fit still misses microstructure noise and intraday repricing speed. |
+| Spread setting | Base half-spread plus simple realized-vol and gamma widening. | Real quoted spread distributions, fill rates, and post-fill markouts by contract. | Conditional spread policy fit against fill probability and expected markout. | Best quoted spread is venue-specific and depends on queue priority, not just fair value risk. |
+| Hedge slippage / execution cost | Underlying hedges pay a fixed slippage in basis points. | Underlying L2 depth, realized fills, and market impact by hedge size and urgency. | Cost curve by participation rate, impact model, or empirical slippage surface. | Hedge cost still depends on urgency and broader market state at execution time. |
+| Reservation-price penalties | Delta and vega penalties are fixed coefficients in the quote skew. | Historical dealer inventory path, hedge timing, option re-hedge behavior, and realized risk outcomes. | Inventory-to-quote skew regression or dynamic control fit against realized PnL and risk. | Reservation pricing also depends on capital limits, trader discretion, and cross-book netting. |
+
+The point of the current demo is not to hide these gaps. It is to make them legible, so a reviewer can see exactly which parts are market-making mechanics and which parts would need real data before any serious calibration claim.

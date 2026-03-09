@@ -1,20 +1,24 @@
 # lob_sim
 
-`lob_sim` is a Python research repo that combines exchange-aware Binance futures replay with a transparent options market-making case study focused on quoting, inventory, hedging, and PnL.
+`lob_sim` is a Python research repo with two clear artifacts: a Binance futures replay simulator and a synthetic options market-making case study built to make pricing, inventory, hedging, and markout logic easy to inspect.
 
 This repo demonstrates:
 - futures L2 replay with queue-aware passive fill modelling
-- an options dealer case study with fair value, reservation price, toxic flow, markout, and hedging
+- an options dealer case study with Black-Scholes fair value, reservation pricing, toxic flow, surface risk, and delta hedging
 - readable research outputs: terminal summaries, markdown reports, CSV artifacts, and charts
 
 ## Start Here for Options Interviewers
 
-If you only open one thing in this repo, make it the options case study in [lob_sim/options/demo.py](lob_sim/options/demo.py).
+Open these three artifacts first:
+
+1. [Committed interview brief](docs/sample_outputs/toxic_flow_seed7/interview_brief.md)
+2. [Overview dashboard](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)
+3. [Scenario matrix](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
 
 Quickest Windows launcher:
 
 ```bat
-run_options_mm_case.bat
+run_options_mm_interview_mode.bat
 ```
 
 Quickest macOS/Linux launcher:
@@ -26,32 +30,22 @@ bash run_options_mm_case.sh
 Quickest CLI command:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario calm_market --steps 360 --out-dir outputs --verbose --log-mode compact
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --brief --interview-mode
 ```
-
-Committed sample artifact pack:
-- [docs/sample_outputs/README.md](docs/sample_outputs/README.md)
-- [demo_report.md](docs/sample_outputs/toxic_flow_seed7/demo_report.md)
-- [summary.json](docs/sample_outputs/toxic_flow_seed7/summary.json)
-- [fills_head.csv](docs/sample_outputs/toxic_flow_seed7/fills_head.csv)
-- [checkpoints_head.csv](docs/sample_outputs/toxic_flow_seed7/checkpoints_head.csv)
-- [overview_dashboard.png](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)
-- [scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
-- [scenario_matrix.csv](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.csv)
 
 Sample charts:
 
 [![Overview dashboard](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)
-[![PnL over time](docs/sample_outputs/toxic_flow_seed7/pnl_over_time.png)](docs/sample_outputs/toxic_flow_seed7/pnl_over_time.png)
-[![Inventory over time](docs/sample_outputs/toxic_flow_seed7/inventory_over_time.png)](docs/sample_outputs/toxic_flow_seed7/inventory_over_time.png)
-[![Net delta over time](docs/sample_outputs/toxic_flow_seed7/net_delta_over_time.png)](docs/sample_outputs/toxic_flow_seed7/net_delta_over_time.png)
-[![Toxic vs non-toxic markout](docs/sample_outputs/toxic_flow_seed7/toxic_vs_nontoxic_markout.png)](docs/sample_outputs/toxic_flow_seed7/toxic_vs_nontoxic_markout.png)
+[![Position surface](docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png)](docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png)
+[![Vega surface](docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png)](docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png)
 [![Scenario comparison](docs/sample_outputs/scenario_matrix_seed7/scenario_comparison.png)](docs/sample_outputs/scenario_matrix_seed7/scenario_comparison.png)
+[![Toxicity vs spread](docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_heatmap.png)](docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_heatmap.png)
 
 Useful follow-up files when running locally:
-- [docs/options_mm_demo_guide.md](docs/options_mm_demo_guide.md)
-- `outputs/demo_report.md`
-- `outputs/fills.csv`
+- `outputs/interview_brief.md`
+- `outputs/overview_dashboard.png`
+- `outputs/position_surface_heatmap.png`
+- `outputs/vega_surface_heatmap.png`
 
 ## Synthetic vs Real
 
@@ -59,16 +53,19 @@ Useful follow-up files when running locally:
 - The options side is synthetic. It does not replay a live options venue order book.
 - That is deliberate: the options module is meant to make fair value, quote skew, toxic flow, hedging, and PnL decomposition easy to inspect and explain.
 
-## 60-Second Demo Path
+## 2-Minute Screen-Share Path
 
-1. Terminal summary
+1. `interview_brief.md`
 2. `overview_dashboard.png`
-3. `demo_report.md`
-4. `fills.csv`
-5. `pnl_timeseries.csv`
+3. `position_surface_heatmap.png`
+4. `vega_surface_heatmap.png`
+5. one worked fill from `fills.csv`
+6. `scenario_matrix.md`
+7. `toxicity_spread_sensitivity.md`
 
 If you are browsing on GitHub and not running the code, use the committed sample pack in [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/).
 For the same-seed preset comparison, open [docs/sample_outputs/scenario_matrix_seed7/](docs/sample_outputs/scenario_matrix_seed7/).
+For the deterministic spread-versus-toxicity sweep, open [docs/sample_outputs/toxicity_spread_sensitivity_seed7/](docs/sample_outputs/toxicity_spread_sensitivity_seed7/).
 
 ## Scenario Comparison
 
@@ -84,7 +81,28 @@ This writes:
 - `outputs/scenario_matrix.md`
 - `outputs/scenario_comparison.png`
 
+## Toxicity vs Spread Sensitivity
+
+To show one small but trader-relevant economics trade-off, run:
+
+```bash
+python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
+```
+
+This writes:
+
+- `outputs/toxicity_spread_sensitivity.csv`
+- `outputs/toxicity_spread_sensitivity.md`
+- `outputs/toxicity_spread_heatmap.png`
+
 ## Options Market-Making Case Study
+
+Source code and notes:
+
+- [lob_sim/options/demo.py](lob_sim/options/demo.py)
+- [docs/options_mm_demo_guide.md](docs/options_mm_demo_guide.md)
+- [docs/what_real_data_would_change.md](docs/what_real_data_would_change.md)
+- [docs/sample_outputs/README.md](docs/sample_outputs/README.md)
 
 The options layer is implemented in:
 
@@ -94,6 +112,7 @@ The options layer is implemented in:
 - [lob_sim/options/demo.py](lob_sim/options/demo.py)
 - [experiments/run_options_case_study.py](experiments/run_options_case_study.py)
 - [experiments/run_options_scenario_matrix.py](experiments/run_options_scenario_matrix.py)
+- [experiments/run_options_toxicity_spread_sensitivity.py](experiments/run_options_toxicity_spread_sensitivity.py)
 
 It simulates:
 
@@ -149,12 +168,15 @@ Signed markout is measured against option fair value at a fixed future horizon f
 Each options run writes a clean pack into `outputs/`:
 
 - `summary.json`
+- `interview_brief.md`
 - `demo_report.md`
 - `fills.csv`
 - `checkpoints.csv`
 - `pnl_timeseries.csv`
 - `positions_final.csv`
 - `overview_dashboard.png`
+- `position_surface_heatmap.png`
+- `vega_surface_heatmap.png`
 - `pnl_over_time.png`
 - `realized_vs_unrealized.png`
 - `spot_path.png`
@@ -168,12 +190,16 @@ A deterministic committed subset for `scenario=toxic_flow`, `steps=180`, `seed=7
 
 For a same-seed comparison across all current presets, run [experiments/run_options_scenario_matrix.py](experiments/run_options_scenario_matrix.py) and open `outputs/scenario_matrix.md` followed by `outputs/scenario_comparison.png`.
 
+For the spread-versus-toxicity trade-off, run [experiments/run_options_toxicity_spread_sensitivity.py](experiments/run_options_toxicity_spread_sensitivity.py) and open `outputs/toxicity_spread_sensitivity.md`.
+
+For a compact calibration note on what real desk data would change, open [docs/what_real_data_would_change.md](docs/what_real_data_would_change.md).
+
 ### How to Run the Options Demo
 
 CLI:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario calm_market --steps 360 --out-dir outputs
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --brief --interview-mode
 python -m lob_sim.cli options-demo --scenario calm_market --steps 360 --out-dir outputs --verbose --log-mode compact
 python -m experiments.run_options_case_study --scenario toxic_flow --steps 360 --out-dir outputs
 ```
@@ -181,6 +207,7 @@ python -m experiments.run_options_case_study --scenario toxic_flow --steps 360 -
 Windows launchers:
 
 ```bat
+run_options_mm_interview_mode.bat
 run_options_mm_case.bat
 run_options_mm_case.bat outputs 360 7 60 calm_market compact
 run_options_mm_quick.bat
@@ -285,10 +312,12 @@ Simulation outputs are written as JSON summary plus trade CSV.
 
 ### How to Run the Futures Simulator
 
+Default public-market-data settings live in `.env.example`.
+
 ```bash
-python -m lob_sim.cli --env .env collect
-python -m lob_sim.cli --env .env replay --file data/raw_....ndjson
-python -m lob_sim.cli --env .env simulate --file data/raw_....ndjson
+python -m lob_sim.cli --env .env.example collect
+python -m lob_sim.cli --env .env.example replay --file data/raw_....ndjson
+python -m lob_sim.cli --env .env.example simulate --file data/raw_....ndjson
 ```
 
 Windows batch runner:
@@ -301,7 +330,7 @@ run_futures_scenario.bat data\raw_....ndjson 5000
 ### Experiment Sweeps
 
 ```bash
-python -m experiments.run_experiments --file data/raw_....ndjson --env .env
+python -m experiments.run_experiments --file data/raw_....ndjson --env .env.example
 ```
 
 This writes CSV and PNG files to `experiments/output`.

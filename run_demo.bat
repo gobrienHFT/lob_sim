@@ -23,11 +23,11 @@ echo [3/4] Simulate on %FILE%
 python -m lob_sim.cli simulate --file "%FILE%"
 if errorlevel 1 goto fail
 
-echo [4/4] Writing recruiter summary.md
-python write_summary_md.py --out summary.md
+echo [4/4] Writing docs\futures_replay_summary.md
+python scripts\refresh_futures_replay_summary.py --out docs\futures_replay_summary.md
 if errorlevel 1 goto fail
 
-echo [DONE] Created summary.md from latest simulation output.
+echo [DONE] Created docs\futures_replay_summary.md from the latest simulation output.
 exit /b 0
 
 :nofile
