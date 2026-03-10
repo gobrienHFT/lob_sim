@@ -24,62 +24,82 @@ SAMPLE_ROOT = Path("docs") / "sample_outputs"
 CASE_STUDY_DIR = SAMPLE_ROOT / f"{SCENARIO}_seed{SEED}"
 MATRIX_DIR = SAMPLE_ROOT / f"scenario_matrix_seed{SEED}"
 SENSITIVITY_DIR = SAMPLE_ROOT / f"toxicity_spread_sensitivity_seed{SEED}"
+DEFAULT_DOC_OUT_DIR = "outputs"
 
 
 def _repo_root() -> Path:
     return REPO_ROOT
 
 
+def sample_pack_commands(out_dir: str) -> dict[str, list[str]]:
+    return {
+        "case_study": [
+            sys.executable,
+            "-m",
+            "lob_sim.cli",
+            "options-demo",
+            "--scenario",
+            SCENARIO,
+            "--steps",
+            str(STEPS),
+            "--seed",
+            str(SEED),
+            "--out-dir",
+            out_dir,
+            "--progress-every",
+            "30",
+            "--log-mode",
+            "compact",
+            "--interview-mode",
+        ],
+        "scenario_matrix": [
+            sys.executable,
+            "-m",
+            "experiments.run_options_scenario_matrix",
+            "--steps",
+            str(STEPS),
+            "--seed",
+            str(SEED),
+            "--out-dir",
+            out_dir,
+        ],
+        "toxicity_spread_sensitivity": [
+            sys.executable,
+            "-m",
+            "experiments.run_options_toxicity_spread_sensitivity",
+            "--steps",
+            str(STEPS),
+            "--seed",
+            str(SEED),
+            "--out-dir",
+            out_dir,
+        ],
+    }
+
+
+def render_documented_command(command: list[str]) -> str:
+    rendered = ["python" if idx == 0 else part for idx, part in enumerate(command)]
+    return " ".join(rendered)
+
+
+DOCUMENTED_SAMPLE_COMMANDS = {
+    name: render_documented_command(command)
+    for name, command in sample_pack_commands(DEFAULT_DOC_OUT_DIR).items()
+}
+
+
 def _run_demo(out_dir: Path) -> None:
-    cmd = [
-        sys.executable,
-        "-m",
-        "lob_sim.cli",
-        "options-demo",
-        "--scenario",
-        SCENARIO,
-        "--steps",
-        str(STEPS),
-        "--seed",
-        str(SEED),
-        "--out-dir",
-        str(out_dir),
-        "--progress-every",
-        "30",
-        "--log-mode",
-        "compact",
-        "--interview-mode",
-    ]
+    cmd = sample_pack_commands(str(out_dir))["case_study"]
     subprocess.run(cmd, cwd=_repo_root(), check=True)
 
 
 def _run_matrix(out_dir: Path) -> None:
-    cmd = [
-        sys.executable,
-        "-m",
-        "experiments.run_options_scenario_matrix",
-        "--steps",
-        str(STEPS),
-        "--seed",
-        str(SEED),
-        "--out-dir",
-        str(out_dir),
-    ]
+    cmd = sample_pack_commands(str(out_dir))["scenario_matrix"]
     subprocess.run(cmd, cwd=_repo_root(), check=True)
 
 
 def _run_sensitivity(out_dir: Path) -> None:
-    cmd = [
-        sys.executable,
-        "-m",
-        "experiments.run_options_toxicity_spread_sensitivity",
-        "--steps",
-        str(STEPS),
-        "--seed",
-        str(SEED),
-        "--out-dir",
-        str(out_dir),
-    ]
+    cmd = sample_pack_commands(str(out_dir))["toxicity_spread_sensitivity"]
     subprocess.run(cmd, cwd=_repo_root(), check=True)
 
 

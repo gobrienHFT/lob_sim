@@ -13,6 +13,7 @@ SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
+MALFORMED_OUT_DIR_PATTERN = re.compile(r"--out-dir(?:\s+|\s*=\s*)(?:--|\r?\n|$)")
 TEMP_PATH_MARKERS = ("AppData", "Temp\\", "/tmp/", "lob_sim_options_sample_")
 
 MARKDOWN_AUDIT_FILES = [
@@ -156,6 +157,17 @@ def _verify_no_temp_paths() -> list[str]:
     return issues
 
 
+def _verify_no_malformed_cli_fragments() -> list[str]:
+    issues: list[str] = []
+    for path in MARKDOWN_AUDIT_FILES:
+        text = _read_text(path)
+        if "<temp_dir>" in text:
+            issues.append(f"Placeholder CLI path leaked into {_repo_relative(path)}: <temp_dir>")
+        if MALFORMED_OUT_DIR_PATTERN.search(text):
+            issues.append(f"Malformed --out-dir CLI fragment found in {_repo_relative(path)}")
+    return issues
+
+
 def _verify_screen_share_order() -> list[str]:
     issues: list[str] = []
     expectations = [
@@ -261,6 +273,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_core_files())
     issues.extend(_verify_implied_vol_snapshot_references())
     issues.extend(_verify_no_temp_paths())
+    issues.extend(_verify_no_malformed_cli_fragments())
     issues.extend(_verify_screen_share_order())
     return issues
 

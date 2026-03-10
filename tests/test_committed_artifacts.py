@@ -4,11 +4,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.refresh_sample_outputs import DOCUMENTED_SAMPLE_COMMANDS
 from scripts.verify_committed_artifacts import collect_artifact_issues
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_committed_artifacts.py"
+SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
 COMMITTED_INTERVIEW_BRIEF = (
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md"
 )
@@ -38,3 +40,11 @@ def test_committed_stress_fill_includes_units_explanation() -> None:
 
     assert "This is not a units mismatch" in interview_brief
     assert "This is not a units mismatch" in demo_report
+
+
+def test_sample_output_commands_match_refresh_source_of_truth() -> None:
+    readme = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
+
+    assert "<temp_dir>" not in readme
+    for command in DOCUMENTED_SAMPLE_COMMANDS.values():
+        assert command in readme, f"missing documented command: {command}"

@@ -13,7 +13,7 @@ This directory contains committed, deterministic sample artifacts for the option
 The refresh script runs:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir <temp_dir> --progress-every 30 --log-mode compact --interview-mode
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --interview-mode
 ```
 
 ## What to Look at First
