@@ -40,7 +40,7 @@ echo [options]   2. %OUT_DIR%\overview_dashboard.png
 echo [options]   3. %OUT_DIR%\implied_vol_surface_snapshot.png
 echo [options]   4. %OUT_DIR%\position_surface_heatmap.png
 echo [options]   5. %OUT_DIR%\vega_surface_heatmap.png
-echo [options]   6. representative worked fill in %OUT_DIR%\interview_brief.md
+echo [options]   6. representative fill in %OUT_DIR%\interview_brief.md
 echo [options]   7. docs\sample_outputs\scenario_matrix_seed7\scenario_matrix.md
 echo [options]   8. docs\sample_outputs\toxicity_spread_sensitivity_seed7\toxicity_spread_sensitivity.md
 echo [options] Open %OUT_DIR%\interview_brief.md first.

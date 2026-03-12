@@ -423,7 +423,7 @@ def select_worked_fill_examples(trade_rows: list[dict[str, Any]]) -> dict[str, d
 def _worked_fill_rules() -> dict[str, str]:
     return {
         "representative": (
-            "Representative hedged fill = the hedged fill whose absolute signed markout is closest to the median "
+            "Representative Fill = the hedged fill whose absolute signed markout is closest to the median "
             "absolute signed markout across all hedged fills."
         ),
         "stress": "Stress-case toxic fill = the toxic hedged fill with the worst signed markout.",
@@ -557,7 +557,7 @@ def _pricing_surface_notes(summary: dict[str, Any]) -> list[str]:
 def _representative_fill_reference(summary: dict[str, Any]) -> str:
     interview_brief = summary["output_files"].get("interview_brief")
     if interview_brief:
-        return f"{interview_brief}#representative-hedged-fill"
+        return f"{interview_brief}#representative-fill"
     return summary["output_files"]["fills"]
 
 
@@ -663,7 +663,7 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
     rules = _worked_fill_rules()
     lines.extend(
         _format_worked_fill_example(
-            "Representative hedged fill",
+            "Representative Fill",
             rules["representative"],
             worked_examples.get("representative"),
         )
@@ -695,7 +695,7 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
             f"- `implied_vol_surface_snapshot.png`: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
             f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
-            "- representative worked fill: see the `Representative hedged fill` section in this file",
+            "- representative fill: see the `Representative Fill` section in this file",
             f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
             f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
         ]
@@ -825,7 +825,7 @@ def format_demo_report(
         "",
         *(
             _format_worked_fill_example(
-                "Representative hedged fill",
+                "Representative Fill",
                 _worked_fill_rules()["representative"],
                 worked_examples.get("representative"),
             )
@@ -855,7 +855,7 @@ def format_demo_report(
             f"- `implied_vol_surface_snapshot.png`: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
             f"- `vega_surface_heatmap.png`: {summary['output_files']['vega_surface_heatmap_plot']}",
-            f"- representative worked fill: {_representative_fill_reference(summary)}",
+            f"- representative fill: {_representative_fill_reference(summary)}",
             f"- `scenario_matrix.md`: {SAMPLE_SCENARIO_MATRIX_ARTIFACT}",
             f"- `toxicity_spread_sensitivity.md`: {SAMPLE_SENSITIVITY_ARTIFACT}",
             "",

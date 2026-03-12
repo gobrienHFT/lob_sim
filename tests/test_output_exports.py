@@ -269,7 +269,7 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
     assert "Strongest takeaways" in interview_text
     assert "Key limitations" in interview_text
     assert "Worked fill examples" in interview_text
-    assert "Representative hedged fill" in interview_text
+    assert "Representative Fill" in interview_text
     assert "Stress-case toxic fill" in interview_text
     assert "What I would build next" in interview_text
     assert "overview_dashboard.png" in interview_text
@@ -421,7 +421,7 @@ def test_options_presets_and_summary_helpers():
     interview_brief = format_interview_brief(summary, worked_examples)
     assert "Options MM interview brief" in interview_brief
     assert "Worked fill examples" in interview_brief
-    assert "Representative hedged fill" in interview_brief
+    assert "Representative Fill" in interview_brief
     assert "Stress-case toxic fill" in interview_brief
     assert "What I would build next" in interview_brief
     assert "implied_vol_surface_snapshot.png" in interview_brief
