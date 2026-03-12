@@ -1,8 +1,8 @@
-# Options market making case study
+# Options Market-Making Case Study
 
 ## What this project demonstrates
 - A dealer quoting options around Black-Scholes fair value on a simple skewed surface.
-- Inventory-aware reservation pricing that shifts quotes when delta and vega risk build.
+- Inventory-aware reservation price shifts when delta and vega risk build.
 - Synthetic customer flow with a configurable toxic-flow share.
 - Delta hedging in the underlying, plus realized and unrealized PnL decomposition.
 
@@ -55,7 +55,7 @@
 - **Toxic fill rate**: 55.9%
 - **Adverse fill rate**: 48.0%
 - **Average quote width**: 1.2797
-- **Average half-width**: 0.6399
+- **Average half-spread**: 0.6399
 
 ## Inventory and hedging
 - **Hedge trades**: 76
@@ -73,7 +73,7 @@
 - Hedge triggers were reached with meaningful delta, so underlying hedging mattered.
 - The book finished close to delta-flat after hedging.
 
-## Warehoused risk across the surface
+## Warehoused Vega and Surface Risk
 - Largest signed contract inventory sat in strike `95` / `14` day expiry at `-12` contracts.
 - Largest net vega sat in strike `105` / `90` day expiry at `+18578` vega.
 - Risk was spread across `12` non-zero strike/expiry buckets, so the book is not just one contract position.
@@ -98,12 +98,12 @@ Signed markout is a contract-dollar diagnostic of fill quality. It is not used h
 - Signed markout is a diagnostic in contract dollars, not a separate PnL line item that is added mechanically into ending PnL in this toy accounting.
 - That combination means the strategy earned enough spread and inventory carry to survive adverse selection, but the fill quality still deserves skepticism.
 
-## Worked fill examples
+## Fill Examples
 Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.
 
-### Representative hedged fill
+### Representative Fill
 
-Representative hedged fill = the hedged fill whose absolute signed markout is closest to the median absolute signed markout across all hedged fills.
+Representative fill = the hedged fill whose absolute signed markout is closest to the median absolute signed markout across all hedged fills.
 
 | Field | Value |
 |---|---|
@@ -187,16 +187,18 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 - `implied_vol_surface_snapshot.png`: docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png
 - `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png
 - `vega_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png
-- representative worked fill: docs/sample_outputs/toxic_flow_seed7/interview_brief.md#representative-hedged-fill
+- representative fill: docs/sample_outputs/toxic_flow_seed7/interview_brief.md#representative-fill
 - `scenario_matrix.md`: docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md
 - `toxicity_spread_sensitivity.md`: docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md
 
 ## Glossary
 - **Underlying spot**: the simulated price of the underlying used for option fair value and delta hedging.
 - **Fair value**: Black-Scholes option value per option, quoted in premium units from current spot, time to expiry, and implied vol.
+- **Half-spread**: one-sided quote width around fair value before reservation price shifts both sides.
 - **Reservation price**: inventory-driven quote adjustment that discourages more unwanted risk.
 - **Quote skew**: the directional shift in bid and ask caused by reservation price.
 - **Signed markout**: future fair-value edge relative to fill price, reported in contract dollars after multiplying by quantity and contract size.
+- **Warehoused vega / surface risk**: the strike/expiry volatility exposure that remains after delta hedging.
 - **Toxic flow**: customer flow more likely to be informed against the current quote.
 - **Realized PnL**: contract-dollar gross spread capture less hedge slippage costs.
 - **Unrealized PnL**: residual contract-dollar mark-to-market of the option inventory and hedge book.

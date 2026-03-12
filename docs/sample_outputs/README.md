@@ -8,6 +8,8 @@ This directory contains committed, deterministic sample artifacts for the option
 - Steps: `180`
 - Seed: `7`
 
+Fastest prep for a live walkthrough: [`../interview_talk_track.md`](../interview_talk_track.md)
+
 ## Exact Command Used
 
 The refresh script runs:
@@ -25,7 +27,7 @@ Canonical screen-share order:
 3. [`toxic_flow_seed7/implied_vol_surface_snapshot.png`](toxic_flow_seed7/implied_vol_surface_snapshot.png)
 4. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)
 5. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)
-6. representative worked fill in [`toxic_flow_seed7/interview_brief.md#representative-hedged-fill`](toxic_flow_seed7/interview_brief.md#representative-hedged-fill)
+6. representative fill in [`toxic_flow_seed7/interview_brief.md#representative-fill`](toxic_flow_seed7/interview_brief.md#representative-fill)
 7. [`scenario_matrix_seed7/scenario_matrix.md`](scenario_matrix_seed7/scenario_matrix.md)
 8. [`toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md`](toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
 

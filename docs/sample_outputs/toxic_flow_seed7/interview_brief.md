@@ -1,4 +1,4 @@
-# Options MM interview brief
+# Options Market-Making Interview Brief
 
 ## Executive summary
 - Scenario `toxic_flow` with seed `7` over `180` steps.
@@ -24,7 +24,7 @@
 
 ## Strongest takeaways
 - Gross spread capture was 7481.06 while signed markout was -5339.31, so the run makes quoted edge versus adverse selection explicit.
-- Inventory peaked at 157 contracts and triggered 76 hedge trades, so warehousing risk is visible rather than hidden.
+- Inventory peaked at 157 contracts and triggered 76 hedge trades, so warehoused vega and surface risk stay visible rather than hidden.
 - The book finished with net delta 8.94 and net vega 19732.24, which shows delta control without pretending the book is fully hedged.
 
 ## Key limitations
@@ -32,7 +32,7 @@
 - The strategy only hedges delta in the underlying; gamma and vega are intentionally warehoused.
 - The volatility surface and customer flow are transparent approximations, not venue-calibrated models.
 
-## Warehoused risk across the surface
+## Warehoused Vega and Surface Risk
 - Largest signed contract inventory sat in strike `95` / `14` day expiry at `-12` contracts.
 - Largest net vega sat in strike `105` / `90` day expiry at `+18578` vega.
 - Risk was spread across `12` non-zero strike/expiry buckets, so the book is not just one contract position.
@@ -60,12 +60,12 @@ Signed markout is reported here as a contract-dollar fill-quality diagnostic. It
 - Signed markout is a diagnostic in contract dollars, not a separate PnL line item that is added mechanically into ending PnL in this toy accounting.
 - That combination means the strategy earned enough spread and inventory carry to survive adverse selection, but the fill quality still deserves skepticism.
 
-## Worked fill examples
+## Fill Examples
 Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.
 
-### Representative hedged fill
+### Representative Fill
 
-Representative hedged fill = the hedged fill whose absolute signed markout is closest to the median absolute signed markout across all hedged fills.
+Representative fill = the hedged fill whose absolute signed markout is closest to the median absolute signed markout across all hedged fills.
 
 | Field | Value |
 |---|---|
@@ -147,6 +147,6 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 - `implied_vol_surface_snapshot.png`: docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png
 - `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png
 - `vega_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png
-- representative worked fill: see the `Representative hedged fill` section in this file
+- representative fill: see the `Representative Fill` section in this file
 - `scenario_matrix.md`: docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md
 - `toxicity_spread_sensitivity.md`: docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md

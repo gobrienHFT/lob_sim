@@ -2,7 +2,9 @@
 
 ## Goal
 
-Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of how an options dealer prices, warehouses risk across the surface, hedges delta, and evaluates adverse selection. The point is not to claim this is production infrastructure. The point is to show clear pricing and risk reasoning with outputs that are easy to audit.
+Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of how an options dealer prices, warehouses vega and surface risk, hedges delta, and evaluates adverse selection.
+
+The point is to show clear pricing and risk reasoning with outputs that are easy to audit, not to claim production infrastructure.
 
 ## What the batch file does
 
@@ -29,7 +31,7 @@ If you want the fuller event-level walkthrough instead of the concise screen-sha
 3. Open `implied_vol_surface_snapshot.png`.
 4. Open `position_surface_heatmap.png`.
 5. Open `vega_surface_heatmap.png`.
-6. Open the representative worked fill in `interview_brief.md`.
+6. Open the representative fill in `interview_brief.md`.
 7. Open `scenario_matrix.md`.
 8. Open `toxicity_spread_sensitivity.md`.
 
@@ -88,17 +90,17 @@ Use one row from `fills.csv` and walk left to right:
 ## Important concepts to say out loud
 
 - Market making is a trade-off between spread capture and adverse selection.
-- Reservation pricing is the mechanism that converts inventory pressure into quote skew.
-- Spread capture without markout analysis is incomplete because informed flow can erase quoted edge immediately after the trade.
+- Reservation price is the mechanism that converts inventory pressure into quote skew.
+- Gross spread capture without signed markout analysis is incomplete because informed flow can erase quoted edge immediately after the trade.
 - Delta is hedged with the underlying because it is the fastest and cheapest risk to reduce.
-- Gamma and vega are not fully hedged here; they are intentionally warehoused so the trade-off stays visible.
+- Gamma and vega are not fully hedged here; they are intentionally warehoused as surface risk so the trade-off stays visible.
 
-## Warehoused risk across the surface
+## Warehoused Vega and Surface Risk
 
 - `position_surface_heatmap.png` shows where signed contract inventory ended up by strike and expiry.
-- `vega_surface_heatmap.png` shows where volatility exposure remained after delta hedging.
+- `vega_surface_heatmap.png` shows where warehoused vega remained after delta hedging.
 - If delta finishes near flat while vega buckets stay large, that is the honest point: the underlying hedge fixed directional risk, not the whole options surface.
-- Concentrated buckets matter because they show where reservation pricing and future cross-option hedging would need to work harder.
+- Concentrated buckets matter because they show where reservation price and future cross-option hedging would need to work harder.
 
 ## Pricing surface used by the demo
 
@@ -112,7 +114,7 @@ Use one row from `fills.csv` and walk left to right:
 The run writes:
 
 - `summary.json`: machine-readable run summary and artifact paths.
-- `interview_brief.md`: concise screen-share order, metrics table, worked fill, takeaways, and limitations.
+- `interview_brief.md`: concise screen-share order, metrics table, representative fill, takeaways, and limitations.
 - `demo_report.md`: the clean overview document.
 - `overview_dashboard.png`: one screen with headline PnL, inventory, delta, and toxic versus non-toxic markout.
 - `implied_vol_surface_snapshot.png`: initial synthetic implied-vol surface used by the default case-study pack.
@@ -142,7 +144,7 @@ For a compact note on what desk-quality data would be needed to calibrate each s
 
 ### Why is this synthetic?
 
-Because the goal is clarity. A synthetic model lets you expose fair value, quote skew, toxic flow, hedging, and PnL decomposition without hiding the logic behind venue-specific data plumbing.
+Because the goal is clarity. A synthetic model lets you expose fair value, reservation price, signed markout, hedging, and PnL decomposition without hiding the logic behind venue-specific data plumbing.
 
 ### What would you build next?
 

@@ -1,11 +1,12 @@
 # lob_sim
 
-`lob_sim` is a Python research repo with two clear artifacts: a Binance futures replay simulator and a synthetic options market-making case study built to make pricing, inventory, hedging, and markout logic easy to inspect.
+`lob_sim` is a Python market-making repo built around two interviewer-friendly artifacts: a queue-aware Binance futures replay simulator and a synthetic options dealer case study for fair value, reservation price, half-spread, signed markout, and warehoused vega across the surface.
 
-This repo demonstrates:
-- futures L2 replay with queue-aware passive fill modelling
-- an options dealer case study with Black-Scholes fair value, reservation pricing, toxic flow, surface risk, and delta hedging
-- readable research outputs: terminal summaries, markdown reports, CSV artifacts, and charts
+## What This Is
+
+- Futures: Binance USD-M replay with queue-aware passive fill modelling.
+- Options: synthetic dealer pricing and risk case study with Black-Scholes fair value, reservation price, signed markout, delta hedging, and surface risk.
+- Outputs: concise markdown briefs, CSV artifacts, and charts built for fast review.
 
 ## Start Here for Options Interviewers
 
@@ -14,6 +15,8 @@ Open these three artifacts first:
 1. [Committed interview brief](docs/sample_outputs/toxic_flow_seed7/interview_brief.md)
 2. [Overview dashboard](docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png)
 3. [Scenario matrix](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
+
+Fastest prep for a live walkthrough: [docs/interview_talk_track.md](docs/interview_talk_track.md)
 
 Quickest Windows launcher:
 
@@ -53,7 +56,15 @@ Useful follow-up files when running locally:
 
 - The futures side replays recorded Binance USD-M futures data and models queue-aware passive fills.
 - The options side is synthetic. It does not replay a live options venue order book.
-- That is deliberate: the options module is meant to make fair value, quote skew, toxic flow, hedging, and PnL decomposition easy to inspect and explain.
+- That is deliberate: the options module is a dealer pricing and risk artifact, so fair value, reservation price, half-spread, signed markout, and warehoused vega stay easy to inspect.
+
+## Quick Interviewer FAQ
+
+- **Why synthetic?** The options artifact is meant to make dealer pricing and risk legible in a short review. Synthetic flow and a small chain keep fair value, reservation price, signed markout, and hedging easy to audit.
+- **Why Black-Scholes?** It is a clean baseline for fair value and Greeks. The point here is transparent dealer logic, not claiming a full smile-dynamics model.
+- **What is reservation price?** Reservation price is the inventory-driven shift applied to both bid and ask around fair value. If delta or vega is already leaning the wrong way, the quote moves to make more of that risk less attractive and offsetting flow more attractive.
+- **How can gross spread capture be positive while signed markout is negative?** Gross spread capture is the edge earned at the fill in contract dollars. Signed markout asks whether fair value moved for or against the dealer after the trade, so the dealer can earn the spread and still get picked off.
+- **What would real data change?** Real data would calibrate the implied-vol surface, customer flow mix, toxic-flow share, signed markout behavior, and hedge-cost assumptions. The repo structure stays the same; the synthetic knobs become desk-calibrated inputs.
 
 ## 2-Minute Screen-Share Path
 
@@ -62,7 +73,7 @@ Useful follow-up files when running locally:
 3. `implied_vol_surface_snapshot.png`
 4. `position_surface_heatmap.png`
 5. `vega_surface_heatmap.png`
-6. representative worked fill in `interview_brief.md`
+6. representative fill in `interview_brief.md`
 7. `scenario_matrix.md`
 8. `toxicity_spread_sensitivity.md`
 
@@ -104,6 +115,9 @@ Source code and notes:
 
 - [lob_sim/options/demo.py](lob_sim/options/demo.py)
 - [docs/options_mm_demo_guide.md](docs/options_mm_demo_guide.md)
+- [docs/interview_talk_track.md](docs/interview_talk_track.md)
+- [docs/sanity_checks.md](docs/sanity_checks.md)
+- [docs/design_choices.md](docs/design_choices.md)
 - [docs/what_real_data_would_change.md](docs/what_real_data_would_change.md)
 - [docs/sample_outputs/README.md](docs/sample_outputs/README.md)
 
@@ -123,7 +137,7 @@ It simulates:
 - Black-Scholes fair value and Greeks
 - a simple skewed implied-vol surface
 - scenario-driven customer arrivals, side, size, and toxicity
-- inventory-aware reservation pricing from delta and vega exposure
+- inventory-aware reservation price shifts from delta and vega exposure
 - quote width widening from realized vol and gamma pressure
 - delta hedging in the underlying
 - realized and unrealized PnL decomposition
