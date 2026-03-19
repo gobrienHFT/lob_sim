@@ -11,17 +11,19 @@ The options side is a separate controlled dealer-pricing case study. It is there
 1. Open [README.md](README.md) and anchor the discussion on the futures replay, not the options artifact.
 2. Point to [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for snapshot seeding, `U/u/pu` continuity, and gap handling.
 3. Point to [lob_sim/sim/fill_model.py](lob_sim/sim/fill_model.py) and [tests/test_fill_model.py](tests/test_fill_model.py) for FIFO queue consumption, queue-ahead tracking, and passive fill attribution.
-4. Point to [lob_sim/sim/engine.py](lob_sim/sim/engine.py) for the event queue model and [docs/futures_validation.md](docs/futures_validation.md) for what is actually tested.
-5. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
+4. Open [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for one committed queue-ahead and passive-fill example.
+5. Point to [lob_sim/sim/engine.py](lob_sim/sim/engine.py) for the event queue model and [docs/futures_validation.md](docs/futures_validation.md) for what is actually tested.
+6. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
 
 ## 5-Minute Walkthrough
 
 1. README overview, futures replay internals, matching model, and limitations.
 2. [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for market-data semantics and what is inferred.
 3. [docs/futures_validation.md](docs/futures_validation.md) for invariants, tests, and non-goals.
-4. [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) and [docs/futures_benchmarks.md](docs/futures_benchmarks.md) for how replay performance would be measured without inventing benchmark numbers.
-5. [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) for the dealer-pricing case study.
-6. [docs/interview_talk_track.md](docs/interview_talk_track.md) for concise options answers if the discussion stays on pricing and hedging.
+4. [docs/sample_outputs/futures_replay_walkthrough/](docs/sample_outputs/futures_replay_walkthrough/) for a committed replay example with continuity, queue-ahead, and one passive fill.
+5. [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) and [docs/futures_benchmarks.md](docs/futures_benchmarks.md) for how replay performance would be measured without inventing benchmark numbers.
+6. [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) for the dealer-pricing case study.
+7. [docs/interview_talk_track.md](docs/interview_talk_track.md) for concise options answers if the discussion stays on pricing and hedging.
 
 ## Core Talking Points
 
@@ -55,6 +57,7 @@ Real data would calibrate the volatility surface, customer flow, toxicity assump
 
 ## Sample Outputs
 
+- Futures walkthrough pack: [docs/sample_outputs/futures_replay_walkthrough/](docs/sample_outputs/futures_replay_walkthrough/)
 - Futures semantics and validation: [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md), [docs/futures_validation.md](docs/futures_validation.md)
 - Options case-study pack: [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/)
 - Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)

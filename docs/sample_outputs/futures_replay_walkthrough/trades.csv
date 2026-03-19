@@ -1,0 +1,2 @@
+ts_local,symbol,side,price,qty,maker,order_id,mid_at_fill,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick
+2.4,BTCUSDT,bid,100.0,0.001,True,BTCUSDT-bid-2000000-4,100.05,tight_sell,0,399.9999999999999,1.0,1000,1001

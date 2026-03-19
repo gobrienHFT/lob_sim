@@ -1,6 +1,24 @@
 # Sample Outputs
 
-This directory contains committed, deterministic sample artifacts for the controlled dealer-pricing case study.
+This directory contains committed, deterministic sample artifacts for both the futures replay walkthrough and the controlled dealer-pricing case study.
+
+## Futures Replay Walkthrough
+
+- Pack: [`futures_replay_walkthrough/`](futures_replay_walkthrough/)
+- Input type: synthetic deterministic walkthrough fixture
+- Regenerate with:
+
+```bash
+python scripts/refresh_futures_showcase.py
+```
+
+Open first:
+
+1. [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
+2. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
+3. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
+
+## Options Case Study
 
 ## Fixed Configuration
 
@@ -50,6 +68,7 @@ Economics sensitivity check:
 From the repo root:
 
 ```bash
+python scripts/refresh_futures_showcase.py
 python scripts/refresh_sample_outputs.py
 ```
 
@@ -63,6 +82,7 @@ python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed
 
 That regenerates:
 
+- the futures walkthrough pack under [`docs/sample_outputs/futures_replay_walkthrough/`](futures_replay_walkthrough/)
 - the fixed case-study pack under [`docs/sample_outputs/toxic_flow_seed7/`](toxic_flow_seed7/)
 - the same-seed comparison pack under [`docs/sample_outputs/scenario_matrix_seed7/`](scenario_matrix_seed7/)
 - the toxicity-versus-spread sweep under [`docs/sample_outputs/toxicity_spread_sensitivity_seed7/`](toxicity_spread_sensitivity_seed7/)

@@ -8,9 +8,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
+FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
+FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 MALFORMED_OUT_DIR_PATTERN = re.compile(r"--out-dir(?:\s+|\s*=\s*)(?:--|\r?\n|$)")
@@ -24,11 +26,22 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md",
     REPO_ROOT / "docs" / "interview_talk_track.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
     REPO_ROOT / "docs" / "sample_outputs" / "scenario_matrix_seed7" / "scenario_matrix.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxicity_spread_sensitivity_seed7" / "toxicity_spread_sensitivity.md",
+]
+
+FUTURES_SHOWCASE_CORE_FILES = [
+    "README.md",
+    "walkthrough.md",
+    "input_fixture.ndjson",
+    "summary.json",
+    "summary.csv",
+    "trades.csv",
 ]
 
 CASE_STUDY_CORE_FILES = [
@@ -112,17 +125,21 @@ def _verify_markdown_links() -> list[str]:
 
 def _verify_summary_output_files() -> list[str]:
     issues: list[str] = []
-    summary = json.loads(_read_text(CASE_STUDY_SUMMARY))
-    for label, relative_path in summary["output_files"].items():
-        target = REPO_ROOT / relative_path
-        if not target.exists():
-            issues.append(f"summary.json output_files[{label}] is missing: {relative_path}")
+    for summary_path in [FUTURES_SHOWCASE_SUMMARY, CASE_STUDY_SUMMARY]:
+        summary = json.loads(_read_text(summary_path))
+        for label, relative_path in summary["output_files"].items():
+            target = REPO_ROOT / relative_path
+            if not target.exists():
+                issues.append(
+                    f"{_repo_relative(summary_path)} output_files[{label}] is missing: {relative_path}"
+                )
     return issues
 
 
 def _verify_core_files() -> list[str]:
     issues: list[str] = []
     for directory, expected_names in [
+        (FUTURES_SHOWCASE_DIR, FUTURES_SHOWCASE_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),
         (SENSITIVITY_DIR, SENSITIVITY_CORE_FILES),
@@ -150,6 +167,8 @@ def _verify_implied_vol_snapshot_references() -> list[str]:
 def _verify_no_temp_paths() -> list[str]:
     issues: list[str] = []
     for path in [
+        FUTURES_SHOWCASE_DIR / "summary.json",
+        FUTURES_SHOWCASE_DIR / "summary.csv",
         CASE_STUDY_DIR / "interview_brief.md",
         CASE_STUDY_DIR / "demo_report.md",
         CASE_STUDY_DIR / "summary.json",
@@ -183,11 +202,12 @@ def _verify_screen_share_order() -> list[str]:
                 "1. `README.md`",
                 "2. `docs/binance_usdm_feed_semantics.md`",
                 "3. `docs/futures_validation.md`",
-                "4. `tests/test_gap_resync.py`",
-                "5. `tests/test_fill_model.py`",
-                "6. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
-                "7. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
-                "8. `docs/interview_talk_track.md`",
+                "4. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
+                "5. `tests/test_gap_resync.py`",
+                "6. `tests/test_fill_model.py`",
+                "7. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
+                "8. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
+                "9. `docs/interview_talk_track.md`",
             ],
         ),
         (
