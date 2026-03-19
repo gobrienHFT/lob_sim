@@ -13,6 +13,10 @@ VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_committed_artifacts.py"
 README = REPO_ROOT / "README.md"
 INTERVIEW = REPO_ROOT / "INTERVIEW.md"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
+FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
+FUTURES_BENCHMARK_REFERENCE = (
+    REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"
+)
 FUTURES_WALKTHROUGH_README = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
 )
@@ -74,6 +78,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in readme
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in readme
+    assert "docs/benchmark_results/futures_replay_reference.md" in readme
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in interview
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in interview
@@ -81,6 +86,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in interview
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in interview
     assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in interview
+    assert "docs/benchmark_results/futures_replay_reference.md" in interview
 
     assert "futures_replay_walkthrough/README.md" in sample_outputs
     assert "futures_replay_walkthrough/summary.json" in sample_outputs
@@ -111,3 +117,14 @@ def test_futures_walkthrough_refresh_command_is_documented_consistently() -> Non
     assert "refresh_futures_replay_summary.py" not in futures_notes
     assert "refresh_futures_replay_summary.py" not in recorded_pack
     assert "refresh_futures_replay_summary.py" not in recorded_notes
+
+
+def test_futures_benchmark_reference_is_published() -> None:
+    benchmarks = FUTURES_BENCHMARKS.read_text(encoding="utf-8")
+
+    assert FUTURES_BENCHMARK_REFERENCE.exists()
+    assert "## Published Reference Run" in benchmarks
+    assert "## Benchmark Tool" in benchmarks
+    published_section = benchmarks.split("## Published Reference Run", 1)[1].split("## Benchmark Tool", 1)[0]
+    assert "TBD" not in published_section
+    assert "benchmark_results/futures_replay_reference.md" in benchmarks

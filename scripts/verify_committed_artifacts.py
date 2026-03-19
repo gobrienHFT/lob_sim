@@ -8,11 +8,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
+BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
+FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
+FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.md"
 FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
 RECORDED_CLIP_SUMMARY = RECORDED_CLIP_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
@@ -47,12 +50,25 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
     ],
 }
 
+BENCHMARK_FRONT_DOOR_LINKS = {
+    REPO_ROOT / "README.md": [
+        "docs/benchmark_results/futures_replay_reference.md",
+    ],
+    REPO_ROOT / "INTERVIEW.md": [
+        "docs/benchmark_results/futures_replay_reference.md",
+    ],
+    FUTURES_BENCHMARKS: [
+        "benchmark_results/futures_replay_reference.md",
+    ],
+}
+
 MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "INTERVIEW.md",
     REPO_ROOT / "docs" / "binance_usdm_feed_semantics.md",
     REPO_ROOT / "docs" / "futures_validation.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
+    REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md",
@@ -216,6 +232,8 @@ def _verify_no_temp_paths() -> list[str]:
         RECORDED_CLIP_DIR / "case_notes.md",
         RECORDED_CLIP_DIR / "summary.json",
         RECORDED_CLIP_DIR / "summary.csv",
+        FUTURES_BENCHMARKS,
+        FUTURES_BENCHMARK_REFERENCE,
         CASE_STUDY_DIR / "interview_brief.md",
         CASE_STUDY_DIR / "demo_report.md",
         CASE_STUDY_DIR / "summary.json",
@@ -245,6 +263,33 @@ def _verify_futures_showcase_front_door_links() -> list[str]:
         for link in expected_links:
             if link not in text:
                 issues.append(f"Missing futures walkthrough link in {_repo_relative(path)}: {link}")
+    return issues
+
+
+def _verify_benchmark_publication() -> list[str]:
+    issues: list[str] = []
+    if not FUTURES_BENCHMARK_REFERENCE.exists():
+        issues.append(
+            f"Missing published benchmark artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE)}"
+        )
+
+    text = _read_text(FUTURES_BENCHMARKS)
+    if "## Published Reference Run" not in text:
+        issues.append("docs/futures_benchmarks.md is missing the published benchmark section")
+    else:
+        try:
+            published = _section_text(text, "## Published Reference Run", "## Benchmark Tool")
+        except ValueError as exc:
+            issues.append(f"docs/futures_benchmarks.md: {exc}")
+        else:
+            if "TBD" in published:
+                issues.append("docs/futures_benchmarks.md published benchmark section still contains TBD")
+
+    for path, expected_links in BENCHMARK_FRONT_DOOR_LINKS.items():
+        path_text = _read_text(path)
+        for link in expected_links:
+            if link not in path_text:
+                issues.append(f"Missing benchmark link in {_repo_relative(path)}: {link}")
     return issues
 
 
@@ -358,6 +403,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())
     issues.extend(_verify_futures_showcase_front_door_links())
+    issues.extend(_verify_benchmark_publication())
     issues.extend(_verify_screen_share_order())
     return issues
 

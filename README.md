@@ -107,7 +107,7 @@ Tracked metrics include:
 - regime-bucket performance
 - kill-switch state and reason
 
-Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and a reporting template live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), with a lightweight runner in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py).
+Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), raw benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py).
 
 Committed futures walkthrough artifacts:
 
