@@ -18,6 +18,10 @@ TEMP_PATH_MARKERS = ("AppData", "Temp\\", "/tmp/", "lob_sim_options_sample_")
 
 MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "README.md",
+    REPO_ROOT / "INTERVIEW.md",
+    REPO_ROOT / "docs" / "binance_usdm_feed_semantics.md",
+    REPO_ROOT / "docs" / "futures_validation.md",
+    REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
     REPO_ROOT / "docs" / "interview_talk_track.md",
@@ -173,17 +177,17 @@ def _verify_screen_share_order() -> list[str]:
     expectations = [
         (
             REPO_ROOT / "README.md",
-            "## 2-Minute Screen-Share Path",
-            "If you are browsing on GitHub and not running the code, use the committed sample pack in",
+            "## Interview Fast Path",
+            None,
             [
-                "1. `interview_brief.md`",
-                "2. `overview_dashboard.png`",
-                "3. `implied_vol_surface_snapshot.png`",
-                "4. `position_surface_heatmap.png`",
-                "5. `vega_surface_heatmap.png`",
-                "6. representative fill in `interview_brief.md`",
-                "7. `scenario_matrix.md`",
-                "8. `toxicity_spread_sensitivity.md`",
+                "1. `README.md`",
+                "2. `docs/binance_usdm_feed_semantics.md`",
+                "3. `docs/futures_validation.md`",
+                "4. `tests/test_gap_resync.py`",
+                "5. `tests/test_fill_model.py`",
+                "6. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
+                "7. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
+                "8. `docs/interview_talk_track.md`",
             ],
         ),
         (

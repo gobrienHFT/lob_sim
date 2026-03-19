@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lob-sim"
 version = "0.1.0"
-description = "Research repo for Binance futures replay and a transparent options market-making case study"
+description = "Deterministic Binance USD-M replay, queue-aware passive-fill simulation, and a controlled dealer-pricing case study"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

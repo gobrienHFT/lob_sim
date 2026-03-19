@@ -4,7 +4,7 @@ Fastest prep doc for a live walkthrough.
 
 ## 15-second overview
 
-This is a transparent options market-making case study, not production infrastructure. It shows how a dealer quotes around Black-Scholes fair value using a half-spread and a reservation price, tracks toxic versus non-toxic flow through signed markout, hedges net delta in the underlying, and leaves warehoused vega visible across the surface.
+This is a controlled dealer-pricing case study, not production infrastructure. It shows how a dealer quotes around Black-Scholes fair value using a half-spread and a reservation price, tracks toxic versus non-toxic flow through signed markout, hedges net delta in the underlying, and leaves warehoused vega visible across the surface.
 
 ## 45-second model explanation
 

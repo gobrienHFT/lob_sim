@@ -1,6 +1,6 @@
 # Sample Outputs
 
-This directory contains committed, deterministic sample artifacts for the options market-making case study.
+This directory contains committed, deterministic sample artifacts for the controlled dealer-pricing case study.
 
 ## Fixed Configuration
 

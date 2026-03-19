@@ -1,10 +1,10 @@
-# Options MM Demo Guide
+# Options Dealer-Pricing Case Study Guide
 
 ## Goal
 
-Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of how an options dealer prices, warehouses vega and surface risk, hedges delta, and evaluates adverse selection.
+Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of the controlled dealer-pricing case study.
 
-The point is to show clear pricing and risk reasoning with outputs that are easy to audit, not to claim production infrastructure.
+The point is to show clear pricing and risk reasoning with outputs that are easy to audit, not to claim production infrastructure or venue-calibrated options microstructure.
 
 ## What the batch file does
 
@@ -14,7 +14,7 @@ The point is to show clear pricing and risk reasoning with outputs that are easy
 python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --brief --interview-mode
 ```
 
-That command runs the synthetic options dealer study in [lob_sim/options/demo.py](../lob_sim/options/demo.py).
+That command runs the synthetic dealer-pricing study in [lob_sim/options/demo.py](../lob_sim/options/demo.py).
 
 The non-Windows equivalent is:
 
@@ -22,7 +22,7 @@ The non-Windows equivalent is:
 bash run_options_mm_case.sh
 ```
 
-If you want the fuller event-level walkthrough instead of the concise screen-share path, use `run_options_mm_case.bat`.
+If you want the fuller event-level walkthrough instead of the concise sample-pack path, use `run_options_mm_case.bat` or the neutral alias `run_options_case_study.bat`.
 
 ## Best screen-share order
 
