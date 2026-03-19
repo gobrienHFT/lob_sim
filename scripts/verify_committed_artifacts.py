@@ -9,10 +9,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
+RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
 FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
+RECORDED_CLIP_SUMMARY = RECORDED_CLIP_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 MALFORMED_OUT_DIR_PATTERN = re.compile(r"--out-dir(?:\s+|\s*=\s*)(?:--|\r?\n|$)")
@@ -23,18 +25,25 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/summary.json",
         "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
+        "docs/sample_outputs/futures_recorded_clip_case/README.md",
     ],
     REPO_ROOT / "INTERVIEW.md": [
         "docs/sample_outputs/futures_replay_walkthrough/README.md",
         "docs/sample_outputs/futures_replay_walkthrough/summary.json",
         "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
+        "docs/sample_outputs/futures_recorded_clip_case/README.md",
+        "docs/sample_outputs/futures_recorded_clip_case/case_notes.md",
     ],
     REPO_ROOT / "docs" / "sample_outputs" / "README.md": [
         "futures_replay_walkthrough/README.md",
         "futures_replay_walkthrough/summary.json",
         "futures_replay_walkthrough/trades.csv",
         "futures_replay_walkthrough/walkthrough.md",
+        "futures_recorded_clip_case/README.md",
+        "futures_recorded_clip_case/summary.json",
+        "futures_recorded_clip_case/trades.csv",
+        "futures_recorded_clip_case/case_notes.md",
     ],
 }
 
@@ -48,6 +57,8 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "README.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md",
     REPO_ROOT / "docs" / "interview_talk_track.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
@@ -59,6 +70,15 @@ FUTURES_SHOWCASE_CORE_FILES = [
     "README.md",
     "walkthrough.md",
     "input_fixture.ndjson",
+    "summary.json",
+    "summary.csv",
+    "trades.csv",
+]
+
+RECORDED_CLIP_CORE_FILES = [
+    "README.md",
+    "case_notes.md",
+    "input_clip.ndjson",
     "summary.json",
     "summary.csv",
     "trades.csv",
@@ -145,7 +165,7 @@ def _verify_markdown_links() -> list[str]:
 
 def _verify_summary_output_files() -> list[str]:
     issues: list[str] = []
-    for summary_path in [FUTURES_SHOWCASE_SUMMARY, CASE_STUDY_SUMMARY]:
+    for summary_path in [FUTURES_SHOWCASE_SUMMARY, RECORDED_CLIP_SUMMARY, CASE_STUDY_SUMMARY]:
         summary = json.loads(_read_text(summary_path))
         for label, relative_path in summary["output_files"].items():
             target = REPO_ROOT / relative_path
@@ -160,6 +180,7 @@ def _verify_core_files() -> list[str]:
     issues: list[str] = []
     for directory, expected_names in [
         (FUTURES_SHOWCASE_DIR, FUTURES_SHOWCASE_CORE_FILES),
+        (RECORDED_CLIP_DIR, RECORDED_CLIP_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),
         (SENSITIVITY_DIR, SENSITIVITY_CORE_FILES),
@@ -191,6 +212,10 @@ def _verify_no_temp_paths() -> list[str]:
         FUTURES_SHOWCASE_DIR / "walkthrough.md",
         FUTURES_SHOWCASE_DIR / "summary.json",
         FUTURES_SHOWCASE_DIR / "summary.csv",
+        RECORDED_CLIP_DIR / "README.md",
+        RECORDED_CLIP_DIR / "case_notes.md",
+        RECORDED_CLIP_DIR / "summary.json",
+        RECORDED_CLIP_DIR / "summary.csv",
         CASE_STUDY_DIR / "interview_brief.md",
         CASE_STUDY_DIR / "demo_report.md",
         CASE_STUDY_DIR / "summary.json",
@@ -238,9 +263,10 @@ def _verify_screen_share_order() -> list[str]:
                 "5. `docs/sample_outputs/futures_replay_walkthrough/summary.json`",
                 "6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`",
                 "7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
-                "8. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
-                "9. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
-                "10. `docs/interview_talk_track.md`",
+                "8. `docs/sample_outputs/futures_recorded_clip_case/README.md`",
+                "9. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
+                "10. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
+                "11. `docs/interview_talk_track.md`",
             ],
         ),
         (

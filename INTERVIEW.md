@@ -23,9 +23,10 @@ The options side is a separate controlled dealer-pricing case study. It is there
 3. [docs/futures_validation.md](docs/futures_validation.md) for invariants, tests, and non-goals.
 4. [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures walkthrough pack.
 5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
-6. [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) and [docs/futures_benchmarks.md](docs/futures_benchmarks.md) for how replay performance would be measured without inventing benchmark numbers.
-7. [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) for the dealer-pricing case study.
-8. [docs/interview_talk_track.md](docs/interview_talk_track.md) for concise options answers if the discussion stays on pricing and hedging.
+6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
+7. [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) and [docs/futures_benchmarks.md](docs/futures_benchmarks.md) for how replay performance would be measured without inventing benchmark numbers.
+8. [docs/sample_outputs/toxic_flow_seed7/interview_brief.md](docs/sample_outputs/toxic_flow_seed7/interview_brief.md) for the dealer-pricing case study.
+9. [docs/interview_talk_track.md](docs/interview_talk_track.md) for concise options answers if the discussion stays on pricing and hedging.
 
 ## Core Talking Points
 
@@ -63,6 +64,10 @@ Real data would calibrate the volatility surface, customer flow, toxicity assump
 - Futures summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
 - Futures trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
 - Futures notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
+- Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
+- Recorded clip summary: [docs/sample_outputs/futures_recorded_clip_case/summary.json](docs/sample_outputs/futures_recorded_clip_case/summary.json)
+- Recorded clip trades: [docs/sample_outputs/futures_recorded_clip_case/trades.csv](docs/sample_outputs/futures_recorded_clip_case/trades.csv)
+- Recorded clip notes: [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md)
 - Futures semantics and validation: [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md), [docs/futures_validation.md](docs/futures_validation.md)
 - Options case-study pack: [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/)
 - Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)

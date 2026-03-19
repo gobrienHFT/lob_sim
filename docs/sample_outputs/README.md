@@ -22,6 +22,26 @@ Open first:
 3. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
 4. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 
+## Recorded Futures Clip Case
+
+- Pack entry: [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)
+- Summary: [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
+- Trades: [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
+- Notes: [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
+- Input type: clipped recorded BTCUSDT event stream from an existing local raw capture
+- Regenerate with:
+
+```bash
+python scripts/refresh_futures_recorded_case.py
+```
+
+Open first:
+
+1. [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)
+2. [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
+3. [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
+4. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
+
 ## Controlled Options Case Study
 
 - Pack: [`toxic_flow_seed7/`](toxic_flow_seed7/)
@@ -81,6 +101,14 @@ From the repo root:
 python scripts/refresh_futures_showcase.py
 ```
 
+### Recorded Futures Clip Case
+
+From the repo root:
+
+```bash
+python scripts/refresh_futures_recorded_case.py
+```
+
 ### Controlled Options Case Study
 
 From the repo root:
@@ -100,6 +128,7 @@ python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed
 That regenerates:
 
 - the futures walkthrough pack under [`docs/sample_outputs/futures_replay_walkthrough/`](futures_replay_walkthrough/)
+- the recorded futures clip case under [`docs/sample_outputs/futures_recorded_clip_case/`](futures_recorded_clip_case/)
 - the fixed case-study pack under [`docs/sample_outputs/toxic_flow_seed7/`](toxic_flow_seed7/)
 - the same-seed comparison pack under [`docs/sample_outputs/scenario_matrix_seed7/`](scenario_matrix_seed7/)
 - the toxicity-versus-spread sweep under [`docs/sample_outputs/toxicity_spread_sensitivity_seed7/`](toxicity_spread_sensitivity_seed7/)
