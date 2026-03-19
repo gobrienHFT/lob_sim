@@ -10,7 +10,15 @@ from scripts.verify_committed_artifacts import collect_artifact_issues
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_committed_artifacts.py"
+README = REPO_ROOT / "README.md"
+INTERVIEW = REPO_ROOT / "INTERVIEW.md"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
+FUTURES_WALKTHROUGH_README = (
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
+)
+FUTURES_WALKTHROUGH_NOTES = (
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md"
+)
 COMMITTED_INTERVIEW_BRIEF = (
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md"
 )
@@ -48,3 +56,38 @@ def test_sample_output_commands_match_refresh_source_of_truth() -> None:
     assert "<temp_dir>" not in readme
     for command in DOCUMENTED_SAMPLE_COMMANDS.values():
         assert command in readme, f"missing documented command: {command}"
+
+
+def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
+    readme = README.read_text(encoding="utf-8")
+    interview = INTERVIEW.read_text(encoding="utf-8")
+    sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
+
+    assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
+    assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in readme
+    assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in readme
+    assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in readme
+
+    assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in interview
+    assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in interview
+    assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in interview
+    assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in interview
+
+    assert "futures_replay_walkthrough/README.md" in sample_outputs
+    assert "futures_replay_walkthrough/summary.json" in sample_outputs
+    assert "futures_replay_walkthrough/trades.csv" in sample_outputs
+    assert "futures_replay_walkthrough/walkthrough.md" in sample_outputs
+
+
+def test_futures_walkthrough_refresh_command_is_documented_consistently() -> None:
+    sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
+    futures_pack = FUTURES_WALKTHROUGH_README.read_text(encoding="utf-8")
+    futures_notes = FUTURES_WALKTHROUGH_NOTES.read_text(encoding="utf-8")
+
+    assert "python scripts/refresh_futures_showcase.py" in sample_outputs
+    assert "python scripts/refresh_futures_showcase.py" in futures_pack
+    assert "python scripts/refresh_futures_showcase.py" in futures_notes
+
+    assert "refresh_futures_replay_summary.py" not in sample_outputs
+    assert "refresh_futures_replay_summary.py" not in futures_pack
+    assert "refresh_futures_replay_summary.py" not in futures_notes

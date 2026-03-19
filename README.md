@@ -109,7 +109,12 @@ Tracked metrics include:
 
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and a reporting template live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), with a lightweight runner in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py).
 
-Committed futures walkthrough artifacts live in [docs/sample_outputs/futures_replay_walkthrough/](docs/sample_outputs/futures_replay_walkthrough/).
+Committed futures walkthrough artifacts:
+
+- Pack entry: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)
+- Summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
+- Trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
+- Notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
 
 ## Limitations
 
@@ -170,19 +175,20 @@ Committed artifacts:
 
 Start with [INTERVIEW.md](INTERVIEW.md).
 
-Technical read, then options case study:
+Technical read, then zero-click futures artifacts, then the options case study:
 
 1. `README.md`
 2. `docs/binance_usdm_feed_semantics.md`
 3. `docs/futures_validation.md`
-4. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`
-5. `tests/test_gap_resync.py`
-6. `tests/test_fill_model.py`
-7. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`
-8. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`
-9. `docs/interview_talk_track.md`
+4. `docs/sample_outputs/futures_replay_walkthrough/README.md`
+5. `docs/sample_outputs/futures_replay_walkthrough/summary.json`
+6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`
+7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`
+8. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`
+9. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`
+10. `docs/interview_talk_track.md`
 
-If you are browsing on GitHub and not running the code, open the committed futures walkthrough pack in [docs/sample_outputs/futures_replay_walkthrough/](docs/sample_outputs/futures_replay_walkthrough/) first.
+If you are browsing on GitHub and not running the code, start with [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md).
 Then use the committed options case-study pack in [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/).
 For the same-seed comparison, open [docs/sample_outputs/scenario_matrix_seed7/](docs/sample_outputs/scenario_matrix_seed7/).
 For the deterministic spread-versus-toxicity sweep, open [docs/sample_outputs/toxicity_spread_sensitivity_seed7/](docs/sample_outputs/toxicity_spread_sensitivity_seed7/).

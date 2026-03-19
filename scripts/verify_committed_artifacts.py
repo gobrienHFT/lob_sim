@@ -17,6 +17,26 @@ CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 MALFORMED_OUT_DIR_PATTERN = re.compile(r"--out-dir(?:\s+|\s*=\s*)(?:--|\r?\n|$)")
 TEMP_PATH_MARKERS = ("AppData", "Temp\\", "/tmp/", "lob_sim_options_sample_")
+FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
+    REPO_ROOT / "README.md": [
+        "docs/sample_outputs/futures_replay_walkthrough/README.md",
+        "docs/sample_outputs/futures_replay_walkthrough/summary.json",
+        "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
+        "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
+    ],
+    REPO_ROOT / "INTERVIEW.md": [
+        "docs/sample_outputs/futures_replay_walkthrough/README.md",
+        "docs/sample_outputs/futures_replay_walkthrough/summary.json",
+        "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
+        "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
+    ],
+    REPO_ROOT / "docs" / "sample_outputs" / "README.md": [
+        "futures_replay_walkthrough/README.md",
+        "futures_replay_walkthrough/summary.json",
+        "futures_replay_walkthrough/trades.csv",
+        "futures_replay_walkthrough/walkthrough.md",
+    ],
+}
 
 MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "README.md",
@@ -167,6 +187,8 @@ def _verify_implied_vol_snapshot_references() -> list[str]:
 def _verify_no_temp_paths() -> list[str]:
     issues: list[str] = []
     for path in [
+        FUTURES_SHOWCASE_DIR / "README.md",
+        FUTURES_SHOWCASE_DIR / "walkthrough.md",
         FUTURES_SHOWCASE_DIR / "summary.json",
         FUTURES_SHOWCASE_DIR / "summary.csv",
         CASE_STUDY_DIR / "interview_brief.md",
@@ -191,6 +213,16 @@ def _verify_no_malformed_cli_fragments() -> list[str]:
     return issues
 
 
+def _verify_futures_showcase_front_door_links() -> list[str]:
+    issues: list[str] = []
+    for path, expected_links in FUTURES_SHOWCASE_FRONT_DOOR_LINKS.items():
+        text = _read_text(path)
+        for link in expected_links:
+            if link not in text:
+                issues.append(f"Missing futures walkthrough link in {_repo_relative(path)}: {link}")
+    return issues
+
+
 def _verify_screen_share_order() -> list[str]:
     issues: list[str] = []
     expectations = [
@@ -202,12 +234,13 @@ def _verify_screen_share_order() -> list[str]:
                 "1. `README.md`",
                 "2. `docs/binance_usdm_feed_semantics.md`",
                 "3. `docs/futures_validation.md`",
-                "4. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
-                "5. `tests/test_gap_resync.py`",
-                "6. `tests/test_fill_model.py`",
-                "7. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
-                "8. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
-                "9. `docs/interview_talk_track.md`",
+                "4. `docs/sample_outputs/futures_replay_walkthrough/README.md`",
+                "5. `docs/sample_outputs/futures_replay_walkthrough/summary.json`",
+                "6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`",
+                "7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
+                "8. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
+                "9. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
+                "10. `docs/interview_talk_track.md`",
             ],
         ),
         (
@@ -298,6 +331,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_implied_vol_snapshot_references())
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())
+    issues.extend(_verify_futures_showcase_front_door_links())
     issues.extend(_verify_screen_share_order())
     return issues
 

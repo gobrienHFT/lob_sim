@@ -4,7 +4,10 @@ This directory contains committed, deterministic sample artifacts for both the f
 
 ## Futures Replay Walkthrough
 
-- Pack: [`futures_replay_walkthrough/`](futures_replay_walkthrough/)
+- Pack entry: [`futures_replay_walkthrough/README.md`](futures_replay_walkthrough/README.md)
+- Summary: [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
+- Trades: [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
+- Notes: [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 - Input type: synthetic deterministic walkthrough fixture
 - Regenerate with:
 
@@ -14,13 +17,18 @@ python scripts/refresh_futures_showcase.py
 
 Open first:
 
-1. [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
-2. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
-3. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
+1. [`futures_replay_walkthrough/README.md`](futures_replay_walkthrough/README.md)
+2. [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
+3. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
+4. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 
-## Options Case Study
+## Controlled Options Case Study
 
-## Fixed Configuration
+- Pack: [`toxic_flow_seed7/`](toxic_flow_seed7/)
+- Scenario matrix: [`scenario_matrix_seed7/scenario_matrix.md`](scenario_matrix_seed7/scenario_matrix.md)
+- Sensitivity sweep: [`toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md`](toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
+
+### Fixed Configuration
 
 - Scenario: `toxic_flow`
 - Steps: `180`
@@ -28,7 +36,7 @@ Open first:
 
 Fastest prep for a live walkthrough: [`../interview_talk_track.md`](../interview_talk_track.md)
 
-## Exact Command Used
+### Exact Command Used
 
 The refresh script runs:
 
@@ -36,7 +44,7 @@ The refresh script runs:
 python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --interview-mode
 ```
 
-## What to Look at First
+### What to Look at First
 
 Canonical screen-share order:
 
@@ -65,10 +73,19 @@ Economics sensitivity check:
 
 ## How to Refresh
 
+### Futures Replay Walkthrough
+
 From the repo root:
 
 ```bash
 python scripts/refresh_futures_showcase.py
+```
+
+### Controlled Options Case Study
+
+From the repo root:
+
+```bash
 python scripts/refresh_sample_outputs.py
 ```
 
@@ -87,6 +104,6 @@ That regenerates:
 - the same-seed comparison pack under [`docs/sample_outputs/scenario_matrix_seed7/`](scenario_matrix_seed7/)
 - the toxicity-versus-spread sweep under [`docs/sample_outputs/toxicity_spread_sensitivity_seed7/`](toxicity_spread_sensitivity_seed7/)
 
-## Scope
+### Scope
 
 These artifacts come from the synthetic options dealer study. They do not come from replayed exchange options order-book data.
