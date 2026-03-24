@@ -24,6 +24,7 @@ FUTURES_STRATEGY_REFERENCE = (
 FUTURES_STRATEGY_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 )
+COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
 FUTURES_WALKTHROUGH_README = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
 )
@@ -79,6 +80,10 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     readme = README.read_text(encoding="utf-8")
     walkthrough = WALKTHROUGH.read_text(encoding="utf-8")
     sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
+    readme_walkthrough = readme.split("## Walkthrough Path", 1)[1]
+    walkthrough_five_minute = walkthrough.split("## 5-Minute Walkthrough", 1)[1].split(
+        "## Core Talking Points", 1
+    )[0]
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in readme
@@ -88,6 +93,12 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/futures_strategy_profiles.md" in readme
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in readme
     assert "docs/benchmark_results/futures_replay_reference.md" in readme
+    assert readme_walkthrough.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < readme_walkthrough.index(
+        "docs/futures_strategy_profiles.md"
+    )
+    assert readme_walkthrough.index("docs/futures_strategy_profiles.md") < readme_walkthrough.index(
+        "docs/strategy_results/futures_strategy_profile_reference.md"
+    )
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in walkthrough
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in walkthrough
@@ -98,6 +109,12 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/futures_strategy_profiles.md" in walkthrough
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in walkthrough
     assert "docs/benchmark_results/futures_replay_reference.md" in walkthrough
+    assert walkthrough_five_minute.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < walkthrough_five_minute.index(
+        "docs/futures_strategy_profiles.md"
+    )
+    assert walkthrough_five_minute.index("docs/futures_strategy_profiles.md") < walkthrough_five_minute.index(
+        "docs/strategy_results/futures_strategy_profile_reference.md"
+    )
 
     assert "futures_replay_walkthrough/README.md" in sample_outputs
     assert "futures_replay_walkthrough/summary.json" in sample_outputs
@@ -150,7 +167,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert FUTURES_STRATEGY_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
-    assert "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson" in reference
+    assert COMMITTED_STRATEGY_INPUT in reference
+    assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
     assert "local-only" not in reference
     assert "data/raw_1772633471.ndjson" not in reference
     assert "strategy-profile comparison" in reference

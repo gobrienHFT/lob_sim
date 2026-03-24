@@ -38,6 +38,7 @@ The microstructure gate is intentionally simple:
 - Reproducible reference: [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md)
 - Committed input: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Refresh command: `python scripts/refresh_futures_strategy_profile_reference.py`
+- The committed clip is short, so the comparison is useful for inspecting profile behavior, not for claiming dramatic performance separation.
 
 ## Why The Layered Profile Is More Realistic
 
@@ -56,4 +57,4 @@ The microstructure gate is intentionally simple:
 
 - Public depth and `aggTrade` data still leave cancel-vs-trade attribution ambiguous inside a level reduction.
 - The layered profile is a quoting/control variant for comparison, not a production market-making model.
-- The reference comparison in [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md) is a strategy-profile comparison on one recorded input, not a claim of alpha.
+- The reference comparison in [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md) is a strategy-profile comparison on one committed recorded input, not a claim of alpha.

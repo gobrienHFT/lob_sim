@@ -20,6 +20,10 @@ FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
+COMMITTED_STRATEGY_PROFILE_INPUTS = (
+    "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
+    "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
+)
 FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
 RECORDED_CLIP_SUMMARY = RECORDED_CLIP_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
@@ -328,9 +332,9 @@ def _verify_strategy_profile_publication() -> list[str]:
                 issues.append(f"Missing strategy-profile link in {_repo_relative(path)}: {link}")
 
     reference = _read_text(FUTURES_STRATEGY_REFERENCE)
-    if "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson" not in reference:
+    if not any(path in reference for path in COMMITTED_STRATEGY_PROFILE_INPUTS):
         issues.append(
-            "docs/strategy_results/futures_strategy_profile_reference.md must reference the committed recorded clip input"
+            "docs/strategy_results/futures_strategy_profile_reference.md must reference a committed replay input"
         )
     if "local-only" in reference:
         issues.append(
@@ -340,6 +344,46 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md still depends on the old local raw file path"
         )
+    if "python scripts/refresh_futures_strategy_profile_reference.py" not in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md is missing the refresh command"
+        )
+
+    section_expectations = [
+        (
+            REPO_ROOT / "README.md",
+            "## Walkthrough Path",
+            None,
+        ),
+        (
+            REPO_ROOT / "WALKTHROUGH.md",
+            "## 5-Minute Walkthrough",
+            "## Core Talking Points",
+        ),
+    ]
+    ordered_tokens = [
+        "docs/sample_outputs/futures_recorded_clip_case/README.md",
+        "docs/futures_strategy_profiles.md",
+        "docs/strategy_results/futures_strategy_profile_reference.md",
+    ]
+    for path, start_marker, end_marker in section_expectations:
+        text = _read_text(path)
+        try:
+            section = _section_text(text, start_marker, end_marker)
+        except ValueError as exc:
+            issues.append(f"{_repo_relative(path)}: {exc}")
+            continue
+        last_index = -1
+        for token in ordered_tokens:
+            index = section.find(token)
+            if index < 0:
+                issues.append(f"Missing strategy-profile walkthrough item in {_repo_relative(path)}: {token}")
+                continue
+            if index <= last_index:
+                issues.append(
+                    f"Strategy-profile walkthrough order is incorrect in {_repo_relative(path)}: {token}"
+                )
+            last_index = index
     return issues
 
 
@@ -359,9 +403,11 @@ def _verify_artifact_order() -> list[str]:
                 "6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`",
                 "7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
                 "8. `docs/sample_outputs/futures_recorded_clip_case/README.md`",
-                "9. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`",
-                "10. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
-                "11. `docs/options_case_study_notes.md`",
+                "9. `docs/futures_strategy_profiles.md`",
+                "10. `docs/strategy_results/futures_strategy_profile_reference.md`",
+                "11. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`",
+                "12. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
+                "13. `docs/options_case_study_notes.md`",
             ],
         ),
         (

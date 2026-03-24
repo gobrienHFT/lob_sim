@@ -118,6 +118,8 @@ Committed futures walkthrough artifacts:
 - Trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
 - Notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
+- Strategy profiles: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)
+- Strategy profile reference: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
 
 ## Limitations
 
@@ -188,12 +190,15 @@ Technical read, then zero-click futures artifacts, then the options case study:
 6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`
 7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`
 8. `docs/sample_outputs/futures_recorded_clip_case/README.md`
-9. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`
-10. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`
-11. `docs/options_case_study_notes.md`
+9. `docs/futures_strategy_profiles.md`
+10. `docs/strategy_results/futures_strategy_profile_reference.md`
+11. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`
+12. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`
+13. `docs/options_case_study_notes.md`
 
 If you are browsing on GitHub and not running the code, start with [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md).
 Then open the recorded-data check in [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md).
+Then compare the baseline and layered profiles in [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
 Then use the committed options case-study pack in [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/).
 For the same-seed comparison, open [docs/sample_outputs/scenario_matrix_seed7/](docs/sample_outputs/scenario_matrix_seed7/).
 For the deterministic spread-versus-toxicity sweep, open [docs/sample_outputs/toxicity_spread_sensitivity_seed7/](docs/sample_outputs/toxicity_spread_sensitivity_seed7/).

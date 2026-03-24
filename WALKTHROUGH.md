@@ -14,7 +14,8 @@ The options side is a separate controlled dealer-pricing case study. It is there
 4. Open [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures artifact path.
 5. Open [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json) and [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv).
 6. Open [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the continuity, queue-ahead, and passive-fill notes.
-7. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
+7. Open [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the baseline-vs-layered profile comparison on a committed recorded clip.
+8. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
 
 ## 5-Minute Walkthrough
 
@@ -24,10 +25,11 @@ The options side is a separate controlled dealer-pricing case study. It is there
 4. [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures walkthrough pack.
 5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
 6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
-7. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for baseline-vs-layered quoting choices on the committed recorded clip.
-8. [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for the published reference run and the rerunnable benchmark driver.
-9. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
-10. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
+7. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
+8. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
+9. [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for the published reference run and the rerunnable benchmark driver.
+10. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
+11. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
 
 ## Core Talking Points
 
