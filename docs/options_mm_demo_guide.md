@@ -2,13 +2,13 @@
 
 ## Goal
 
-Use `run_options_mm_walkthrough_mode.bat` as the cleanest guided run of the controlled dealer-pricing case study.
+Use `scripts/launchers/run_options_mm_walkthrough_mode.bat` as the cleanest guided run of the controlled dealer-pricing case study.
 
 The point is to show clear pricing and risk reasoning with outputs that are easy to audit, not to claim production infrastructure or venue-calibrated options microstructure.
 
 ## What the batch file does
 
-`run_options_mm_walkthrough_mode.bat` launches:
+`scripts/launchers/run_options_mm_walkthrough_mode.bat` launches:
 
 ```bat
 python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --brief --walkthrough-mode
@@ -19,10 +19,10 @@ That command runs the synthetic dealer-pricing study in [lob_sim/options/demo.py
 The non-Windows equivalent is:
 
 ```bash
-bash run_options_mm_case.sh
+bash scripts/launchers/run_options_mm_case.sh
 ```
 
-If you want the fuller event-level walkthrough instead of the concise sample-pack path, use `run_options_mm_case.bat` or the neutral alias `run_options_case_study.bat`.
+If you want the fuller event-level walkthrough instead of the concise sample-pack path, use `scripts/launchers/run_options_mm_case.bat` or the neutral alias `scripts/launchers/run_options_case_study.bat`.
 
 ## Recommended artifact order
 
@@ -159,6 +159,6 @@ There is no explicit options exchange matching engine. This is primarily a deale
 
 ## Quick run options
 
-- `run_options_mm_case.bat`: fuller run with compact fill events and checkpoints.
-- `run_options_mm_case.sh`: same flow for macOS/Linux shells.
-- `run_options_mm_quick.bat`: fast preset with just the summary and artifacts.
+- `scripts/launchers/run_options_mm_case.bat`: fuller run with compact fill events and checkpoints.
+- `scripts/launchers/run_options_mm_case.sh`: same flow for macOS/Linux shells.
+- `scripts/launchers/run_options_mm_quick.bat`: fast preset with just the summary and artifacts.

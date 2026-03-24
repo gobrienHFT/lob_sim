@@ -58,6 +58,44 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
     ],
 }
 
+ROOT_LAUNCHER_FILES = [
+    REPO_ROOT / "run_demo.bat",
+    REPO_ROOT / "run_futures_scenario.bat",
+    REPO_ROOT / "run_options_case_study.bat",
+    REPO_ROOT / "run_options_case_study.sh",
+    REPO_ROOT / "run_options_mm_case.bat",
+    REPO_ROOT / "run_options_mm_case.sh",
+    REPO_ROOT / "run_options_mm_quick.bat",
+    REPO_ROOT / "run_options_mm_walkthrough_mode.bat",
+]
+
+CANONICAL_LAUNCHER_FILES = [
+    REPO_ROOT / "scripts" / "launchers" / "run_demo.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_futures_scenario.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_case_study.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_case_study.sh",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_case.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_case.sh",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_quick.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_walkthrough_mode.bat",
+]
+
+LAUNCHER_DOC_LINKS = {
+    REPO_ROOT / "README.md": [
+        r"scripts\launchers\run_options_case_study.bat",
+        "bash scripts/launchers/run_options_case_study.sh",
+        r"scripts\launchers\run_options_mm_case.bat",
+        r"scripts\launchers\run_options_mm_walkthrough_mode.bat",
+    ],
+    REPO_ROOT / "docs" / "options_mm_demo_guide.md": [
+        "scripts/launchers/run_options_mm_walkthrough_mode.bat",
+        "bash scripts/launchers/run_options_mm_case.sh",
+        "scripts/launchers/run_options_mm_case.bat",
+        "scripts/launchers/run_options_case_study.bat",
+        "scripts/launchers/run_options_mm_quick.bat",
+    ],
+}
+
 BENCHMARK_FRONT_DOOR_LINKS = {
     REPO_ROOT / "README.md": [
         "docs/benchmark_results/futures_replay_reference.md",
@@ -289,6 +327,22 @@ def _verify_futures_showcase_front_door_links() -> list[str]:
     return issues
 
 
+def _verify_launcher_layout() -> list[str]:
+    issues: list[str] = []
+    for path in ROOT_LAUNCHER_FILES:
+        if path.exists():
+            issues.append(f"Launcher should not remain in repo root: {_repo_relative(path)}")
+    for path in CANONICAL_LAUNCHER_FILES:
+        if not path.exists():
+            issues.append(f"Missing canonical launcher: {_repo_relative(path)}")
+    for path, expected_links in LAUNCHER_DOC_LINKS.items():
+        text = _read_text(path)
+        for link in expected_links:
+            if link not in text:
+                issues.append(f"Missing canonical launcher reference in {_repo_relative(path)}: {link}")
+    return issues
+
+
 def _verify_benchmark_publication() -> list[str]:
     issues: list[str] = []
     if not FUTURES_BENCHMARK_REFERENCE.exists():
@@ -441,7 +495,7 @@ def _verify_artifact_order() -> list[str]:
             ],
         ),
         (
-            REPO_ROOT / "run_options_mm_walkthrough_mode.bat",
+            REPO_ROOT / "scripts" / "launchers" / "run_options_mm_walkthrough_mode.bat",
             "echo [options] Recommended artifact order:",
             "echo [options] Open %OUT_DIR%\\case_brief.md first.",
             [
@@ -499,6 +553,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())
     issues.extend(_verify_futures_showcase_front_door_links())
+    issues.extend(_verify_launcher_layout())
     issues.extend(_verify_strategy_profile_publication())
     issues.extend(_verify_benchmark_publication())
     issues.extend(_verify_artifact_order())

@@ -41,6 +41,22 @@ COMMITTED_CASE_BRIEF = (
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md"
 )
 COMMITTED_DEMO_REPORT = REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md"
+ROOT_OPTIONS_LAUNCHERS = [
+    REPO_ROOT / "run_options_case_study.bat",
+    REPO_ROOT / "run_options_case_study.sh",
+    REPO_ROOT / "run_options_mm_case.bat",
+    REPO_ROOT / "run_options_mm_case.sh",
+    REPO_ROOT / "run_options_mm_quick.bat",
+    REPO_ROOT / "run_options_mm_walkthrough_mode.bat",
+]
+CANONICAL_OPTIONS_LAUNCHERS = [
+    REPO_ROOT / "scripts" / "launchers" / "run_options_case_study.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_case_study.sh",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_case.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_case.sh",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_quick.bat",
+    REPO_ROOT / "scripts" / "launchers" / "run_options_mm_walkthrough_mode.bat",
+]
 
 
 def test_committed_artifacts_have_no_integrity_issues() -> None:
@@ -145,6 +161,27 @@ def test_futures_walkthrough_refresh_command_is_documented_consistently() -> Non
     assert "refresh_futures_replay_summary.py" not in futures_notes
     assert "refresh_futures_replay_summary.py" not in recorded_pack
     assert "refresh_futures_replay_summary.py" not in recorded_notes
+
+
+def test_options_launchers_live_under_scripts_launchers() -> None:
+    readme = README.read_text(encoding="utf-8")
+    guide = (REPO_ROOT / "docs" / "options_mm_demo_guide.md").read_text(encoding="utf-8")
+
+    for path in ROOT_OPTIONS_LAUNCHERS:
+        assert not path.exists()
+    for path in CANONICAL_OPTIONS_LAUNCHERS:
+        assert path.exists()
+
+    assert r"scripts\launchers\run_options_case_study.bat" in readme
+    assert "bash scripts/launchers/run_options_case_study.sh" in readme
+    assert r"scripts\launchers\run_options_mm_case.bat" in readme
+    assert r"scripts\launchers\run_options_mm_walkthrough_mode.bat" in readme
+
+    assert "scripts/launchers/run_options_mm_walkthrough_mode.bat" in guide
+    assert "bash scripts/launchers/run_options_mm_case.sh" in guide
+    assert "scripts/launchers/run_options_mm_case.bat" in guide
+    assert "scripts/launchers/run_options_case_study.bat" in guide
+    assert "scripts/launchers/run_options_mm_quick.bat" in guide
 
 
 def test_futures_benchmark_reference_is_published() -> None:

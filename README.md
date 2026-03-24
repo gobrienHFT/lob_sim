@@ -146,18 +146,18 @@ For the detailed calibration map, open [docs/what_real_data_would_change.md](doc
 Neutral wrappers:
 
 ```bat
-run_options_case_study.bat
+scripts\launchers\run_options_case_study.bat
 ```
 
 ```bash
-bash run_options_case_study.sh
+bash scripts/launchers/run_options_case_study.sh
 ```
 
-Existing launchers are still supported:
+Additional convenience launchers:
 
 ```bat
-run_options_mm_case.bat
-run_options_mm_walkthrough_mode.bat
+scripts\launchers\run_options_mm_case.bat
+scripts\launchers\run_options_mm_walkthrough_mode.bat
 ```
 
 CLI:
