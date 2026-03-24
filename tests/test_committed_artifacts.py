@@ -11,11 +11,15 @@ from scripts.verify_committed_artifacts import collect_artifact_issues
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_committed_artifacts.py"
 README = REPO_ROOT / "README.md"
-INTERVIEW = REPO_ROOT / "INTERVIEW.md"
+WALKTHROUGH = REPO_ROOT / "WALKTHROUGH.md"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = (
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"
+)
+FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
+FUTURES_STRATEGY_REFERENCE = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
 )
 FUTURES_WALKTHROUGH_README = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
@@ -29,8 +33,8 @@ RECORDED_CASE_README = (
 RECORDED_CASE_NOTES = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md"
 )
-COMMITTED_INTERVIEW_BRIEF = (
-    REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md"
+COMMITTED_CASE_BRIEF = (
+    REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md"
 )
 COMMITTED_DEMO_REPORT = REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md"
 
@@ -53,10 +57,10 @@ def test_verify_committed_artifacts_script_runs_cleanly() -> None:
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:
-    interview_brief = COMMITTED_INTERVIEW_BRIEF.read_text(encoding="utf-8")
+    case_brief = COMMITTED_CASE_BRIEF.read_text(encoding="utf-8")
     demo_report = COMMITTED_DEMO_REPORT.read_text(encoding="utf-8")
 
-    assert "This is not a units mismatch" in interview_brief
+    assert "This is not a units mismatch" in case_brief
     assert "This is not a units mismatch" in demo_report
 
 
@@ -70,7 +74,7 @@ def test_sample_output_commands_match_refresh_source_of_truth() -> None:
 
 def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     readme = README.read_text(encoding="utf-8")
-    interview = INTERVIEW.read_text(encoding="utf-8")
+    walkthrough = WALKTHROUGH.read_text(encoding="utf-8")
     sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
@@ -78,15 +82,19 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in readme
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in readme
+    assert "docs/futures_strategy_profiles.md" in readme
+    assert "docs/strategy_results/futures_strategy_profile_reference.md" in readme
     assert "docs/benchmark_results/futures_replay_reference.md" in readme
 
-    assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in interview
-    assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in interview
-    assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in interview
-    assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in interview
-    assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in interview
-    assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in interview
-    assert "docs/benchmark_results/futures_replay_reference.md" in interview
+    assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in walkthrough
+    assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in walkthrough
+    assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in walkthrough
+    assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in walkthrough
+    assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in walkthrough
+    assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in walkthrough
+    assert "docs/futures_strategy_profiles.md" in walkthrough
+    assert "docs/strategy_results/futures_strategy_profile_reference.md" in walkthrough
+    assert "docs/benchmark_results/futures_replay_reference.md" in walkthrough
 
     assert "futures_replay_walkthrough/README.md" in sample_outputs
     assert "futures_replay_walkthrough/summary.json" in sample_outputs
@@ -128,3 +136,15 @@ def test_futures_benchmark_reference_is_published() -> None:
     published_section = benchmarks.split("## Published Reference Run", 1)[1].split("## Benchmark Tool", 1)[0]
     assert "TBD" not in published_section
     assert "benchmark_results/futures_replay_reference.md" in benchmarks
+
+
+def test_futures_strategy_profile_docs_are_published() -> None:
+    profiles = FUTURES_STRATEGY_PROFILES.read_text(encoding="utf-8")
+    reference = FUTURES_STRATEGY_REFERENCE.read_text(encoding="utf-8")
+
+    assert FUTURES_STRATEGY_PROFILES.exists()
+    assert FUTURES_STRATEGY_REFERENCE.exists()
+    assert "baseline" in profiles
+    assert "layered_mm" in profiles
+    assert "data/raw_1772633471.ndjson" in reference
+    assert "strategy-profile comparison" in reference

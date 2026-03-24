@@ -54,26 +54,26 @@ Open first:
 - Steps: `180`
 - Seed: `7`
 
-Fastest prep for a live walkthrough: [`../interview_talk_track.md`](../interview_talk_track.md)
+Recommended artifact path: [`../options_case_study_notes.md`](../options_case_study_notes.md)
 
 ### Exact Command Used
 
 The refresh script runs:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --interview-mode
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --walkthrough-mode
 ```
 
 ### What to Look at First
 
-Canonical screen-share order:
+Recommended artifact order:
 
-1. [`toxic_flow_seed7/interview_brief.md`](toxic_flow_seed7/interview_brief.md)
+1. [`toxic_flow_seed7/case_brief.md`](toxic_flow_seed7/case_brief.md)
 2. [`toxic_flow_seed7/overview_dashboard.png`](toxic_flow_seed7/overview_dashboard.png)
 3. [`toxic_flow_seed7/implied_vol_surface_snapshot.png`](toxic_flow_seed7/implied_vol_surface_snapshot.png)
 4. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)
 5. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)
-6. representative fill in [`toxic_flow_seed7/interview_brief.md#representative-fill`](toxic_flow_seed7/interview_brief.md#representative-fill)
+6. representative fill in [`toxic_flow_seed7/case_brief.md#representative-fill`](toxic_flow_seed7/case_brief.md#representative-fill)
 7. [`scenario_matrix_seed7/scenario_matrix.md`](scenario_matrix_seed7/scenario_matrix.md)
 8. [`toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md`](toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
 
@@ -120,7 +120,7 @@ python scripts/refresh_sample_outputs.py
 Exact deterministic commands behind each pack:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --interview-mode
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --walkthrough-mode
 python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir outputs
 python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
 ```

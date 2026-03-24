@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
+STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
@@ -16,6 +17,8 @@ SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.md"
+FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
+FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
 FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
 RECORDED_CLIP_SUMMARY = RECORDED_CLIP_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
@@ -30,7 +33,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
     ],
-    REPO_ROOT / "INTERVIEW.md": [
+    REPO_ROOT / "WALKTHROUGH.md": [
         "docs/sample_outputs/futures_replay_walkthrough/README.md",
         "docs/sample_outputs/futures_replay_walkthrough/summary.json",
         "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
@@ -54,7 +57,7 @@ BENCHMARK_FRONT_DOOR_LINKS = {
     REPO_ROOT / "README.md": [
         "docs/benchmark_results/futures_replay_reference.md",
     ],
-    REPO_ROOT / "INTERVIEW.md": [
+    REPO_ROOT / "WALKTHROUGH.md": [
         "docs/benchmark_results/futures_replay_reference.md",
     ],
     FUTURES_BENCHMARKS: [
@@ -62,11 +65,24 @@ BENCHMARK_FRONT_DOOR_LINKS = {
     ],
 }
 
+STRATEGY_PROFILE_FRONT_DOOR_LINKS = {
+    REPO_ROOT / "README.md": [
+        "docs/futures_strategy_profiles.md",
+        "docs/strategy_results/futures_strategy_profile_reference.md",
+    ],
+    REPO_ROOT / "WALKTHROUGH.md": [
+        "docs/futures_strategy_profiles.md",
+        "docs/strategy_results/futures_strategy_profile_reference.md",
+    ],
+}
+
 MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "README.md",
-    REPO_ROOT / "INTERVIEW.md",
+    REPO_ROOT / "WALKTHROUGH.md",
     REPO_ROOT / "docs" / "binance_usdm_feed_semantics.md",
     REPO_ROOT / "docs" / "futures_validation.md",
+    REPO_ROOT / "docs" / "futures_strategy_profiles.md",
+    REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
@@ -75,8 +91,8 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md",
-    REPO_ROOT / "docs" / "interview_talk_track.md",
-    REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "interview_brief.md",
+    REPO_ROOT / "docs" / "options_case_study_notes.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
     REPO_ROOT / "docs" / "sample_outputs" / "scenario_matrix_seed7" / "scenario_matrix.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxicity_spread_sensitivity_seed7" / "toxicity_spread_sensitivity.md",
@@ -101,7 +117,7 @@ RECORDED_CLIP_CORE_FILES = [
 ]
 
 CASE_STUDY_CORE_FILES = [
-    "interview_brief.md",
+    "case_brief.md",
     "demo_report.md",
     "summary.json",
     "overview_dashboard.png",
@@ -234,7 +250,9 @@ def _verify_no_temp_paths() -> list[str]:
         RECORDED_CLIP_DIR / "summary.csv",
         FUTURES_BENCHMARKS,
         FUTURES_BENCHMARK_REFERENCE,
-        CASE_STUDY_DIR / "interview_brief.md",
+        FUTURES_STRATEGY_PROFILES,
+        FUTURES_STRATEGY_REFERENCE,
+        CASE_STUDY_DIR / "case_brief.md",
         CASE_STUDY_DIR / "demo_report.md",
         CASE_STUDY_DIR / "summary.json",
     ]:
@@ -293,12 +311,27 @@ def _verify_benchmark_publication() -> list[str]:
     return issues
 
 
-def _verify_screen_share_order() -> list[str]:
+def _verify_strategy_profile_publication() -> list[str]:
+    issues: list[str] = []
+    if not FUTURES_STRATEGY_PROFILES.exists():
+        issues.append(f"Missing futures strategy profile doc: {_repo_relative(FUTURES_STRATEGY_PROFILES)}")
+    if not FUTURES_STRATEGY_REFERENCE.exists():
+        issues.append(f"Missing futures strategy reference doc: {_repo_relative(FUTURES_STRATEGY_REFERENCE)}")
+
+    for path, expected_links in STRATEGY_PROFILE_FRONT_DOOR_LINKS.items():
+        text = _read_text(path)
+        for link in expected_links:
+            if link not in text:
+                issues.append(f"Missing strategy-profile link in {_repo_relative(path)}: {link}")
+    return issues
+
+
+def _verify_artifact_order() -> list[str]:
     issues: list[str] = []
     expectations = [
         (
             REPO_ROOT / "README.md",
-            "## Interview Fast Path",
+            "## Walkthrough Path",
             None,
             [
                 "1. `README.md`",
@@ -309,62 +342,62 @@ def _verify_screen_share_order() -> list[str]:
                 "6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`",
                 "7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`",
                 "8. `docs/sample_outputs/futures_recorded_clip_case/README.md`",
-                "9. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`",
+                "9. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`",
                 "10. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`",
-                "11. `docs/interview_talk_track.md`",
+                "11. `docs/options_case_study_notes.md`",
             ],
         ),
         (
             REPO_ROOT / "docs" / "options_mm_demo_guide.md",
-            "## Best screen-share order",
+            "## Recommended artifact order",
             "If you want to show the case study is not one cherry-picked path, run:",
             [
-                "1. Open `interview_brief.md`.",
+                "1. Open `case_brief.md`.",
                 "2. Open `overview_dashboard.png`.",
                 "3. Open `implied_vol_surface_snapshot.png`.",
                 "4. Open `position_surface_heatmap.png`.",
                 "5. Open `vega_surface_heatmap.png`.",
-                "6. Open the representative fill in `interview_brief.md`.",
+                "6. Open the representative fill in `case_brief.md`.",
                 "7. Open `scenario_matrix.md`.",
                 "8. Open `toxicity_spread_sensitivity.md`.",
             ],
         ),
         (
             REPO_ROOT / "docs" / "sample_outputs" / "README.md",
-            "Canonical screen-share order:",
+            "Recommended artifact order:",
             "Cross-scenario credibility check:",
             [
-                "1. [`toxic_flow_seed7/interview_brief.md`](toxic_flow_seed7/interview_brief.md)",
+                "1. [`toxic_flow_seed7/case_brief.md`](toxic_flow_seed7/case_brief.md)",
                 "2. [`toxic_flow_seed7/overview_dashboard.png`](toxic_flow_seed7/overview_dashboard.png)",
                 "3. [`toxic_flow_seed7/implied_vol_surface_snapshot.png`](toxic_flow_seed7/implied_vol_surface_snapshot.png)",
                 "4. [`toxic_flow_seed7/position_surface_heatmap.png`](toxic_flow_seed7/position_surface_heatmap.png)",
                 "5. [`toxic_flow_seed7/vega_surface_heatmap.png`](toxic_flow_seed7/vega_surface_heatmap.png)",
-                "6. representative fill in [`toxic_flow_seed7/interview_brief.md#representative-fill`](toxic_flow_seed7/interview_brief.md#representative-fill)",
+                "6. representative fill in [`toxic_flow_seed7/case_brief.md#representative-fill`](toxic_flow_seed7/case_brief.md#representative-fill)",
                 "7. [`scenario_matrix_seed7/scenario_matrix.md`](scenario_matrix_seed7/scenario_matrix.md)",
                 "8. [`toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md`](toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)",
             ],
         ),
         (
-            REPO_ROOT / "run_options_mm_interview_mode.bat",
-            "echo [options] Screen-share order:",
-            "echo [options] Open %OUT_DIR%\\interview_brief.md first.",
+            REPO_ROOT / "run_options_mm_walkthrough_mode.bat",
+            "echo [options] Recommended artifact order:",
+            "echo [options] Open %OUT_DIR%\\case_brief.md first.",
             [
-                "echo [options]   1. %OUT_DIR%\\interview_brief.md",
+                "echo [options]   1. %OUT_DIR%\\case_brief.md",
                 "echo [options]   2. %OUT_DIR%\\overview_dashboard.png",
                 "echo [options]   3. %OUT_DIR%\\implied_vol_surface_snapshot.png",
                 "echo [options]   4. %OUT_DIR%\\position_surface_heatmap.png",
                 "echo [options]   5. %OUT_DIR%\\vega_surface_heatmap.png",
-                "echo [options]   6. representative fill in %OUT_DIR%\\interview_brief.md",
+                "echo [options]   6. representative fill in %OUT_DIR%\\case_brief.md",
                 "echo [options]   7. docs\\sample_outputs\\scenario_matrix_seed7\\scenario_matrix.md",
                 "echo [options]   8. docs\\sample_outputs\\toxicity_spread_sensitivity_seed7\\toxicity_spread_sensitivity.md",
             ],
         ),
         (
-            CASE_STUDY_DIR / "interview_brief.md",
+            CASE_STUDY_DIR / "case_brief.md",
             "## Files to open next",
             None,
             [
-                "- `interview_brief.md`: docs/sample_outputs/toxic_flow_seed7/interview_brief.md",
+                "- `case_brief.md`: docs/sample_outputs/toxic_flow_seed7/case_brief.md",
                 "- `overview_dashboard.png`: docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png",
                 "- `implied_vol_surface_snapshot.png`: docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png",
                 "- `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png",
@@ -386,10 +419,10 @@ def _verify_screen_share_order() -> list[str]:
         for line in ordered_lines:
             index = section.find(line)
             if index < 0:
-                issues.append(f"Missing screen-share item in {_repo_relative(path)}: {line}")
+                issues.append(f"Missing artifact-order item in {_repo_relative(path)}: {line}")
                 continue
             if index <= last_index:
-                issues.append(f"Out-of-order screen-share item in {_repo_relative(path)}: {line}")
+                issues.append(f"Out-of-order artifact-order item in {_repo_relative(path)}: {line}")
             last_index = index
     return issues
 
@@ -403,8 +436,9 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())
     issues.extend(_verify_futures_showcase_front_door_links())
+    issues.extend(_verify_strategy_profile_publication())
     issues.extend(_verify_benchmark_publication())
-    issues.extend(_verify_screen_share_order())
+    issues.extend(_verify_artifact_order())
     return issues
 
 

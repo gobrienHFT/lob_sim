@@ -30,6 +30,7 @@ class SimulationMetrics:
         self.fill_count = 0
         self.fill_qty: Decimal = Decimal("0")
         self.quote_count = 0
+        self.cancel_count = 0
         self.spread_capture_sum = Decimal("0")
         self.spread_capture_qty = Decimal("0")
         self.max_drawdown = Decimal("0")
@@ -57,6 +58,7 @@ class SimulationMetrics:
 
         self.fill_from_top_count = 0
         self.queue_fill_count = 0
+        self.queue_ahead_sum = 0
         self.fill_wait_count = 0
         self.fill_wait_ms_total = Decimal("0")
         self.max_queue_ahead_lots = 0
@@ -71,6 +73,9 @@ class SimulationMetrics:
 
     def on_quote_requested(self) -> None:
         self.quote_count += 1
+
+    def on_cancel_requested(self) -> None:
+        self.cancel_count += 1
 
     def inventory_lots(self, symbol: str) -> int:
         return self.position.get(symbol, PositionState()).lot_size
@@ -247,6 +252,7 @@ class SimulationMetrics:
                 self.max_queue_ahead_lots = fill.queue_ahead_lots
         else:
             self.fill_from_top_count += 1
+        self.queue_ahead_sum += fill.queue_ahead_lots
 
         regime = self._regime(book)
         self._record_fill_regime(regime, qty, spread_capture)
@@ -383,6 +389,10 @@ class SimulationMetrics:
         if self.fill_count > 0:
             fill_from_top_rate = Decimal(self.fill_from_top_count) / Decimal(self.fill_count)
 
+        avg_queue_ahead_lots = Decimal("0")
+        if self.fill_count > 0:
+            avg_queue_ahead_lots = Decimal(self.queue_ahead_sum) / Decimal(self.fill_count)
+
         regime_performance: dict[str, dict[str, float]] = {}
         for regime in self._regime_fill_counts:
             fills = self._regime_fill_counts[regime]
@@ -400,6 +410,7 @@ class SimulationMetrics:
             }
 
         return {
+            "strategy_profile": self.cfg.mm_strategy_profile,
             "total_pnl": float(self.realized_pnl + self.unrealized_pnl),
             "realized_pnl": float(self.realized_pnl),
             "unrealized_pnl": float(self.unrealized_pnl),
@@ -412,11 +423,14 @@ class SimulationMetrics:
             "total_fees": float(self.total_fees),
             "total_inventory": float(total_inventory),
             "quote_count": self.quote_count,
+            "cancel_count": self.cancel_count,
             "avg_fill_wait_ms": float(avg_fill_wait_ms),
+            "fill_from_top_count": self.fill_from_top_count,
             "fill_from_top_rate": float(fill_from_top_rate),
             "adverse_fill_rate_1s": float(adverse_markout_rate),
             "adverse_fill_rate_1s_by_side": adverse_markout_rate_by_side,
             "queue_fill_count": self.queue_fill_count,
+            "avg_queue_ahead_lots": float(avg_queue_ahead_lots),
             "max_queue_ahead_lots": self.max_queue_ahead_lots,
             "max_consecutive_loss_count": self.max_consecutive_loss_count,
             "markout_samples_remaining": len(self._pending_markouts),

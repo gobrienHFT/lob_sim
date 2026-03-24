@@ -14,8 +14,8 @@ if not "%~3"=="" set "STEPS=%~3"
 if not "%~4"=="" set "SEED=%~4"
 
 echo =============================================================
-echo   Options MM Interview Mode
-echo   Concise run, brief, and clear screen-share order
+echo   Options MM Walkthrough Mode
+echo   Concise run, case brief, and clear artifact order
 echo =============================================================
 
 where python >nul 2>nul
@@ -30,20 +30,20 @@ echo [options] Seed: %SEED%
 echo [options] Output folder: %OUT_DIR%
 echo.
 
-python -u -m lob_sim.cli options-demo --out-dir "%OUT_DIR%" --steps %STEPS% --seed %SEED% --scenario %SCENARIO% --brief --interview-mode
+python -u -m lob_sim.cli options-demo --out-dir "%OUT_DIR%" --steps %STEPS% --seed %SEED% --scenario %SCENARIO% --brief --walkthrough-mode
 if errorlevel 1 goto fail
 
 echo.
-echo [options] Screen-share order:
-echo [options]   1. %OUT_DIR%\interview_brief.md
+echo [options] Recommended artifact order:
+echo [options]   1. %OUT_DIR%\case_brief.md
 echo [options]   2. %OUT_DIR%\overview_dashboard.png
 echo [options]   3. %OUT_DIR%\implied_vol_surface_snapshot.png
 echo [options]   4. %OUT_DIR%\position_surface_heatmap.png
 echo [options]   5. %OUT_DIR%\vega_surface_heatmap.png
-echo [options]   6. representative fill in %OUT_DIR%\interview_brief.md
+echo [options]   6. representative fill in %OUT_DIR%\case_brief.md
 echo [options]   7. docs\sample_outputs\scenario_matrix_seed7\scenario_matrix.md
 echo [options]   8. docs\sample_outputs\toxicity_spread_sensitivity_seed7\toxicity_spread_sensitivity.md
-echo [options] Open %OUT_DIR%\interview_brief.md first.
+echo [options] Open %OUT_DIR%\case_brief.md first.
 set "EXIT_CODE=0"
 goto end
 

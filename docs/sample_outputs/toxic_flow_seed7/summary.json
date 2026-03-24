@@ -221,7 +221,7 @@
     "pnl_timeseries": "docs/sample_outputs/toxic_flow_seed7/pnl_timeseries_head.csv",
     "positions_final": "docs/sample_outputs/toxic_flow_seed7/positions_final.csv",
     "report": "docs/sample_outputs/toxic_flow_seed7/demo_report.md",
-    "interview_brief": "docs/sample_outputs/toxic_flow_seed7/interview_brief.md",
+    "case_brief": "docs/sample_outputs/toxic_flow_seed7/case_brief.md",
     "overview_dashboard_plot": "docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png",
     "implied_vol_surface_snapshot_plot": "docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png",
     "pnl_over_time_plot": "docs/sample_outputs/toxic_flow_seed7/pnl_over_time.png",

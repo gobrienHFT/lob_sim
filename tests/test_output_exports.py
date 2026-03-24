@@ -14,7 +14,7 @@ from lob_sim.options.demo import (
     OptionsMarketMakerDemo,
     build_options_config,
     format_brief_summary,
-    format_interview_brief,
+    format_case_brief,
     format_terminal_summary,
 )
 from lob_sim.options.markout import signed_markout
@@ -229,7 +229,7 @@ def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
     assert "Economics of the run" in report_text
 
 
-def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
+def test_options_demo_writes_case_brief(tmp_path: Path, monkeypatch):
     def _write_plots_stub(self, out_dir: Path) -> dict[str, str]:
         names = {
             "pnl_over_time_plot": "pnl_over_time.png",
@@ -256,29 +256,29 @@ def test_options_demo_writes_interview_brief(tmp_path: Path, monkeypatch):
     summary = OptionsMarketMakerDemo(build_options_config(steps=8, seed=3, scenario="toxic_flow")).run(
         tmp_path,
         progress_every=4,
-        interview_mode=True,
+        walkthrough_mode=True,
     )
 
-    interview_brief = tmp_path / "interview_brief.md"
-    assert interview_brief.exists()
-    assert summary["output_files"]["interview_brief"] == str(interview_brief)
+    case_brief = tmp_path / "case_brief.md"
+    assert case_brief.exists()
+    assert summary["output_files"]["case_brief"] == str(case_brief)
 
-    interview_text = interview_brief.read_text(encoding="utf-8")
-    assert "Options MM interview brief" in interview_text
-    assert "Executive summary" in interview_text
-    assert "Strongest takeaways" in interview_text
-    assert "Key limitations" in interview_text
-    assert "Worked fill examples" in interview_text
-    assert "Representative Fill" in interview_text
-    assert "Stress-case toxic fill" in interview_text
-    assert "What I would build next" in interview_text
-    assert "overview_dashboard.png" in interview_text
-    assert "implied_vol_surface_snapshot.png" in interview_text
-    assert "position_surface_heatmap.png" in interview_text
-    assert "vega_surface_heatmap.png" in interview_text
-    assert "Warehoused risk across the surface" in interview_text
-    assert "Economics of the run" in interview_text
-    assert "Pricing surface used by the demo" in interview_text
+    case_text = case_brief.read_text(encoding="utf-8")
+    assert "Options MM case brief" in case_text
+    assert "Executive summary" in case_text
+    assert "Strongest takeaways" in case_text
+    assert "Key limitations" in case_text
+    assert "Worked fill examples" in case_text
+    assert "Representative Fill" in case_text
+    assert "Stress-case toxic fill" in case_text
+    assert "What I would build next" in case_text
+    assert "overview_dashboard.png" in case_text
+    assert "implied_vol_surface_snapshot.png" in case_text
+    assert "position_surface_heatmap.png" in case_text
+    assert "vega_surface_heatmap.png" in case_text
+    assert "Warehoused risk across the surface" in case_text
+    assert "Economics of the run" in case_text
+    assert "Pricing surface used by the demo" in case_text
 
 
 def test_options_presets_and_summary_helpers():
@@ -348,7 +348,7 @@ def test_options_presets_and_summary_helpers():
     assert "Most traded contracts" in terminal
 
     summary["output_files"] = {
-        "interview_brief": "outputs/interview_brief.md",
+        "case_brief": "outputs/case_brief.md",
         "report": "outputs/demo_report.md",
         "fills": "outputs/fills.csv",
         "pnl_timeseries": "outputs/pnl_timeseries.csv",
@@ -418,15 +418,15 @@ def test_options_presets_and_summary_helpers():
             "option_position_after": -6,
         },
     }
-    interview_brief = format_interview_brief(summary, worked_examples)
-    assert "Options MM interview brief" in interview_brief
-    assert "Worked fill examples" in interview_brief
-    assert "Representative Fill" in interview_brief
-    assert "Stress-case toxic fill" in interview_brief
-    assert "What I would build next" in interview_brief
-    assert "implied_vol_surface_snapshot.png" in interview_brief
-    assert "contract dollars" in interview_brief
-    assert "This is not a units mismatch" in interview_brief
+    case_brief = format_case_brief(summary, worked_examples)
+    assert "Options MM case brief" in case_brief
+    assert "Worked fill examples" in case_brief
+    assert "Representative Fill" in case_brief
+    assert "Stress-case toxic fill" in case_brief
+    assert "What I would build next" in case_brief
+    assert "implied_vol_surface_snapshot.png" in case_brief
+    assert "contract dollars" in case_brief
+    assert "This is not a units mismatch" in case_brief
 
 
 def test_signed_markout_sign_convention():

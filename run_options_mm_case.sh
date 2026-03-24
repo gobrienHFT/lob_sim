@@ -36,7 +36,7 @@ echo "[options] Steps: ${STEPS}"
 echo "[options] Seed: ${SEED}"
 echo "[options] Output folder: ${OUT_DIR}"
 echo "[options] Guide: docs/options_mm_demo_guide.md"
-echo "[options] Screen-share flow: terminal summary -> demo_report.md -> fills.csv -> pnl_timeseries.csv -> pnl_over_time.png"
+echo "[options] Artifact flow: terminal summary -> demo_report.md -> fills.csv -> pnl_timeseries.csv -> pnl_over_time.png"
 echo
 
 "$PYTHON_BIN" -u -m lob_sim.cli options-demo \
@@ -50,7 +50,7 @@ echo
 
 echo
 echo "[options] Run complete."
-echo "[options] Screen-share order:"
+echo "[options] Recommended artifact order:"
 echo "[options]   1. ${OUT_DIR}/demo_report.md"
 echo "[options]   2. ${OUT_DIR}/fills.csv"
 echo "[options]   3. ${OUT_DIR}/pnl_timeseries.csv"

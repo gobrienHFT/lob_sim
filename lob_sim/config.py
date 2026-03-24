@@ -102,14 +102,20 @@ class Config:
     sim_kill_max_drawdown: Decimal
     sim_kill_max_consecutive_losses: int
     mm_enabled: bool
+    mm_strategy_profile: str
     mm_requote_ms: float
     mm_order_qty: Decimal
     mm_max_position: Decimal
     mm_half_spread_bps: Decimal
+    mm_layered_inner_spread_bps: Decimal
+    mm_layered_outer_spread_bps: Decimal
     mm_volatility_window: int
     mm_volatility_spread_factor: Decimal
     mm_skew_bps_per_unit: Decimal
     mm_queue_repost_lots: int
+    mm_trade_imbalance_window: int
+    mm_microstructure_gate_threshold: Decimal
+    mm_microstructure_gate_bps: Decimal
     fees_maker_bps: Decimal
     fees_taker_bps: Decimal
     log_level: str
@@ -153,14 +159,26 @@ class Config:
             errs.append("MM_ORDER_QTY must be > 0")
         if self.mm_max_position <= 0:
             errs.append("MM_MAX_POSITION must be > 0")
+        if self.mm_strategy_profile not in {"baseline", "layered_mm"}:
+            errs.append("MM_STRATEGY_PROFILE must be baseline or layered_mm")
         if self.mm_half_spread_bps < 0:
             errs.append("MM_HALF_SPREAD_BPS must be >= 0")
+        if self.mm_layered_inner_spread_bps < 0:
+            errs.append("MM_LAYERED_INNER_SPREAD_BPS must be >= 0")
+        if self.mm_layered_outer_spread_bps < self.mm_layered_inner_spread_bps:
+            errs.append("MM_LAYERED_OUTER_SPREAD_BPS must be >= MM_LAYERED_INNER_SPREAD_BPS")
         if self.mm_volatility_window <= 0:
             errs.append("MM_VOLATILITY_WINDOW must be > 0")
         if self.mm_volatility_spread_factor < 0:
             errs.append("MM_VOLATILITY_SPREAD_FACTOR must be >= 0")
         if self.mm_queue_repost_lots < 0:
             errs.append("MM_QUEUE_REPOST_LOTS must be >= 0")
+        if self.mm_trade_imbalance_window <= 0:
+            errs.append("MM_TRADE_IMBALANCE_WINDOW must be > 0")
+        if self.mm_microstructure_gate_threshold < 0 or self.mm_microstructure_gate_threshold > 1:
+            errs.append("MM_MICROSTRUCTURE_GATE_THRESHOLD must be between 0 and 1")
+        if self.mm_microstructure_gate_bps < 0:
+            errs.append("MM_MICROSTRUCTURE_GATE_BPS must be >= 0")
         if self.sim_adverse_markout_seconds < 0:
             errs.append("SIM_ADVERSE_MARKOUT_SECONDS must be >= 0")
         if self.sim_kill_max_drawdown < 0:
@@ -224,10 +242,19 @@ def load_config(env_path: str = ".env") -> Config:
             _get_optional("SIM_KILL_MAX_CONSECUTIVE_LOSSES", "0"),
         ),
         mm_enabled=_parse_bool("MM_ENABLED", _get_optional("MM_ENABLED", "1")),
+        mm_strategy_profile=_get_optional("MM_STRATEGY_PROFILE", "baseline").strip().lower(),
         mm_requote_ms=_parse_float("MM_REQUOTE_MS", _get_optional("MM_REQUOTE_MS", "250")),
         mm_order_qty=_parse_decimal("MM_ORDER_QTY", _get_optional("MM_ORDER_QTY", "0.001")),
         mm_max_position=_parse_decimal("MM_MAX_POSITION", _get_optional("MM_MAX_POSITION", "0.01")),
         mm_half_spread_bps=_parse_decimal("MM_HALF_SPREAD_BPS", _get_optional("MM_HALF_SPREAD_BPS", "2.0")),
+        mm_layered_inner_spread_bps=_parse_decimal(
+            "MM_LAYERED_INNER_SPREAD_BPS",
+            _get_optional("MM_LAYERED_INNER_SPREAD_BPS", "2.0"),
+        ),
+        mm_layered_outer_spread_bps=_parse_decimal(
+            "MM_LAYERED_OUTER_SPREAD_BPS",
+            _get_optional("MM_LAYERED_OUTER_SPREAD_BPS", "6.0"),
+        ),
         mm_volatility_window=_parse_int("MM_VOLATILITY_WINDOW", _get_optional("MM_VOLATILITY_WINDOW", "30")),
         mm_volatility_spread_factor=_parse_decimal(
             "MM_VOLATILITY_SPREAD_FACTOR",
@@ -235,6 +262,18 @@ def load_config(env_path: str = ".env") -> Config:
         ),
         mm_skew_bps_per_unit=_parse_decimal("MM_SKEW_BPS_PER_UNIT", _get_optional("MM_SKEW_BPS_PER_UNIT", "10.0")),
         mm_queue_repost_lots=_parse_int("MM_QUEUE_REPOST_LOTS", _get_optional("MM_QUEUE_REPOST_LOTS", "0")),
+        mm_trade_imbalance_window=_parse_int(
+            "MM_TRADE_IMBALANCE_WINDOW",
+            _get_optional("MM_TRADE_IMBALANCE_WINDOW", "12"),
+        ),
+        mm_microstructure_gate_threshold=_parse_decimal(
+            "MM_MICROSTRUCTURE_GATE_THRESHOLD",
+            _get_optional("MM_MICROSTRUCTURE_GATE_THRESHOLD", "0.20"),
+        ),
+        mm_microstructure_gate_bps=_parse_decimal(
+            "MM_MICROSTRUCTURE_GATE_BPS",
+            _get_optional("MM_MICROSTRUCTURE_GATE_BPS", "1.0"),
+        ),
         fees_maker_bps=_parse_decimal("FEES_MAKER_BPS", _get_optional("FEES_MAKER_BPS", "-0.2")),
         fees_taker_bps=_parse_decimal("FEES_TAKER_BPS", _get_optional("FEES_TAKER_BPS", "4.0")),
         log_level=_get_optional("LOG_LEVEL", "INFO").upper(),

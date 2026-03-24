@@ -17,7 +17,7 @@ from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
 from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
-from .mm_strategy import MarketMakingStrategy
+from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
 
 
@@ -110,19 +110,21 @@ class SimulationEngine:
 
         inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
         plan = self.strategy.propose(book, inventory_qty=inventory)
-        if plan.bid_tick is None and plan.ask_tick is None:
+        if not plan.quotes:
             return
 
-        quote_size = max(1, plan.size_lots)
-        queue_positions = {
-            "bid": self.fill_model.queue_ahead_lots(symbol, self.fill_model.get_order(symbol, "bid")),
-            "ask": self.fill_model.queue_ahead_lots(symbol, self.fill_model.get_order(symbol, "ask")),
-        }
+        desired_by_side: dict[str, dict[str, QuoteTarget]] = {"bid": {}, "ask": {}}
+        for target in plan.quotes:
+            desired_by_side[target.side][target.quote_slot] = target
 
         for side in ("bid", "ask"):
-            existing = self.fill_model.get_order(symbol, side)
+            desired_targets = desired_by_side[side]
+            existing_orders = {
+                order.quote_slot: order for order in self.fill_model.get_orders(symbol, side)
+            }
             if side == "bid" and inventory > self.cfg.mm_max_position:
-                if existing is not None:
+                for existing in existing_orders.values():
+                    self.metrics.on_cancel_requested()
                     self._schedule(
                         ts + self.cfg.sim_cancel_latency_ms / 1000.0,
                         "order_cancel",
@@ -131,7 +133,8 @@ class SimulationEngine:
                     )
                 continue
             if side == "ask" and inventory < -self.cfg.mm_max_position:
-                if existing is not None:
+                for existing in existing_orders.values():
+                    self.metrics.on_cancel_requested()
                     self._schedule(
                         ts + self.cfg.sim_cancel_latency_ms / 1000.0,
                         "order_cancel",
@@ -140,30 +143,48 @@ class SimulationEngine:
                     )
                 continue
 
-            desired = plan.bid_tick if side == "bid" else plan.ask_tick
-            if desired is None:
-                continue
-
-            refresh = self.strategy.should_refresh(book, side, existing)
-            if queue_positions[side] >= self.cfg.mm_queue_repost_lots:
-                refresh = True
-            if existing is not None and (existing.price_tick != desired or refresh):
+            for slot, existing in existing_orders.items():
+                if slot in desired_targets:
+                    continue
+                self.metrics.on_cancel_requested()
                 self._schedule(
                     ts + self.cfg.sim_cancel_latency_ms / 1000.0,
                     "order_cancel",
                     symbol,
                     {"order_id": existing.order_id},
                 )
-                existing = None
 
-            if existing is not None and existing.price_tick == desired:
-                continue
+            for slot, target in desired_targets.items():
+                existing = existing_orders.get(slot)
+                refresh = self.strategy.should_refresh(target, existing)
+                if existing is not None and (
+                    existing.price_tick != target.price_tick
+                    or existing.qty_lots != target.qty_lots
+                    or refresh
+                ):
+                    self.metrics.on_cancel_requested()
+                    self._schedule(
+                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
+                        "order_cancel",
+                        symbol,
+                        {"order_id": existing.order_id},
+                    )
+                    existing = None
 
-            self._schedule(
-                ts + self.cfg.sim_order_latency_ms / 1000.0,
-                "order_arrival",
-                symbol,
-                    {"side": side, "price_tick": desired, "qty_lots": quote_size},
+                if existing is not None and existing.price_tick == target.price_tick and existing.qty_lots == target.qty_lots:
+                    continue
+
+                self._schedule(
+                    ts + self.cfg.sim_order_latency_ms / 1000.0,
+                    "order_arrival",
+                    symbol,
+                    {
+                        "side": side,
+                        "quote_slot": slot,
+                        "price_tick": target.price_tick,
+                        "qty_lots": target.qty_lots,
+                        "refresh_key": target.refresh_key,
+                    },
                 )
 
     def _handle_arrival(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
@@ -171,8 +192,10 @@ class SimulationEngine:
             return
 
         side = payload["side"]
+        quote_slot = str(payload.get("quote_slot", "base"))
         price_tick = int(payload["price_tick"])
         qty_lots = int(payload["qty_lots"])
+        refresh_key = str(payload.get("refresh_key", ""))
         book = self._books.get(symbol)
         if book is None or qty_lots <= 0:
             return
@@ -183,9 +206,11 @@ class SimulationEngine:
             side=side,
             price_tick=price_tick,
             qty_lots=qty_lots,
+            quote_slot=quote_slot,
             queue_ahead_lots=0,
             created_ts=now,
             remaining_lots=qty_lots,
+            refresh_key=refresh_key,
         )
         fills = self.fill_model.place_order(order)
         if fills:
@@ -306,6 +331,7 @@ class SimulationEngine:
                     buyer_is_maker=bool(rec.data["m"]),
                     ts_local=now,
                 )
+                self.strategy.observe_trade(trade)
                 fills = self.fill_model.apply_agg_trade(trade, now)
                 if fills:
                     self._emit_trade_event(now, rec.symbol, fills)

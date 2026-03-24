@@ -14,12 +14,14 @@ class Order:
     side: OrderSide
     price_tick: int | None
     qty_lots: int
+    quote_slot: str = "base"
     queue_ahead_lots: int = 0
     created_ts: float = 0.0
     remaining_lots: int = 0
     active: bool = True
     order_type: OrderType = "limit"
     is_strategy: bool = True
+    refresh_key: str = ""
 
 
 @dataclass

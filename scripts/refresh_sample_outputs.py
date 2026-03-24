@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lob_sim.options.demo import format_demo_report, format_interview_brief, select_worked_fill_examples
+from lob_sim.options.demo import format_case_brief, format_demo_report, select_worked_fill_examples
 from scripts.verify_committed_artifacts import assert_no_artifact_issues
 
 
@@ -50,7 +50,7 @@ def sample_pack_commands(out_dir: str) -> dict[str, list[str]]:
             "30",
             "--log-mode",
             "compact",
-            "--interview-mode",
+            "--walkthrough-mode",
         ],
         "scenario_matrix": [
             sys.executable,
@@ -141,7 +141,7 @@ def _sample_case_output_files() -> dict[str, str]:
         "pnl_timeseries": f"{case_dir}/pnl_timeseries_head.csv",
         "positions_final": f"{case_dir}/positions_final.csv",
         "report": f"{case_dir}/demo_report.md",
-        "interview_brief": f"{case_dir}/interview_brief.md",
+        "case_brief": f"{case_dir}/case_brief.md",
         "overview_dashboard_plot": f"{case_dir}/overview_dashboard.png",
         "implied_vol_surface_snapshot_plot": f"{case_dir}/implied_vol_surface_snapshot.png",
         "pnl_over_time_plot": f"{case_dir}/pnl_over_time.png",
@@ -163,8 +163,8 @@ def _write_sanitized_case_artifacts(case_tmp: Path, case_study_dir: Path) -> Non
         format_demo_report(summary, worked_examples),
         encoding="utf-8",
     )
-    (case_study_dir / "interview_brief.md").write_text(
-        format_interview_brief(summary, worked_examples),
+    (case_study_dir / "case_brief.md").write_text(
+        format_case_brief(summary, worked_examples),
         encoding="utf-8",
     )
     with (case_study_dir / "summary.json").open("w", encoding="utf-8") as handle:

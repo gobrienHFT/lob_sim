@@ -10,8 +10,8 @@ from .orders import Fill, Order, OrderSide
 class PassiveFillModel:
     def __init__(self) -> None:
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
-        self._orders: dict[tuple[str, OrderSide], Order] = {}
-        self._order_index: dict[str, tuple[str, OrderSide]] = {}
+        self._orders: dict[tuple[str, OrderSide, str], Order] = {}
+        self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
         self._seq = 0
 
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
@@ -28,8 +28,26 @@ class PassiveFillModel:
             raise ValueError(f"Invalid side: {side}")
         return side
 
-    def get_order(self, symbol: str, side: str) -> Order | None:
-        return self._orders.get((symbol, self._ensure_order_type(side)))
+    def get_order(self, symbol: str, side: str, quote_slot: str = "base") -> Order | None:
+        return self._orders.get((symbol, self._ensure_order_type(side), quote_slot))
+
+    def get_orders(self, symbol: str, side: str) -> list[Order]:
+        normalized_side = self._ensure_order_type(side)
+        orders = [
+            order
+            for (order_symbol, order_side, _slot), order in self._orders.items()
+            if order_symbol == symbol and order_side == normalized_side
+        ]
+        reverse = normalized_side == "bid"
+        return sorted(
+            orders,
+            key=lambda order: (
+                order.price_tick if order.price_tick is not None else 0,
+                order.created_ts,
+                order.order_id,
+            ),
+            reverse=reverse,
+        )
 
     def queue_ahead_lots(self, symbol: str, order: Order | None) -> int:
         if order is None:
@@ -111,24 +129,24 @@ class PassiveFillModel:
         if key is None:
             return
         self._orders.pop(key, None)
-        symbol, _side = key
-        current_order = self._orders.get(key)
-        if current_order is None:
-            # best effort removal from book (if active map already diverged, still cleanup queue)
-            book_side = self._book(symbol)[self._bucket(_side)]
-            for queue in book_side.values():
-                for q in list(queue):
-                    if q.order_id == order_id:
-                        self._remove_order_from_book(q)
-                        return
+        symbol, _side, _slot = key
+        # best effort removal from book (if active map already diverged, still cleanup queue)
+        book_side = self._book(symbol)[self._bucket(_side)]
+        for queue in book_side.values():
+            for q in list(queue):
+                if q.order_id == order_id:
+                    self._remove_order_from_book(q)
+                    return
 
     def cancel_all_for_symbol_side(self, symbol: str, side: str) -> None:
-        key = (symbol, self._ensure_order_type(side))
-        order = self._orders.pop(key, None)
-        if order is None:
-            return
-        self._order_index.pop(order.order_id, None)
-        self._remove_order_from_book(order)
+        normalized_side = self._ensure_order_type(side)
+        keys = [key for key in self._orders if key[0] == symbol and key[1] == normalized_side]
+        for key in keys:
+            order = self._orders.pop(key, None)
+            if order is None:
+                continue
+            self._order_index.pop(order.order_id, None)
+            self._remove_order_from_book(order)
 
     def _consume_front(
         self,
@@ -175,7 +193,7 @@ class PassiveFillModel:
                 )
 
                 if head.remaining_lots <= 0:
-                    self._orders.pop((symbol, head.side), None)
+                    self._orders.pop((symbol, head.side, head.quote_slot), None)
                     self._order_index.pop(head.order_id, None)
 
             if head.remaining_lots <= 0:
@@ -297,8 +315,8 @@ class PassiveFillModel:
         order.queue_ahead_lots = 0 if visible_queue_ahead > 0 else max(0, order.queue_ahead_lots)
         order.active = True
         queue.append(order)
-        self._orders[(order.symbol, order.side)] = order
-        self._order_index[order.order_id] = (order.symbol, order.side)
+        self._orders[(order.symbol, order.side, order.quote_slot)] = order
+        self._order_index[order.order_id] = (order.symbol, order.side, order.quote_slot)
 
     def seed_from_snapshot(self, symbol: str, bids: list[tuple[int, int]], asks: list[tuple[int, int]]) -> None:
         # Strategy orders are external to the venue stream. Remove active strategy quotes and rebuild.
@@ -328,7 +346,7 @@ class PassiveFillModel:
                 maker_fill=False,
             )
 
-        existing = self.get_order(order.symbol, order.side)
+        existing = self.get_order(order.symbol, order.side, order.quote_slot)
         if existing is not None and existing.order_id != order.order_id:
             self.cancel_order(existing.order_id)
         if order.order_type == "limit":

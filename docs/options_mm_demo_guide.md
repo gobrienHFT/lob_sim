@@ -2,16 +2,16 @@
 
 ## Goal
 
-Use `run_options_mm_interview_mode.bat` as the cleanest walkthrough of the controlled dealer-pricing case study.
+Use `run_options_mm_walkthrough_mode.bat` as the cleanest guided run of the controlled dealer-pricing case study.
 
 The point is to show clear pricing and risk reasoning with outputs that are easy to audit, not to claim production infrastructure or venue-calibrated options microstructure.
 
 ## What the batch file does
 
-`run_options_mm_interview_mode.bat` launches:
+`run_options_mm_walkthrough_mode.bat` launches:
 
 ```bat
-python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --brief --interview-mode
+python -u -m lob_sim.cli options-demo --out-dir ... --steps ... --seed ... --scenario ... --brief --walkthrough-mode
 ```
 
 That command runs the synthetic dealer-pricing study in [lob_sim/options/demo.py](../lob_sim/options/demo.py).
@@ -24,14 +24,14 @@ bash run_options_mm_case.sh
 
 If you want the fuller event-level walkthrough instead of the concise sample-pack path, use `run_options_mm_case.bat` or the neutral alias `run_options_case_study.bat`.
 
-## Best screen-share order
+## Recommended artifact order
 
-1. Open `interview_brief.md`.
+1. Open `case_brief.md`.
 2. Open `overview_dashboard.png`.
 3. Open `implied_vol_surface_snapshot.png`.
 4. Open `position_surface_heatmap.png`.
 5. Open `vega_surface_heatmap.png`.
-6. Open the representative fill in `interview_brief.md`.
+6. Open the representative fill in `case_brief.md`.
 7. Open `scenario_matrix.md`.
 8. Open `toxicity_spread_sensitivity.md`.
 
@@ -114,7 +114,7 @@ Use one row from `fills.csv` and walk left to right:
 The run writes:
 
 - `summary.json`: machine-readable run summary and artifact paths.
-- `interview_brief.md`: concise screen-share order, metrics table, representative fill, takeaways, and limitations.
+- `case_brief.md`: concise artifact order, metrics table, representative fill, takeaways, and limitations.
 - `demo_report.md`: the clean overview document.
 - `overview_dashboard.png`: one screen with headline PnL, inventory, delta, and toxic versus non-toxic markout.
 - `implied_vol_surface_snapshot.png`: initial synthetic implied-vol surface used by the default case-study pack.

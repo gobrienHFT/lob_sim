@@ -555,13 +555,13 @@ def _pricing_surface_notes(summary: dict[str, Any]) -> list[str]:
 
 
 def _representative_fill_reference(summary: dict[str, Any]) -> str:
-    interview_brief = summary["output_files"].get("interview_brief")
-    if interview_brief:
-        return f"{interview_brief}#representative-fill"
+    case_brief = summary["output_files"].get("case_brief")
+    if case_brief:
+        return f"{case_brief}#representative-fill"
     return summary["output_files"]["fills"]
 
 
-def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, dict[str, Any] | None]) -> str:
+def format_case_brief(summary: dict[str, Any], worked_examples: dict[str, dict[str, Any] | None]) -> str:
     takeaways = [
         (
             f"Gross spread capture was {summary['gross_spread_captured']:.2f} while signed markout was "
@@ -618,7 +618,7 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
         ]
     )
     lines = [
-        "# Options MM interview brief",
+        "# Options MM case brief",
         "",
         "## Executive summary",
         *executive_summary,
@@ -690,7 +690,7 @@ def format_interview_brief(summary: dict[str, Any], worked_examples: dict[str, d
             *(f"- {item}" for item in next_steps),
             "",
             "## Files to open next",
-            f"- `interview_brief.md`: {summary['output_files']['interview_brief']}",
+            f"- `case_brief.md`: {summary['output_files']['case_brief']}",
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
             f"- `implied_vol_surface_snapshot.png`: {summary['output_files']['implied_vol_surface_snapshot_plot']}",
             f"- `position_surface_heatmap.png`: {summary['output_files']['position_surface_heatmap_plot']}",
@@ -847,8 +847,8 @@ def format_demo_report(
         "",
         "## Suggested artifact reading order",
             *(
-                [f"- `interview_brief.md`: {summary['output_files']['interview_brief']}"]
-                if "interview_brief" in summary["output_files"]
+                [f"- `case_brief.md`: {summary['output_files']['case_brief']}"]
+                if "case_brief" in summary["output_files"]
                 else []
             ),
             f"- `overview_dashboard.png`: {summary['output_files']['overview_dashboard_plot']}",
@@ -888,8 +888,8 @@ def format_demo_report(
 
 def format_artifact_paths(summary: dict[str, Any]) -> str:
     lines = ["Artifacts"]
-    if "interview_brief" in summary["output_files"]:
-        lines.append(f"- Interview brief: {summary['output_files']['interview_brief']}")
+    if "case_brief" in summary["output_files"]:
+        lines.append(f"- Case brief: {summary['output_files']['case_brief']}")
     lines.extend(
         [
             f"- Report: {summary['output_files']['report']}",
@@ -1890,7 +1890,7 @@ class OptionsMarketMakerDemo:
         verbose: bool = False,
         progress_every: int = 25,
         log_mode: str = "compact",
-        interview_mode: bool = False,
+        walkthrough_mode: bool = False,
         write_artifacts: bool = True,
     ) -> dict[str, Any]:
         rng = random.Random(self.cfg.seed)
@@ -2092,8 +2092,8 @@ class OptionsMarketMakerDemo:
                 "positions_final": str(out_dir / "positions_final.csv"),
                 "report": str(out_dir / "demo_report.md"),
             }
-            if interview_mode:
-                output_files["interview_brief"] = str(out_dir / "interview_brief.md")
+            if walkthrough_mode:
+                output_files["case_brief"] = str(out_dir / "case_brief.md")
             output_files.update(self._write_plots(out_dir))
         summary["output_files"] = output_files
 
@@ -2212,9 +2212,9 @@ class OptionsMarketMakerDemo:
                 format_demo_report(summary, worked_examples),
                 encoding="utf-8",
             )
-            if interview_mode:
-                Path(output_files["interview_brief"]).write_text(
-                    format_interview_brief(summary, worked_examples),
+            if walkthrough_mode:
+                Path(output_files["case_brief"]).write_text(
+                    format_case_brief(summary, worked_examples),
                     encoding="utf-8",
                 )
             with Path(output_files["summary"]).open("w", encoding="utf-8") as handle:

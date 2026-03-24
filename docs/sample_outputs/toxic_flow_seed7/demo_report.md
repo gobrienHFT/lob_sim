@@ -182,12 +182,12 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 - PUT_95.00_14D: count=9, signed_qty=-7
 
 ## Suggested artifact reading order
-- `interview_brief.md`: docs/sample_outputs/toxic_flow_seed7/interview_brief.md
+- `case_brief.md`: docs/sample_outputs/toxic_flow_seed7/case_brief.md
 - `overview_dashboard.png`: docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png
 - `implied_vol_surface_snapshot.png`: docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png
 - `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png
 - `vega_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/vega_surface_heatmap.png
-- representative fill: docs/sample_outputs/toxic_flow_seed7/interview_brief.md#representative-fill
+- representative fill: docs/sample_outputs/toxic_flow_seed7/case_brief.md#representative-fill
 - `scenario_matrix.md`: docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md
 - `toxicity_spread_sensitivity.md`: docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md
 

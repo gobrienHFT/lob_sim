@@ -1,4 +1,4 @@
-# Options Market-Making Interview Brief
+# Options Market-Making Case Brief
 
 ## Executive summary
 - Scenario `toxic_flow` with seed `7` over `180` steps.
@@ -142,7 +142,7 @@ Stress-case toxic fill = the toxic hedged fill with the worst signed markout.
 - Build a separate live options market-data recorder if venue microstructure realism becomes the primary goal.
 
 ## Files to open next
-- `interview_brief.md`: docs/sample_outputs/toxic_flow_seed7/interview_brief.md
+- `case_brief.md`: docs/sample_outputs/toxic_flow_seed7/case_brief.md
 - `overview_dashboard.png`: docs/sample_outputs/toxic_flow_seed7/overview_dashboard.png
 - `implied_vol_surface_snapshot.png`: docs/sample_outputs/toxic_flow_seed7/implied_vol_surface_snapshot.png
 - `position_surface_heatmap.png`: docs/sample_outputs/toxic_flow_seed7/position_surface_heatmap.png

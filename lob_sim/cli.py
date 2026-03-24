@@ -212,7 +212,7 @@ def cmd_options_demo(
     progress_every: int = 25,
     brief: bool = False,
     log_mode: str = "compact",
-    interview_mode: bool = False,
+    walkthrough_mode: bool = False,
 ) -> None:
     options_cfg = build_options_config(steps=steps, seed=seed, scenario=scenario)
     out_path = Path(out_dir)
@@ -226,7 +226,7 @@ def cmd_options_demo(
         verbose=verbose,
         progress_every=progress_every,
         log_mode=log_mode,
-        interview_mode=interview_mode,
+        walkthrough_mode=walkthrough_mode,
     )
     if brief:
         print(format_brief_summary(summary))
@@ -271,7 +271,8 @@ def main() -> None:
     o.add_argument("--progress-every", type=int, default=25)
     o.add_argument("--brief", action="store_true")
     o.add_argument("--log-mode", choices=("compact", "verbose"), default="compact")
-    o.add_argument("--interview-mode", action="store_true")
+    o.add_argument("--walkthrough-mode", dest="walkthrough_mode", action="store_true")
+    o.add_argument("--interview-mode", dest="walkthrough_mode", action="store_true", help=argparse.SUPPRESS)
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
@@ -285,7 +286,7 @@ def main() -> None:
             args.progress_every,
             args.brief,
             args.log_mode,
-            args.interview_mode,
+            args.walkthrough_mode,
         )
         return
 

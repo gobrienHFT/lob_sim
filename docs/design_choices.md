@@ -6,7 +6,7 @@ The goal is transparent dealer pricing and risk. A small synthetic chain and sce
 
 ## Why the artifact focuses on dealer pricing and risk
 
-The repo already has exchange-style microstructure on the futures side. The options artifact is aimed at quoting, inventory transfer pricing, hedging, and surface risk, so an explicit options matching engine would add complexity before it improved interviewer signal.
+The repo already has exchange-style microstructure on the futures side. The options artifact is aimed at quoting, inventory transfer pricing, hedging, and surface risk, so an explicit options matching engine would add complexity before it improved reviewer signal.
 
 ## Why delta is hedged while gamma and vega are warehoused
 

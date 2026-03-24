@@ -88,6 +88,8 @@ The strategy layer is deliberately baseline logic on top of a stronger replay an
 - Queue-based refresh logic reposts when queue-ahead deterioration or price movement makes the current quote stale.
 - Max-position and kill-switch controls are explicit constraints, not optimization claims.
 
+The baseline remains the default. An opt-in `layered_mm` profile adds two quote levels per side plus a simple imbalance gate; see [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and the recorded-file comparison in [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
+
 ## Metrics and Outputs
 
 The futures simulation writes:
@@ -153,13 +155,13 @@ Existing launchers are still supported:
 
 ```bat
 run_options_mm_case.bat
-run_options_mm_interview_mode.bat
+run_options_mm_walkthrough_mode.bat
 ```
 
 CLI:
 
 ```bash
-python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --brief --interview-mode
+python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --brief --walkthrough-mode
 python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir outputs
 python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
 ```
@@ -170,11 +172,11 @@ Committed artifacts:
 - Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
 - Sensitivity sweep: [docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md](docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
 - Options walkthrough notes: [docs/options_mm_demo_guide.md](docs/options_mm_demo_guide.md)
-- Options talk track: [docs/interview_talk_track.md](docs/interview_talk_track.md)
+- Options case study notes: [docs/options_case_study_notes.md](docs/options_case_study_notes.md)
 
-## Interview Fast Path
+## Walkthrough Path
 
-Start with [INTERVIEW.md](INTERVIEW.md).
+Start with [WALKTHROUGH.md](WALKTHROUGH.md).
 
 Technical read, then zero-click futures artifacts, then the options case study:
 
@@ -186,9 +188,9 @@ Technical read, then zero-click futures artifacts, then the options case study:
 6. `docs/sample_outputs/futures_replay_walkthrough/trades.csv`
 7. `docs/sample_outputs/futures_replay_walkthrough/walkthrough.md`
 8. `docs/sample_outputs/futures_recorded_clip_case/README.md`
-9. `docs/sample_outputs/toxic_flow_seed7/interview_brief.md`
+9. `docs/sample_outputs/toxic_flow_seed7/case_brief.md`
 10. `docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md`
-11. `docs/interview_talk_track.md`
+11. `docs/options_case_study_notes.md`
 
 If you are browsing on GitHub and not running the code, start with [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md).
 Then open the recorded-data check in [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md).

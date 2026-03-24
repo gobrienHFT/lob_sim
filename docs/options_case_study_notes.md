@@ -1,6 +1,6 @@
-# Options Interview Talk Track
+# Options Case Study Notes
 
-Fastest prep doc for a live walkthrough.
+Recommended artifact path for the controlled options case study.
 
 ## 15-second overview
 
@@ -24,7 +24,7 @@ I would read one row left to right. `step` and `spot_before` tell me where the u
 
 This is a synthetic dealer study, not an options exchange replay. The option chain, flow process, and toxicity are transparent approximations rather than venue-calibrated models. The strategy hedges delta in the underlying, but gamma and vega are intentionally warehoused as surface risk so the quoting and inventory trade-offs stay visible.
 
-## Likely questions
+## Common reviewer questions
 
 ### Why is the demo synthetic?
 
