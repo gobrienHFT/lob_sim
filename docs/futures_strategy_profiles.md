@@ -33,6 +33,12 @@ The microstructure gate is intentionally simple:
 - Bearish pressure = ask-side book imbalance and aggressive-sell trade imbalance both exceed the same threshold
 - The gate widens the vulnerable side by `MM_MICROSTRUCTURE_GATE_BPS`
 
+## Reference Comparison
+
+- Reproducible reference: [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md)
+- Committed input: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
+- Refresh command: `python scripts/refresh_futures_strategy_profile_reference.py`
+
 ## Why The Layered Profile Is More Realistic
 
 - It can rest inside and outside levels at the same time instead of assuming a single quote per side.

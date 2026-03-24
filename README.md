@@ -88,7 +88,7 @@ The strategy layer is deliberately baseline logic on top of a stronger replay an
 - Queue-based refresh logic reposts when queue-ahead deterioration or price movement makes the current quote stale.
 - Max-position and kill-switch controls are explicit constraints, not optimization claims.
 
-The baseline remains the default. An opt-in `layered_mm` profile adds two quote levels per side plus a simple imbalance gate; see [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and the recorded-file comparison in [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
+The baseline remains the default. An opt-in `layered_mm` profile adds two quote levels per side plus a simple imbalance gate; see [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and the committed-input comparison in [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
 
 ## Metrics and Outputs
 

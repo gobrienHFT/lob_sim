@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
 STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
+FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
@@ -317,12 +318,28 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(f"Missing futures strategy profile doc: {_repo_relative(FUTURES_STRATEGY_PROFILES)}")
     if not FUTURES_STRATEGY_REFERENCE.exists():
         issues.append(f"Missing futures strategy reference doc: {_repo_relative(FUTURES_STRATEGY_REFERENCE)}")
+    if not FUTURES_STRATEGY_REFRESH.exists():
+        issues.append(f"Missing futures strategy refresh script: {_repo_relative(FUTURES_STRATEGY_REFRESH)}")
 
     for path, expected_links in STRATEGY_PROFILE_FRONT_DOOR_LINKS.items():
         text = _read_text(path)
         for link in expected_links:
             if link not in text:
                 issues.append(f"Missing strategy-profile link in {_repo_relative(path)}: {link}")
+
+    reference = _read_text(FUTURES_STRATEGY_REFERENCE)
+    if "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson" not in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md must reference the committed recorded clip input"
+        )
+    if "local-only" in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md still describes the input as local-only"
+        )
+    if "data/raw_1772633471.ndjson" in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md still depends on the old local raw file path"
+        )
     return issues
 
 

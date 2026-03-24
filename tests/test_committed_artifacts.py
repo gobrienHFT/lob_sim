@@ -21,6 +21,9 @@ FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
 )
+FUTURES_STRATEGY_REFRESH = (
+    REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
+)
 FUTURES_WALKTHROUGH_README = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
 )
@@ -144,7 +147,10 @@ def test_futures_strategy_profile_docs_are_published() -> None:
 
     assert FUTURES_STRATEGY_PROFILES.exists()
     assert FUTURES_STRATEGY_REFERENCE.exists()
+    assert FUTURES_STRATEGY_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
-    assert "data/raw_1772633471.ndjson" in reference
+    assert "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson" in reference
+    assert "local-only" not in reference
+    assert "data/raw_1772633471.ndjson" not in reference
     assert "strategy-profile comparison" in reference
