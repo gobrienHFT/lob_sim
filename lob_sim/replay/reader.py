@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+from ..record.schema import RecordValidationError, validate_record_object
+
 
 @dataclass(frozen=True)
 class RecordedEvent:
@@ -15,7 +17,7 @@ class RecordedEvent:
     data: dict
 
 
-def iter_records(path: str | Path) -> Iterator[RecordedEvent]:
+def iter_records(path: str | Path, *, validate: bool = True) -> Iterator[RecordedEvent]:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Replay file missing: {p}")
@@ -23,10 +25,19 @@ def iter_records(path: str | Path) -> Iterator[RecordedEvent]:
     opener = gzip.open if p.suffix == ".gz" else open
     mode = "rt"
     with opener(p, mode, encoding="utf-8") as fh:
-        for line in fh:
+        for line_number, line in enumerate(fh, start=1):
             if not line.strip():
                 continue
-            obj = json.loads(line)
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RecordValidationError(
+                    f"invalid JSON: {exc.msg}",
+                    path=p,
+                    line_number=line_number,
+                ) from exc
+            if validate:
+                validate_record_object(obj, path=p, line_number=line_number)
             yield RecordedEvent(
                 ts_local=float(obj["ts_local"]),
                 symbol=str(obj["symbol"]),

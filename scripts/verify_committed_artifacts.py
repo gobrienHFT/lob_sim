@@ -20,6 +20,7 @@ FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
+REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 COMMITTED_STRATEGY_PROFILE_INPUTS = (
     "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
@@ -119,11 +120,21 @@ STRATEGY_PROFILE_FRONT_DOOR_LINKS = {
     ],
 }
 
+REPLAY_CONTRACT_FRONT_DOOR_LINKS = {
+    REPO_ROOT / "README.md": [
+        "docs/replay_contract.md",
+    ],
+    REPO_ROOT / "docs" / "futures_validation.md": [
+        "tests/test_record_schema.py",
+    ],
+}
+
 MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "WALKTHROUGH.md",
     REPO_ROOT / "docs" / "binance_usdm_feed_semantics.md",
     REPO_ROOT / "docs" / "futures_validation.md",
+    REPLAY_CONTRACT,
     REPO_ROOT / "docs" / "futures_strategy_profiles.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
@@ -370,6 +381,32 @@ def _verify_benchmark_publication() -> list[str]:
     return issues
 
 
+def _verify_replay_contract_publication() -> list[str]:
+    issues: list[str] = []
+    if not REPLAY_CONTRACT.exists():
+        issues.append(f"Missing replay contract doc: {_repo_relative(REPLAY_CONTRACT)}")
+        return issues
+
+    text = _read_text(REPLAY_CONTRACT)
+    required_tokens = [
+        "Recorded Event Schema",
+        "Stream Inspection",
+        "Simulation Manifests",
+        "python -m lob_sim.cli inspect",
+        "SHA-256",
+    ]
+    for token in required_tokens:
+        if token not in text:
+            issues.append(f"Replay contract doc is missing expected token: {token}")
+
+    for path, expected_links in REPLAY_CONTRACT_FRONT_DOOR_LINKS.items():
+        path_text = _read_text(path)
+        for link in expected_links:
+            if link not in path_text:
+                issues.append(f"Missing replay-contract link in {_repo_relative(path)}: {link}")
+    return issues
+
+
 def _verify_strategy_profile_publication() -> list[str]:
     issues: list[str] = []
     if not FUTURES_STRATEGY_PROFILES.exists():
@@ -556,6 +593,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_launcher_layout())
     issues.extend(_verify_strategy_profile_publication())
     issues.extend(_verify_benchmark_publication())
+    issues.extend(_verify_replay_contract_publication())
     issues.extend(_verify_artifact_order())
     return issues
 

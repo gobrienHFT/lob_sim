@@ -39,6 +39,12 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - The same input file and config should produce the same replay and simulation outputs.
 - Tests cover deterministic behavior on a fixed synthetic event stream.
 
+### Recorded stream contract
+
+- Replay rows are validated before they enter book sync or simulation state.
+- Invalid JSON, missing required payload fields, malformed price/quantity levels, and unsupported event types fail with file and line-number context.
+- Stream inspection reports event counts, symbols, event-time span, and input digest before a run is treated as an experiment artifact.
+
 ### Markout / inventory / PnL sanity checks
 
 - Inventory updates are consistent with signed fills.
@@ -51,6 +57,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - [`tests/test_gap_resync.py`](../tests/test_gap_resync.py)
 - [`tests/test_fill_model.py`](../tests/test_fill_model.py)
 - [`tests/test_futures_invariants.py`](../tests/test_futures_invariants.py)
+- [`tests/test_record_schema.py`](../tests/test_record_schema.py)
 
 ## Limitations
 

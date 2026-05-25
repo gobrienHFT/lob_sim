@@ -8,6 +8,10 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     env:
       MPLBACKEND: Agg
     steps:
@@ -17,13 +21,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: CLI smoke test
+        run: python -m lob_sim.cli --help
 
       - name: Verify committed artifacts
         run: python scripts/verify_committed_artifacts.py

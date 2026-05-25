@@ -114,12 +114,18 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
                 "markout_events": [{"side": "bid", "markout": -0.5}],
             }
 
-    output_files, summary = engine.write_outputs("raw_test.ndjson", StubMetrics())
+    input_path = tmp_path / "raw_test.ndjson"
+    input_path.write_text("{}\n", encoding="utf-8")
+    output_files, summary = engine.write_outputs(str(input_path), StubMetrics())
 
     assert output_files["summary"].exists()
     assert output_files["summary_csv"].exists()
     assert output_files["trades"].exists()
+    assert output_files["manifest"].exists()
     assert summary["output_files"]["summary_csv"] == str(output_files["summary_csv"])
+    assert summary["output_files"]["manifest"] == str(output_files["manifest"])
+    assert len(summary["run_id"]) == 16
+    assert len(summary["input_sha256"]) == 64
 
     with output_files["summary_csv"].open("r", encoding="utf-8", newline="") as handle:
         row = next(csv.DictReader(handle))
@@ -134,6 +140,12 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
 
     assert len(rows) == 1
     assert rows[0]["symbol"] == "BTCUSDT"
+
+    manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
+    assert manifest["run_id"] == summary["run_id"]
+    assert manifest["input"]["sha256"] == summary["input_sha256"]
+    assert "binance_api_key" not in manifest["config"]
+    assert manifest["config"]["mm_strategy_profile"] == cfg.mm_strategy_profile
 
 
 def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):

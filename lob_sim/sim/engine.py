@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import csv
+import json
 
 from ..book.local_book import LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
@@ -19,6 +20,7 @@ from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
+from .run_manifest import build_run_manifest
 
 
 @dataclass(order=True)
@@ -156,6 +158,8 @@ class SimulationEngine:
 
             for slot, target in desired_targets.items():
                 existing = existing_orders.get(slot)
+                if existing is not None:
+                    existing.queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, existing)
                 refresh = self.strategy.should_refresh(target, existing)
                 if existing is not None and (
                     existing.price_tick != target.price_tick
@@ -384,17 +388,22 @@ class SimulationEngine:
         summary_path = output_dir / f"summary_{stem}.json"
         summary_csv_path = output_dir / f"summary_{stem}.csv"
         trades_path = output_dir / f"trades_{stem}.csv"
+        manifest_path = output_dir / f"manifest_{stem}.json"
         output_files = {
             "summary": summary_path,
             "summary_csv": summary_csv_path,
             "trades": trades_path,
+            "manifest": manifest_path,
         }
+        manifest = build_run_manifest(file_path, self.cfg, output_files)
+        summary["run_id"] = manifest.run_id
+        summary["input_sha256"] = manifest.input["sha256"]
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
 
         with open(summary_path, "w", encoding="utf-8") as fh:
-            import json
-
             json.dump(summary, fh, indent=2)
+        with open(manifest_path, "w", encoding="utf-8") as fh:
+            json.dump(manifest.as_dict(), fh, indent=2)
         write_summary_csv(summary_csv_path, summary, exclude_keys={"fills", "markout_events"})
 
         with open(trades_path, "w", encoding="utf-8", newline="") as csv_file:

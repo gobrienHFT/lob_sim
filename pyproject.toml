@@ -8,6 +8,18 @@ version = "0.1.0"
 description = "Deterministic Binance USD-M replay, queue-aware passive-fill simulation, and a controlled dealer-pricing case study"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+  { name = "lob_sim contributors" },
+]
+keywords = ["limit-order-book", "market-microstructure", "replay", "market-making", "binance-futures"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business :: Financial",
+  "Typing :: Typed",
+]
 dependencies = [
   "aiohttp>=3.9",
   "websockets>=12.0",
@@ -20,5 +32,15 @@ dev = [
   "pytest>=8.0",
 ]
 
+[project.scripts]
+lob-sim = "lob_sim.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["lob_sim*"]
+
+[tool.setuptools.package-data]
+lob_sim = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

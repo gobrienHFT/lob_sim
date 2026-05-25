@@ -43,7 +43,7 @@ class BinanceRESTClient:
                 async with self._session.get(url, params=params) as response:
                     if response.status == 429:
                         delay = 0.5 * (2**attempt)
-                        await response.release()
+                        response.release()
                         if attempt < retries:
                             await asyncio.sleep(delay)
                             continue

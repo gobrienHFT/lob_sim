@@ -30,8 +30,12 @@ from .options.demo import (
 )
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.writer import NDJSONWriter
+from .record.schema import RECORD_SCHEMA_VERSION
+from .replay.inspection import inspect_stream
 from .replay.runner import replay
 from .sim.engine import SimulationEngine
+from .sim.run_manifest import config_snapshot
+from . import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -188,8 +192,34 @@ async def cmd_collect(config: Config, verbose: bool = False) -> None:
 def cmd_replay(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
     res = replay(file, config, verbose=verbose, progress_every=progress_every)
     print("Replay complete")
-    print(f"Events: {res.events_processed}, depth events: {res.depth_events}, gap count: {res.gap_count}")
+    print(
+        f"Events: {res.events_processed}, depth events: {res.depth_events}, "
+        f"gap count: {res.gap_count}, elapsed: {res.elapsed_seconds:.2f}s"
+    )
     print(f"Rate: {res.events_per_sec:.2f} events/sec")
+    for symbol, result in res.symbols.items():
+        print(
+            f"{symbol}: snapshot={'yes' if result.snapshot_seen else 'no'}, "
+            f"synced={'yes' if result.synced else 'no'}, gaps={result.gap_count}, "
+            f"levels={result.total_levels}, last_update_id={result.last_update_id}"
+        )
+
+
+def cmd_inspect(file: str) -> None:
+    print(json.dumps(inspect_stream(file).as_dict(), indent=2))
+
+
+def cmd_doctor(config: Config) -> None:
+    payload = {
+        "ok": True,
+        "lob_sim_version": __version__,
+        "record_schema_version": RECORD_SCHEMA_VERSION,
+        "record_dir": str(config.record_dir),
+        "output_dir": str(config.output_dir),
+        "symbols": list(config.symbols),
+        "config": config_snapshot(config),
+    }
+    print(json.dumps(payload, indent=2))
 
 
 def cmd_simulate(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
@@ -250,11 +280,18 @@ def main() -> None:
     c.add_argument("--verbose", action="store_true")
     c.set_defaults(func=cmd_collect)
 
+    d = sub.add_parser("doctor")
+    d.set_defaults(func=cmd_doctor)
+
     r = sub.add_parser("replay")
     r.add_argument("--file", required=True)
     r.add_argument("--verbose", action="store_true")
     r.add_argument("--progress-every", type=int, default=5000)
     r.set_defaults(func=cmd_replay)
+
+    i = sub.add_parser("inspect")
+    i.add_argument("--file", required=True)
+    i.set_defaults(func=cmd_inspect)
 
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
@@ -290,9 +327,15 @@ def main() -> None:
         )
         return
 
+    if args.command == "inspect":
+        args.func(args.file)
+        return
+
     cfg = load_config(args.env)
     if args.command == "collect":
         asyncio.run(args.func(cfg, args.verbose))
+    elif args.command == "doctor":
+        args.func(cfg)
     elif args.command == "replay":
         args.func(cfg, args.file, args.verbose, args.progress_every)
     elif args.command == "simulate":

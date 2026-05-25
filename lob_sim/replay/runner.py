@@ -18,11 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ReplaySymbolResult:
+    snapshot_seen: bool
+    synced: bool
+    gap_count: int
+    total_levels: int
+    last_update_id: int | None
+
+
+@dataclass
 class ReplayResult:
     events_processed: int
     depth_events: int
     gap_count: int
     events_per_sec: float
+    elapsed_seconds: float
+    symbols: dict[str, ReplaySymbolResult]
 
 
 def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, Decimal] | None:
@@ -134,15 +145,29 @@ def replay(
 
     elapsed = time.perf_counter() - start
     events_per_sec = events_processed / elapsed if elapsed > 0 else 0.0
-    print(f"Replay processed {events_processed} events in {elapsed:.2f}s ({events_per_sec:.2f} events/sec)")
-    for symbol, syn in syncers.items():
-        print(
-            f"Symbol {symbol}: snapshot={'yes' if syn.snapshot_id is not None else 'no'}, "
-            f"gaps={syn.gap_count}, levels={syn.book.total_levels()}"
+    symbol_results = {
+        symbol: ReplaySymbolResult(
+            snapshot_seen=syn.snapshot_id is not None,
+            synced=syn.synced,
+            gap_count=syn.gap_count,
+            total_levels=syn.book.total_levels(),
+            last_update_id=syn.last_update_id,
         )
+        for symbol, syn in sorted(syncers.items())
+    }
+    if verbose:
+        print(f"[replay] processed {events_processed} events in {elapsed:.2f}s ({events_per_sec:.2f} events/sec)")
+        for symbol, result in symbol_results.items():
+            print(
+                f"[replay] symbol={symbol} snapshot={'yes' if result.snapshot_seen else 'no'} "
+                f"synced={'yes' if result.synced else 'no'} gaps={result.gap_count} "
+                f"levels={result.total_levels} last_update_id={result.last_update_id}"
+            )
     return ReplayResult(
         events_processed=events_processed,
         depth_events=depth_events,
         gap_count=gap_count,
         events_per_sec=events_per_sec,
+        elapsed_seconds=elapsed,
+        symbols=symbol_results,
     )

@@ -15,6 +15,7 @@ The repo has two artifacts:
 - Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 - Queue-aware passive-fill simulation with FIFO price-time assumptions and queue-ahead tracking.
 - Deterministic artifacts and reproducible runs from recorded NDJSON inputs.
+- Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
 - Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
 
 ## What Is Implemented
@@ -38,6 +39,7 @@ The repo has two artifacts:
 
 - The collector writes a deterministic event stream of `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade` records to NDJSON.
 - The replay path consumes that same recorded stream; there is no separate replay-only data format.
+- The reader validates the replay contract before yielding events, so malformed rows fail with file and line context instead of leaking into simulation state.
 - Snapshot seeding uses the REST snapshot as the local book baseline, then requires the first accepted diff to cover the snapshot update id.
 - Diff continuity is enforced with Binance USD-M `U`, `u`, and `pu` semantics; gap handling is explicit rather than patched over.
 - With `RESYNC_ON_GAP=1`, live collection re-snapshots on continuity failure. Offline replay and simulation do not fabricate missing updates.
@@ -46,12 +48,15 @@ The repo has two artifacts:
 Run the futures paths with:
 
 ```bash
+python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli --env .env.example collect
+python -m lob_sim.cli inspect --file data/raw_....ndjson
 python -m lob_sim.cli --env .env.example replay --file data/raw_....ndjson
 python -m lob_sim.cli --env .env.example simulate --file data/raw_....ndjson
 ```
 
 For feed-specific details, open [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md).
+For the replay schema, inspection output, and simulation manifest contract, open [docs/replay_contract.md](docs/replay_contract.md).
 
 ```mermaid
 flowchart LR
@@ -97,6 +102,7 @@ The futures simulation writes:
 - `summary_<stem>.json`
 - `summary_<stem>.csv`
 - `trades_<stem>.csv`
+- `manifest_<stem>.json`
 
 Tracked metrics include:
 
