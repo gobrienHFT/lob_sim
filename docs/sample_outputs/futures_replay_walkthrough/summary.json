@@ -154,6 +154,32 @@
       "contract_multiplier": "1"
     }
   },
+  "simulation_assumptions": {
+    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "data_scope": "public_l2_order_book_and_agg_trade_records",
+    "private_exchange_execution_reports": false,
+    "queue_priority_model": "visible_price_time_fifo",
+    "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
+    "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
+    "depth_decrease": "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
+    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side as an additional queue-consumption signal.",
+    "overlap_netting": {
+      "enabled": true,
+      "window_seconds": 0.125,
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+    },
+    "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
+    "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
+    "marketable_limits": "Marketable strategy limits execute as taker orders against visible depth and post only any non-crossing remainder.",
+    "self_trade_prevention": "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead of self-trading.",
+    "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
+    "limitations": [
+      "no_private_queue_ids",
+      "no_hidden_liquidity",
+      "not_private_exchange_fill_truth",
+      "public_l2_cannot_distinguish_all_cancels_from_trades"
+    ]
+  },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
     "summary": "docs/sample_outputs/futures_replay_walkthrough/summary.json",

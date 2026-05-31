@@ -1,13 +1,13 @@
 {
   "run_id": "56e4d515112e6bc9",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T22:28:38.791689Z",
+  "created_at_utc": "2026-05-31T22:43:40.208234Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 836,
     "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
-    "modified_at_utc": "2026-05-31T22:28:38.746071Z"
+    "modified_at_utc": "2026-05-31T22:43:40.168766Z"
   },
   "config": {
     "symbols": [
@@ -64,12 +64,38 @@
       "contract_multiplier": "1"
     }
   },
+  "simulation_assumptions": {
+    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "data_scope": "public_l2_order_book_and_agg_trade_records",
+    "private_exchange_execution_reports": false,
+    "queue_priority_model": "visible_price_time_fifo",
+    "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
+    "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
+    "depth_decrease": "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
+    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side as an additional queue-consumption signal.",
+    "overlap_netting": {
+      "enabled": true,
+      "window_seconds": 0.125,
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+    },
+    "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
+    "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
+    "marketable_limits": "Marketable strategy limits execute as taker orders against visible depth and post only any non-crossing remainder.",
+    "self_trade_prevention": "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead of self-trading.",
+    "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
+    "limitations": [
+      "no_private_queue_ids",
+      "no_hidden_liquidity",
+      "not_private_exchange_fill_truth",
+      "public_l2_cannot_distinguish_all_cancels_from_trades"
+    ]
+  },
   "runtime": {
     "python_version": "3.13.1",
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "83635e2af8334b4d74075a71b9edd14280714885",
+    "git_commit": "b4b5ea26e2589fd9cdaa32cd12f911e94be19a0d",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -85,28 +111,28 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 4137,
       "sha256": "9ad05bcdbe10904673967308ae911ca687b2a9d94b389375f0e96fb72b5375b5",
-      "modified_at_utc": "2026-05-31T22:28:39.101490Z"
+      "modified_at_utc": "2026-05-31T22:43:40.609897Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 4487,
-      "sha256": "70b84d6104a0d828b20c9c1833612c8a6813f6ea8478ff3b7ec554cf3f2e320f",
-      "modified_at_utc": "2026-05-31T22:28:39.095815Z"
+      "size_bytes": 6449,
+      "sha256": "ce14f90f6b81c3622d75852243870a2a7cee340a3c6481d92aa0a2bbafadf5ef",
+      "modified_at_utc": "2026-05-31T22:43:40.605353Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 2870,
-      "sha256": "acea349646287829fbaab70ef7d89b8c62bc4a92cc191485ee95a1ef30fef4e5",
-      "modified_at_utc": "2026-05-31T22:28:39.095815Z"
+      "size_bytes": 4754,
+      "sha256": "2f78cf9a849c74fef91c7080ea4ae6758ce55383ac60f50f616df86560a1777f",
+      "modified_at_utc": "2026-05-31T22:43:40.607891Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 350,
       "sha256": "3909f9dfbc347d539b1981bdea19e4da2dd4d187af2827e8a8247016efc9e505",
-      "modified_at_utc": "2026-05-31T22:28:39.095815Z"
+      "modified_at_utc": "2026-05-31T22:43:40.607891Z"
     }
   }
 }
