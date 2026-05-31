@@ -99,7 +99,7 @@ Inferred:
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Self-trade prevention is conservative: a strategy taker order can consume venue liquidity, but stops before its own opposite-side resting order and expires the crossed remainder.
 - Summaries include `self_trade_prevention_count`, and event traces flag the exact order arrival when prevention occurs.
-- Committed artifact verification checks event-trace row counts, contiguous sequence numbers, event-time ordering, structured `details` JSON, and fill-row agreement with `summary["fill_count"]`.
+- Committed artifact verification checks event-trace row counts, contiguous sequence numbers, event-time ordering, structured `details` JSON, fill-row agreement with `summary["fill_count"]`, and order-lifecycle agreement with `summary["order_lifecycle_counts"]`.
 - Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes fee rate, fee amount, and fee currency.
 
 ## Limitations

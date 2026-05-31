@@ -117,16 +117,32 @@ def _event_trace_row(**overrides: str) -> dict[str, str]:
     return row
 
 
+def _lifecycle_counts(**overrides: int) -> dict[str, int]:
+    counts = {key: 0 for key in verifier.FUTURES_ORDER_LIFECYCLE_KEYS}
+    counts.update(overrides)
+    return counts
+
+
 def _write_event_trace_case(
     directory: Path,
     *,
     event_trace_count: int,
     fill_count: int,
     rows: list[dict[str, str]],
+    lifecycle_counts: dict[str, int] | None = None,
 ) -> None:
     directory.mkdir()
     (directory / "summary.json").write_text(
-        json.dumps({"event_trace_count": event_trace_count, "fill_count": fill_count}),
+        json.dumps(
+            {
+                "event_trace_count": event_trace_count,
+                "fill_count": fill_count,
+                "quote_count": 0,
+                "cancel_count": 0,
+                "self_trade_prevention_count": 0,
+                "order_lifecycle_counts": lifecycle_counts or _lifecycle_counts(),
+            }
+        ),
         encoding="utf-8",
     )
     with (directory / "event_trace.csv").open("w", encoding="utf-8", newline="") as handle:
@@ -194,6 +210,35 @@ def test_futures_event_trace_verifier_rejects_unstructured_fill_rows(tmp_path, m
 
     assert f"{showcase / 'event_trace.csv'}:2 details must be a JSON object" in issues
     assert f"{showcase / 'event_trace.csv'}:2 has invalid fill_source: 'mystery'" in issues
+
+
+def test_futures_event_trace_verifier_rejects_lifecycle_summary_mismatch(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="order_arrival_scheduled",
+                source="engine",
+                details='{"arrival_ts":1.0}',
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert (
+        f"{showcase / 'event_trace.csv'} lifecycle arrival_scheduled=1 does not match summary value 0"
+        in issues
+    )
 
 
 def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:

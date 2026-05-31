@@ -195,6 +195,16 @@ RECORDED_CLIP_CORE_FILES = [
 ]
 
 FUTURES_FILL_SOURCES = {"depth_update", "agg_trade", "taker_order"}
+FUTURES_ORDER_LIFECYCLE_KEYS = {
+    "arrival_scheduled",
+    "arrived",
+    "rested_after_arrival",
+    "immediate_fill_arrivals",
+    "expired_unfilled_arrivals",
+    "cancel_requested",
+    "cancel_acknowledged",
+    "self_trade_prevented",
+}
 FUTURES_TRADE_AUDIT_FIELDS = {"fill_source", "fee_bps", "fee", "fee_currency"}
 FUTURES_EVENT_TRACE_FIELDS = [
     "ts_local",
@@ -435,12 +445,35 @@ def _verify_futures_event_trace_contract() -> list[str]:
         summary = json.loads(_read_text(summary_path))
         expected_event_count = summary.get("event_trace_count")
         expected_fill_count = summary.get("fill_count")
+        lifecycle_counts = summary.get("order_lifecycle_counts")
+        lifecycle_counts_valid = isinstance(lifecycle_counts, dict)
         if not isinstance(expected_event_count, int) or expected_event_count < 0:
             issues.append(f"{_repo_relative(summary_path)} has invalid event_trace_count")
             continue
         if not isinstance(expected_fill_count, int) or expected_fill_count < 0:
             issues.append(f"{_repo_relative(summary_path)} has invalid fill_count")
             continue
+        if not lifecycle_counts_valid:
+            issues.append(f"{_repo_relative(summary_path)} is missing order_lifecycle_counts")
+        elif set(lifecycle_counts) != FUTURES_ORDER_LIFECYCLE_KEYS:
+            issues.append(
+                f"{_repo_relative(summary_path)} has unexpected order_lifecycle_counts keys: {sorted(lifecycle_counts)}"
+            )
+            lifecycle_counts_valid = False
+        elif any(
+            not isinstance(lifecycle_counts[key], int) or lifecycle_counts[key] < 0
+            for key in FUTURES_ORDER_LIFECYCLE_KEYS
+        ):
+            issues.append(f"{_repo_relative(summary_path)} has invalid order_lifecycle_counts values")
+            lifecycle_counts_valid = False
+        elif lifecycle_counts["arrived"] != summary.get("quote_count"):
+            issues.append(f"{_repo_relative(summary_path)} order_lifecycle_counts.arrived does not match quote_count")
+        elif lifecycle_counts["cancel_requested"] != summary.get("cancel_count"):
+            issues.append(f"{_repo_relative(summary_path)} order_lifecycle_counts.cancel_requested does not match cancel_count")
+        elif lifecycle_counts["self_trade_prevented"] != summary.get("self_trade_prevention_count"):
+            issues.append(
+                f"{_repo_relative(summary_path)} order_lifecycle_counts.self_trade_prevented does not match self_trade_prevention_count"
+            )
 
         with trace_path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
@@ -460,6 +493,7 @@ def _verify_futures_event_trace_contract() -> list[str]:
 
         previous_key: tuple[float, int] | None = None
         fill_rows = []
+        lifecycle_from_trace = {key: 0 for key in FUTURES_ORDER_LIFECYCLE_KEYS}
         for row_index, row in enumerate(rows, start=2):
             seq_value = row.get("seq", "")
             try:
@@ -487,16 +521,44 @@ def _verify_futures_event_trace_contract() -> list[str]:
             previous_key = key
 
             details_raw = (row.get("details") or "").strip()
+            details: dict[str, object] | None = None
             if details_raw:
                 try:
-                    details = json.loads(details_raw)
+                    decoded_details = json.loads(details_raw)
                 except json.JSONDecodeError as exc:
                     issues.append(f"{_repo_relative(trace_path)}:{row_index} has invalid details JSON: {exc.msg}")
                 else:
-                    if not isinstance(details, dict):
+                    if not isinstance(decoded_details, dict):
                         issues.append(f"{_repo_relative(trace_path)}:{row_index} details must be a JSON object")
+                    else:
+                        details = decoded_details
 
-            if row.get("event_type") == "fill":
+            event_type = row.get("event_type")
+            if event_type == "order_arrival_scheduled":
+                lifecycle_from_trace["arrival_scheduled"] += 1
+            elif event_type == "order_arrival":
+                lifecycle_from_trace["arrived"] += 1
+                if details is not None:
+                    if details.get("resting_after_arrival") is True:
+                        lifecycle_from_trace["rested_after_arrival"] += 1
+                    immediate_fills = details.get("immediate_fills")
+                    if isinstance(immediate_fills, int) and immediate_fills > 0:
+                        lifecycle_from_trace["immediate_fill_arrivals"] += 1
+                    remaining_lots = details.get("remaining_lots_after_arrival")
+                    if (
+                        details.get("resting_after_arrival") is False
+                        and isinstance(remaining_lots, int)
+                        and remaining_lots > 0
+                    ):
+                        lifecycle_from_trace["expired_unfilled_arrivals"] += 1
+                    if details.get("self_trade_prevented") is True:
+                        lifecycle_from_trace["self_trade_prevented"] += 1
+            elif event_type == "cancel_requested":
+                lifecycle_from_trace["cancel_requested"] += 1
+            elif event_type == "cancel_ack":
+                lifecycle_from_trace["cancel_acknowledged"] += 1
+
+            if event_type == "fill":
                 fill_rows.append((row_index, row))
 
         if len(fill_rows) != expected_fill_count:
@@ -510,6 +572,13 @@ def _verify_futures_event_trace_contract() -> list[str]:
             for field in ["side", "price_tick", "qty_lots", "order_id"]:
                 if not row.get(field):
                     issues.append(f"{_repo_relative(trace_path)}:{row_index} fill row is missing {field}")
+        if lifecycle_counts_valid:
+            for key in sorted(FUTURES_ORDER_LIFECYCLE_KEYS):
+                if lifecycle_counts[key] != lifecycle_from_trace[key]:
+                    issues.append(
+                        f"{_repo_relative(trace_path)} lifecycle {key}={lifecycle_from_trace[key]} "
+                        f"does not match summary value {lifecycle_counts[key]}"
+                    )
     return issues
 
 
