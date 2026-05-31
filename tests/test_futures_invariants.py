@@ -340,6 +340,143 @@ class _ScriptedReplaceStrategy:
         )
 
 
+class _StaticBidStrategy:
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        _ = target
+        _ = order
+        return False
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        return StrategyDecision(
+            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
+        )
+
+
+class _QueueRefreshSpyStrategy:
+    def __init__(self) -> None:
+        self.observed_queue_ahead: list[int] = []
+
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        _ = target
+        if order is None:
+            return False
+        self.observed_queue_ahead.append(order.queue_ahead_lots)
+        return order.queue_ahead_lots > 0
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        return StrategyDecision(
+            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
+        )
+
+
+def test_strategy_decisions_are_not_backfilled_before_first_depth_sync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "no_pre_sync_decision_backfill.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.002")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_REQUOTE_MS="100", MM_MAX_POSITION="1")
+
+    engine = SimulationEngine(cfg)
+    engine.strategy = _StaticBidStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    decision_ts = [row["ts_local"] for row in engine.event_trace if row["event_type"] == "decision"]
+    assert decision_ts == [2.0]
+    assert summary["quote_count"] == 1
+
+
+def test_queue_ahead_state_is_visible_to_strategy_refresh_and_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "queue_refresh_trace.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.002")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.2,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="200",
+        SIM_CANCEL_LATENCY_MS="0",
+        MM_MAX_POSITION="1",
+    )
+
+    strategy = _QueueRefreshSpyStrategy()
+    engine = SimulationEngine(cfg)
+    engine.strategy = strategy
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert strategy.observed_queue_ahead == [2]
+    assert summary["quote_count"] == 2
+    assert summary["cancel_count"] == 1
+
+    arrival_rows = [row for row in engine.event_trace if row["event_type"] == "order_arrival"]
+    assert arrival_rows[0]["details"]["queue_ahead_lots_after_arrival"] == 2
+
+    cancel_rows = [row for row in engine.event_trace if row["event_type"] == "cancel_requested"]
+    assert len(cancel_rows) == 1
+    cancel_details = cancel_rows[0]["details"]
+    assert cancel_details["reason"] == "replace_quote"
+    assert cancel_details["queue_ahead_lots"] == 2
+    assert cancel_details["refresh_requested"] is True
+    assert cancel_details["price_changed"] is False
+
+
 def test_replace_order_waits_for_cancel_latency_before_new_arrival(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -365,7 +502,13 @@ def test_replace_order_waits_for_cancel_latency_before_new_arrival(
             data={"U": 95, "u": 105, "pu": 94, "b": [["99.9", "0.001"]], "a": [["100.2", "0.001"]]},
         ),
         NDJSONRecord(
-            ts_local=2.05,
+            ts_local=2.16,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["99.9", "0.001"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.20,
             symbol="BTCUSDT",
             type="aggTrade",
             data={"p": "100.0", "q": "0.001", "m": True},

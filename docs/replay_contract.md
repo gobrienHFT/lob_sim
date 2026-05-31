@@ -34,7 +34,7 @@ Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.
 
 The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, and book-sync gap counts. Those fields make it visible when a run skipped gap-affected depth data instead of silently advancing the book.
 
-The event trace CSV is the compact event-time audit trail: replay records, strategy decisions, scheduled order arrivals, cancel acknowledgements, book gaps, and fills share one timestamped sequence.
+The event trace CSV is the compact event-time audit trail: replay records, strategy decisions, scheduled order arrivals, cancel requests and acknowledgements, book gaps, and fills share one timestamped sequence. Arrival rows include resting-state queue-ahead metadata; cancel-request rows include the reason and replacement context when a quote is being refreshed.
 
 The manifest records:
 

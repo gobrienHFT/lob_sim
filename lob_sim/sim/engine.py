@@ -165,7 +165,15 @@ class SimulationEngine:
     def _slot_key(self, symbol: str, side: str, quote_slot: str) -> tuple[str, str, str]:
         return (symbol, side, quote_slot)
 
-    def _request_cancel(self, ts: float, symbol: str, order: Order) -> float:
+    def _request_cancel(
+        self,
+        ts: float,
+        symbol: str,
+        order: Order,
+        *,
+        reason: str = "unspecified",
+        details: dict[str, Any] | None = None,
+    ) -> float:
         pending_ts = self._pending_cancel_ack_ts.get(order.order_id)
         if pending_ts is not None:
             return pending_ts
@@ -179,6 +187,13 @@ class SimulationEngine:
             symbol,
             {"order_id": order.order_id},
         )
+        trace_details: dict[str, Any] = {
+            "ack_ts": ack_ts,
+            "cancel_latency_ms": self.cfg.sim_cancel_latency_ms,
+            "reason": reason,
+        }
+        if details:
+            trace_details.update(details)
         self._trace(
             ts,
             symbol,
@@ -189,21 +204,29 @@ class SimulationEngine:
             price_tick=order.price_tick,
             qty_lots=order.remaining_lots,
             order_id=order.order_id,
-            details={
-                "ack_ts": ack_ts,
-                "cancel_latency_ms": self.cfg.sim_cancel_latency_ms,
-            },
+            details=trace_details,
         )
         return ack_ts
 
-    def _schedule_decisions_up_to(self, symbol: str, now: float) -> None:
+    def _schedule_decisions_up_to(self, symbol: str, now: float, *, include_now: bool) -> None:
         if self._trading_halted:
+            return
+        syncer = self._syncers.get(symbol)
+        book = self._books.get(symbol)
+        if syncer is None or book is None or not syncer.synced:
             return
         interval = self.cfg.mm_requote_ms / 1000.0
         next_due = self._next_decision.get(symbol)
         if next_due is None:
             next_due = now
-        while next_due <= now:
+        epsilon = 1e-12
+
+        def due_for_this_phase(ts: float) -> bool:
+            if include_now:
+                return ts <= now + epsilon
+            return ts < now - epsilon
+
+        while due_for_this_phase(next_due):
             self._schedule(next_due, "decision", symbol, {})
             next_due += interval
         self._next_decision[symbol] = next_due
@@ -294,17 +317,35 @@ class SimulationEngine:
             }
             if side == "bid" and inventory > self.cfg.mm_max_position:
                 for existing in existing_orders.values():
-                    self._request_cancel(ts, symbol, existing)
+                    self._request_cancel(
+                        ts,
+                        symbol,
+                        existing,
+                        reason="position_limit",
+                        details={
+                            "inventory_qty": str(inventory),
+                            "max_position": str(self.cfg.mm_max_position),
+                        },
+                    )
                 continue
             if side == "ask" and inventory < -self.cfg.mm_max_position:
                 for existing in existing_orders.values():
-                    self._request_cancel(ts, symbol, existing)
+                    self._request_cancel(
+                        ts,
+                        symbol,
+                        existing,
+                        reason="position_limit",
+                        details={
+                            "inventory_qty": str(inventory),
+                            "max_position": str(self.cfg.mm_max_position),
+                        },
+                    )
                 continue
 
             for slot, existing in existing_orders.items():
                 if slot in desired_targets:
                     continue
-                self._request_cancel(ts, symbol, existing)
+                self._request_cancel(ts, symbol, existing, reason="stale_slot")
 
             for slot, target in desired_targets.items():
                 existing = existing_orders.get(slot)
@@ -325,7 +366,23 @@ class SimulationEngine:
                     or refresh
                     or pending_cancel_ack_ts is not None
                 ):
-                    replacement_ack_ts = self._request_cancel(ts, symbol, existing)
+                    replacement_ack_ts = self._request_cancel(
+                        ts,
+                        symbol,
+                        existing,
+                        reason="replace_quote",
+                        details={
+                            "target_price_tick": target.price_tick,
+                            "target_qty_lots": target.qty_lots,
+                            "target_refresh_key": target.refresh_key,
+                            "current_refresh_key": existing.refresh_key,
+                            "queue_ahead_lots": existing.queue_ahead_lots,
+                            "price_changed": existing.price_tick != target.price_tick,
+                            "qty_changed": existing.qty_lots != target.qty_lots,
+                            "refresh_requested": refresh,
+                            "pending_cancel": pending_cancel_ack_ts is not None,
+                        },
+                    )
                     existing = None
                     if replacement_pending:
                         continue
@@ -392,6 +449,11 @@ class SimulationEngine:
             refresh_key=refresh_key,
         )
         fills = self.fill_model.place_order(order)
+        resting_order = self.fill_model.get_order(symbol, side, quote_slot)
+        resting_after_arrival = resting_order is not None and resting_order.order_id == order.order_id
+        queue_ahead_after_arrival = (
+            self.fill_model.queue_ahead_lots(symbol, resting_order) if resting_after_arrival else 0
+        )
         if fills:
             self._emit_trade_event(now, symbol, fills)
         self.metrics.on_quote_requested()
@@ -408,6 +470,8 @@ class SimulationEngine:
             details={
                 "refresh_key": refresh_key,
                 "remaining_lots_after_arrival": order.remaining_lots,
+                "resting_after_arrival": resting_after_arrival,
+                "queue_ahead_lots_after_arrival": queue_ahead_after_arrival,
                 "immediate_fills": len(fills),
             },
         )
@@ -485,7 +549,8 @@ class SimulationEngine:
             if rec.symbol not in self._specs:
                 continue
 
-            self._schedule_decisions_up_to(rec.symbol, now)
+            self._schedule_decisions_up_to(rec.symbol, now, include_now=False)
+            self._drain_events(now)
 
             if rec.type == "snapshot":
                 spec = self._specs[rec.symbol]
@@ -559,6 +624,7 @@ class SimulationEngine:
                 if fills:
                     self._emit_trade_event(now, rec.symbol, fills)
 
+            self._schedule_decisions_up_to(rec.symbol, now, include_now=True)
             self._drain_events(now)
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now)

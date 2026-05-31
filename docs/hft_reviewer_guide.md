@@ -65,7 +65,7 @@ Observed:
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
-- event-time traces of market records, decisions, scheduled arrivals, cancels, and fills in generated CSV outputs.
+- event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
 
 Inferred:
 
@@ -86,6 +86,7 @@ Inferred:
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
+- Strategy decisions are gated on synchronized books; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes fee rate, fee amount, and fee currency.
 

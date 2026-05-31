@@ -84,6 +84,7 @@ flowchart LR
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
+- Strategy decisions are only scheduled after the book is synchronized; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 
 See [docs/futures_validation.md](docs/futures_validation.md) for the assumptions that are currently tested.
 
@@ -96,6 +97,7 @@ The strategy layer is deliberately baseline logic on top of a stronger replay an
 - Inventory skew moves quotes away from accumulating too much position.
 - Queue-based refresh logic reposts when queue-ahead deterioration or price movement makes the current quote stale.
 - Max-position and kill-switch controls are explicit constraints, not optimization claims.
+- Event traces include queue-ahead-at-arrival and cancel reasons so queue-driven replacements can be audited without stepping through the simulator.
 
 The baseline remains the default. Opt-in `layered_mm` and `research_mm` profiles add multi-level quoting, imbalance/toxicity controls, and for `research_mm` a reservation-price center plus fee-aware spread floor; see [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and the committed-input comparison in [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
 
