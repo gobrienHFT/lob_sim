@@ -234,6 +234,40 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
 EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
 EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {"observed_lots", "modeled_lots", "overlap_netted_lots"}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
+EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
+REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
+    "profile",
+    "best_bid_tick",
+    "best_ask_tick",
+    "mid_ticks",
+    "mid_price",
+    "inventory_qty",
+    "size_lots",
+    "volatility",
+    "skew_ticks",
+    "top_of_book_imbalance",
+    "recent_trade_imbalance",
+}
+PROFILE_DECISION_DIAGNOSTIC_KEYS = {
+    "baseline": {"spread_scale", "half_spread_bps", "half_spread_ticks"},
+    "layered_mm": {"spread_scale", "inner_spread_ticks", "outer_spread_ticks", "gate_label", "gate_ticks"},
+    "research_mm": {
+        "spread_scale",
+        "combined_imbalance",
+        "toxicity_bps",
+        "base_half_spread_bps",
+        "fee_floor_bps",
+        "half_spread_bps",
+        "half_spread_ticks",
+        "reservation_ticks",
+        "reservation_tick",
+        "gate_label",
+        "gate_ticks",
+        "bid_extra_ticks",
+        "ask_extra_ticks",
+        "outer_spread_ticks",
+    },
+}
 
 CASE_STUDY_CORE_FILES = [
     "case_brief.md",
@@ -526,6 +560,37 @@ def _verify_futures_self_trade_prevention_counts() -> list[str]:
     return issues
 
 
+def _verify_decision_trace_details(path: Path, row_index: int, details: dict[str, object] | None) -> list[str]:
+    issues: list[str] = []
+    if details is None:
+        issues.append(f"{_repo_relative(path)}:{row_index} decision row is missing details")
+        return issues
+    diagnostics = details.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        issues.append(f"{_repo_relative(path)}:{row_index} decision row is missing strategy diagnostics")
+        return issues
+
+    profile = diagnostics.get("profile")
+    if profile not in EXPECTED_STRATEGY_PROFILE_NAMES:
+        issues.append(f"{_repo_relative(path)}:{row_index} decision diagnostics has invalid profile: {profile!r}")
+        return issues
+    if details.get("strategy_profile") != profile:
+        issues.append(f"{_repo_relative(path)}:{row_index} decision diagnostics profile does not match strategy_profile")
+
+    required_keys = REQUIRED_DECISION_DIAGNOSTIC_KEYS | PROFILE_DECISION_DIAGNOSTIC_KEYS[str(profile)]
+    missing_keys = sorted(required_keys - set(diagnostics))
+    if missing_keys:
+        issues.append(
+            f"{_repo_relative(path)}:{row_index} decision diagnostics missing key(s): {', '.join(missing_keys)}"
+        )
+
+    for key in ["best_bid_tick", "best_ask_tick", "size_lots"]:
+        value = diagnostics.get(key)
+        if not isinstance(value, int) or value <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} decision diagnostics has invalid {key}")
+    return issues
+
+
 def _verify_futures_event_trace_contract() -> list[str]:
     issues: list[str] = []
     for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
@@ -646,6 +711,8 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 lifecycle_from_trace["cancel_requested"] += 1
             elif event_type == "cancel_ack":
                 lifecycle_from_trace["cancel_acknowledged"] += 1
+            elif event_type == "decision":
+                issues.extend(_verify_decision_trace_details(trace_path, row_index, details))
 
             if event_type == "fill":
                 fill_rows.append((row_index, row))

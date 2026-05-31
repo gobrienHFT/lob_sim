@@ -278,27 +278,24 @@ class SimulationEngine:
         plan = self.strategy.propose(book, inventory_qty=inventory)
         if not plan.quotes:
             return
-        self._trace(
-            ts,
-            symbol,
-            "decision",
-            "strategy",
-            details={
-                "inventory_qty": str(inventory),
-                "quote_count": len(plan.quotes),
-                "strategy_profile": self.cfg.mm_strategy_profile,
-                "quotes": [
-                    {
-                        "side": quote.side,
-                        "quote_slot": quote.quote_slot,
-                        "price_tick": quote.price_tick,
-                        "qty_lots": quote.qty_lots,
-                        "refresh_key": quote.refresh_key,
-                    }
-                    for quote in plan.quotes
-                ],
-            },
-        )
+        decision_details: dict[str, Any] = {
+            "inventory_qty": str(inventory),
+            "quote_count": len(plan.quotes),
+            "strategy_profile": self.cfg.mm_strategy_profile,
+            "quotes": [
+                {
+                    "side": quote.side,
+                    "quote_slot": quote.quote_slot,
+                    "price_tick": quote.price_tick,
+                    "qty_lots": quote.qty_lots,
+                    "refresh_key": quote.refresh_key,
+                }
+                for quote in plan.quotes
+            ],
+        }
+        if plan.diagnostics:
+            decision_details["diagnostics"] = plan.diagnostics
+        self._trace(ts, symbol, "decision", "strategy", details=decision_details)
 
         desired_by_side: dict[str, dict[str, QuoteTarget]] = {"bid": {}, "ask": {}}
         for target in plan.quotes:

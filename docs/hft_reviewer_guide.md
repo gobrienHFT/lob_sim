@@ -77,6 +77,7 @@ Observed:
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
+- strategy decision diagnostics: best ticks, mid, inventory, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
 
 Inferred:
 
@@ -102,6 +103,7 @@ Inferred:
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
+- Decision trace rows carry the strategy inputs used to produce quote targets, so reservation-price and spread/gate logic can be inspected after the run.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Self-trade prevention is conservative: a strategy taker order can consume venue liquidity, but stops before its own opposite-side resting order and expires the crossed remainder.
 - Summaries include `self_trade_prevention_count`, and event traces flag the exact order arrival when prevention occurs.

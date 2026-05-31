@@ -324,6 +324,32 @@ def test_futures_event_trace_verifier_rejects_lifecycle_summary_mismatch(tmp_pat
     )
 
 
+def test_futures_event_trace_verifier_rejects_missing_decision_diagnostics(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="decision",
+                source="strategy",
+                details='{"strategy_profile":"baseline","quote_count":2}',
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 decision row is missing strategy diagnostics" in issues
+
+
 def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert CI_WORKFLOW.exists()
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")

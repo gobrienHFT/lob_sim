@@ -100,6 +100,7 @@ The strategy layer is deliberately baseline logic on top of a stronger replay an
 - Queue-based refresh logic reposts when queue-ahead deterioration or price movement makes the current quote stale.
 - Max-position and kill-switch controls are explicit constraints, not optimization claims.
 - Event traces include queue-ahead-at-arrival and cancel reasons so queue-driven replacements can be audited without stepping through the simulator.
+- Decision trace rows include quote diagnostics such as mid, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
 
 The baseline remains the default. Opt-in `layered_mm` and `research_mm` profiles add multi-level quoting, imbalance/toxicity controls, and for `research_mm` a reservation-price center plus fee-aware spread floor; see [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and the committed-input comparison in [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md).
 

@@ -217,3 +217,39 @@ def test_research_profile_toxicity_widens_vulnerable_side(
     )
 
     assert gated_ask > neutral_ask
+
+
+def test_research_profile_diagnostics_explain_quote_components(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_SKEW_BPS_PER_UNIT="25.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+        MM_FEE_FLOOR_BUFFER_BPS="0.5",
+        FEES_MAKER_BPS="1.0",
+        MM_TOXICITY_SPREAD_FACTOR="2.0",
+    )
+    book = _book()
+    book.reset_from_snapshot(101, bids={1000: 10}, asks={1002: 1})
+    strategy = MarketMakingStrategy(cfg)
+    strategy.observe_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=1002, qty_lots=1, buyer_is_maker=False, ts_local=1.0)
+    )
+
+    decision = strategy.propose(book, inventory_qty=Decimal("1"))
+    diagnostics = decision.diagnostics
+
+    assert len(decision.quotes) == 4
+    assert diagnostics["profile"] == "research_mm"
+    assert diagnostics["best_bid_tick"] == 1000
+    assert diagnostics["best_ask_tick"] == 1002
+    assert diagnostics["gate_label"] == "bullish_toxic"
+    assert Decimal(str(diagnostics["toxicity_bps"])) > 0
+    assert Decimal(str(diagnostics["half_spread_bps"])) >= Decimal(str(diagnostics["fee_floor_bps"]))
+    assert Decimal(str(diagnostics["reservation_ticks"])) < Decimal(str(diagnostics["mid_ticks"]))
+    assert {"top_of_book_imbalance", "recent_trade_imbalance", "combined_imbalance"} <= set(diagnostics)

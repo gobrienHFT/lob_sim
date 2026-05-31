@@ -34,6 +34,8 @@ The replay and matching core is the main artifact. The strategy layer stays deli
 
 This profile is intended for research inspection. It is still not a production market maker and does not claim hidden alpha.
 
+Every strategy decision emitted by `SimulationEngine` includes a structured diagnostics object in `event_trace.csv`. For `research_mm`, that object records the best ticks, mid, inventory, volatility, top-of-book imbalance, recent trade imbalance, combined imbalance, reservation tick, spread components, fee floor, toxicity spread, and microstructure gate label. This is audit metadata: it explains why a quote was placed without presenting the profile as a predictive alpha model.
+
 ## Signals Used
 
 - Top-of-book imbalance from visible best-bid and best-ask size

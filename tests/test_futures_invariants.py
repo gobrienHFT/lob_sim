@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -1095,6 +1096,15 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert fill_row["price_tick"] == "1000"
     assert fill_row["qty_lots"] == "1"
     assert fill_row["fill_source"] == "agg_trade"
+
+    decision_row = next(row for row in rows if row["event_type"] == "decision")
+    decision_details = json.loads(decision_row["details"])
+    diagnostics = decision_details["diagnostics"]
+    assert diagnostics["profile"] == "baseline"
+    assert diagnostics["best_bid_tick"] == 1000
+    assert diagnostics["best_ask_tick"] == 1001
+    assert "half_spread_bps" in diagnostics
+    assert "half_spread_ticks" in diagnostics
 
     order_row = next(row for row in rows if row["event_type"] == "order_arrival")
     assert order_row["order_id"].startswith("BTCUSDT-bid-")
