@@ -653,6 +653,7 @@ class SimulationEngine:
             f"[simulate] completed records={records_processed} fills={self.metrics.fill_count} "
             f"quotes={self.metrics.quote_count}",
         )
+        self.metrics.public_consumption_summary = self.fill_model.public_consumption_summary()
         return self.metrics
 
     def _write_event_trace(self, path: Path) -> None:
@@ -692,6 +693,7 @@ class SimulationEngine:
         summary["run_id"] = manifest_seed.run_id
         summary["input_sha256"] = manifest_seed.input["sha256"]
         summary["feed_adapter"] = manifest_seed.feed_adapter
+        summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)
 

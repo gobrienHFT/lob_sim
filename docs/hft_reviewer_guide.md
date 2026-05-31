@@ -97,6 +97,7 @@ Inferred:
 - Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
+- Summaries report public-consumption diagnostics: observed depth/print lots, modeled queue-consumption lots, and overlap-netted lots inside the depth/`aggTrade` reconciliation window.
 - Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
@@ -124,6 +125,7 @@ Inferred:
 - Queue mechanics implemented with explicit FIFO queues.
 - Risk and fill-quality metrics beyond PnL.
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
+- Public-feed overlap diagnostics that expose how much depth/print consumption was modeled versus netted away.
 - Event traces that make order/cancel/fill sequencing inspectable without a debugger.
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.

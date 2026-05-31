@@ -144,12 +144,31 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
+    assert summary["public_consumption_summary"] == {
+        "overlap_window_seconds": 0.125,
+        "sources": {
+            "depth_update": {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+            },
+            "agg_trade": {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+            },
+        },
+        "total_observed_lots": 0,
+        "total_modeled_lots": 0,
+        "total_overlap_netted_lots": 0,
+    }
 
     with output_files["summary_csv"].open("r", encoding="utf-8", newline="") as handle:
         row = next(csv.DictReader(handle))
 
     assert row["total_pnl"] == "7.25"
     assert row["inventory_by_symbol"] == '{"BTCUSDT": 0.001}'
+    assert json.loads(row["public_consumption_summary"]) == summary["public_consumption_summary"]
     assert "fills" not in row
     assert "markout_events" not in row
 

@@ -743,6 +743,24 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
     assert summary["fills"][0]["fill_source"] == "agg_trade"
     assert summary["fills"][0]["queue_ahead_lots"] == 0
     assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
+    assert summary["public_consumption_summary"] == {
+        "overlap_window_seconds": 0.125,
+        "sources": {
+            "depth_update": {
+                "observed_lots": 2,
+                "modeled_lots": 2,
+                "overlap_netted_lots": 0,
+            },
+            "agg_trade": {
+                "observed_lots": 1,
+                "modeled_lots": 1,
+                "overlap_netted_lots": 0,
+            },
+        },
+        "total_observed_lots": 3,
+        "total_modeled_lots": 3,
+        "total_overlap_netted_lots": 0,
+    }
 
 
 def test_engine_summary_counts_self_trade_prevention_and_trace_flag(
@@ -1062,6 +1080,8 @@ def test_simulation_event_trace_exports_order_lifecycle(
         "cancel_acknowledged": 0,
         "self_trade_prevented": 0,
     }
+    assert summary["public_consumption_summary"]["sources"]["agg_trade"]["observed_lots"] == 2
+    assert summary["public_consumption_summary"]["sources"]["agg_trade"]["modeled_lots"] == 2
     assert "market_record" in event_types
     assert "decision" in event_types
     assert "order_arrival_scheduled" in event_types

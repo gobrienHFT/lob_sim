@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from lob_sim.book.local_book import LocalOrderBook
-from lob_sim.book.types import LevelChange, SymbolSpec
+from lob_sim.book.types import AggTradeEvent, LevelChange, SymbolSpec
 from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import SimulationMetrics
 from lob_sim.config import Config, load_config
@@ -93,3 +93,47 @@ def test_fill_model_queue_ahead_consumption_and_fill():
 
     assert m.fill_count == 1
     assert m.inventory_lots("BTCUSDT") == 2
+
+
+def test_fill_model_public_consumption_summary_tracks_overlap_netting():
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=2,
+        remaining_lots=2,
+        created_ts=0.0,
+    )
+    model.place_order(order)
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+    )
+    assert [(fill.qty_lots, fill.source) for fill in fills] == [(1, "agg_trade")]
+
+    depth_fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.05)
+    assert depth_fills == []
+
+    assert model.public_consumption_summary() == {
+        "overlap_window_seconds": 0.125,
+        "sources": {
+            "depth_update": {
+                "observed_lots": 1,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 1,
+            },
+            "agg_trade": {
+                "observed_lots": 2,
+                "modeled_lots": 2,
+                "overlap_netted_lots": 0,
+            },
+        },
+        "total_observed_lots": 3,
+        "total_modeled_lots": 2,
+        "total_overlap_netted_lots": 1,
+    }

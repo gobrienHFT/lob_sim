@@ -51,6 +51,7 @@ Inferred:
 - `aggTrade` prints are treated as an additional observed execution signal at the traded price.
 - Both signals are routed through the FIFO queue model in [`lob_sim/sim/fill_model.py`](../lob_sim/sim/fill_model.py).
 - Recent overlapping depth reductions and `aggTrade` prints at the same symbol, side, and price are reconciled before they consume queue again.
+- Simulation summaries report observed lots, modeled queue-consumption lots, and overlap-netted lots for each public signal source.
 - The model only fills a resting strategy order after the queue in front of it has been consumed.
 - Fill reports preserve the attribution source as `depth_update`, `agg_trade`, or `taker_order` so inferred fills can be audited back to the observed public signal.
 

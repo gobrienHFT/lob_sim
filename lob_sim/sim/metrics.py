@@ -89,6 +89,7 @@ class SimulationMetrics:
         self.fill_wait_count = 0
         self.fill_wait_ms_total = Decimal("0")
         self.max_queue_ahead_lots = 0
+        self.public_consumption_summary: dict[str, Any] | None = None
 
         self.consecutive_loss_count = 0
         self.max_consecutive_loss_count = 0
@@ -496,7 +497,7 @@ class SimulationMetrics:
             "self_trade_prevented": self.self_trade_prevention_count,
         }
 
-        return {
+        summary = {
             "strategy_profile": self.cfg.mm_strategy_profile,
             "event_counts": event_counts,
             "book_gap_count_by_symbol": dict(sorted(self.book_gap_count_by_symbol.items())),
@@ -540,3 +541,6 @@ class SimulationMetrics:
             "regime_performance": regime_performance,
             "fills": list(self.fills_log),
         }
+        if self.public_consumption_summary is not None:
+            summary["public_consumption_summary"] = self.public_consumption_summary
+        return summary

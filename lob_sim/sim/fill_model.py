@@ -9,6 +9,7 @@ from .orders import Fill, FillSource, Order, OrderSide
 
 # One Binance 100 ms diff bucket plus a small local timestamp tolerance.
 TRADE_DEPTH_OVERLAP_WINDOW_SECONDS = 0.125
+PUBLIC_CONSUMPTION_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade")
 
 
 @dataclass
@@ -31,6 +32,14 @@ class PassiveFillModel:
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
         self._synthetic_queue_ahead: dict[str, int] = {}
         self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
+        self._public_consumption_stats: dict[FillSource, dict[str, int]] = {
+            source: {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+            }
+            for source in PUBLIC_CONSUMPTION_SOURCES
+        }
         self.last_self_trade_prevented = False
         self._seq = 0
 
@@ -211,6 +220,29 @@ class PassiveFillModel:
         while credits and ts_local - credits[0].ts_local > TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
             credits.popleft()
         credits.append(_ConsumptionCredit(ts_local=ts_local, lots=lots, source=source))
+
+    def _record_public_consumption_stats(self, source: FillSource, observed_lots: int, modeled_lots: int) -> None:
+        stats = self._public_consumption_stats.get(source)
+        if stats is None:
+            return
+        observed = max(0, observed_lots)
+        modeled = max(0, modeled_lots)
+        stats["observed_lots"] += observed
+        stats["modeled_lots"] += modeled
+        stats["overlap_netted_lots"] += max(0, observed - modeled)
+
+    def public_consumption_summary(self) -> dict[str, object]:
+        sources = {
+            source: dict(self._public_consumption_stats[source])
+            for source in PUBLIC_CONSUMPTION_SOURCES
+        }
+        return {
+            "overlap_window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
+            "sources": sources,
+            "total_observed_lots": sum(source["observed_lots"] for source in sources.values()),
+            "total_modeled_lots": sum(source["modeled_lots"] for source in sources.values()),
+            "total_overlap_netted_lots": sum(source["overlap_netted_lots"] for source in sources.values()),
+        }
 
     def queue_position(self, order: Order) -> int:
         return self.queue_ahead_lots(order.symbol, order)
@@ -500,6 +532,7 @@ class PassiveFillModel:
                     ts_local=ts_local,
                     source="depth_update",
                 )
+                self._record_public_consumption_stats("depth_update", dec, lots_to_consume)
                 self._record_public_consumption_credit(
                     symbol=symbol,
                     side=side,
@@ -541,6 +574,7 @@ class PassiveFillModel:
             ts_local=ts_local,
             source="agg_trade",
         )
+        self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume)
         self._record_public_consumption_credit(
             symbol=trade.symbol,
             side=side,

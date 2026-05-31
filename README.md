@@ -84,6 +84,7 @@ flowchart LR
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
+- Run summaries expose observed public-consumption lots, modeled queue-consumption lots, and overlap-netted lots for both sources.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 
@@ -123,6 +124,7 @@ Tracked metrics include:
 - order lifecycle counts for scheduled arrivals, arrived quotes, resting outcomes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements
 - per-fill attribution source (`depth_update`, `agg_trade`, or `taker_order`)
 - summary-level fill-source counts so depth-inferred fills are visible without scanning every trade row
+- public-consumption diagnostics that show how much depth/print consumption was modeled versus netted away
 - self-trade prevention count for marketable strategy orders stopped before own resting liquidity
 - per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics
