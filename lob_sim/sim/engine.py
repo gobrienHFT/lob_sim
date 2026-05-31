@@ -602,8 +602,10 @@ class SimulationEngine:
         with path.open("w", encoding="utf-8", newline="") as trace_file:
             writer = csv.DictWriter(trace_file, fieldnames=EVENT_TRACE_FIELDS)
             writer.writeheader()
-            for row in self.event_trace:
-                writer.writerow({field: _cell(row.get(field)) for field in EVENT_TRACE_FIELDS})
+            rows = sorted(self.event_trace, key=lambda row: (float(row["ts_local"]), int(row["seq"])))
+            for export_seq, row in enumerate(rows):
+                export_row = {**row, "seq": export_seq}
+                writer.writerow({field: _cell(export_row.get(field)) for field in EVENT_TRACE_FIELDS})
 
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
         summary = metrics.get_summary(self._books)
