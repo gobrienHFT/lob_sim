@@ -38,6 +38,8 @@ The simulation summary includes event-count diagnostics for processed replay row
 
 The event trace CSV is the compact event-time audit trail: replay records, strategy decisions, scheduled order arrivals, cancel requests and acknowledgements, book gaps, and fills share one timestamped sequence. Arrival rows include resting-state queue-ahead metadata; cancel-request rows include the reason and replacement context when a quote is being refreshed.
 
+Committed event traces are semantically checked by `scripts/verify_committed_artifacts.py`: row counts must match `summary["event_trace_count"]`, sequence numbers must be contiguous, rows must stay in event-time order, `details` must be JSON objects, and fill rows must match `summary["fill_count"]` with a recognized fill source.
+
 The manifest records:
 
 - input path, size, modified time, and SHA-256 digest;

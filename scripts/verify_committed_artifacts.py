@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import csv
 import json
+import math
 import re
 import sys
-import csv
 from hashlib import sha256
 from pathlib import Path
 
@@ -193,7 +194,22 @@ RECORDED_CLIP_CORE_FILES = [
     "event_trace.csv",
 ]
 
+FUTURES_FILL_SOURCES = {"depth_update", "agg_trade", "taker_order"}
 FUTURES_TRADE_AUDIT_FIELDS = {"fill_source", "fee_bps", "fee", "fee_currency"}
+FUTURES_EVENT_TRACE_FIELDS = [
+    "ts_local",
+    "seq",
+    "symbol",
+    "event_type",
+    "source",
+    "side",
+    "quote_slot",
+    "price_tick",
+    "qty_lots",
+    "order_id",
+    "fill_source",
+    "details",
+]
 
 CASE_STUDY_CORE_FILES = [
     "case_brief.md",
@@ -384,17 +400,16 @@ def _verify_futures_trade_audit_fields() -> list[str]:
 
 def _verify_futures_fill_source_counts() -> list[str]:
     issues: list[str] = []
-    expected_sources = {"depth_update", "agg_trade", "taker_order"}
     for path in [FUTURES_SHOWCASE_SUMMARY, RECORDED_CLIP_SUMMARY]:
         summary = json.loads(_read_text(path))
         counts = summary.get("fill_source_counts")
         if not isinstance(counts, dict):
             issues.append(f"{_repo_relative(path)} is missing fill_source_counts")
             continue
-        if set(counts) != expected_sources:
+        if set(counts) != FUTURES_FILL_SOURCES:
             issues.append(f"{_repo_relative(path)} has unexpected fill_source_counts keys: {sorted(counts)}")
             continue
-        if any(not isinstance(counts[source], int) or counts[source] < 0 for source in expected_sources):
+        if any(not isinstance(counts[source], int) or counts[source] < 0 for source in FUTURES_FILL_SOURCES):
             issues.append(f"{_repo_relative(path)} has invalid fill_source_counts values")
             continue
         if sum(counts.values()) != summary.get("fill_count"):
@@ -409,6 +424,92 @@ def _verify_futures_self_trade_prevention_counts() -> list[str]:
         count = summary.get("self_trade_prevention_count")
         if not isinstance(count, int) or count < 0:
             issues.append(f"{_repo_relative(path)} has invalid self_trade_prevention_count")
+    return issues
+
+
+def _verify_futures_event_trace_contract() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
+        summary_path = directory / "summary.json"
+        trace_path = directory / "event_trace.csv"
+        summary = json.loads(_read_text(summary_path))
+        expected_event_count = summary.get("event_trace_count")
+        expected_fill_count = summary.get("fill_count")
+        if not isinstance(expected_event_count, int) or expected_event_count < 0:
+            issues.append(f"{_repo_relative(summary_path)} has invalid event_trace_count")
+            continue
+        if not isinstance(expected_fill_count, int) or expected_fill_count < 0:
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill_count")
+            continue
+
+        with trace_path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fieldnames = list(reader.fieldnames or [])
+            missing = [field for field in FUTURES_EVENT_TRACE_FIELDS if field not in fieldnames]
+            if missing:
+                issues.append(
+                    f"{_repo_relative(trace_path)} is missing event trace column(s): {', '.join(missing)}"
+                )
+                continue
+            rows = list(reader)
+
+        if len(rows) != expected_event_count:
+            issues.append(
+                f"{_repo_relative(trace_path)} has {len(rows)} row(s), expected {expected_event_count} from summary"
+            )
+
+        previous_key: tuple[float, int] | None = None
+        fill_rows = []
+        for row_index, row in enumerate(rows, start=2):
+            seq_value = row.get("seq", "")
+            try:
+                seq = int(seq_value)
+            except (TypeError, ValueError):
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} has invalid seq: {seq_value!r}")
+                continue
+            expected_seq = row_index - 2
+            if seq != expected_seq:
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} has seq {seq}, expected {expected_seq}")
+
+            ts_value = row.get("ts_local", "")
+            try:
+                ts_local = float(ts_value)
+            except (TypeError, ValueError):
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} has invalid ts_local: {ts_value!r}")
+                continue
+            if not math.isfinite(ts_local):
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} has non-finite ts_local: {ts_value!r}")
+                continue
+
+            key = (ts_local, seq)
+            if previous_key is not None and key < previous_key:
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} is out of event-time order")
+            previous_key = key
+
+            details_raw = (row.get("details") or "").strip()
+            if details_raw:
+                try:
+                    details = json.loads(details_raw)
+                except json.JSONDecodeError as exc:
+                    issues.append(f"{_repo_relative(trace_path)}:{row_index} has invalid details JSON: {exc.msg}")
+                else:
+                    if not isinstance(details, dict):
+                        issues.append(f"{_repo_relative(trace_path)}:{row_index} details must be a JSON object")
+
+            if row.get("event_type") == "fill":
+                fill_rows.append((row_index, row))
+
+        if len(fill_rows) != expected_fill_count:
+            issues.append(
+                f"{_repo_relative(trace_path)} has {len(fill_rows)} fill row(s), expected {expected_fill_count} from summary"
+            )
+        for row_index, row in fill_rows:
+            fill_source = row.get("fill_source")
+            if fill_source not in FUTURES_FILL_SOURCES:
+                issues.append(f"{_repo_relative(trace_path)}:{row_index} has invalid fill_source: {fill_source!r}")
+            for field in ["side", "price_tick", "qty_lots", "order_id"]:
+                if not row.get(field):
+                    issues.append(f"{_repo_relative(trace_path)}:{row_index} fill row is missing {field}")
     return issues
 
 
@@ -761,6 +862,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
     issues.extend(_verify_futures_self_trade_prevention_counts())
+    issues.extend(_verify_futures_event_trace_contract())
     issues.extend(_verify_implied_vol_snapshot_references())
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import csv
+import json
 import subprocess
 import sys
-import json
 from pathlib import Path
 
 from scripts.refresh_sample_outputs import DOCUMENTED_SAMPLE_COMMANDS
@@ -98,6 +99,101 @@ def test_futures_manifest_verifier_rejects_dirty_source_provenance(tmp_path, mon
     issues = verifier._verify_manifest_source_provenance()
 
     assert issues == [f"{showcase / 'manifest.json'} should be refreshed from a clean source tree"]
+
+
+def _event_trace_row(**overrides: str) -> dict[str, str]:
+    row = {field: "" for field in verifier.FUTURES_EVENT_TRACE_FIELDS}
+    row.update(
+        {
+            "ts_local": "1.0",
+            "seq": "0",
+            "symbol": "BTCUSDT",
+            "event_type": "market_record",
+            "source": "snapshot",
+            "details": '{"record_type":"snapshot"}',
+        }
+    )
+    row.update(overrides)
+    return row
+
+
+def _write_event_trace_case(
+    directory: Path,
+    *,
+    event_trace_count: int,
+    fill_count: int,
+    rows: list[dict[str, str]],
+) -> None:
+    directory.mkdir()
+    (directory / "summary.json").write_text(
+        json.dumps({"event_trace_count": event_trace_count, "fill_count": fill_count}),
+        encoding="utf-8",
+    )
+    with (directory / "event_trace.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=verifier.FUTURES_EVENT_TRACE_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch) -> tuple[Path, Path]:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+    return showcase, recorded
+
+
+def test_futures_event_trace_verifier_rejects_summary_count_mismatch(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=2,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert issues == [f"{showcase / 'event_trace.csv'} has 1 row(s), expected 2 from summary"]
+
+
+def test_futures_event_trace_verifier_rejects_unstructured_fill_rows(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=1,
+        rows=[
+            _event_trace_row(
+                event_type="fill",
+                source="fill_model",
+                side="bid",
+                price_tick="1000",
+                qty_lots="1",
+                order_id="order-1",
+                fill_source="mystery",
+                details='["not", "an", "object"]',
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 details must be a JSON object" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 has invalid fill_source: 'mystery'" in issues
 
 
 def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
