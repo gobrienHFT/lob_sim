@@ -40,7 +40,7 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
     cfg_snapshot = config_snapshot(cfg)
     metadata = {
         "benchmark_created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "input_file": str(path),
+        "input_file": path.as_posix(),
         "input_sha256": file_sha256(path),
         "config_digest": config_digest(cfg_snapshot),
         "python_version": sys.version.split()[0],

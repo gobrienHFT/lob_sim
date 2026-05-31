@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
-from experiments.benchmark_futures_replay import benchmark_replay, write_benchmark_json
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from experiments.benchmark_futures_replay import benchmark_replay, write_benchmark_json
+
 INPUT_FILE = Path("docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson")
 ENV_PATH = ".env.example"
 REFERENCE_MD = REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"

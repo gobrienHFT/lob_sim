@@ -58,7 +58,7 @@ def test_benchmark_replay_returns_machine_readable_result(
     result = benchmark_replay(input_path, str(REPO_ROOT / ".env.example"))
 
     assert result["schema_version"] == BENCHMARK_SCHEMA_VERSION
-    assert result["metadata"]["input_file"] == str(input_path)
+    assert result["metadata"]["input_file"] == input_path.as_posix()
     assert result["metadata"]["input_sha256"] == file_sha256(input_path)
     assert result["metadata"]["config_digest"]
     assert set(result["metadata"]["source"]) == {"git_commit", "git_branch", "git_dirty"}

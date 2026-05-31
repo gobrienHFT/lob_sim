@@ -4,30 +4,32 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 
 ## Published Reference Run
 
-- Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
+- Input file: `docs\sample_outputs\futures_recorded_clip_case\input_clip.ndjson`
 - Input SHA-256: `826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be`
-- Config digest: `f7707661e9bfb641a9771046406699948081496b10d23e1c878cb6b14052e562`
+- Config digest: `96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4`
 - Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-05-31T13:53:54Z`
-- Raw stdout: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
+- Benchmark date: `2026-05-31T15:13:09Z`
+- Human-readable output: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
+- Structured JSON: [docs/benchmark_results/futures_replay_reference.json](benchmark_results/futures_replay_reference.json)
 
 Event counts for the committed input:
 
 - Total events: `80`
+- ExchangeInfo events: `1`
 - Snapshot events: `1`
 - Depth events: `9`
 - AggTrade events: `69`
 - Gap count: `0`
 
-| Run | Total events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Reference | 80 | 1 | 9 | 69 | 0 | 0.898962 | 88.99 | 146.35 | 128700.99 | 0.78 |
+| Run | Total events | ExchangeInfo events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.394033 | 203.03 | 58.55 | 53405.06 | 0.78 |
 
 Exact benchmark command:
 
 ```bash
-python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out docs/benchmark_results/futures_replay_reference.json
 ```
 
 Interpretation:
@@ -50,6 +52,7 @@ The script prints:
 - non-secret config digest
 - Python/platform/git metadata
 - total events
+- exchangeInfo events
 - snapshot events
 - depth events
 - aggTrade events
