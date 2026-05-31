@@ -1,13 +1,13 @@
 {
   "run_id": "a520825cf78bd0b1",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T17:34:45.373340Z",
+  "created_at_utc": "2026-05-31T18:01:26.920289Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 836,
     "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
-    "modified_at_utc": "2026-05-31T17:34:45.313412Z"
+    "modified_at_utc": "2026-05-31T18:01:26.868506Z"
   },
   "config": {
     "symbols": [
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "4c1607a62307e4cea682cfd86212b10d64cab1f1",
+    "git_commit": "56b308b550ced3a464055583da6a663d268a1a94",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -62,9 +62,9 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
-      "size_bytes": 3106,
-      "sha256": "8f49cd8456c6ceca6e3b42bb806b46d6c895ae9a57b355f107a415896ad71ea8",
-      "modified_at_utc": "2026-05-31T17:34:46.497011Z"
+      "size_bytes": 3322,
+      "sha256": "a1e8ec2f843cd69075bf28a11115e36bace432694001d3927575ea2180b73729",
+      "modified_at_utc": "2026-05-31T18:01:28.809070Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -72,20 +72,20 @@
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 2840,
-      "sha256": "06059af7639f1a8e185cf56378d4bfb812868850e96fffec0d64568a5ba89cca",
-      "modified_at_utc": "2026-05-31T17:34:46.486950Z"
+      "sha256": "5ec3046dcacbd7cdb584f58db904779d69d10619178803d4ca65dd5741ca11cd",
+      "modified_at_utc": "2026-05-31T18:01:28.571476Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 1601,
       "sha256": "d8c14456d3ba29dff8d7d663aaf51cd15408e6938801185546b6551d5c897351",
-      "modified_at_utc": "2026-05-31T17:34:46.489267Z"
+      "modified_at_utc": "2026-05-31T18:01:28.617409Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 312,
-      "sha256": "4874ad131bf99435ad52be74ead82b53d3ef3a215c065d21344198516031c6c1",
-      "modified_at_utc": "2026-05-31T17:34:46.492907Z"
+      "sha256": "f282f2eb4b9ecf3543d574bf0292bf245da8c168b6895b8b4eff03c4f7fa3133",
+      "modified_at_utc": "2026-05-31T18:01:28.624083Z"
     }
   }
 }
