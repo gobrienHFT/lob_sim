@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 
@@ -18,6 +19,7 @@ SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.md"
+FUTURES_BENCHMARK_REFERENCE_JSON = BENCHMARK_RESULTS_DIR / "futures_replay_reference.json"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
@@ -111,6 +113,7 @@ BENCHMARK_FRONT_DOOR_LINKS = {
     ],
     FUTURES_BENCHMARKS: [
         "benchmark_results/futures_replay_reference.md",
+        "benchmark_results/futures_replay_reference.json",
     ],
 }
 
@@ -226,6 +229,14 @@ def _section_text(text: str, start_marker: str, end_marker: str | None = None) -
 
 def _repo_relative(path: Path) -> str:
     return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+
+
+def _file_sha256(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _iter_repo_relative_links(path: Path) -> list[str]:
@@ -378,6 +389,29 @@ def _verify_benchmark_publication() -> list[str]:
         issues.append(
             f"Missing published benchmark artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE)}"
         )
+    if not FUTURES_BENCHMARK_REFERENCE_JSON.exists():
+        issues.append(
+            f"Missing published benchmark JSON artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE_JSON)}"
+        )
+    else:
+        try:
+            result = json.loads(_read_text(FUTURES_BENCHMARK_REFERENCE_JSON))
+        except json.JSONDecodeError as exc:
+            issues.append(f"Benchmark JSON artifact is not valid JSON: {exc}")
+        else:
+            expected_input = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
+            expected_sha = _file_sha256(REPO_ROOT / expected_input)
+            if result.get("schema_version") != "lob_sim.replay_benchmark.v1":
+                issues.append("Benchmark JSON artifact has an unexpected schema_version")
+            if result.get("metadata", {}).get("input_file") != expected_input:
+                issues.append("Benchmark JSON artifact does not reference the committed recorded clip input")
+            if result.get("metadata", {}).get("input_sha256") != expected_sha:
+                issues.append("Benchmark JSON artifact input_sha256 does not match the committed recorded clip")
+            if result.get("metadata", {}).get("source", {}).get("git_dirty") is not False:
+                issues.append("Benchmark JSON artifact should be refreshed from a clean source tree")
+            for section in ["event_counts", "timing", "memory"]:
+                if section not in result:
+                    issues.append(f"Benchmark JSON artifact is missing section: {section}")
 
     text = _read_text(FUTURES_BENCHMARKS)
     if "## Published Reference Run" not in text:
