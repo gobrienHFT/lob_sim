@@ -319,8 +319,87 @@ def test_marketable_limit_generates_taker_fill_and_posts_remainder() -> None:
     resting = model.get_order("BTCUSDT", "bid")
     assert resting is not None
     assert resting.order_id == "crossing-bid"
+    assert resting.active is True
     assert resting.remaining_lots == 1
     assert model.depth_levels("BTCUSDT", "ask") == [(10011, 1)]
+
+
+def test_marketable_limit_stops_before_self_trading_resting_strategy_liquidity() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+
+    own_ask = Order(
+        order_id="own-resting-ask",
+        symbol="BTCUSDT",
+        side="ask",
+        price_tick=10010,
+        qty_lots=1,
+        quote_slot="maker-ask",
+        remaining_lots=1,
+        created_ts=0.0,
+    )
+    assert model.place_order(own_ask) == []
+
+    crossing_bid = Order(
+        order_id="crossing-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10010,
+        qty_lots=2,
+        quote_slot="crossing-bid",
+        remaining_lots=2,
+        created_ts=1.0,
+    )
+    fills = model.place_order(crossing_bid)
+
+    assert [(fill.order_id, fill.price_tick, fill.qty_lots, fill.maker, fill.source) for fill in fills] == [
+        ("crossing-bid", 10010, 1, False, "taker_order")
+    ]
+    assert model.last_self_trade_prevented is True
+    assert crossing_bid.remaining_lots == 1
+    assert crossing_bid.active is False
+    assert model.get_order("BTCUSDT", "ask", quote_slot="maker-ask") is own_ask
+    assert own_ask.remaining_lots == 1
+    assert model.get_order("BTCUSDT", "bid", quote_slot="crossing-bid") is None
+    assert model.depth_levels("BTCUSDT", "ask") == [(10010, 1)]
+
+
+def test_marketable_limit_crossing_only_own_quote_is_expired_not_posted() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[])
+
+    own_ask = Order(
+        order_id="own-resting-ask",
+        symbol="BTCUSDT",
+        side="ask",
+        price_tick=10010,
+        qty_lots=1,
+        quote_slot="maker-ask",
+        remaining_lots=1,
+        created_ts=0.0,
+    )
+    model.place_order(own_ask)
+
+    crossing_bid = Order(
+        order_id="crossing-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10010,
+        qty_lots=1,
+        quote_slot="crossing-bid",
+        remaining_lots=1,
+        created_ts=1.0,
+    )
+    fills = model.place_order(crossing_bid)
+
+    assert fills == []
+    assert model.last_self_trade_prevented is True
+    assert crossing_bid.remaining_lots == 1
+    assert crossing_bid.active is False
+    assert model.get_order("BTCUSDT", "ask", quote_slot="maker-ask") is own_ask
+    assert model.get_order("BTCUSDT", "bid", quote_slot="crossing-bid") is None
+    assert model.depth_levels("BTCUSDT", "bid") == [(10000, 1)]
+    assert model.depth_levels("BTCUSDT", "ask") == [(10010, 1)]
 
 
 def test_market_order_sweeps_visible_depth_levels_as_taker() -> None:

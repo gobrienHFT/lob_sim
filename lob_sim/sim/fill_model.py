@@ -18,6 +18,12 @@ class _ConsumptionCredit:
     source: FillSource
 
 
+@dataclass
+class _TakerExecution:
+    fills: list[Fill]
+    self_trade_prevented: bool = False
+
+
 class PassiveFillModel:
     def __init__(self) -> None:
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
@@ -25,6 +31,7 @@ class PassiveFillModel:
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
         self._synthetic_queue_ahead: dict[str, int] = {}
         self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
+        self.last_self_trade_prevented = False
         self._seq = 0
 
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
@@ -336,9 +343,9 @@ class PassiveFillModel:
         self,
         order: Order,
         ts_local: float,
-    ) -> list[Fill]:
+    ) -> _TakerExecution:
         if order.remaining_lots <= 0:
-            return []
+            return _TakerExecution(fills=[])
 
         opposite_bucket = self._bucket(self._reverse_side(order.side))
         levels = self._book(order.symbol)[opposite_bucket]
@@ -358,6 +365,12 @@ class PassiveFillModel:
                 if not head.active or head.remaining_lots <= 0:
                     queue.popleft()
                     continue
+
+                if order.is_strategy and head.is_strategy:
+                    order.remaining_lots = remaining
+                    order.active = False
+                    self.last_self_trade_prevented = True
+                    return _TakerExecution(fills=fills, self_trade_prevented=True)
 
                 take = min(remaining, head.remaining_lots)
                 head.remaining_lots -= take
@@ -391,13 +404,13 @@ class PassiveFillModel:
                 levels.pop(tick, None)
 
         order.remaining_lots = remaining
-        return fills
+        return _TakerExecution(fills=fills)
 
     def _marketable_fill(
         self,
         order: Order,
         ts_local: float,
-    ) -> list[Fill]:
+    ) -> _TakerExecution:
         return self._execute_taker_order(order, ts_local=ts_local)
 
     def _can_market(self, order: Order) -> bool:
@@ -445,6 +458,7 @@ class PassiveFillModel:
             self._add_venue_order(symbol=symbol, side="ask", price_tick=price, lots=qty)
 
     def place_order(self, order: Order) -> list[Fill]:
+        self.last_self_trade_prevented = False
         if order.qty_lots <= 0:
             return []
         order.remaining_lots = max(order.remaining_lots or order.qty_lots, 0)
@@ -452,15 +466,16 @@ class PassiveFillModel:
             return []
         if order.order_type == "market":
             order.price_tick = None
-            return self._execute_taker_order(order, ts_local=order.created_ts)
+            return self._execute_taker_order(order, ts_local=order.created_ts).fills
 
         existing = self.get_order(order.symbol, order.side, order.quote_slot)
         if existing is not None and existing.order_id != order.order_id:
             self.cancel_order(existing.order_id)
         if order.order_type == "limit":
             if self._can_market(order):
-                fills = self._marketable_fill(order, ts_local=order.created_ts)
-                if order.remaining_lots <= 0:
+                execution = self._marketable_fill(order, ts_local=order.created_ts)
+                fills = execution.fills
+                if order.remaining_lots <= 0 or execution.self_trade_prevented:
                     return fills
                 # Any remainder after a marketable sweep can now rest at the same limit price.
                 self._post_resting(order)

@@ -458,6 +458,15 @@ class SimulationEngine:
         if fills:
             self._emit_trade_event(now, symbol, fills)
         self.metrics.on_quote_requested()
+        arrival_details = {
+            "refresh_key": refresh_key,
+            "remaining_lots_after_arrival": order.remaining_lots,
+            "resting_after_arrival": resting_after_arrival,
+            "queue_ahead_lots_after_arrival": queue_ahead_after_arrival,
+            "immediate_fills": len(fills),
+        }
+        if self.fill_model.last_self_trade_prevented:
+            arrival_details["self_trade_prevented"] = True
         self._trace(
             now,
             symbol,
@@ -468,13 +477,7 @@ class SimulationEngine:
             price_tick=price_tick,
             qty_lots=qty_lots,
             order_id=order.order_id,
-            details={
-                "refresh_key": refresh_key,
-                "remaining_lots_after_arrival": order.remaining_lots,
-                "resting_after_arrival": resting_after_arrival,
-                "queue_ahead_lots_after_arrival": queue_ahead_after_arrival,
-                "immediate_fills": len(fills),
-            },
+            details=arrival_details,
         )
 
     def _handle_cancel(self, payload: Dict[str, Any], now: float, symbol: str) -> None:
