@@ -90,6 +90,7 @@ Inferred:
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
 - Recent depth/trade overlap at the same symbol, side, and price is netted before queue consumption to reduce public-feed double counting.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
+- Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.

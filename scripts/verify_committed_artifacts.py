@@ -363,6 +363,26 @@ def _verify_futures_trade_audit_fields() -> list[str]:
     return issues
 
 
+def _verify_futures_fill_source_counts() -> list[str]:
+    issues: list[str] = []
+    expected_sources = {"depth_update", "agg_trade", "taker_order"}
+    for path in [FUTURES_SHOWCASE_SUMMARY, RECORDED_CLIP_SUMMARY]:
+        summary = json.loads(_read_text(path))
+        counts = summary.get("fill_source_counts")
+        if not isinstance(counts, dict):
+            issues.append(f"{_repo_relative(path)} is missing fill_source_counts")
+            continue
+        if set(counts) != expected_sources:
+            issues.append(f"{_repo_relative(path)} has unexpected fill_source_counts keys: {sorted(counts)}")
+            continue
+        if any(not isinstance(counts[source], int) or counts[source] < 0 for source in expected_sources):
+            issues.append(f"{_repo_relative(path)} has invalid fill_source_counts values")
+            continue
+        if sum(counts.values()) != summary.get("fill_count"):
+            issues.append(f"{_repo_relative(path)} fill_source_counts do not sum to fill_count")
+    return issues
+
+
 def _verify_implied_vol_snapshot_references() -> list[str]:
     issues: list[str] = []
     referenced = False
@@ -709,6 +729,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
+    issues.extend(_verify_futures_fill_source_counts())
     issues.extend(_verify_implied_vol_snapshot_references())
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())

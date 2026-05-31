@@ -9,7 +9,9 @@ from typing import Any, Dict, List
 from ..book.local_book import LocalOrderBook
 from ..config import Config
 from .fees import StaticFeeModel
-from .orders import Fill
+from .orders import Fill, FillSource
+
+FILL_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade", "taker_order")
 
 
 @dataclass
@@ -31,6 +33,7 @@ class SimulationMetrics:
 
         self.fill_count = 0
         self.fill_qty: Decimal = Decimal("0")
+        self.fill_source_counts: dict[FillSource, int] = {source: 0 for source in FILL_SOURCES}
         self.quote_count = 0
         self.cancel_count = 0
         self.records_processed = 0
@@ -250,6 +253,7 @@ class SimulationMetrics:
 
         self.fill_count += 1
         self.fill_qty += qty
+        self.fill_source_counts[fill.source] = self.fill_source_counts.get(fill.source, 0) + 1
 
         spread_capture = Decimal("0")
         if mid is not None:
@@ -449,6 +453,10 @@ class SimulationMetrics:
             "unrealized_pnl": float(self.unrealized_pnl),
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
+            "fill_source_counts": {
+                source: self.fill_source_counts.get(source, 0)
+                for source in FILL_SOURCES
+            },
             "fill_rate": float(fill_rate),
             "avg_spread_captured": float(avg_spread),
             "avg_inventory": float(self._inv_mean),

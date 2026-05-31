@@ -579,6 +579,7 @@ def test_replace_order_waits_for_cancel_latency_before_new_arrival(
     assert summary["fills"][0]["price"] == "100.0"
     assert summary["fills"][0]["maker"] is True
     assert summary["fills"][0]["fill_source"] == "agg_trade"
+    assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
     assert summary["quote_count"] == 2
     assert summary["cancel_count"] == 1
 
@@ -797,3 +798,4 @@ def test_markout_inventory_and_pnl_sanity(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert summary["avg_markout_1s"] == pytest.approx(2.0)
     assert summary["adverse_fill_rate_1s"] == pytest.approx(0.0)
     assert summary["total_inventory"] == pytest.approx(1.0)
+    assert summary["fill_source_counts"] == {"depth_update": 1, "agg_trade": 0, "taker_order": 0}
