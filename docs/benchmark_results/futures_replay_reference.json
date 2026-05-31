@@ -8,11 +8,45 @@
     "total_events": 80
   },
   "memory": {
-    "peak_traced_bytes": 703029,
-    "peak_traced_mib": 0.6704607009887695
+    "peak_traced_bytes": 816516,
+    "peak_traced_mib": 0.7786903381347656
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-05-31T22:28:44.383839Z",
+    "benchmark_created_at_utc": "2026-05-31T22:36:30.465745Z",
+    "config": {
+      "book_top_n": 20,
+      "fees_maker_bps": "-0.2",
+      "fees_taker_bps": "4.0",
+      "mm_enabled": true,
+      "mm_fee_floor_buffer_bps": "0.02",
+      "mm_half_spread_bps": "0.05",
+      "mm_layered_inner_spread_bps": "0.05",
+      "mm_layered_outer_spread_bps": "0.15",
+      "mm_max_position": "0.05",
+      "mm_microstructure_gate_bps": "0.10",
+      "mm_microstructure_gate_threshold": "0.20",
+      "mm_order_qty": "0.001",
+      "mm_queue_repost_lots": 0,
+      "mm_requote_ms": 40.0,
+      "mm_skew_bps_per_unit": "10.0",
+      "mm_strategy_profile": "baseline",
+      "mm_toxicity_spread_factor": "2.0",
+      "mm_trade_imbalance_window": 12,
+      "mm_volatility_spread_factor": "8.0",
+      "mm_volatility_window": 30,
+      "resync_on_gap": true,
+      "sim_adverse_markout_seconds": 1.0,
+      "sim_cancel_latency_ms": 10.0,
+      "sim_kill_max_consecutive_losses": 0,
+      "sim_kill_max_drawdown": "0",
+      "sim_kill_switch_enabled": false,
+      "sim_order_latency_ms": 10.0,
+      "sim_seed": 1,
+      "snapshot_limit": 1000,
+      "symbols": [
+        "BTCUSDT"
+      ]
+    },
     "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
     "feed_adapter": {
       "name": "binance_usdm",
@@ -26,19 +60,30 @@
     },
     "input_file": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
+    "instrument_specs": {
+      "BTCUSDT": {
+        "contract_multiplier": "1",
+        "price_currency": "USDT",
+        "quantity_unit": "BTC",
+        "step_size": "0.001",
+        "symbol": "BTCUSDT",
+        "tick_size": "0.10",
+        "venue": "BINANCE_USDM"
+      }
+    },
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "83635e2af8334b4d74075a71b9edd14280714885",
+      "git_commit": "3ef2b98bc4c2f42bbacb8ffedc30ccf855d0396b",
       "git_dirty": false
     }
   },
-  "schema_version": "lob_sim.replay_benchmark.v1",
+  "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 149.4435190308538,
-    "loop_latency_p50_us": 128.65,
-    "loop_latency_p99_us": 73702.63699999976,
-    "wall_time_seconds": 0.5353193000191823
+    "events_per_second": 179.83189761923376,
+    "loop_latency_p50_us": 118.0,
+    "loop_latency_p99_us": 65378.585999999865,
+    "wall_time_seconds": 0.44485990004613996
   }
 }
