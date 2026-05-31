@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.7785758972167969
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-05-31T18:52:58.229382Z",
+    "benchmark_created_at_utc": "2026-05-31T19:12:03.735283Z",
     "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
     "input_file": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
@@ -20,15 +20,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "6aaad9a17fdb19ec1a939f4335d4232539f0bbdf",
+      "git_commit": "29d4e3a84142a98b18e226c130ac57fbaeb14ae4",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v1",
   "timing": {
-    "events_per_second": 113.44848069583742,
-    "loop_latency_p50_us": 165.5,
-    "loop_latency_p99_us": 97011.16599999953,
-    "wall_time_seconds": 0.7051659000571817
+    "events_per_second": 149.23627404716717,
+    "loop_latency_p50_us": 127.44999999999999,
+    "loop_latency_p99_us": 87302.64999999997,
+    "wall_time_seconds": 0.5360626999754459
   }
 }
