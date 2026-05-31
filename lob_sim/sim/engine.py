@@ -139,6 +139,20 @@ class SimulationEngine:
             )
         self._trace(float(rec.ts_local), rec.symbol, "market_record", rec.type, details=details)
 
+    def _trace_book_gap(self, ts: float, event: DepthUpdateEvent) -> None:
+        self._trace(
+            ts,
+            event.symbol,
+            "book_gap",
+            "book_sync",
+            details={
+                "first_update_id": event.first_update_id,
+                "final_update_id": event.final_update_id,
+                "prev_update_id": event.prev_update_id,
+                "resync_on_gap": self.cfg.resync_on_gap,
+            },
+        )
+
     def _verbose(self, enabled: bool, message: str) -> None:
         if enabled:
             print(message, flush=True)
@@ -511,25 +525,19 @@ class SimulationEngine:
                     asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("a", [])],
                     ts_local=now,
                 )
+                gap_count_before = syncer.gap_count
                 try:
                     changes: list[LevelChange] = syncer.on_depth_update(event)
                 except BookSyncGapError:
                     self.metrics.on_book_gap(rec.symbol)
-                    self._trace(
-                        now,
-                        rec.symbol,
-                        "book_gap",
-                        "book_sync",
-                        details={
-                            "first_update_id": event.first_update_id,
-                            "final_update_id": event.final_update_id,
-                            "prev_update_id": event.prev_update_id,
-                            "resync_on_gap": self.cfg.resync_on_gap,
-                        },
-                    )
+                    self._trace_book_gap(now, event)
                     if self.cfg.resync_on_gap:
                         continue
                     changes = []
+                else:
+                    if syncer.gap_count > gap_count_before:
+                        self.metrics.on_book_gap(rec.symbol)
+                        self._trace_book_gap(now, event)
 
                 self.metrics.on_depth_changes(len(changes))
                 if changes:

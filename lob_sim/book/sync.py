@@ -56,6 +56,11 @@ class BookSynchronizer:
             return []
         return self._apply(event)
 
+    def _mark_gap(self) -> None:
+        self.gap_count += 1
+        self.synced = False
+        self.last_update_id = None
+
     def _apply(self, event: DepthUpdateEvent) -> list[LevelChange]:
         if self.snapshot_id is None:
             self.buffer.append(event)
@@ -64,7 +69,7 @@ class BookSynchronizer:
             if event.final_update_id < self.snapshot_id:
                 return []
             if not (event.first_update_id <= self.snapshot_id <= event.final_update_id):
-                self.gap_count += 1
+                self._mark_gap()
                 if self.resync_on_gap:
                     raise BookSyncGapError(
                         f"First depth event does not cover snapshot id {self.snapshot_id}: "
@@ -78,10 +83,13 @@ class BookSynchronizer:
 
         if event.final_update_id <= (self.last_update_id or -1):
             return []
-        if self.resync_on_gap and event.prev_update_id != self.last_update_id:
-            self.gap_count += 1
+        if event.prev_update_id != self.last_update_id:
+            expected_update_id = self.last_update_id
+            self._mark_gap()
+            if not self.resync_on_gap:
+                return []
             raise BookSyncGapError(
-                f"Gap detected for {self.book.symbol}: expected pu={self.last_update_id}, got pu={event.prev_update_id}"
+                f"Gap detected for {self.book.symbol}: expected pu={expected_update_id}, got pu={event.prev_update_id}"
             )
 
         self.last_update_id = event.final_update_id

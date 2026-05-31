@@ -102,6 +102,7 @@ Inferred:
 
 - Event-time replay discipline.
 - Feed-specific sequence handling and gap policy.
+- Non-resync mode still records continuity gaps and skips gap-affected diffs instead of mutating the book.
 - Queue mechanics implemented with explicit FIFO queues.
 - Risk and fill-quality metrics beyond PnL.
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.

@@ -463,6 +463,52 @@ def test_simulation_summary_surfaces_event_counts_and_book_gaps(
     assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": 1}
 
 
+def test_simulation_records_non_resync_gap_without_applying_bad_depth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "non_resync_gap.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.010")], [("100.1", "0.010")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.008"]], "a": [["100.1", "0.009"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 999, "b": [["100.0", "0.001"]], "a": [["100.1", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_ENABLED="0", RESYNC_ON_GAP="0")
+
+    engine = SimulationEngine(cfg)
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["event_counts"]["book_gap_count"] == 1
+    assert summary["event_counts"]["depth_changes_applied"] == 2
+    assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": 1}
+    assert engine._books["BTCUSDT"].bids[1000] == 8
+    assert engine._books["BTCUSDT"].asks[1001] == 9
+    assert engine._syncers["BTCUSDT"].synced is False
+
+
 def test_simulation_event_trace_exports_order_lifecycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

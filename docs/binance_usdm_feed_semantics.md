@@ -26,6 +26,7 @@ This repo records and replays public Binance USD-M market data. The futures core
 ## What Happens on Gaps
 
 - In live collection, a continuity break can trigger a fresh snapshot when `RESYNC_ON_GAP=1`.
+- With `RESYNC_ON_GAP=0`, the synchronizer still records the gap and refuses to apply gap-affected diffs; the flag only disables the live re-snapshot attempt.
 - In offline replay, gaps are counted and surfaced rather than silently patched over.
 - In offline simulation, gap-affected depth updates are not used to fabricate continuity. The conservative behavior is to stop trusting that diff chain until a fresh snapshot exists.
 

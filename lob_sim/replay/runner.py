@@ -137,12 +137,13 @@ def replay(
                 asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("a", [])],
                 ts_local=float(rec.ts_local),
             )
+            gap_count_before = syncer.gap_count
             try:
                 if syncer is not None:
                     syncer.on_depth_update(depth)
             except BookSyncGapError:
-                gap_count += 1
                 logger.warning("Gap while replaying %s", rec.symbol)
+            gap_count += max(0, syncer.gap_count - gap_count_before)
 
         if verbose and progress_every > 0 and events_processed % progress_every == 0:
             print(

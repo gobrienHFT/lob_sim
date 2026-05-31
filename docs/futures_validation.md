@@ -16,6 +16,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 
 - Later depth diffs are checked against the previous accepted `u` through `pu`.
 - A continuity break raises or records a gap instead of silently advancing the book.
+- Gap-affected diffs are skipped even when automatic re-snapshot is disabled, so `RESYNC_ON_GAP=0` cannot silently patch continuity.
 - Simulation summaries surface replay event counts, applied depth-change counts, and book-gap counts so gap handling is visible in generated artifacts.
 - Simulation event traces preserve the order of replay records, strategy decisions, scheduled order arrivals, cancel acknowledgements, and fills.
 - Gap handling is covered by the gap-resync tests.

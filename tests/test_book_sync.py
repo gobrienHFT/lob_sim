@@ -51,6 +51,51 @@ def test_book_sync_applies_snapshot_then_continuous_diffs():
     assert book.asks[10100] == 7
 
 
+def test_book_sync_records_gap_without_advancing_when_resync_disabled():
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=False)
+
+    sync.on_snapshot(
+        SnapshotEvent(
+            symbol="BTCUSDT",
+            last_update_id=100,
+            bids=[(10000, 10)],
+            asks=[(10100, 10)],
+        )
+    )
+    sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=90,
+            final_update_id=110,
+            prev_update_id=80,
+            bids=[(10000, 8)],
+            asks=[(10100, 9)],
+            ts_local=1.0,
+        )
+    )
+
+    changes = sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=111,
+            final_update_id=120,
+            prev_update_id=109,
+            bids=[(10000, 1)],
+            asks=[(10100, 1)],
+            ts_local=2.0,
+        )
+    )
+
+    assert changes == []
+    assert sync.gap_count == 1
+    assert sync.synced is False
+    assert sync.last_update_id is None
+    assert book.bids[10000] == 8
+    assert book.asks[10100] == 9
+
+
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():
     spec = SymbolSpec(
         symbol="BTCUSDT",
