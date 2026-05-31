@@ -104,8 +104,18 @@
       "book_ask_tick": 715866
     }
   ],
-  "run_id": "9ca4a7a87ab927c4",
+  "run_id": "eaf2e309ed31d75c",
   "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
+  "feed_adapter": {
+    "name": "binance_usdm",
+    "venue_label": "BINANCE_USDM",
+    "supported_record_types": [
+      "aggTrade",
+      "depthUpdate",
+      "exchangeInfo",
+      "snapshot"
+    ]
+  },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
     "summary": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
