@@ -1,13 +1,13 @@
 {
   "run_id": "56e4d515112e6bc9",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T21:20:18.271919Z",
+  "created_at_utc": "2026-05-31T21:37:37.443732Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 836,
     "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
-    "modified_at_utc": "2026-05-31T21:20:18.240877Z"
+    "modified_at_utc": "2026-05-31T21:37:37.401786Z"
   },
   "config": {
     "symbols": [
@@ -58,7 +58,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "4d546a708377c7bee550e8afd2ccc26ef801541b",
+    "git_commit": "f433dcda36de282776ddcf4bd88c30be18b8d161",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -74,7 +74,7 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 4137,
       "sha256": "9ad05bcdbe10904673967308ae911ca687b2a9d94b389375f0e96fb72b5375b5",
-      "modified_at_utc": "2026-05-31T21:20:18.813725Z"
+      "modified_at_utc": "2026-05-31T21:37:38.474761Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -83,19 +83,19 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 3920,
       "sha256": "ee4ca56fb7292bf96a4e7a8d50cb7c8d0a5cee07e12aebe67f03dcf6d3219152",
-      "modified_at_utc": "2026-05-31T21:20:18.805526Z"
+      "modified_at_utc": "2026-05-31T21:37:38.440364Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 2477,
       "sha256": "481d8d683c1fb070c6bf0f786aaa7633eef85dd02b12e480bfe850a9aa2fb51f",
-      "modified_at_utc": "2026-05-31T21:20:18.807534Z"
+      "modified_at_utc": "2026-05-31T21:37:38.450661Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 312,
       "sha256": "f282f2eb4b9ecf3543d574bf0292bf245da8c168b6895b8b4eff03c4f7fa3133",
-      "modified_at_utc": "2026-05-31T21:20:18.810734Z"
+      "modified_at_utc": "2026-05-31T21:37:38.452683Z"
     }
   }
 }

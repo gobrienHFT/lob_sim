@@ -10,7 +10,7 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-05-31T21:20:25Z`
+- Benchmark date: `2026-05-31T21:37:47Z`
 - Human-readable output: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
 - Structured JSON: [docs/benchmark_results/futures_replay_reference.json](benchmark_results/futures_replay_reference.json)
 
@@ -25,7 +25,7 @@ Event counts for the committed input:
 
 | Run | Total events | ExchangeInfo events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.878240 | 91.09 | 188.05 | 119330.93 | 0.67 |
+| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.744552 | 107.45 | 171.60 | 106689.15 | 0.67 |
 
 Exact benchmark command:
 
