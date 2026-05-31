@@ -9,7 +9,7 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 - Config digest: `96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4`
 - Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-05-31T16:39:42Z`
+- Benchmark date: `2026-05-31T17:37:12Z`
 - Human-readable output: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
 - Structured JSON: [docs/benchmark_results/futures_replay_reference.json](benchmark_results/futures_replay_reference.json)
 
@@ -24,7 +24,7 @@ Event counts for the committed input:
 
 | Run | Total events | ExchangeInfo events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 1.080318 | 74.05 | 232.05 | 161797.35 | 0.78 |
+| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.702166 | 113.93 | 149.90 | 97089.91 | 0.78 |
 
 Exact benchmark command:
 
