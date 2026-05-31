@@ -78,7 +78,7 @@
       "book_ask_tick": 715866
     }
   ],
-  "run_id": "c5c7a3095280e945",
+  "run_id": "9ca4a7a87ab927c4",
   "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
   "output_files": {
     "summary": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
