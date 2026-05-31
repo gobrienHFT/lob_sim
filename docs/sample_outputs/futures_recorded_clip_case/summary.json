@@ -104,6 +104,24 @@
       "book_ask_tick": 715866
     }
   ],
+  "public_consumption_summary": {
+    "overlap_window_seconds": 0.125,
+    "sources": {
+      "depth_update": {
+        "observed_lots": 161937,
+        "modeled_lots": 161505,
+        "overlap_netted_lots": 432
+      },
+      "agg_trade": {
+        "observed_lots": 1314,
+        "modeled_lots": 762,
+        "overlap_netted_lots": 552
+      }
+    },
+    "total_observed_lots": 163251,
+    "total_modeled_lots": 162267,
+    "total_overlap_netted_lots": 984
+  },
   "run_id": "eaf2e309ed31d75c",
   "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
   "feed_adapter": {
