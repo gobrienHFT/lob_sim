@@ -24,6 +24,7 @@ def test_exchange_info_normalizes_to_instrument_spec_with_metadata() -> None:
             "stepSize": "0.001",
             "baseAsset": "BTC",
             "quoteAsset": "USDT",
+            "contractMultiplier": "1",
             "venue": "BINANCE_USDM",
         },
     )
@@ -36,9 +37,24 @@ def test_exchange_info_normalizes_to_instrument_spec_with_metadata() -> None:
     assert spec.lot_to_qty(3) == Decimal("0.003")
     assert spec.quantity_unit == "BTC"
     assert spec.price_currency == "USDT"
+    assert spec.contract_multiplier == Decimal("1")
     assert spec.venue == "BINANCE_USDM"
     assert symbol_spec_from_record(record) == spec
     assert parse_symbol_spec_from_record(record) == ("BTCUSDT", spec.tick_size, spec.step_size)
+
+
+def test_default_replay_adapter_supplies_binance_venue_label_when_missing() -> None:
+    record = RecordedEvent(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="exchangeInfo",
+        data={"tickSize": "0.10", "stepSize": "0.001"},
+    )
+
+    spec = symbol_spec_from_record(record)
+
+    assert spec is not None
+    assert spec.venue == "BINANCE_USDM"
 
 
 def test_replay_records_normalize_to_book_and_trade_events() -> None:

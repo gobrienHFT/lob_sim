@@ -25,6 +25,7 @@ def instrument_spec_from_record(record: RecordedEvent) -> InstrumentSpec | None:
         step_size=Decimal(str(step_size)),
         price_currency=str(data.get("quoteAsset", "")),
         quantity_unit=str(data.get("baseAsset", "")),
+        contract_multiplier=Decimal(str(data.get("contractMultiplier", "1"))),
         venue=str(data.get("venue", "")),
     )
 

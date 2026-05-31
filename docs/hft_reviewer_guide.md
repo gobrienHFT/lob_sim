@@ -11,15 +11,16 @@ The options material is secondary: a controlled dealer-pricing case study for re
 1. [Replay contract](replay_contract.md)
 2. [Binance feed semantics](binance_usdm_feed_semantics.md)
 3. [Futures validation](futures_validation.md)
-4. [Replay normalization boundary](../lob_sim/replay/normalization.py)
-5. [Queue/fill model](../lob_sim/sim/fill_model.py)
-6. [Simulation engine](../lob_sim/sim/engine.py)
-7. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
-8. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
-9. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
-10. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
-11. [Benchmark notes](futures_benchmarks.md)
-12. [Extension points](extension_points.md)
+4. [Replay adapter boundary](../lob_sim/replay/adapters.py)
+5. [Replay normalization boundary](../lob_sim/replay/normalization.py)
+6. [Queue/fill model](../lob_sim/sim/fill_model.py)
+7. [Simulation engine](../lob_sim/sim/engine.py)
+8. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
+9. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
+10. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
+11. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
+12. [Benchmark notes](futures_benchmarks.md)
+13. [Extension points](extension_points.md)
 
 ## Architecture
 
@@ -27,14 +28,15 @@ The options material is secondary: a controlled dealer-pricing case study for re
 flowchart LR
   A["Binance USD-M adapter"] --> B["NDJSON record stream"]
   B --> C["Schema validation and inspection"]
-  C --> D["BookSynchronizer"]
-  D --> E["LocalOrderBook"]
-  E --> F["SimulationEngine"]
-  F --> G["PassiveFillModel"]
-  F --> H["MM strategy profile"]
-  G --> I["SimulationMetrics"]
-  H --> I
-  I --> J["Summary / trades / manifest"]
+  C --> D["ReplayFeedAdapter"]
+  D --> E["BookSynchronizer"]
+  E --> F["LocalOrderBook"]
+  F --> G["SimulationEngine"]
+  G --> H["PassiveFillModel"]
+  G --> I["MM strategy profile"]
+  H --> J["SimulationMetrics"]
+  I --> J
+  J --> K["Summary / trades / manifest"]
 ```
 
 ## Exact Commands
@@ -71,6 +73,7 @@ Observed:
 - public depth diffs and sequence IDs;
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
+- adapter-normalized instrument metadata and integer tick/lot events.
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.

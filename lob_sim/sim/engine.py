@@ -13,12 +13,7 @@ from ..book.local_book import LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import DepthUpdateEvent, LevelChange, SymbolSpec
 from ..config import Config
-from ..replay.normalization import (
-    agg_trade_from_record,
-    depth_update_from_record,
-    instrument_spec_from_record,
-    snapshot_from_record,
-)
+from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
 from .fill_model import PassiveFillModel
@@ -53,8 +48,9 @@ class _EngineEvent:
 
 
 class SimulationEngine:
-    def __init__(self, cfg: Config) -> None:
+    def __init__(self, cfg: Config, adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER) -> None:
         self.cfg = cfg
+        self.adapter = adapter
         self.metrics = SimulationMetrics(cfg)
         self.fill_model = PassiveFillModel()
         self.strategy = MarketMakingStrategy(cfg)
@@ -238,7 +234,7 @@ class SimulationEngine:
         self._next_decision[symbol] = next_due
 
     def _parse_exchange_info(self, rec: RecordedEvent) -> SymbolSpec:
-        spec = instrument_spec_from_record(rec)
+        spec = self.adapter.instrument_spec_from_record(rec)
         if spec is None:
             raise ValueError(f"Expected exchangeInfo record for {rec.symbol}")
         self._specs[rec.symbol] = spec
@@ -567,7 +563,7 @@ class SimulationEngine:
 
             if rec.type == "snapshot":
                 spec = self._specs[rec.symbol]
-                snapshot = snapshot_from_record(rec, spec)
+                snapshot = self.adapter.snapshot_from_record(rec, spec)
                 syncer = self._get_sync(rec.symbol)
                 if syncer is None:
                     continue
@@ -589,7 +585,7 @@ class SimulationEngine:
                 if syncer is None:
                     continue
 
-                event = depth_update_from_record(rec, spec)
+                event = self.adapter.depth_update_from_record(rec, spec)
                 gap_count_before = syncer.gap_count
                 try:
                     changes: list[LevelChange] = syncer.on_depth_update(event)
@@ -612,7 +608,7 @@ class SimulationEngine:
 
             if rec.type == "aggTrade":
                 spec = self._specs[rec.symbol]
-                trade = agg_trade_from_record(rec, spec)
+                trade = self.adapter.agg_trade_from_record(rec, spec)
                 self.strategy.observe_trade(trade)
                 fills = self.fill_model.apply_agg_trade(trade, now)
                 if fills:

@@ -12,7 +12,7 @@ from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import SymbolSpec
 from ..config import Config
 from ..replay.reader import RecordedEvent, iter_records
-from .normalization import depth_update_from_record, instrument_spec_from_record, snapshot_from_record
+from .adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +36,21 @@ class ReplayResult:
     symbols: dict[str, ReplaySymbolResult]
 
 
-def symbol_spec_from_record(record: RecordedEvent) -> SymbolSpec | None:
-    spec = instrument_spec_from_record(record)
+def symbol_spec_from_record(
+    record: RecordedEvent,
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
+) -> SymbolSpec | None:
+    spec = adapter.instrument_spec_from_record(record)
     if spec is None:
         return None
     return spec
 
 
-def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, Decimal] | None:
-    spec = symbol_spec_from_record(record)
+def parse_symbol_spec_from_record(
+    record: RecordedEvent,
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
+) -> tuple[str, Decimal, Decimal] | None:
+    spec = symbol_spec_from_record(record, adapter)
     if spec is None:
         return None
     return spec.symbol, spec.tick_size, spec.step_size
@@ -55,6 +61,7 @@ def replay(
     config: Config | None = None,
     verbose: bool = False,
     progress_every: int = 5000,
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
 ) -> ReplayResult:
     path = Path(path)
     start = time.perf_counter()
@@ -73,7 +80,7 @@ def replay(
     for rec in iter_records(path):
         events_processed += 1
         if rec.type == "exchangeInfo":
-            spec = symbol_spec_from_record(rec)
+            spec = symbol_spec_from_record(rec, adapter)
             if spec is None:
                 continue
             symbols[spec.symbol] = spec
@@ -102,7 +109,7 @@ def replay(
             syncers[rec.symbol] = syncer
 
         if rec.type == "snapshot":
-            evt = snapshot_from_record(rec, spec)
+            evt = adapter.snapshot_from_record(rec, spec)
             if syncer is not None:
                 syncer.on_snapshot(evt)
             continue
@@ -111,7 +118,7 @@ def replay(
             depth_events += 1
             if syncer is None:
                 continue
-            depth = depth_update_from_record(rec, spec)
+            depth = adapter.depth_update_from_record(rec, spec)
             gap_count_before = syncer.gap_count
             try:
                 if syncer is not None:

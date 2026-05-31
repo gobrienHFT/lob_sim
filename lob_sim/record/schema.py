@@ -178,6 +178,13 @@ def validate_record_object(
         _require_numberish(data["stepSize"], "exchangeInfo.stepSize", path=path, line_number=line_number)
         for key in ("baseAsset", "quoteAsset", "venue"):
             _require_optional_string(data, key, "exchangeInfo", path=path, line_number=line_number)
+        if "contractMultiplier" in data:
+            _require_numberish(
+                data["contractMultiplier"],
+                "exchangeInfo.contractMultiplier",
+                path=path,
+                line_number=line_number,
+            )
         return
 
     if record_type == "snapshot":

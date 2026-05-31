@@ -71,6 +71,7 @@ def inspect_stream(path: str | Path) -> StreamInspection:
             for source_key, output_key in [
                 ("baseAsset", "quantity_unit"),
                 ("quoteAsset", "price_currency"),
+                ("contractMultiplier", "contract_multiplier"),
                 ("venue", "venue"),
             ]:
                 value = record.data.get(source_key)

@@ -14,13 +14,8 @@ from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
 from lob_sim.book.types import SymbolSpec
 from lob_sim.config import load_config
+from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from lob_sim.replay.inspection import file_sha256
-from lob_sim.replay.normalization import (
-    agg_trade_from_record,
-    depth_update_from_record,
-    instrument_spec_from_record,
-    snapshot_from_record,
-)
 from lob_sim.replay.reader import iter_records
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
@@ -40,7 +35,12 @@ def _percentile(sorted_values: list[float], pct: float) -> float:
     return sorted_values[low] * (1.0 - fraction) + sorted_values[high] * fraction
 
 
-def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict[str, Any]:
+def benchmark_replay(
+    path: Path,
+    env_path: str,
+    progress_every: int = 0,
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
+) -> dict[str, Any]:
     cfg = load_config(env_path)
     cfg_snapshot = config_snapshot(cfg)
     metadata = {
@@ -72,7 +72,7 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
 
         if rec.type == "exchangeInfo":
             exchange_info_events += 1
-            spec = instrument_spec_from_record(rec)
+            spec = adapter.instrument_spec_from_record(rec)
             if spec is not None:
                 symbols[spec.symbol] = spec
                 syncers.setdefault(
@@ -94,18 +94,18 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
 
             if rec.type == "snapshot":
                 snapshot_events += 1
-                syncer.on_snapshot(snapshot_from_record(rec, spec))
+                syncer.on_snapshot(adapter.snapshot_from_record(rec, spec))
             elif rec.type == "depthUpdate":
                 depth_events += 1
                 try:
-                    syncer.on_depth_update(depth_update_from_record(rec, spec))
+                    syncer.on_depth_update(adapter.depth_update_from_record(rec, spec))
                 except BookSyncGapError:
                     gap_count += 1
             elif rec.type == "aggTrade":
                 trade_events += 1
                 # Benchmark the same parse path used elsewhere even though replay itself
                 # does not mutate the book on public trade prints.
-                agg_trade_from_record(rec, spec)
+                adapter.agg_trade_from_record(rec, spec)
 
         loop_latencies_us.append((time.perf_counter_ns() - loop_start_ns) / 1_000.0)
 

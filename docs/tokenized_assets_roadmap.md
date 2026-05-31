@@ -14,7 +14,7 @@ This repo can support tokenized equities or other exchange-listed synthetic asse
 ## What Must Be Added
 
 - Product metadata: issuer, underlying reference, trading venue, quote currency, settlement currency, multiplier, corporate-action handling, and trading session rules.
-- Venue adapter: snapshot/diff schema, sequence semantics, trade-print semantics, and gap policy for the actual L2 source.
+- Venue adapter: a `ReplayFeedAdapter` implementation covering snapshot/diff schema, sequence semantics, trade-print semantics, and gap policy for the actual L2 source.
 - Fee schedule: maker/taker fee currency, rebates, minimum fees, and product-specific tiers.
 - Calendar/session model: halts, auctions, market holidays, overnight gaps, and session boundaries.
 - Risk metadata: borrow/locate constraints if applicable, token redemption/issuer risk, and any venue-specific position limits.
@@ -22,7 +22,7 @@ This repo can support tokenized equities or other exchange-listed synthetic asse
 ## Adapter Checklist
 
 1. Capture raw venue messages losslessly enough to replay.
-2. Normalize to the replay contract without discarding sequence IDs.
+2. Normalize to the replay contract or a venue-specific sibling behind `ReplayFeedAdapter` without discarding sequence IDs.
 3. Prove first-diff snapshot coverage and ongoing continuity in tests.
 4. Document whether trade prints identify aggressor side and whether they can conservatively inform queue consumption.
 5. Keep tokenized-asset assumptions in the manifest and docs before publishing sample outputs.

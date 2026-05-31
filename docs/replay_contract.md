@@ -11,11 +11,11 @@ Replay inputs are newline-delimited JSON. Each row has:
 
 The reader validates required fields before replaying. Bad JSON, missing payload fields, malformed price/quantity levels, and unsupported event types fail with file and line-number context.
 
-After validation, `lob_sim.replay.normalization` is the shared conversion boundary used by replay, simulation, and benchmark code. It turns rows into `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` using integer ticks/lots before downstream book or fill logic sees them.
+After validation, `lob_sim.replay.adapters.DEFAULT_REPLAY_ADAPTER` is the shared feed-adapter boundary used by replay, simulation, and benchmark code. The default `BinanceUsdMReplayAdapter` delegates to `lob_sim.replay.normalization` and turns rows into `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` using integer ticks/lots before downstream book or fill logic sees them. `SimulationEngine` and the replay runner accept an injected adapter for future L2 venues without changing queue/fill mechanics.
 
 ## Event Types
 
-- `exchangeInfo`: contains `tickSize` and `stepSize`; optional `baseAsset`, `quoteAsset`, and `venue` fields carry instrument metadata used by reporting and fee audit fields.
+- `exchangeInfo`: contains `tickSize` and `stepSize`; optional `baseAsset`, `quoteAsset`, `contractMultiplier`, and `venue` fields carry instrument metadata used by reporting and fee audit fields.
 - `snapshot`: contains `lastUpdateId`, `bids`, and `asks`.
 - `depthUpdate`: contains Binance diff ids `U`, `u`, optional `pu`, and changed bid/ask levels `b` and `a`.
 - `aggTrade`: contains trade price `p`, quantity `q`, and maker side flag `m`.
