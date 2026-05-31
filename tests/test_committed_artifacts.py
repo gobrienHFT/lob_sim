@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import json
 from pathlib import Path
 
 from scripts.refresh_sample_outputs import DOCUMENTED_SAMPLE_COMMANDS
+from scripts import verify_committed_artifacts as verifier
 from scripts.verify_committed_artifacts import collect_artifact_issues
 
 
@@ -77,6 +79,25 @@ def test_verify_committed_artifacts_script_runs_cleanly() -> None:
     )
     assert result.returncode == 0, result.stderr or result.stdout
     assert "Committed artifact verification passed." in result.stdout
+
+
+def test_futures_manifest_verifier_rejects_dirty_source_provenance(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    showcase.mkdir()
+    recorded.mkdir()
+    clean_source = {"git_commit": "abc123", "git_branch": "master", "git_dirty": False}
+    dirty_source = {"git_commit": "def456", "git_branch": "master", "git_dirty": True}
+
+    (showcase / "manifest.json").write_text(json.dumps({"source": dirty_source}), encoding="utf-8")
+    (recorded / "manifest.json").write_text(json.dumps({"source": clean_source}), encoding="utf-8")
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_manifest_source_provenance()
+
+    assert issues == [f"{showcase / 'manifest.json'} should be refreshed from a clean source tree"]
 
 
 def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:

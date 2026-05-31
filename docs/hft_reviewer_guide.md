@@ -117,4 +117,5 @@ Inferred:
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
 - Event traces that make order/cancel/fill sequencing inspectable without a debugger.
 - Reproducible artifacts with input/config/source manifests.
+- Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Extensible boundaries for future venue adapters and asset metadata.

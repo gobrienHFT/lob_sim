@@ -47,4 +47,6 @@ The manifest records:
 - output paths and a deterministic `run_id` derived from input digest, simulator version, and config.
 - output artifact size and SHA-256 metadata for generated summary, summary CSV, trades CSV, and event trace CSV files.
 
+Committed futures sample manifests are verified with `source.git_dirty == false`; if a pack is refreshed while another generated file is still dirty, `scripts/verify_committed_artifacts.py` fails instead of publishing ambiguous provenance.
+
 The manifest is provenance metadata. It is not a latency or production-readiness claim.

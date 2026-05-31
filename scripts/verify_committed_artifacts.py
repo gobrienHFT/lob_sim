@@ -344,6 +344,25 @@ def _verify_manifest_output_artifacts() -> list[str]:
     return issues
 
 
+def _verify_manifest_source_provenance() -> list[str]:
+    issues: list[str] = []
+    for manifest_path in [FUTURES_SHOWCASE_DIR / "manifest.json", RECORDED_CLIP_DIR / "manifest.json"]:
+        manifest = json.loads(_read_text(manifest_path))
+        source = manifest.get("source")
+        if not isinstance(source, dict):
+            issues.append(f"{_repo_relative(manifest_path)} is missing source provenance")
+            continue
+        git_commit = source.get("git_commit")
+        git_branch = source.get("git_branch")
+        if not isinstance(git_commit, str) or not git_commit:
+            issues.append(f"{_repo_relative(manifest_path)} source.git_commit is missing")
+        if not isinstance(git_branch, str) or not git_branch:
+            issues.append(f"{_repo_relative(manifest_path)} source.git_branch is missing")
+        if source.get("git_dirty") is not False:
+            issues.append(f"{_repo_relative(manifest_path)} should be refreshed from a clean source tree")
+    return issues
+
+
 def _verify_futures_trade_audit_fields() -> list[str]:
     issues: list[str] = []
     for path in [FUTURES_SHOWCASE_DIR / "trades.csv", RECORDED_CLIP_DIR / "trades.csv"]:
@@ -727,6 +746,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_markdown_links())
     issues.extend(_verify_summary_output_files())
     issues.extend(_verify_manifest_output_artifacts())
+    issues.extend(_verify_manifest_source_provenance())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
