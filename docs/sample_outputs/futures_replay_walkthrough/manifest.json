@@ -1,13 +1,13 @@
 {
-  "run_id": "a8abad27c18148ca",
+  "run_id": "5522b071b668a99a",
   "schema_version": "lob_sim.simulation_run.v1",
-  "created_at_utc": "2026-05-31T14:34:54.051325Z",
+  "created_at_utc": "2026-05-31T15:37:06.835610Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
-    "size_bytes": 775,
-    "sha256": "ff00c29cb45e2188aac03827cc76dfbb4cee1d8833b121b2ba0c555d2c571fa3",
-    "modified_at_utc": "2026-05-31T14:34:54.035662Z"
+    "size_bytes": 836,
+    "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
+    "modified_at_utc": "2026-05-31T15:37:06.792315Z"
   },
   "config": {
     "symbols": [
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "6936fd1e34dca8b2457eade69ec1e3e3154fc0c6",
+    "git_commit": "196aff243b5344c7de1d8acba6ce3b6abf02037e",
     "git_branch": "master",
     "git_dirty": true
   },

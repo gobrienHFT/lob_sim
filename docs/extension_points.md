@@ -10,7 +10,8 @@ The futures replay core is intentionally built around normalized events and inte
 - `lob_sim.book.sync`: venue sequence semantics and gap policy.
 - `lob_sim.book.local_book`: deterministic local depth state in integer ticks/lots.
 - `lob_sim.sim.fill_model`: queue-aware fill attribution over normalized book changes and public trade prints.
-- `lob_sim.sim.metrics`: fee, inventory, markout, queue, and risk metrics.
+- `lob_sim.sim.fees`: explicit maker/taker fee assessment over normalized fills and instrument metadata.
+- `lob_sim.sim.metrics`: inventory, fee, markout, queue, and risk metrics.
 
 ## Adding Another L2 Venue
 
@@ -34,9 +35,9 @@ The simulator expects prices and quantities to become integer ticks and lots. As
 
 Do not put venue-specific sequencing, decimal parsing, or product metadata inside `PassiveFillModel`. That layer should stay event-contract driven.
 
-## Fee Model Direction
+## Fee Model Boundary
 
-Today fees are configured as maker/taker bps in `Config` and applied in `SimulationMetrics`. A more complete adapter should provide a fee schedule object with:
+Today fees are configured as maker/taker bps in `Config` and applied through `lob_sim.sim.fees.StaticFeeModel`. Rebates are represented as negative fees, taker costs as positive fees, and each fill export records the fee rate, fee amount, and fee currency used. The current model is intentionally static; a venue adapter can replace it with a richer fee schedule object with:
 
 - maker/taker rates by product tier;
 - rebates expressed explicitly as negative fees;

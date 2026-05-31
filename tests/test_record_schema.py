@@ -59,7 +59,13 @@ def test_inspect_stream_reports_counts_and_digest(tmp_path: Path) -> None:
             ts_local=1.0,
             symbol="BTCUSDT",
             type="exchangeInfo",
-            data={"tickSize": "0.1", "stepSize": "0.001"},
+            data={
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "baseAsset": "BTC",
+                "quoteAsset": "USDT",
+                "venue": "BINANCE_USDM",
+            },
         ),
         NDJSONRecord(
             ts_local=2.0,
@@ -76,5 +82,27 @@ def test_inspect_stream_reports_counts_and_digest(tmp_path: Path) -> None:
     assert inspection["counts_by_type"] == {"exchangeInfo": 1, "snapshot": 1}
     assert inspection["counts_by_symbol"] == {"BTCUSDT": 2}
     assert inspection["duration_seconds"] == pytest.approx(1.0)
-    assert inspection["symbol_specs"]["BTCUSDT"] == {"tick_size": "0.1", "step_size": "0.001"}
+    assert inspection["symbol_specs"]["BTCUSDT"] == {
+        "tick_size": "0.1",
+        "step_size": "0.001",
+        "quantity_unit": "BTC",
+        "price_currency": "USDT",
+        "venue": "BINANCE_USDM",
+    }
     assert inspection["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_iter_records_rejects_malformed_optional_exchange_info_metadata(tmp_path: Path) -> None:
+    path = tmp_path / "bad_exchange_info_metadata.ndjson"
+    record = NDJSONRecord(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="exchangeInfo",
+        data={"tickSize": "0.1", "stepSize": "0.001", "quoteAsset": 123},
+    )
+    path.write_text(record.to_json() + "\n", encoding="utf-8")
+
+    with pytest.raises(RecordValidationError) as exc:
+        list(iter_records(path))
+
+    assert "exchangeInfo.quoteAsset must be a string" in str(exc.value)

@@ -64,10 +64,19 @@ def inspect_stream(path: str | Path) -> StreamInspection:
         last_ts = record.ts_local if last_ts is None else max(last_ts, record.ts_local)
 
         if record.type == "exchangeInfo":
-            symbol_specs[record.symbol] = {
+            spec = {
                 "tick_size": str(record.data["tickSize"]),
                 "step_size": str(record.data["stepSize"]),
             }
+            for source_key, output_key in [
+                ("baseAsset", "quantity_unit"),
+                ("quoteAsset", "price_currency"),
+                ("venue", "venue"),
+            ]:
+                value = record.data.get(source_key)
+                if value is not None:
+                    spec[output_key] = str(value)
+            symbol_specs[record.symbol] = spec
 
     duration = None if first_ts is None or last_ts is None else max(0.0, last_ts - first_ts)
     return StreamInspection(

@@ -95,7 +95,14 @@ class SimulationEngine:
         data = rec.data
         tick_size = str(data["tickSize"])
         step_size = str(data["stepSize"])
-        spec = SymbolSpec(symbol=rec.symbol, tick_size=Decimal(tick_size), step_size=Decimal(step_size))
+        spec = SymbolSpec(
+            symbol=rec.symbol,
+            tick_size=Decimal(tick_size),
+            step_size=Decimal(step_size),
+            price_currency=str(data.get("quoteAsset", "")),
+            quantity_unit=str(data.get("baseAsset", "")),
+            venue=str(data.get("venue", "")),
+        )
         self._specs[rec.symbol] = spec
         return spec
 
@@ -432,6 +439,9 @@ class SimulationEngine:
                     "price",
                     "qty",
                     "maker",
+                    "fee_bps",
+                    "fee",
+                    "fee_currency",
                     "order_id",
                     "mid_at_fill",
                     "regime",

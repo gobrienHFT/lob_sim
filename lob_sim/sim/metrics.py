@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 from ..book.local_book import LocalOrderBook
 from ..config import Config
+from .fees import StaticFeeModel
 from .orders import Fill
 
 
@@ -20,6 +21,7 @@ class PositionState:
 class SimulationMetrics:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
+        self.fee_model = StaticFeeModel.from_config(cfg)
         self.position: Dict[str, PositionState] = {}
         self.specs: Dict[str, object] = {}
 
@@ -226,10 +228,9 @@ class SimulationMetrics:
                 pos.lot_size = side_sign * remaining
                 pos.avg_cost = price
 
-        fee_bps = self.cfg.fees_maker_bps if fill.maker else self.cfg.fees_taker_bps
-        fee = qty * price * (fee_bps / Decimal("10000"))
-        self.total_fees += fee
-        self.realized_pnl -= fee
+        fee = self.fee_model.assess(fill, book.spec)
+        self.total_fees += fee.amount
+        self.realized_pnl -= fee.amount
 
         self.fill_count += 1
         self.fill_qty += qty
@@ -265,6 +266,9 @@ class SimulationMetrics:
                 "price": str(price),
                 "qty": str(qty),
                 "maker": fill.maker,
+                "fee_bps": str(fee.rate_bps),
+                "fee": str(fee.amount),
+                "fee_currency": fee.currency,
                 "order_id": fill.order_id,
                 "mid_at_fill": str(mid) if mid is not None else None,
                 "regime": regime,

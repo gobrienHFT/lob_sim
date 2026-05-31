@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import csv
 from hashlib import sha256
 from pathlib import Path
 
@@ -186,6 +187,8 @@ RECORDED_CLIP_CORE_FILES = [
     "trades.csv",
 ]
 
+FUTURES_TRADE_FEE_FIELDS = {"fee_bps", "fee", "fee_currency"}
+
 CASE_STUDY_CORE_FILES = [
     "case_brief.md",
     "demo_report.md",
@@ -298,6 +301,25 @@ def _verify_core_files() -> list[str]:
         for name in expected_names:
             if not (directory / name).exists():
                 issues.append(f"Missing committed artifact: {_repo_relative(directory / name)}")
+    return issues
+
+
+def _verify_futures_trade_fee_fields() -> list[str]:
+    issues: list[str] = []
+    for path in [FUTURES_SHOWCASE_DIR / "trades.csv", RECORDED_CLIP_DIR / "trades.csv"]:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fieldnames = set(reader.fieldnames or [])
+            missing = sorted(FUTURES_TRADE_FEE_FIELDS - fieldnames)
+            if missing:
+                issues.append(f"{_repo_relative(path)} is missing fee audit column(s): {', '.join(missing)}")
+                continue
+            for row_index, row in enumerate(reader, start=2):
+                for field in FUTURES_TRADE_FEE_FIELDS:
+                    if row.get(field) in {None, ""}:
+                        issues.append(
+                            f"{_repo_relative(path)}:{row_index} has empty fee audit field: {field}"
+                        )
     return issues
 
 
@@ -645,6 +667,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_markdown_links())
     issues.extend(_verify_summary_output_files())
     issues.extend(_verify_core_files())
+    issues.extend(_verify_futures_trade_fee_fields())
     issues.extend(_verify_implied_vol_snapshot_references())
     issues.extend(_verify_no_temp_paths())
     issues.extend(_verify_no_malformed_cli_fragments())

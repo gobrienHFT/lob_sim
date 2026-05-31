@@ -12,11 +12,11 @@ from typing import Any, Dict
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
-from lob_sim.book.types import DepthUpdateEvent, SnapshotEvent, SymbolSpec
+from lob_sim.book.types import DepthUpdateEvent, SnapshotEvent
 from lob_sim.config import load_config
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
-from lob_sim.replay.runner import parse_symbol_spec_from_record
+from lob_sim.replay.runner import symbol_spec_from_record
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
@@ -67,15 +67,13 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
 
         if rec.type == "exchangeInfo":
             exchange_info_events += 1
-            parsed = parse_symbol_spec_from_record(rec)
-            if parsed is not None:
-                symbol, tick_size, step_size = parsed
-                spec = SymbolSpec(symbol=symbol, tick_size=tick_size, step_size=step_size)
-                symbols[symbol] = spec
+            spec = symbol_spec_from_record(rec)
+            if spec is not None:
+                symbols[spec.symbol] = spec
                 syncers.setdefault(
-                    symbol,
+                    spec.symbol,
                     BookSynchronizer(
-                        LocalOrderBook(symbol=symbol, spec=spec, top_n=cfg.book_top_n),
+                        LocalOrderBook(symbol=spec.symbol, spec=spec, top_n=cfg.book_top_n),
                         resync_on_gap=cfg.resync_on_gap,
                     ),
                 )

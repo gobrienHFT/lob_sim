@@ -55,6 +55,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 ### Markout / inventory / PnL sanity checks
 
 - Inventory updates are consistent with signed fills.
+- Maker/taker fees are applied through an explicit fee model; rebates are negative fees and per-fill fee fields are exported for auditability.
 - Unrealized PnL is marked from the current reconstructed mid.
 - Markout windows drain deterministically from the stored fill history.
 
@@ -64,6 +65,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - [`tests/test_gap_resync.py`](../tests/test_gap_resync.py)
 - [`tests/test_fill_model.py`](../tests/test_fill_model.py)
 - [`tests/test_futures_invariants.py`](../tests/test_futures_invariants.py)
+- [`tests/test_fee_model.py`](../tests/test_fee_model.py)
 - [`tests/test_record_schema.py`](../tests/test_record_schema.py)
 
 ## Limitations

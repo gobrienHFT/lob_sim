@@ -64,6 +64,9 @@
       "price": "100.0",
       "qty": "0.001",
       "maker": true,
+      "fee_bps": "0",
+      "fee": "0.0000",
+      "fee_currency": "USDT",
       "order_id": "BTCUSDT-bid-2000000-4",
       "mid_at_fill": "100.05",
       "regime": "tight_sell",
@@ -74,8 +77,8 @@
       "book_ask_tick": 1001
     }
   ],
-  "run_id": "a8abad27c18148ca",
-  "input_sha256": "ff00c29cb45e2188aac03827cc76dfbb4cee1d8833b121b2ba0c555d2c571fa3",
+  "run_id": "5522b071b668a99a",
+  "input_sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
   "output_files": {
     "summary": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
     "summary_csv": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",

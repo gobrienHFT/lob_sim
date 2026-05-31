@@ -65,7 +65,14 @@ def showcase_records() -> list[NDJSONRecord]:
             ts_local=0.5,
             symbol="BTCUSDT",
             type="exchangeInfo",
-            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+            data={
+                "symbol": "BTCUSDT",
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "baseAsset": "BTC",
+                "quoteAsset": "USDT",
+                "venue": "BINANCE_USDM",
+            },
         ),
         NDJSONRecord(
             ts_local=1.0,

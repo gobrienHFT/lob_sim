@@ -154,7 +154,14 @@ async def cmd_collect(config: Config, verbose: bool = False) -> None:
                         ts_local=time.time(),
                         symbol=symbol,
                         type="exchangeInfo",
-                        data={"symbol": symbol, "tickSize": str(spec.tick_size), "stepSize": str(spec.step_size)},
+                        data={
+                            "symbol": symbol,
+                            "tickSize": str(spec.tick_size),
+                            "stepSize": str(spec.step_size),
+                            "baseAsset": spec.quantity_unit,
+                            "quoteAsset": spec.price_currency,
+                            "venue": spec.venue,
+                        },
                     )
                 )
                 snapshot_data = await rest.get_depth_snapshot(symbol, config.snapshot_limit)

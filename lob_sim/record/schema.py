@@ -115,6 +115,18 @@ def _require_bool(
         _fail(f"{context} must be boolean", path=path, line_number=line_number)
 
 
+def _require_optional_string(
+    obj: Mapping[str, Any],
+    key: str,
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    if key in obj and not isinstance(obj[key], str):
+        _fail(f"{context}.{key} must be a string", path=path, line_number=line_number)
+
+
 def _require_level_list(
     value: Any,
     context: str,
@@ -164,6 +176,8 @@ def validate_record_object(
         _require_keys(data, ("tickSize", "stepSize"), "exchangeInfo payload", path=path, line_number=line_number)
         _require_numberish(data["tickSize"], "exchangeInfo.tickSize", path=path, line_number=line_number)
         _require_numberish(data["stepSize"], "exchangeInfo.stepSize", path=path, line_number=line_number)
+        for key in ("baseAsset", "quoteAsset", "venue"):
+            _require_optional_string(data, key, "exchangeInfo", path=path, line_number=line_number)
         return
 
     if record_type == "snapshot":

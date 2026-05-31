@@ -29,7 +29,7 @@ For a reviewer-focused path through the futures core, start with [docs/hft_revie
 - Local book reconstruction in [`lob_sim/book/local_book.py`](lob_sim/book/local_book.py).
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
-- PnL, inventory, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py).
+- PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
 ### Controlled options case study
@@ -113,6 +113,7 @@ Tracked metrics include:
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead
+- per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics
 - inventory mean and variability
 - regime-bucket performance

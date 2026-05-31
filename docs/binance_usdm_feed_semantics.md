@@ -4,6 +4,12 @@
 
 This repo records and replays public Binance USD-M market data. The futures core is built around four record types: `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 
+## Symbol Metadata
+
+- `exchangeInfo` records carry tick size, lot size, base asset, quote asset, and venue label when that metadata is available.
+- Tick and lot sizes drive integer price/quantity normalization.
+- Base/quote asset metadata is used for reporting and fee audit fields; it is not treated as private venue information.
+
 ## Snapshot Seeding
 
 - A REST snapshot seeds the local book with `lastUpdateId`, bid levels, and ask levels.

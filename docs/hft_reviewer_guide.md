@@ -70,6 +70,7 @@ Inferred:
 - passive fills from visible level reductions and trade-print consumption;
 - queue position at price level, not participant-level identity;
 - adverse selection from post-fill mid-price markout;
+- net maker/taker fee impact from configured fee assumptions;
 - strategy behavior under configured latency assumptions.
 
 ## Queue And Fill Assumptions
@@ -81,6 +82,7 @@ Inferred:
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
+- Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes fee rate, fee amount, and fee currency.
 
 ## Limitations
 

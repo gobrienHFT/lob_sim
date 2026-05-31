@@ -9,10 +9,9 @@ import time
 
 from ..book.local_book import LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
-from ..book.types import DepthUpdateEvent, SnapshotEvent
+from ..book.types import DepthUpdateEvent, SnapshotEvent, SymbolSpec
 from ..config import Config
 from ..replay.reader import RecordedEvent, iter_records
-from ..book.types import SymbolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class ReplayResult:
     symbols: dict[str, ReplaySymbolResult]
 
 
-def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, Decimal] | None:
+def symbol_spec_from_record(record: RecordedEvent) -> SymbolSpec | None:
     if record.type != "exchangeInfo":
         return None
     data = record.data
@@ -44,11 +43,21 @@ def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, 
     step_size = data.get("stepSize")
     if tick_size is None or step_size is None:
         return None
-    return (
-        record.symbol,
-        Decimal(str(tick_size)),
-        Decimal(str(step_size)),
+    return SymbolSpec(
+        symbol=record.symbol,
+        tick_size=Decimal(str(tick_size)),
+        step_size=Decimal(str(step_size)),
+        price_currency=str(data.get("quoteAsset", "")),
+        quantity_unit=str(data.get("baseAsset", "")),
+        venue=str(data.get("venue", "")),
     )
+
+
+def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, Decimal] | None:
+    spec = symbol_spec_from_record(record)
+    if spec is None:
+        return None
+    return spec.symbol, spec.tick_size, spec.step_size
 
 
 def replay(
@@ -74,19 +83,18 @@ def replay(
     for rec in iter_records(path):
         events_processed += 1
         if rec.type == "exchangeInfo":
-            parsed = parse_symbol_spec_from_record(rec)
-            if parsed is None:
+            spec = symbol_spec_from_record(rec)
+            if spec is None:
                 continue
-            symbol, tick_size, step_size = parsed
-            symbols[symbol] = SymbolSpec(symbol=symbol, tick_size=tick_size, step_size=step_size)
-            if symbol not in syncers:
-                syncers[symbol] = BookSynchronizer(
-                    LocalOrderBook(symbol=symbol, spec=symbols[symbol], top_n=top_n),
+            symbols[spec.symbol] = spec
+            if spec.symbol not in syncers:
+                syncers[spec.symbol] = BookSynchronizer(
+                    LocalOrderBook(symbol=spec.symbol, spec=spec, top_n=top_n),
                     resync_on_gap=resync,
                 )
             if verbose:
                 print(
-                    f"[replay] loaded symbol={symbol} tick_size={tick_size} step_size={step_size}",
+                    f"[replay] loaded symbol={spec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
                     flush=True,
                 )
             continue
