@@ -15,6 +15,11 @@
   "unrealized_pnl": 5e-05,
   "max_drawdown": 0.0,
   "fill_count": 1,
+  "fill_source_counts": {
+    "depth_update": 0,
+    "agg_trade": 1,
+    "taker_order": 0
+  },
   "fill_rate": 0.3333333333333333,
   "avg_spread_captured": 0.05,
   "avg_inventory": 0.0006666666666666666,
