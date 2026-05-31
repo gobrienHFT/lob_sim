@@ -119,6 +119,25 @@ def test_fill_model_public_consumption_summary_tracks_overlap_netting():
     depth_fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.05)
     assert depth_fills == []
 
+    consumption_events = model.drain_public_consumption_events()
+    assert [
+        (
+            event.source,
+            event.side,
+            event.price_tick,
+            event.observed_lots,
+            event.modeled_lots,
+            event.overlap_netted_lots,
+            event.queue_consumed_lots,
+            event.unmatched_lots,
+        )
+        for event in consumption_events
+    ] == [
+        ("agg_trade", "bid", 10000, 2, 2, 0, 2, 0),
+        ("depth_update", "bid", 10000, 1, 0, 1, 0, 0),
+    ]
+    assert model.drain_public_consumption_events() == []
+
     assert model.public_consumption_summary() == {
         "overlap_window_seconds": 0.125,
         "sources": {
@@ -155,6 +174,13 @@ def test_public_consumption_summary_exposes_unmatched_queue_consumption():
     )
 
     assert fills == []
+    consumption_events = model.drain_public_consumption_events()
+    assert len(consumption_events) == 1
+    assert consumption_events[0].source == "agg_trade"
+    assert consumption_events[0].observed_lots == 3
+    assert consumption_events[0].modeled_lots == 3
+    assert consumption_events[0].queue_consumed_lots == 0
+    assert consumption_events[0].unmatched_lots == 3
     assert model.public_consumption_summary()["sources"]["agg_trade"] == {
         "observed_lots": 3,
         "modeled_lots": 3,

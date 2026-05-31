@@ -653,6 +653,96 @@ def test_futures_event_trace_verifier_rejects_unstructured_risk_halt(tmp_path, m
     assert f"{showcase / 'event_trace.csv'}:2 risk_halt row has invalid canceled_order_count" in issues
 
 
+def test_futures_event_trace_verifier_rejects_malformed_queue_consumption(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="queue_consumption",
+                source="depth_update",
+                side="bid",
+                price_tick="1000",
+                qty_lots="5",
+                details=(
+                    '{"observed_lots":4,"modeled_lots":5,"overlap_netted_lots":0,'
+                    '"queue_consumed_lots":6,"unmatched_lots":0,"overlap_window_seconds":999}'
+                ),
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 queue_consumption qty_lots does not match observed_lots" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 queue_consumption models more lots than observed" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 queue_consumption consumes more queue than modeled" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 queue_consumption has unexpected overlap window" in issues
+
+
+def test_futures_event_trace_verifier_rejects_queue_consumption_summary_mismatch(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="queue_consumption",
+                source="depth_update",
+                side="ask",
+                price_tick="1001",
+                qty_lots="2",
+                details=(
+                    '{"observed_lots":2,"modeled_lots":1,"overlap_netted_lots":1,'
+                    '"queue_consumed_lots":1,"unmatched_lots":0,"overlap_window_seconds":0.125}'
+                ),
+            )
+        ],
+    )
+    summary = json.loads((showcase / "summary.json").read_text(encoding="utf-8"))
+    summary["public_consumption_summary"] = {
+        "sources": {
+            "depth_update": {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
+            },
+            "agg_trade": {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
+            },
+        }
+    }
+    (showcase / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert (
+        f"{showcase / 'event_trace.csv'} queue_consumption depth_update.observed_lots=2 "
+        "does not match summary value 0"
+    ) in issues
+
+
 def test_futures_event_trace_verifier_rejects_missing_decision_diagnostics(tmp_path, monkeypatch) -> None:
     showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
     _write_event_trace_case(

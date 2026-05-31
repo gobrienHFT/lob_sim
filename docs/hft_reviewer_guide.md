@@ -104,6 +104,7 @@ Inferred:
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Summaries report public-consumption diagnostics: observed depth/print lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots when no internal level remained to consume.
+- Event traces include `queue_consumption` rows for the per-price public consumption ledger behind those summary totals.
 - Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - A no-quote strategy decision is a quote pull, not a no-op; existing live quotes are canceled through the same latency path.

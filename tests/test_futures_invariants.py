@@ -1237,8 +1237,23 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert "decision" in event_types
     assert "order_arrival_scheduled" in event_types
     assert "order_arrival" in event_types
+    assert "queue_consumption" in event_types
     assert "fill" in event_types
     assert [float(row["ts_local"]) for row in rows] == sorted(float(row["ts_local"]) for row in rows)
+
+    queue_row = next(row for row in rows if row["event_type"] == "queue_consumption" and row["source"] == "agg_trade")
+    queue_details = json.loads(queue_row["details"])
+    assert queue_row["side"] == "bid"
+    assert queue_row["price_tick"] == "1000"
+    assert queue_row["qty_lots"] == "2"
+    assert queue_details == {
+        "modeled_lots": 2,
+        "observed_lots": 2,
+        "overlap_netted_lots": 0,
+        "overlap_window_seconds": 0.125,
+        "queue_consumed_lots": 2,
+        "unmatched_lots": 0,
+    }
 
     fill_row = next(row for row in rows if row["event_type"] == "fill")
     assert fill_row["symbol"] == "BTCUSDT"

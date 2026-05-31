@@ -25,6 +25,20 @@ class _TakerExecution:
     self_trade_prevented: bool = False
 
 
+@dataclass(frozen=True)
+class PublicConsumptionEvent:
+    ts_local: float
+    symbol: str
+    side: OrderSide
+    price_tick: int
+    source: FillSource
+    observed_lots: int
+    modeled_lots: int
+    overlap_netted_lots: int
+    queue_consumed_lots: int
+    unmatched_lots: int
+
+
 class PassiveFillModel:
     def __init__(self) -> None:
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
@@ -43,6 +57,7 @@ class PassiveFillModel:
             for source in PUBLIC_CONSUMPTION_SOURCES
         }
         self.last_self_trade_prevented = False
+        self._public_consumption_events: list[PublicConsumptionEvent] = []
         self._seq = 0
 
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
@@ -241,6 +256,40 @@ class PassiveFillModel:
         stats["overlap_netted_lots"] += max(0, observed - modeled)
         stats["queue_consumed_lots"] += queue_consumed
         stats["unmatched_lots"] += max(0, modeled - queue_consumed)
+
+    def _record_public_consumption_event(
+        self,
+        symbol: str,
+        side: str,
+        price_tick: int,
+        ts_local: float,
+        source: FillSource,
+        observed_lots: int,
+        modeled_lots: int,
+        queue_consumed_lots: int,
+    ) -> None:
+        observed = max(0, observed_lots)
+        modeled = max(0, modeled_lots)
+        queue_consumed = min(modeled, max(0, queue_consumed_lots))
+        self._public_consumption_events.append(
+            PublicConsumptionEvent(
+                ts_local=ts_local,
+                symbol=symbol,
+                side=self._ensure_order_type(side),
+                price_tick=price_tick,
+                source=source,
+                observed_lots=observed,
+                modeled_lots=modeled,
+                overlap_netted_lots=max(0, observed - modeled),
+                queue_consumed_lots=queue_consumed,
+                unmatched_lots=max(0, modeled - queue_consumed),
+            )
+        )
+
+    def drain_public_consumption_events(self) -> list[PublicConsumptionEvent]:
+        events = self._public_consumption_events
+        self._public_consumption_events = []
+        return events
 
     def public_consumption_summary(self) -> dict[str, object]:
         sources = {
@@ -552,6 +601,16 @@ class PassiveFillModel:
                 )
                 if lots_to_consume <= 0:
                     self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
+                    self._record_public_consumption_event(
+                        symbol=symbol,
+                        side=side,
+                        price_tick=change.price_tick,
+                        ts_local=ts_local,
+                        source="depth_update",
+                        observed_lots=dec,
+                        modeled_lots=lots_to_consume,
+                        queue_consumed_lots=0,
+                    )
                     continue
                 level_fills, queue_consumed_lots = self._consume_level(
                     symbol=symbol,
@@ -567,6 +626,16 @@ class PassiveFillModel:
                     dec,
                     lots_to_consume,
                     queue_consumed_lots,
+                )
+                self._record_public_consumption_event(
+                    symbol=symbol,
+                    side=side,
+                    price_tick=change.price_tick,
+                    ts_local=ts_local,
+                    source="depth_update",
+                    observed_lots=dec,
+                    modeled_lots=lots_to_consume,
+                    queue_consumed_lots=queue_consumed_lots,
                 )
                 fills.extend(level_fills)
             elif change.new_lots > change.previous_lots:
@@ -599,6 +668,16 @@ class PassiveFillModel:
         )
         if lots_to_consume <= 0:
             self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume, 0)
+            self._record_public_consumption_event(
+                symbol=trade.symbol,
+                side=side,
+                price_tick=trade.price_tick,
+                ts_local=ts_local,
+                source="agg_trade",
+                observed_lots=trade.qty_lots,
+                modeled_lots=lots_to_consume,
+                queue_consumed_lots=0,
+            )
             return []
         fills, queue_consumed_lots = self._consume_level(
             symbol=trade.symbol,
@@ -614,5 +693,15 @@ class PassiveFillModel:
             trade.qty_lots,
             lots_to_consume,
             queue_consumed_lots,
+        )
+        self._record_public_consumption_event(
+            symbol=trade.symbol,
+            side=side,
+            price_tick=trade.price_tick,
+            ts_local=ts_local,
+            source="agg_trade",
+            observed_lots=trade.qty_lots,
+            modeled_lots=lots_to_consume,
+            queue_consumed_lots=queue_consumed_lots,
         )
         return fills

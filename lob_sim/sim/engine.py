@@ -16,7 +16,7 @@ from ..config import Config
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
-from .fill_model import PassiveFillModel
+from .fill_model import PassiveFillModel, PublicConsumptionEvent, TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
@@ -154,6 +154,26 @@ class SimulationEngine:
                 "resync_on_gap": self.cfg.resync_on_gap,
             },
         )
+
+    def _trace_public_consumption(self, events: list[PublicConsumptionEvent]) -> None:
+        for event in events:
+            self._trace(
+                event.ts_local,
+                event.symbol,
+                "queue_consumption",
+                event.source,
+                side=event.side,
+                price_tick=event.price_tick,
+                qty_lots=event.observed_lots,
+                details={
+                    "observed_lots": event.observed_lots,
+                    "modeled_lots": event.modeled_lots,
+                    "overlap_netted_lots": event.overlap_netted_lots,
+                    "queue_consumed_lots": event.queue_consumed_lots,
+                    "unmatched_lots": event.unmatched_lots,
+                    "overlap_window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
+                },
+            )
 
     def _verbose(self, enabled: bool, message: str) -> None:
         if enabled:
@@ -638,6 +658,7 @@ class SimulationEngine:
                 self.metrics.on_depth_changes(len(changes))
                 if changes:
                     fills = self.fill_model.apply_depth_changes(rec.symbol, changes, now)
+                    self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                     if fills:
                         self._emit_trade_event(now, rec.symbol, fills)
 
@@ -646,6 +667,7 @@ class SimulationEngine:
                 trade = self.adapter.agg_trade_from_record(rec, spec)
                 self.strategy.observe_trade(trade)
                 fills = self.fill_model.apply_agg_trade(trade, now)
+                self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                 if fills:
                     self._emit_trade_event(now, rec.symbol, fills)
 

@@ -28,6 +28,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Later venue additions stay behind earlier resting orders at the same price.
 - Regression tests cover reconciliation of near-simultaneous depth reductions and `aggTrade` prints so one public-feed signal is not consumed twice.
 - Output summaries report observed public queue-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots separately for depth reductions and `aggTrade` prints.
+- Event traces export the same public queue-consumption accounting per symbol, side, price, source, and timestamp so the summary totals can be audited row by row.
 - Strategy decisions are not backfilled before the first accepted depth sync or before the snapshot timestamp that made buffered diffs usable; decisions due before a later market row are drained before that row, and same-timestamp reactions are scheduled after the row and any fills it creates.
 
 ### Partial fill handling

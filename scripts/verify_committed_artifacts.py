@@ -281,6 +281,9 @@ EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
     "queue_consumed_lots",
     "unmatched_lots",
 }
+EXPECTED_QUEUE_CONSUMPTION_TRACE_FIELDS = EXPECTED_PUBLIC_CONSUMPTION_FIELDS | {
+    "overlap_window_seconds",
+}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
 REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
@@ -856,6 +859,71 @@ def _verify_risk_halt_trace_details(path: Path, row_index: int, details: dict[st
     return issues
 
 
+def _verify_queue_consumption_trace_details(
+    path: Path,
+    row_index: int,
+    row: dict[str, str],
+    details: dict[str, object] | None,
+) -> list[str]:
+    issues: list[str] = []
+    if details is None:
+        return [f"{_repo_relative(path)}:{row_index} queue_consumption row is missing details"]
+
+    if row.get("source") not in EXPECTED_PUBLIC_CONSUMPTION_SOURCES:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid source")
+    if row.get("side") not in {"bid", "ask"}:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid side")
+
+    try:
+        price_tick = int(row.get("price_tick", ""))
+    except (TypeError, ValueError):
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid price_tick")
+    else:
+        if price_tick <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid price_tick")
+
+    try:
+        qty_lots = int(row.get("qty_lots", ""))
+    except (TypeError, ValueError):
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid qty_lots")
+        qty_lots = None
+    else:
+        if qty_lots <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption row has invalid qty_lots")
+
+    if set(details) != EXPECTED_QUEUE_CONSUMPTION_TRACE_FIELDS:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption details have unexpected fields")
+        return issues
+
+    parsed: dict[str, int] = {}
+    for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
+        value = details.get(field)
+        if not isinstance(value, int) or value < 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption has invalid {field}")
+        else:
+            parsed[field] = value
+
+    if details.get("overlap_window_seconds") != EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption has unexpected overlap window")
+
+    if len(parsed) != len(EXPECTED_PUBLIC_CONSUMPTION_FIELDS):
+        return issues
+    observed = parsed["observed_lots"]
+    modeled = parsed["modeled_lots"]
+    queue_consumed = parsed["queue_consumed_lots"]
+    if qty_lots is not None and qty_lots != observed:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption qty_lots does not match observed_lots")
+    if observed < modeled:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption models more lots than observed")
+    if parsed["overlap_netted_lots"] != observed - modeled:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption has inconsistent netted lots")
+    if queue_consumed > modeled:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption consumes more queue than modeled")
+    if parsed["unmatched_lots"] != modeled - queue_consumed:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption has inconsistent unmatched lots")
+    return issues
+
+
 def _verify_futures_event_trace_contract() -> list[str]:
     issues: list[str] = []
     for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
@@ -913,6 +981,10 @@ def _verify_futures_event_trace_contract() -> list[str]:
         previous_key: tuple[float, int] | None = None
         fill_rows = []
         lifecycle_from_trace = {key: 0 for key in FUTURES_ORDER_LIFECYCLE_KEYS}
+        public_consumption_from_trace = {
+            source: {field: 0 for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS}
+            for source in EXPECTED_PUBLIC_CONSUMPTION_SOURCES
+        }
         arrival_queue_samples = 0
         arrival_with_queue_ahead_count = 0
         arrival_queue_ahead_sum = 0
@@ -995,6 +1067,13 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 issues.extend(_verify_decision_trace_details(trace_path, row_index, details))
             elif event_type == "risk_halt":
                 issues.extend(_verify_risk_halt_trace_details(trace_path, row_index, details))
+            elif event_type == "queue_consumption":
+                issue_count_before = len(issues)
+                issues.extend(_verify_queue_consumption_trace_details(trace_path, row_index, row, details))
+                if len(issues) == issue_count_before and details is not None:
+                    source = row["source"]
+                    for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
+                        public_consumption_from_trace[source][field] += int(details[field])
 
             if event_type == "fill":
                 fill_rows.append((row_index, row))
@@ -1040,6 +1119,21 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 f"{_repo_relative(trace_path)} avg_arrival_queue_ahead_lots={expected_avg_queue} "
                 f"does not match summary value {observed_avg_queue!r}"
             )
+        public_consumption_summary = summary.get("public_consumption_summary")
+        if isinstance(public_consumption_summary, dict):
+            public_sources = public_consumption_summary.get("sources")
+            if isinstance(public_sources, dict):
+                for source in EXPECTED_PUBLIC_CONSUMPTION_SOURCES:
+                    summary_stats = public_sources.get(source)
+                    if not isinstance(summary_stats, dict):
+                        continue
+                    for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
+                        if summary_stats.get(field) != public_consumption_from_trace[source][field]:
+                            issues.append(
+                                f"{_repo_relative(trace_path)} queue_consumption {source}.{field}="
+                                f"{public_consumption_from_trace[source][field]} does not match summary value "
+                                f"{summary_stats.get(field)!r}"
+                            )
     return issues
 
 
