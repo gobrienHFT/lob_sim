@@ -62,7 +62,13 @@ Use the deterministic sweep runner to compare transparent parameter choices on a
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 ```
 
-The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, and queue metrics. The score is for inspection only; it is not an alpha or profitability claim.
+Published deterministic reference:
+
+- Markdown: [docs/strategy_results/futures_parameter_sweep_reference.md](strategy_results/futures_parameter_sweep_reference.md)
+- CSV: [docs/strategy_results/futures_parameter_sweep_reference.csv](strategy_results/futures_parameter_sweep_reference.csv)
+- Refresh command: `python scripts/refresh_futures_parameter_sweep_reference.py`
+
+The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, fill quality, and queue metrics. The score is for inspection only; it is not an alpha or profitability claim.
 
 ## Why The Layered Profile Is More Realistic
 

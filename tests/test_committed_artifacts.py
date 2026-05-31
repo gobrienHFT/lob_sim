@@ -26,8 +26,17 @@ FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
 )
+FUTURES_PARAMETER_SWEEP_REFERENCE = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md"
+)
+FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.csv"
+)
 FUTURES_STRATEGY_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
+)
+FUTURES_PARAMETER_SWEEP_REFRESH = (
+    REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
 )
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
@@ -292,6 +301,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in readme
     assert "docs/futures_strategy_profiles.md" in readme
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in readme
+    assert "docs/strategy_results/futures_parameter_sweep_reference.md" in readme
     assert "docs/benchmark_results/futures_replay_reference.md" in readme
     assert readme_walkthrough.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < readme_walkthrough.index(
         "docs/futures_strategy_profiles.md"
@@ -309,6 +319,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in walkthrough
     assert "docs/futures_strategy_profiles.md" in walkthrough
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in walkthrough
+    assert "docs/strategy_results/futures_parameter_sweep_reference.md" in walkthrough
     assert "docs/benchmark_results/futures_replay_reference.md" in walkthrough
     assert walkthrough_five_minute.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < walkthrough_five_minute.index(
         "docs/futures_strategy_profiles.md"
@@ -387,16 +398,36 @@ def test_futures_benchmark_reference_is_published() -> None:
 def test_futures_strategy_profile_docs_are_published() -> None:
     profiles = FUTURES_STRATEGY_PROFILES.read_text(encoding="utf-8")
     reference = FUTURES_STRATEGY_REFERENCE.read_text(encoding="utf-8")
+    sweep_reference = FUTURES_PARAMETER_SWEEP_REFERENCE.read_text(encoding="utf-8")
 
     assert FUTURES_STRATEGY_PROFILES.exists()
     assert FUTURES_STRATEGY_REFERENCE.exists()
     assert FUTURES_STRATEGY_REFRESH.exists()
+    assert FUTURES_PARAMETER_SWEEP_REFERENCE.exists()
+    assert FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists()
+    assert FUTURES_PARAMETER_SWEEP_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
     assert "research_mm" in profiles
+    assert "futures_parameter_sweep_reference.md" in profiles
+    assert "futures_parameter_sweep_reference.csv" in profiles
     assert COMMITTED_STRATEGY_INPUT in reference
     assert "research_mm" in reference
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
     assert "local-only" not in reference
     assert "data/raw_1772633471.ndjson" not in reference
     assert "strategy-profile comparison" in reference
+    assert COMMITTED_STRATEGY_INPUT in sweep_reference
+    assert "python scripts/refresh_futures_parameter_sweep_reference.py" in sweep_reference
+    assert "not an alpha or profitability claim" in sweep_reference
+    assert "Git dirty at run time: `False`" in sweep_reference
+
+    with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert len(rows) == 27
+    assert [int(row["rank"]) for row in rows] == list(range(1, 28))
+    assert {"baseline", "layered_mm", "research_mm"} <= {row["strategy_profile"] for row in rows}
+    assert max(int(row["fill_count"]) for row in rows) > 0
+    assert "fill_source_counts" in rows[0]
+    assert "order_lifecycle_counts" in rows[0]

@@ -75,6 +75,7 @@ Real data would calibrate the volatility surface, customer flow, toxicity assump
 - Recorded clip notes: [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md)
 - Strategy profile notes: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)
 - Strategy profile comparison: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
+- Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
 - Futures semantics and validation: [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md), [docs/futures_validation.md](docs/futures_validation.md)
 - Options case-study pack: [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/)
 - Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)

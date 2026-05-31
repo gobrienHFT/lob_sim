@@ -17,8 +17,9 @@ The options material is secondary: a controlled dealer-pricing case study for re
 7. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
 8. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
 9. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
-10. [Benchmark notes](futures_benchmarks.md)
-11. [Extension points](extension_points.md)
+10. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
+11. [Benchmark notes](futures_benchmarks.md)
+12. [Extension points](extension_points.md)
 
 ## Architecture
 
@@ -45,6 +46,7 @@ python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futur
 python -m lob_sim.cli --env .env.example simulate --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
+python scripts/refresh_futures_parameter_sweep_reference.py
 ```
 
 With `make` available:

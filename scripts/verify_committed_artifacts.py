@@ -24,6 +24,9 @@ FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.
 FUTURES_BENCHMARK_REFERENCE_JSON = BENCHMARK_RESULTS_DIR / "futures_replay_reference.json"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
+FUTURES_PARAMETER_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.md"
+FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.csv"
+FUTURES_PARAMETER_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
@@ -127,10 +130,12 @@ STRATEGY_PROFILE_FRONT_DOOR_LINKS = {
     REPO_ROOT / "README.md": [
         "docs/futures_strategy_profiles.md",
         "docs/strategy_results/futures_strategy_profile_reference.md",
+        "docs/strategy_results/futures_parameter_sweep_reference.md",
     ],
     REPO_ROOT / "WALKTHROUGH.md": [
         "docs/futures_strategy_profiles.md",
         "docs/strategy_results/futures_strategy_profile_reference.md",
+        "docs/strategy_results/futures_parameter_sweep_reference.md",
     ],
 }
 
@@ -157,6 +162,7 @@ MARKDOWN_AUDIT_FILES = [
     TOKENIZED_ASSETS_ROADMAP,
     REPO_ROOT / "docs" / "futures_strategy_profiles.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md",
+    REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
@@ -613,6 +619,7 @@ def _verify_no_temp_paths() -> list[str]:
         FUTURES_BENCHMARK_REFERENCE,
         FUTURES_STRATEGY_PROFILES,
         FUTURES_STRATEGY_REFERENCE,
+        FUTURES_PARAMETER_SWEEP_REFERENCE,
         CASE_STUDY_DIR / "case_brief.md",
         CASE_STUDY_DIR / "demo_report.md",
         CASE_STUDY_DIR / "summary.json",
@@ -751,6 +758,12 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(f"Missing futures strategy reference doc: {_repo_relative(FUTURES_STRATEGY_REFERENCE)}")
     if not FUTURES_STRATEGY_REFRESH.exists():
         issues.append(f"Missing futures strategy refresh script: {_repo_relative(FUTURES_STRATEGY_REFRESH)}")
+    if not FUTURES_PARAMETER_SWEEP_REFERENCE.exists():
+        issues.append(f"Missing futures parameter sweep reference doc: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE)}")
+    if not FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists():
+        issues.append(f"Missing futures parameter sweep reference CSV: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE_CSV)}")
+    if not FUTURES_PARAMETER_SWEEP_REFRESH.exists():
+        issues.append(f"Missing futures parameter sweep refresh script: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFRESH)}")
 
     for path, expected_links in STRATEGY_PROFILE_FRONT_DOOR_LINKS.items():
         text = _read_text(path)
@@ -779,6 +792,74 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md must include the research_mm profile"
         )
+
+    if FUTURES_PARAMETER_SWEEP_REFERENCE.exists() and FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists():
+        sweep_doc = _read_text(FUTURES_PARAMETER_SWEEP_REFERENCE)
+        if not any(path in sweep_doc for path in COMMITTED_STRATEGY_PROFILE_INPUTS):
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md must reference a committed replay input"
+            )
+        if "python scripts/refresh_futures_parameter_sweep_reference.py" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md is missing the refresh command"
+            )
+        if "not an alpha or profitability claim" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md is missing the no-alpha caveat"
+            )
+        if "Git dirty at run time: `False`" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md must be refreshed from a clean source tree"
+            )
+        if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md still depends on a local-only input"
+            )
+
+        with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        required_columns = {
+            "rank",
+            "diagnostic_score",
+            "strategy_profile",
+            "half_spread_bps",
+            "queue_repost_lots",
+            "fill_count",
+            "adverse_fill_rate_1s",
+            "inventory_stdev",
+            "max_drawdown",
+            "fill_from_top_rate",
+            "avg_queue_ahead_lots",
+            "fill_source_counts",
+            "order_lifecycle_counts",
+        }
+        fieldnames = set(rows[0].keys()) if rows else set()
+        missing_columns = sorted(required_columns - fieldnames)
+        if missing_columns:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.csv missing column(s): "
+                + ", ".join(missing_columns)
+            )
+        if len(rows) < 3:
+            issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv must include multiple sweep rows")
+        else:
+            try:
+                ranks = [int(row["rank"]) for row in rows]
+            except (KeyError, ValueError):
+                issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has invalid ranks")
+            else:
+                if ranks != list(range(1, len(rows) + 1)):
+                    issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv ranks are not contiguous")
+            profiles = {row.get("strategy_profile") for row in rows}
+            if not {"baseline", "layered_mm", "research_mm"} <= profiles:
+                issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv is missing a strategy profile")
+            try:
+                fill_counts = [int(row["fill_count"]) for row in rows]
+            except (KeyError, ValueError):
+                issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has invalid fill_count values")
+            else:
+                if max(fill_counts, default=0) <= 0:
+                    issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has no filled sweep run")
 
     section_expectations = [
         (

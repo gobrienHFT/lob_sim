@@ -154,6 +154,7 @@ Committed futures walkthrough artifacts:
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
 - Strategy profiles: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)
 - Strategy profile reference: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
+- Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
 
 ## Limitations
 
