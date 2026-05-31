@@ -11,13 +11,14 @@ The options material is secondary: a controlled dealer-pricing case study for re
 1. [Replay contract](replay_contract.md)
 2. [Binance feed semantics](binance_usdm_feed_semantics.md)
 3. [Futures validation](futures_validation.md)
-4. [Queue/fill model](../lob_sim/sim/fill_model.py)
-5. [Simulation engine](../lob_sim/sim/engine.py)
-6. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
-7. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
-8. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
-9. [Benchmark notes](futures_benchmarks.md)
-10. [Extension points](extension_points.md)
+4. [Replay normalization boundary](../lob_sim/replay/normalization.py)
+5. [Queue/fill model](../lob_sim/sim/fill_model.py)
+6. [Simulation engine](../lob_sim/sim/engine.py)
+7. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
+8. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
+9. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
+10. [Benchmark notes](futures_benchmarks.md)
+11. [Extension points](extension_points.md)
 
 ## Architecture
 
@@ -68,6 +69,7 @@ Observed:
 - public depth diffs and sequence IDs;
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
+- shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 from heapq import heappush, heappop
 from itertools import count
 from pathlib import Path
@@ -12,8 +11,14 @@ import json
 
 from ..book.local_book import LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
-from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SnapshotEvent, SymbolSpec
+from ..book.types import DepthUpdateEvent, LevelChange, SymbolSpec
 from ..config import Config
+from ..replay.normalization import (
+    agg_trade_from_record,
+    depth_update_from_record,
+    instrument_spec_from_record,
+    snapshot_from_record,
+)
 from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
 from .fill_model import PassiveFillModel
@@ -233,17 +238,9 @@ class SimulationEngine:
         self._next_decision[symbol] = next_due
 
     def _parse_exchange_info(self, rec: RecordedEvent) -> SymbolSpec:
-        data = rec.data
-        tick_size = str(data["tickSize"])
-        step_size = str(data["stepSize"])
-        spec = SymbolSpec(
-            symbol=rec.symbol,
-            tick_size=Decimal(tick_size),
-            step_size=Decimal(step_size),
-            price_currency=str(data.get("quoteAsset", "")),
-            quantity_unit=str(data.get("baseAsset", "")),
-            venue=str(data.get("venue", "")),
-        )
+        spec = instrument_spec_from_record(rec)
+        if spec is None:
+            raise ValueError(f"Expected exchangeInfo record for {rec.symbol}")
         self._specs[rec.symbol] = spec
         return spec
 
@@ -557,12 +554,7 @@ class SimulationEngine:
 
             if rec.type == "snapshot":
                 spec = self._specs[rec.symbol]
-                snapshot = SnapshotEvent(
-                    symbol=rec.symbol,
-                    last_update_id=int(rec.data["lastUpdateId"]),
-                    bids=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("bids", [])],
-                    asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("asks", [])],
-                )
+                snapshot = snapshot_from_record(rec, spec)
                 syncer = self._get_sync(rec.symbol)
                 if syncer is None:
                     continue
@@ -584,15 +576,7 @@ class SimulationEngine:
                 if syncer is None:
                     continue
 
-                event = DepthUpdateEvent(
-                    symbol=rec.symbol,
-                    first_update_id=int(rec.data["U"]),
-                    final_update_id=int(rec.data["u"]),
-                    prev_update_id=int(rec.data.get("pu", rec.data["U"])),
-                    bids=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("b", [])],
-                    asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("a", [])],
-                    ts_local=now,
-                )
+                event = depth_update_from_record(rec, spec)
                 gap_count_before = syncer.gap_count
                 try:
                     changes: list[LevelChange] = syncer.on_depth_update(event)
@@ -615,13 +599,7 @@ class SimulationEngine:
 
             if rec.type == "aggTrade":
                 spec = self._specs[rec.symbol]
-                trade = AggTradeEvent(
-                    symbol=rec.symbol,
-                    price_tick=spec.price_to_tick(rec.data["p"]),
-                    qty_lots=spec.qty_to_lot(rec.data["q"]),
-                    buyer_is_maker=bool(rec.data["m"]),
-                    ts_local=now,
-                )
+                trade = agg_trade_from_record(rec, spec)
                 self.strategy.observe_trade(trade)
                 fills = self.fill_model.apply_agg_trade(trade, now)
                 if fills:

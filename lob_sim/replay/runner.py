@@ -9,9 +9,10 @@ import time
 
 from ..book.local_book import LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
-from ..book.types import DepthUpdateEvent, SnapshotEvent, SymbolSpec
+from ..book.types import SymbolSpec
 from ..config import Config
 from ..replay.reader import RecordedEvent, iter_records
+from .normalization import depth_update_from_record, instrument_spec_from_record, snapshot_from_record
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +37,10 @@ class ReplayResult:
 
 
 def symbol_spec_from_record(record: RecordedEvent) -> SymbolSpec | None:
-    if record.type != "exchangeInfo":
+    spec = instrument_spec_from_record(record)
+    if spec is None:
         return None
-    data = record.data
-    tick_size = data.get("tickSize")
-    step_size = data.get("stepSize")
-    if tick_size is None or step_size is None:
-        return None
-    return SymbolSpec(
-        symbol=record.symbol,
-        tick_size=Decimal(str(tick_size)),
-        step_size=Decimal(str(step_size)),
-        price_currency=str(data.get("quoteAsset", "")),
-        quantity_unit=str(data.get("baseAsset", "")),
-        venue=str(data.get("venue", "")),
-    )
+    return spec
 
 
 def parse_symbol_spec_from_record(record: RecordedEvent) -> tuple[str, Decimal, Decimal] | None:
@@ -112,14 +102,7 @@ def replay(
             syncers[rec.symbol] = syncer
 
         if rec.type == "snapshot":
-            bids = [(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("bids", [])]
-            asks = [(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("asks", [])]
-            evt = SnapshotEvent(
-                symbol=rec.symbol,
-                last_update_id=int(rec.data["lastUpdateId"]),
-                bids=bids,
-                asks=asks,
-            )
+            evt = snapshot_from_record(rec, spec)
             if syncer is not None:
                 syncer.on_snapshot(evt)
             continue
@@ -128,15 +111,7 @@ def replay(
             depth_events += 1
             if syncer is None:
                 continue
-            depth = DepthUpdateEvent(
-                symbol=rec.symbol,
-                first_update_id=int(rec.data["U"]),
-                final_update_id=int(rec.data["u"]),
-                prev_update_id=int(rec.data.get("pu", rec.data.get("U", 0))),
-                bids=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("b", [])],
-                asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("a", [])],
-                ts_local=float(rec.ts_local),
-            )
+            depth = depth_update_from_record(rec, spec)
             gap_count_before = syncer.gap_count
             try:
                 if syncer is not None:

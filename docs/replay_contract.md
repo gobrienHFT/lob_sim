@@ -11,6 +11,8 @@ Replay inputs are newline-delimited JSON. Each row has:
 
 The reader validates required fields before replaying. Bad JSON, missing payload fields, malformed price/quantity levels, and unsupported event types fail with file and line-number context.
 
+After validation, `lob_sim.replay.normalization` is the shared conversion boundary used by replay, simulation, and benchmark code. It turns rows into `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` using integer ticks/lots before downstream book or fill logic sees them.
+
 ## Event Types
 
 - `exchangeInfo`: contains `tickSize` and `stepSize`; optional `baseAsset`, `quoteAsset`, and `venue` fields carry instrument metadata used by reporting and fee audit fields.

@@ -28,6 +28,7 @@ For a reviewer-focused path through the futures core, start with [docs/hft_revie
 - Snapshot seeding plus diff-continuity checks in [`lob_sim/book/sync.py`](lob_sim/book/sync.py).
 - Local book reconstruction in [`lob_sim/book/local_book.py`](lob_sim/book/local_book.py).
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
+- Shared replay-row normalization in [`lob_sim/replay/normalization.py`](lob_sim/replay/normalization.py), so replay, simulation, and benchmarks consume the same `InstrumentSpec`, snapshot, depth, and trade event contract.
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).

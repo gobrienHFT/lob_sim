@@ -6,6 +6,7 @@ The futures replay core is intentionally built around normalized events and inte
 
 - `lob_sim.book.types.InstrumentSpec`: tick size, lot size, optional currency/unit metadata, contract multiplier, and venue label. `SymbolSpec` remains as a compatibility alias.
 - `lob_sim.record.schema`: normalized replay row contract for `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
+- `lob_sim.replay.normalization`: single conversion boundary from validated replay rows into `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent`.
 - `lob_sim.binance.*`: Binance USD-M REST/websocket adapter that translates venue payloads into normalized events.
 - `lob_sim.book.sync`: venue sequence semantics and gap policy.
 - `lob_sim.book.local_book`: deterministic local depth state in integer ticks/lots.
@@ -18,9 +19,10 @@ The futures replay core is intentionally built around normalized events and inte
 1. Add an adapter package beside `lob_sim/binance/`.
 2. Translate venue metadata into `InstrumentSpec`.
 3. Translate snapshots and incremental updates into the replay record contract.
-4. Write a feed-semantics doc that states sequence rules, snapshot coverage rules, and gap behavior.
-5. Add sync tests with stale diffs, first-diff coverage, continuity gaps, and resync/non-resync behavior.
-6. Run `python -m lob_sim.cli inspect --file ...` before replaying captured data.
+4. Route offline replay rows through `lob_sim.replay.normalization` or a venue-specific sibling with the same event outputs.
+5. Write a feed-semantics doc that states sequence rules, snapshot coverage rules, and gap behavior.
+6. Add sync tests with stale diffs, first-diff coverage, continuity gaps, and resync/non-resync behavior.
+7. Run `python -m lob_sim.cli inspect --file ...` before replaying captured data.
 
 ## Adding Another Asset Class
 

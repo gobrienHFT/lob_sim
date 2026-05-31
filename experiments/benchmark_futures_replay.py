@@ -12,11 +12,16 @@ from typing import Any, Dict
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
-from lob_sim.book.types import DepthUpdateEvent, SnapshotEvent
+from lob_sim.book.types import SymbolSpec
 from lob_sim.config import load_config
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.replay.normalization import (
+    agg_trade_from_record,
+    depth_update_from_record,
+    instrument_spec_from_record,
+    snapshot_from_record,
+)
 from lob_sim.replay.reader import iter_records
-from lob_sim.replay.runner import symbol_spec_from_record
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
@@ -67,7 +72,7 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
 
         if rec.type == "exchangeInfo":
             exchange_info_events += 1
-            spec = symbol_spec_from_record(rec)
+            spec = instrument_spec_from_record(rec)
             if spec is not None:
                 symbols[spec.symbol] = spec
                 syncers.setdefault(
@@ -89,37 +94,18 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict
 
             if rec.type == "snapshot":
                 snapshot_events += 1
-                syncer.on_snapshot(
-                    SnapshotEvent(
-                        symbol=rec.symbol,
-                        last_update_id=int(rec.data["lastUpdateId"]),
-                        bids=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("bids", [])],
-                        asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("asks", [])],
-                    )
-                )
+                syncer.on_snapshot(snapshot_from_record(rec, spec))
             elif rec.type == "depthUpdate":
                 depth_events += 1
                 try:
-                    syncer.on_depth_update(
-                        DepthUpdateEvent(
-                            symbol=rec.symbol,
-                            first_update_id=int(rec.data["U"]),
-                            final_update_id=int(rec.data["u"]),
-                            prev_update_id=int(rec.data.get("pu", rec.data.get("U", 0))),
-                            bids=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("b", [])],
-                            asks=[(spec.price_to_tick(p), spec.qty_to_lot(q)) for p, q in rec.data.get("a", [])],
-                            ts_local=float(rec.ts_local),
-                        )
-                    )
+                    syncer.on_depth_update(depth_update_from_record(rec, spec))
                 except BookSyncGapError:
                     gap_count += 1
             elif rec.type == "aggTrade":
                 trade_events += 1
                 # Benchmark the same parse path used elsewhere even though replay itself
                 # does not mutate the book on public trade prints.
-                spec.price_to_tick(rec.data["p"])
-                spec.qty_to_lot(rec.data["q"])
-                bool(rec.data["m"])
+                agg_trade_from_record(rec, spec)
 
         loop_latencies_us.append((time.perf_counter_ns() - loop_start_ns) / 1_000.0)
 
