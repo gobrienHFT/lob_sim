@@ -110,6 +110,30 @@ def test_futures_manifest_verifier_rejects_dirty_source_provenance(tmp_path, mon
     assert issues == [f"{showcase / 'manifest.json'} should be refreshed from a clean source tree"]
 
 
+def test_futures_feed_adapter_verifier_rejects_stale_metadata(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    showcase.mkdir()
+    recorded.mkdir()
+    expected = verifier.EXPECTED_FUTURES_FEED_ADAPTER
+    stale = {**expected, "venue_label": "OTHER_VENUE"}
+
+    (showcase / "manifest.json").write_text(json.dumps({"feed_adapter": stale}), encoding="utf-8")
+    (showcase / "summary.json").write_text(json.dumps({"feed_adapter": expected}), encoding="utf-8")
+    (recorded / "manifest.json").write_text(json.dumps({"feed_adapter": expected}), encoding="utf-8")
+    (recorded / "summary.json").write_text(json.dumps({"feed_adapter": expected}), encoding="utf-8")
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_feed_adapter_metadata()
+
+    assert issues == [
+        f"{showcase / 'manifest.json'} has missing or stale feed_adapter metadata",
+        f"{showcase / 'manifest.json'} feed_adapter does not match summary.json",
+    ]
+
+
 def _event_trace_row(**overrides: str) -> dict[str, str]:
     row = {field: "" for field in verifier.FUTURES_EVENT_TRACE_FIELDS}
     row.update(
@@ -386,13 +410,16 @@ def test_options_launchers_live_under_scripts_launchers() -> None:
 
 def test_futures_benchmark_reference_is_published() -> None:
     benchmarks = FUTURES_BENCHMARKS.read_text(encoding="utf-8")
+    benchmark_json = json.loads(FUTURES_BENCHMARK_REFERENCE.with_suffix(".json").read_text(encoding="utf-8"))
 
     assert FUTURES_BENCHMARK_REFERENCE.exists()
     assert "## Published Reference Run" in benchmarks
     assert "## Benchmark Tool" in benchmarks
     published_section = benchmarks.split("## Published Reference Run", 1)[1].split("## Benchmark Tool", 1)[0]
     assert "TBD" not in published_section
+    assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in published_section
     assert "benchmark_results/futures_replay_reference.md" in benchmarks
+    assert benchmark_json["metadata"]["feed_adapter"] == verifier.EXPECTED_FUTURES_FEED_ADAPTER
 
 
 def test_futures_strategy_profile_docs_are_published() -> None:
@@ -421,6 +448,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "python scripts/refresh_futures_parameter_sweep_reference.py" in sweep_reference
     assert "not an alpha or profitability claim" in sweep_reference
     assert "Git dirty at run time: `False`" in sweep_reference
+    assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
 
     with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))

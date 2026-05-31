@@ -226,6 +226,11 @@ FUTURES_EVENT_TRACE_FIELDS = [
     "fill_source",
     "details",
 ]
+EXPECTED_FUTURES_FEED_ADAPTER = {
+    "name": "binance_usdm",
+    "venue_label": "BINANCE_USDM",
+    "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
+}
 
 CASE_STUDY_CORE_FILES = [
     "case_brief.md",
@@ -392,6 +397,22 @@ def _verify_manifest_source_provenance() -> list[str]:
             issues.append(f"{_repo_relative(manifest_path)} source.git_branch is missing")
         if source.get("git_dirty") is not False:
             issues.append(f"{_repo_relative(manifest_path)} should be refreshed from a clean source tree")
+    return issues
+
+
+def _verify_futures_feed_adapter_metadata() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
+        manifest_path = directory / "manifest.json"
+        summary_path = directory / "summary.json"
+        manifest = json.loads(_read_text(manifest_path))
+        summary = json.loads(_read_text(summary_path))
+        if manifest.get("feed_adapter") != EXPECTED_FUTURES_FEED_ADAPTER:
+            issues.append(f"{_repo_relative(manifest_path)} has missing or stale feed_adapter metadata")
+        if summary.get("feed_adapter") != EXPECTED_FUTURES_FEED_ADAPTER:
+            issues.append(f"{_repo_relative(summary_path)} has missing or stale feed_adapter metadata")
+        if manifest.get("feed_adapter") != summary.get("feed_adapter"):
+            issues.append(f"{_repo_relative(manifest_path)} feed_adapter does not match summary.json")
     return issues
 
 
@@ -695,6 +716,8 @@ def _verify_benchmark_publication() -> list[str]:
                 issues.append("Benchmark JSON artifact does not reference the committed recorded clip input")
             if result.get("metadata", {}).get("input_sha256") != expected_sha:
                 issues.append("Benchmark JSON artifact input_sha256 does not match the committed recorded clip")
+            if result.get("metadata", {}).get("feed_adapter") != EXPECTED_FUTURES_FEED_ADAPTER:
+                issues.append("Benchmark JSON artifact has missing or stale feed_adapter metadata")
             if result.get("metadata", {}).get("source", {}).get("git_dirty") is not False:
                 issues.append("Benchmark JSON artifact should be refreshed from a clean source tree")
             for section in ["event_counts", "timing", "memory"]:
@@ -712,6 +735,8 @@ def _verify_benchmark_publication() -> list[str]:
         else:
             if "TBD" in published:
                 issues.append("docs/futures_benchmarks.md published benchmark section still contains TBD")
+            if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in published:
+                issues.append("docs/futures_benchmarks.md published benchmark section is missing feed adapter provenance")
 
     for path, expected_links in BENCHMARK_FRONT_DOOR_LINKS.items():
         path_text = _read_text(path)
@@ -810,6 +835,10 @@ def _verify_strategy_profile_publication() -> list[str]:
         if "Git dirty at run time: `False`" not in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md must be refreshed from a clean source tree"
+            )
+        if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md is missing feed adapter provenance"
             )
         if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
             issues.append(
@@ -1008,6 +1037,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_summary_output_files())
     issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_manifest_source_provenance())
+    issues.extend(_verify_futures_feed_adapter_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
