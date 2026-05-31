@@ -211,7 +211,14 @@ FUTURES_ORDER_LIFECYCLE_KEYS = {
     "cancel_acknowledged",
     "self_trade_prevented",
 }
-FUTURES_TRADE_AUDIT_FIELDS = {"fill_source", "fee_bps", "fee", "fee_currency"}
+FUTURES_TRADE_AUDIT_FIELDS = {
+    "fill_source",
+    "notional",
+    "contract_multiplier",
+    "fee_bps",
+    "fee",
+    "fee_currency",
+}
 FUTURES_EVENT_TRACE_FIELDS = [
     "ts_local",
     "seq",

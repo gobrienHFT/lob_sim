@@ -71,9 +71,10 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Simulation summaries aggregate `fill_source_counts` for `depth_update`, `agg_trade`, and `taker_order`, making depth-inferred fill reliance visible at a glance.
 - Simulation summaries include `public_consumption_summary` so overlap reconciliation and unmatched public queue-consumption signals are auditable even when no strategy order filled.
 - Simulation summaries aggregate `order_lifecycle_counts`, so scheduled arrivals, arrived orders, resting outcomes, immediate-fill arrivals, expired remainders, cancel requests, and cancel acknowledgements can be checked without replaying the trace by hand.
-- Maker/taker fees are applied through an explicit fee model; rebates are negative fees and per-fill fee fields are exported for auditability.
+- Maker/taker fees are applied through an explicit fee model; rebates are negative fees and per-fill fee, notional, and contract-multiplier fields are exported for auditability.
+- Realized PnL, unrealized PnL, spread capture, fees, and markout are multiplied by `InstrumentSpec.contract_multiplier`; inventory remains in normalized quantity units.
 - Unrealized PnL is marked from the current reconstructed mid.
-- Markout windows drain deterministically from the stored fill history.
+- Markout windows drain deterministically from the stored fill history and report multiplier-adjusted price-currency markout per quantity unit.
 
 ## Current Test Coverage
 

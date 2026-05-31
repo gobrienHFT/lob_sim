@@ -91,3 +91,95 @@ def test_metrics_records_per_fill_fee_audit_fields(
     assert Decimal(summary["fills"][0]["fee"]) == Decimal("-0.02")
     assert summary["fills"][0]["fee_currency"] == "USDT"
     assert summary["fills"][0]["fill_source"] == "depth_update"
+    assert summary["fills"][0]["notional"] == "200"
+    assert summary["fills"][0]["contract_multiplier"] == "1"
+
+
+def test_metrics_apply_contract_multiplier_to_pnl_spread_and_markout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(
+        symbol="FUT",
+        tick_size=Decimal("1"),
+        step_size=Decimal("1"),
+        price_currency="USD",
+        contract_multiplier=Decimal("10"),
+    )
+    book = LocalOrderBook(symbol="FUT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(
+            ts_local=0.0,
+            symbol="FUT",
+            side="bid",
+            price_tick=100,
+            qty_lots=2,
+            maker=True,
+            order_id="open-long",
+            created_ts=0.0,
+        ),
+        book,
+        book.mid_price(),
+    )
+
+    book.reset_from_snapshot(2, bids={102: 2}, asks={104: 2})
+    metrics.update_unrealized({"FUT": book}, now_ts=1.1)
+    summary = metrics.get_summary({"FUT": book})
+
+    assert summary["unrealized_pnl"] == pytest.approx(60.0)
+    assert summary["avg_spread_captured"] == pytest.approx(10.0)
+    assert summary["avg_markout_1s"] == pytest.approx(30.0)
+    assert summary["markout_events"][0]["markout"] == "30"
+    assert summary["markout_events"][0]["contract_multiplier"] == "10"
+    assert summary["regime_performance"]["normal_balanced"]["avg_spread_capture"] == pytest.approx(10.0)
+    assert summary["fills"][0]["notional"] == "2000"
+    assert summary["fills"][0]["contract_multiplier"] == "10"
+
+
+def test_metrics_apply_contract_multiplier_to_realized_pnl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(
+        symbol="FUT",
+        tick_size=Decimal("1"),
+        step_size=Decimal("1"),
+        price_currency="USD",
+        contract_multiplier=Decimal("10"),
+    )
+    book = LocalOrderBook(symbol="FUT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="FUT", side="bid", price_tick=100, qty_lots=2, maker=True),
+        book,
+        book.mid_price(),
+    )
+    metrics.on_fill(
+        Fill(ts_local=1.0, symbol="FUT", side="ask", price_tick=104, qty_lots=2, maker=True),
+        book,
+        book.mid_price(),
+    )
+    summary = metrics.get_summary({"FUT": book})
+
+    assert summary["realized_pnl"] == pytest.approx(80.0)
+    assert summary["unrealized_pnl"] == pytest.approx(0.0)
+    assert summary["total_pnl"] == pytest.approx(80.0)

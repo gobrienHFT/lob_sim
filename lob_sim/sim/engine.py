@@ -707,6 +707,8 @@ class SimulationEngine:
                     "side",
                     "price",
                     "qty",
+                    "notional",
+                    "contract_multiplier",
                     "maker",
                     "fill_source",
                     "fee_bps",

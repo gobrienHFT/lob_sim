@@ -72,6 +72,7 @@ class SimulationMetrics:
         self._pending_markouts: list[dict[str, Any]] = []
         self._markout_events: list[dict[str, Any]] = []
         self.markout_sum = Decimal("0")
+        self.markout_qty = Decimal("0")
         self.markout_count = 0
         self.adverse_markout_count = 0
         self._markout_by_side: dict[str, int] = defaultdict(int)
@@ -178,10 +179,10 @@ class SimulationMetrics:
 
         return f"{spread_bucket}_{imbalance_bucket}"
 
-    def _record_fill_regime(self, regime: str, qty: Decimal, spread_capture: Decimal) -> None:
+    def _record_fill_regime(self, regime: str, qty: Decimal, spread_capture_value: Decimal) -> None:
         self._regime_fill_counts[regime] += 1
         self._regime_fill_qty[regime] += qty
-        self._regime_spread_capture[regime] += spread_capture
+        self._regime_spread_capture[regime] += spread_capture_value
 
     def _drain_markout_windows(self, now_ts: float, mids: Dict[str, Decimal]) -> None:
         if not self._pending_markouts:
@@ -203,11 +204,13 @@ class SimulationMetrics:
             price = Decimal(str(entry["price"]))
             qty = Decimal(str(entry["qty"]))
             regime = str(entry["regime"])
+            contract_multiplier = Decimal(str(entry.get("contract_multiplier", "1")))
             side_sign = Decimal("1") if side == "bid" else Decimal("-1")
-            markout = (mid - price) * side_sign
+            markout = (mid - price) * side_sign * contract_multiplier
 
             adverse = markout < 0
             self.markout_sum += markout * qty
+            self.markout_qty += qty
             self.markout_count += 1
             self._regime_markout_counts[regime] += 1
             self._markout_by_side[side] += 1
@@ -228,6 +231,7 @@ class SimulationMetrics:
                     "fill_mid": str(entry["mid_at_fill"]) if entry.get("mid_at_fill") is not None else None,
                     "mid_after": str(mid),
                     "markout": str(markout),
+                    "contract_multiplier": str(contract_multiplier),
                     "adverse": adverse,
                     "horizon": self.cfg.sim_adverse_markout_seconds,
                     "ts_local": entry.get("ts_local"),
@@ -259,6 +263,7 @@ class SimulationMetrics:
         pos = self.position.setdefault(fill.symbol, PositionState())
         qty = book.spec.lot_to_qty(fill.qty_lots)
         price = book.spec.tick_to_price(fill.price_tick)
+        contract_multiplier = book.spec.contract_multiplier
         side_sign = Decimal("1") if fill.side == "bid" else Decimal("-1")
         signed_qty_lots = side_sign * fill.qty_lots
 
@@ -276,9 +281,9 @@ class SimulationMetrics:
             close_qty_lots = min(abs(pos.lot_size), abs(signed_qty_lots))
             close_qty = book.spec.lot_to_qty(close_qty_lots)
             if pos.lot_size > 0:
-                realized_delta = close_qty * (price - (pos.avg_cost or Decimal("0")))
+                realized_delta = close_qty * (price - (pos.avg_cost or Decimal("0"))) * contract_multiplier
             else:
-                realized_delta = close_qty * ((pos.avg_cost or Decimal("0")) - price)
+                realized_delta = close_qty * ((pos.avg_cost or Decimal("0")) - price) * contract_multiplier
             self.realized_pnl += realized_delta
 
             remaining = abs(signed_qty_lots) - close_qty_lots
@@ -299,9 +304,11 @@ class SimulationMetrics:
         self.fill_source_counts[fill.source] = self.fill_source_counts.get(fill.source, 0) + 1
 
         spread_capture = Decimal("0")
+        spread_capture_value = Decimal("0")
         if mid is not None:
-            spread_capture = (mid - price) if fill.side == "bid" else (price - mid)
-            self.spread_capture_sum += spread_capture * qty
+            spread_capture = ((mid - price) if fill.side == "bid" else (price - mid)) * contract_multiplier
+            spread_capture_value = spread_capture * qty
+            self.spread_capture_sum += spread_capture_value
             self.spread_capture_qty += qty
 
         wait_ms = Decimal("0")
@@ -319,7 +326,7 @@ class SimulationMetrics:
         self.queue_ahead_sum += fill.queue_ahead_lots
 
         regime = self._regime(book)
-        self._record_fill_regime(regime, qty, spread_capture)
+        self._record_fill_regime(regime, qty, spread_capture_value)
 
         self.fills_log.append(
             {
@@ -328,6 +335,8 @@ class SimulationMetrics:
                 "side": fill.side,
                 "price": str(price),
                 "qty": str(qty),
+                "notional": str(fee.notional),
+                "contract_multiplier": str(contract_multiplier),
                 "maker": fill.maker,
                 "fill_source": fill.source,
                 "fee_bps": str(fee.rate_bps),
@@ -351,6 +360,7 @@ class SimulationMetrics:
                     "side": fill.side,
                     "price": str(price),
                     "qty": str(qty),
+                    "contract_multiplier": str(contract_multiplier),
                     "regime": regime,
                     "ts_local": fill.ts_local,
                     "deadline_ts": fill.ts_local + self.cfg.sim_adverse_markout_seconds,
@@ -388,7 +398,7 @@ class SimulationMetrics:
 
             qty = book.spec.lot_to_qty(abs(pos.lot_size))
             sign = Decimal(1) if pos.lot_size > 0 else Decimal("-1")
-            unreal += sign * qty * (mid - pos.avg_cost)
+            unreal += sign * qty * (mid - pos.avg_cost) * book.spec.contract_multiplier
             total_inventory += sign * qty
 
         self.unrealized_pnl = unreal
@@ -426,8 +436,8 @@ class SimulationMetrics:
             avg_fill_wait_ms = self.fill_wait_ms_total / Decimal(self.fill_wait_count)
 
         avg_markout = Decimal("0")
-        if self.markout_count > 0:
-            avg_markout = self.markout_sum / Decimal(self.markout_count)
+        if self.markout_qty > 0:
+            avg_markout = self.markout_sum / self.markout_qty
 
         adverse_markout_rate = Decimal("0")
         if self.markout_count > 0:

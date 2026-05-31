@@ -134,6 +134,40 @@ def test_futures_feed_adapter_verifier_rejects_stale_metadata(tmp_path, monkeypa
     ]
 
 
+def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    showcase.mkdir()
+    recorded.mkdir()
+
+    with (showcase / "trades.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["fill_source", "fee_bps", "fee", "fee_currency"])
+        writer.writeheader()
+        writer.writerow({"fill_source": "depth_update", "fee_bps": "0", "fee": "0", "fee_currency": "USDT"})
+    with (recorded / "trades.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=sorted(verifier.FUTURES_TRADE_AUDIT_FIELDS))
+        writer.writeheader()
+        writer.writerow(
+            {
+                "fill_source": "agg_trade",
+                "notional": "100.0",
+                "contract_multiplier": "1",
+                "fee_bps": "0",
+                "fee": "0",
+                "fee_currency": "USDT",
+            }
+        )
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_trade_audit_fields()
+
+    assert issues == [
+        f"{showcase / 'trades.csv'} is missing trade audit column(s): contract_multiplier, notional"
+    ]
+
+
 def _write_public_consumption_case(directory: Path, diagnostics: dict) -> None:
     directory.mkdir(exist_ok=True)
     (directory / "summary.json").write_text(

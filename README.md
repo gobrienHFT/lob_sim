@@ -136,6 +136,8 @@ Tracked metrics include:
 - regime-bucket performance
 - kill-switch state and reason
 
+PnL, spread capture, markout, fees, and exported fill notional use the instrument `contract_multiplier`; inventory remains reported in normalized quantity units.
+
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
 Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py).
 

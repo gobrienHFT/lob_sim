@@ -42,7 +42,7 @@ Do not put venue-specific sequencing, decimal parsing, or product metadata insid
 
 ## Fee Model Boundary
 
-Today fees are configured as maker/taker bps in `Config` and applied through `lob_sim.sim.fees.StaticFeeModel`. Rebates are represented as negative fees, taker costs as positive fees, and each fill export records the fee rate, fee amount, and fee currency used. The current model is intentionally static; a venue adapter can replace it with a richer fee schedule object with:
+Today fees are configured as maker/taker bps in `Config` and applied through `lob_sim.sim.fees.StaticFeeModel`. Rebates are represented as negative fees, taker costs as positive fees, and each fill export records the notional, contract multiplier, fee rate, fee amount, and fee currency used. PnL, spread capture, fees, and markout use `InstrumentSpec.contract_multiplier`; inventory remains in normalized quantity units. The current model is intentionally static; a venue adapter can replace it with a richer fee schedule object with:
 
 - maker/taker rates by product tier;
 - rebates expressed explicitly as negative fees;

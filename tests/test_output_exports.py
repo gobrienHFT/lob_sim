@@ -109,6 +109,8 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
                         "side": "bid",
                         "price": 100000.0,
                         "qty": 0.001,
+                        "notional": "100.0000",
+                        "contract_multiplier": "1",
                         "maker": True,
                         "fill_source": "depth_update",
                         "order_id": "o1",
@@ -183,6 +185,8 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
 
     assert len(rows) == 1
     assert rows[0]["symbol"] == "BTCUSDT"
+    assert rows[0]["notional"] == "100.0000"
+    assert rows[0]["contract_multiplier"] == "1"
     assert rows[0]["fill_source"] == "depth_update"
 
     with output_files["event_trace"].open("r", encoding="utf-8", newline="") as handle:

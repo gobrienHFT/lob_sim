@@ -9,6 +9,7 @@ This repo can support tokenized equities or other exchange-listed synthetic asse
 - Integer tick/lot normalization.
 - Queue-ahead and FIFO price-time assumptions.
 - Signed markout, inventory, drawdown, and kill-switch metrics.
+- Contract-multiplier-aware PnL, spread capture, fees, and markout once product metadata is normalized.
 - Manifested input/config/source provenance.
 
 ## What Must Be Added
