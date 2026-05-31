@@ -1,5 +1,15 @@
 {
   "strategy_profile": "baseline",
+  "event_counts": {
+    "records_processed": 6,
+    "exchange_info": 1,
+    "snapshot": 1,
+    "depth_update": 3,
+    "agg_trade": 1,
+    "depth_changes_applied": 2,
+    "book_gap_count": 0
+  },
+  "book_gap_count_by_symbol": {},
   "total_pnl": 5e-05,
   "realized_pnl": 0.0,
   "unrealized_pnl": 5e-05,
