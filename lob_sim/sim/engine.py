@@ -466,6 +466,7 @@ class SimulationEngine:
             "immediate_fills": len(fills),
         }
         if self.fill_model.last_self_trade_prevented:
+            self.metrics.on_self_trade_prevented()
             arrival_details["self_trade_prevented"] = True
         self._trace(
             now,

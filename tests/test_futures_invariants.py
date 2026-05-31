@@ -507,6 +507,33 @@ class _QueueObserveHoldStrategy:
         )
 
 
+class _SelfTradePreventionStrategy:
+    def __init__(self) -> None:
+        self.decisions = 0
+
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        _ = target
+        _ = order
+        return False
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        self.decisions += 1
+        if self.decisions == 1:
+            return StrategyDecision(
+                quotes=[QuoteTarget("ask", "maker_ask", price_tick=1001, qty_lots=1, refresh_key="resting-ask")]
+            )
+        return StrategyDecision(
+            quotes=[
+                QuoteTarget("ask", "maker_ask", price_tick=1001, qty_lots=1, refresh_key="resting-ask"),
+                QuoteTarget("bid", "crossing_bid", price_tick=1001, qty_lots=1, refresh_key="crossing-bid"),
+            ]
+        )
+
+
 def test_strategy_decisions_are_not_backfilled_before_first_depth_sync(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -716,6 +743,68 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
     assert summary["fills"][0]["fill_source"] == "agg_trade"
     assert summary["fills"][0]["queue_ahead_lots"] == 0
     assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
+
+
+def test_engine_summary_counts_self_trade_prevention_and_trace_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "self_trade_prevention_trace.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.001")], [("100.5", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.001"]], "a": [["100.5", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.001"]], "a": [["100.5", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="1000",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="0",
+        MM_MAX_POSITION="1",
+        MM_HALF_SPREAD_BPS="0",
+    )
+
+    engine = SimulationEngine(cfg)
+    engine.strategy = _SelfTradePreventionStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["fill_count"] == 0
+    assert summary["self_trade_prevention_count"] == 1
+    assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 0, "taker_order": 0}
+    assert engine.fill_model.get_order("BTCUSDT", "ask", "maker_ask") is not None
+    assert engine.fill_model.get_order("BTCUSDT", "bid", "crossing_bid") is None
+
+    arrival_rows = [row for row in engine.event_trace if row["event_type"] == "order_arrival"]
+    self_trade_rows = [row for row in arrival_rows if row["details"].get("self_trade_prevented") is True]
+    assert len(self_trade_rows) == 1
+    assert self_trade_rows[0]["side"] == "bid"
+    assert self_trade_rows[0]["quote_slot"] == "crossing_bid"
+    assert self_trade_rows[0]["details"]["remaining_lots_after_arrival"] == 1
+    assert self_trade_rows[0]["details"]["resting_after_arrival"] is False
 
 
 def test_replace_order_waits_for_cancel_latency_before_new_arrival(

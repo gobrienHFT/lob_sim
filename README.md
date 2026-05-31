@@ -122,6 +122,7 @@ Tracked metrics include:
 - queue-fill count and max queue ahead
 - per-fill attribution source (`depth_update`, `agg_trade`, or `taker_order`)
 - summary-level fill-source counts so depth-inferred fills are visible without scanning every trade row
+- self-trade prevention count for marketable strategy orders stopped before own resting liquidity
 - per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics
 - inventory mean and variability

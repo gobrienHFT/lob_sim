@@ -36,6 +36,7 @@ class SimulationMetrics:
         self.fill_source_counts: dict[FillSource, int] = {source: 0 for source in FILL_SOURCES}
         self.quote_count = 0
         self.cancel_count = 0
+        self.self_trade_prevention_count = 0
         self.records_processed = 0
         self.record_type_counts: dict[str, int] = defaultdict(int)
         self.depth_changes_applied = 0
@@ -86,6 +87,9 @@ class SimulationMetrics:
 
     def on_cancel_requested(self) -> None:
         self.cancel_count += 1
+
+    def on_self_trade_prevented(self) -> None:
+        self.self_trade_prevention_count += 1
 
     def on_record(self, record_type: str) -> None:
         self.records_processed += 1
@@ -465,6 +469,7 @@ class SimulationMetrics:
             "total_inventory": float(total_inventory),
             "quote_count": self.quote_count,
             "cancel_count": self.cancel_count,
+            "self_trade_prevention_count": self.self_trade_prevention_count,
             "avg_fill_wait_ms": float(avg_fill_wait_ms),
             "fill_from_top_count": self.fill_from_top_count,
             "fill_from_top_rate": float(fill_from_top_rate),

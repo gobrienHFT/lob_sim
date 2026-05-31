@@ -40,6 +40,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Replacement quotes wait for the modeled cancel acknowledgement before order-arrival latency is applied, so the old quote remains fillable during cancel latency.
 - Marketable strategy limits and market orders generate taker fills against visible venue liquidity.
 - Marketable strategy orders stop before matching the strategy's own opposite-side resting liquidity; the unfilled self-trade-prevented remainder is expired rather than posted crossed.
+- Simulation summaries expose `self_trade_prevention_count`, so own-cross prevention is visible without scanning the full event trace.
 - Unfilled marketable-limit remainder can rest at its limit price after the visible sweep.
 
 ### Queue-ahead behavior
