@@ -71,6 +71,7 @@ class SimulationMetrics:
 
         self._pending_markouts: list[dict[str, Any]] = []
         self._markout_events: list[dict[str, Any]] = []
+        self._new_markout_events: list[dict[str, Any]] = []
         self.markout_sum = Decimal("0")
         self.markout_qty = Decimal("0")
         self.markout_count = 0
@@ -242,25 +243,35 @@ class SimulationMetrics:
                 self.adverse_markout_count += 1
                 self._regime_adverse_counts[regime] += 1
 
-            self._markout_events.append(
-                {
-                    "symbol": symbol,
-                    "side": side,
-                    "fill_source": fill_source,
-                    "regime": regime,
-                    "fill_price": str(price),
-                    "qty": str(qty),
-                    "fill_mid": str(entry["mid_at_fill"]) if entry.get("mid_at_fill") is not None else None,
-                    "mid_after": str(mid),
-                    "markout": str(markout),
-                    "contract_multiplier": str(contract_multiplier),
-                    "adverse": adverse,
-                    "horizon": self.cfg.sim_adverse_markout_seconds,
-                    "ts_local": entry.get("ts_local"),
-                }
-            )
+            markout_event = {
+                "symbol": symbol,
+                "side": side,
+                "fill_source": fill_source,
+                "regime": regime,
+                "fill_price": str(price),
+                "price_tick": entry.get("price_tick"),
+                "qty": str(qty),
+                "qty_lots": entry.get("qty_lots"),
+                "order_id": entry.get("order_id"),
+                "fill_mid": str(entry["mid_at_fill"]) if entry.get("mid_at_fill") is not None else None,
+                "mid_after": str(mid),
+                "markout": str(markout),
+                "contract_multiplier": str(contract_multiplier),
+                "adverse": adverse,
+                "horizon": self.cfg.sim_adverse_markout_seconds,
+                "ts_local": entry.get("ts_local"),
+                "deadline_ts": entry.get("deadline_ts"),
+                "markout_ts_local": now_ts,
+            }
+            self._markout_events.append(markout_event)
+            self._new_markout_events.append(markout_event)
 
         self._pending_markouts = keep
+
+    def drain_new_markout_events(self) -> list[dict[str, Any]]:
+        events = self._new_markout_events
+        self._new_markout_events = []
+        return events
 
     def _evaluate_risk(self, equity: Decimal) -> None:
         if not self.cfg.sim_kill_switch_enabled or self.kill_switch_triggered:
@@ -381,13 +392,16 @@ class SimulationMetrics:
                     "symbol": fill.symbol,
                     "side": fill.side,
                     "price": str(price),
+                    "price_tick": fill.price_tick,
                     "qty": str(qty),
+                    "qty_lots": fill.qty_lots,
                     "contract_multiplier": str(contract_multiplier),
                     "regime": regime,
                     "ts_local": fill.ts_local,
                     "deadline_ts": fill.ts_local + self.cfg.sim_adverse_markout_seconds,
                     "mid_at_fill": str(mid) if mid is not None else None,
                     "fill_source": fill.source,
+                    "order_id": fill.order_id,
                 }
             )
 

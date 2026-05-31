@@ -104,6 +104,7 @@ Inferred:
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Summaries split signed markout, adverse samples, and adverse-fill rate by fill source, so fill-quality diagnostics are not blended across modeled passive and explicit taker fills.
+- Event traces emit post-horizon `markout` rows, making the later mid and adverse-selection flag auditable next to the original fill.
 - Summaries report public-consumption diagnostics: observed depth/print lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots when no internal level remained to consume.
 - Event traces include `queue_consumption` rows for the per-price public consumption ledger behind those summary totals.
 - Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.

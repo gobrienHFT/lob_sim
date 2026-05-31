@@ -799,6 +799,100 @@ def test_futures_event_trace_verifier_rejects_queue_consumption_summary_mismatch
     ) in issues
 
 
+def test_futures_event_trace_verifier_rejects_malformed_markout(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="markout",
+                source="engine",
+                side="buy",
+                price_tick="0",
+                qty_lots="0",
+                fill_source="mystery",
+                details=(
+                    '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
+                    '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
+                    '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
+                    '"adverse":"yes","regime":"tight"}'
+                ),
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid source" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid fill_source" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid side" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row is missing order_id" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid price_tick" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid qty_lots" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid adverse" in issues
+
+
+def test_futures_event_trace_verifier_rejects_markout_summary_mismatch(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    markout_details = (
+        '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
+        '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
+        '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
+        '"adverse":true,"regime":"tight"}'
+    )
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="markout",
+                source="metrics",
+                side="bid",
+                price_tick="1000",
+                qty_lots="1",
+                order_id="order-1",
+                fill_source="agg_trade",
+                details=markout_details,
+            )
+        ],
+    )
+    summary = json.loads((showcase / "summary.json").read_text(encoding="utf-8"))
+    summary["markout_events"] = [{"fill_source": "agg_trade", "qty": "0.001", "markout": "-1", "adverse": True}]
+    summary["markout_by_fill_source"] = {
+        source: {
+            "samples": 0,
+            "adverse_samples": 0,
+            "qty": 0.0,
+            "avg_markout_1s": 0.0,
+            "adverse_fill_rate_1s": 0.0,
+        }
+        for source in verifier.FUTURES_FILL_SOURCES
+    }
+    (showcase / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert (
+        f"{showcase / 'event_trace.csv'} markout agg_trade.samples=1 "
+        "does not match summary value 0"
+    ) in issues
+
+
 def test_futures_event_trace_verifier_rejects_missing_decision_diagnostics(tmp_path, monkeypatch) -> None:
     showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
     _write_event_trace_case(

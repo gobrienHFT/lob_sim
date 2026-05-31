@@ -1239,6 +1239,7 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert "order_arrival" in event_types
     assert "queue_consumption" in event_types
     assert "fill" in event_types
+    assert "markout" in event_types
     assert [float(row["ts_local"]) for row in rows] == sorted(float(row["ts_local"]) for row in rows)
 
     queue_row = next(row for row in rows if row["event_type"] == "queue_consumption" and row["source"] == "agg_trade")
@@ -1261,6 +1262,24 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert fill_row["price_tick"] == "1000"
     assert fill_row["qty_lots"] == "1"
     assert fill_row["fill_source"] == "agg_trade"
+
+    markout_row = next(row for row in rows if row["event_type"] == "markout")
+    markout_details = json.loads(markout_row["details"])
+    assert markout_row["source"] == "metrics"
+    assert markout_row["side"] == "bid"
+    assert markout_row["price_tick"] == "1000"
+    assert markout_row["qty_lots"] == "1"
+    assert markout_row["order_id"] == fill_row["order_id"]
+    assert markout_row["fill_source"] == "agg_trade"
+    assert markout_details["fill_ts_local"] == 3.0
+    assert markout_details["deadline_ts"] == 4.0
+    assert markout_details["horizon"] == 1.0
+    assert markout_details["fill_price"] == "100.0"
+    assert markout_details["qty"] == "0.001"
+    assert markout_details["mid_after"] == "100.05"
+    assert markout_details["markout"] == "0.05"
+    assert markout_details["adverse"] is False
+    assert summary["markout_by_fill_source"]["agg_trade"]["samples"] == 1
 
     decision_row = next(row for row in rows if row["event_type"] == "decision")
     decision_details = json.loads(decision_row["details"])

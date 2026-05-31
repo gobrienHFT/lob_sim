@@ -175,6 +175,34 @@ class SimulationEngine:
                 },
             )
 
+    def _trace_markout_events(self, events: list[dict[str, Any]]) -> None:
+        for event in events:
+            symbol = str(event["symbol"])
+            self._trace(
+                float(event["markout_ts_local"]),
+                symbol,
+                "markout",
+                "metrics",
+                side=str(event["side"]),
+                price_tick=int(event["price_tick"]) if event.get("price_tick") is not None else None,
+                qty_lots=int(event["qty_lots"]) if event.get("qty_lots") is not None else None,
+                order_id=str(event["order_id"]) if event.get("order_id") is not None else None,
+                fill_source=str(event["fill_source"]),
+                details={
+                    "fill_ts_local": event.get("ts_local"),
+                    "deadline_ts": event.get("deadline_ts"),
+                    "horizon": event.get("horizon"),
+                    "fill_price": event.get("fill_price"),
+                    "qty": event.get("qty"),
+                    "fill_mid": event.get("fill_mid"),
+                    "mid_after": event.get("mid_after"),
+                    "markout": event.get("markout"),
+                    "contract_multiplier": event.get("contract_multiplier"),
+                    "adverse": event.get("adverse"),
+                    "regime": event.get("regime"),
+                },
+            )
+
     def _verbose(self, enabled: bool, message: str) -> None:
         if enabled:
             print(message, flush=True)
@@ -675,6 +703,7 @@ class SimulationEngine:
             self._drain_events(now)
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now)
+                self._trace_markout_events(self.metrics.drain_new_markout_events())
             self._handle_kill_switch(now, rec.symbol, "market_record", verbose)
 
             if verbose and progress_every > 0 and records_processed % progress_every == 0:
@@ -694,6 +723,7 @@ class SimulationEngine:
         )
         self._drain_events(final_ts)
         self.metrics.update_unrealized(self._books, now_ts=final_ts)
+        self._trace_markout_events(self.metrics.drain_new_markout_events())
         shutdown_symbol = next(iter(self._books), "")
         self._handle_kill_switch(final_ts, shutdown_symbol, "shutdown", verbose)
         self._verbose(

@@ -291,6 +291,19 @@ EXPECTED_MARKOUT_BY_SOURCE_FIELDS = {
     "avg_markout_1s",
     "adverse_fill_rate_1s",
 }
+EXPECTED_MARKOUT_TRACE_FIELDS = {
+    "fill_ts_local",
+    "deadline_ts",
+    "horizon",
+    "fill_price",
+    "qty",
+    "fill_mid",
+    "mid_after",
+    "markout",
+    "contract_multiplier",
+    "adverse",
+    "regime",
+}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
 REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
@@ -1046,6 +1059,75 @@ def _verify_queue_consumption_trace_details(
     return issues
 
 
+def _verify_markout_trace_details(
+    path: Path,
+    row_index: int,
+    row: dict[str, str],
+    details: dict[str, object] | None,
+) -> list[str]:
+    issues: list[str] = []
+    if details is None:
+        return [f"{_repo_relative(path)}:{row_index} markout row is missing details"]
+
+    if row.get("source") != "metrics":
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid source")
+    if row.get("fill_source") not in FUTURES_FILL_SOURCES:
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid fill_source")
+    if row.get("side") not in {"bid", "ask"}:
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid side")
+    if not row.get("order_id"):
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row is missing order_id")
+
+    for field in ["price_tick", "qty_lots"]:
+        try:
+            value = int(row.get(field, ""))
+        except (TypeError, ValueError):
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+            continue
+        if value <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+
+    if set(details) != EXPECTED_MARKOUT_TRACE_FIELDS:
+        issues.append(f"{_repo_relative(path)}:{row_index} markout details have unexpected fields")
+        return issues
+
+    for field in ["fill_ts_local", "deadline_ts", "horizon"]:
+        try:
+            value = float(str(details.get(field)))
+        except (TypeError, ValueError):
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+            continue
+        if not math.isfinite(value) or value < 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+
+    for field in ["fill_price", "qty", "mid_after", "markout", "contract_multiplier"]:
+        try:
+            value = Decimal(str(details.get(field)))
+        except (InvalidOperation, TypeError):
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+            continue
+        if not value.is_finite():
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+        if field in {"fill_price", "qty", "contract_multiplier"} and value <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+
+    fill_mid = details.get("fill_mid")
+    if fill_mid is not None:
+        try:
+            value = Decimal(str(fill_mid))
+        except (InvalidOperation, TypeError):
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid fill_mid")
+        else:
+            if not value.is_finite():
+                issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid fill_mid")
+
+    if not isinstance(details.get("adverse"), bool):
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid adverse")
+    if not isinstance(details.get("regime"), str) or not details.get("regime"):
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid regime")
+    return issues
+
+
 def _verify_futures_event_trace_contract() -> list[str]:
     issues: list[str] = []
     for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
@@ -1107,6 +1189,16 @@ def _verify_futures_event_trace_contract() -> list[str]:
             source: {field: 0 for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS}
             for source in EXPECTED_PUBLIC_CONSUMPTION_SOURCES
         }
+        markout_from_trace = {
+            source: {
+                "samples": 0,
+                "adverse_samples": 0,
+                "qty": Decimal("0"),
+                "markout_sum": Decimal("0"),
+            }
+            for source in FUTURES_FILL_SOURCES
+        }
+        markout_row_count = 0
         arrival_queue_samples = 0
         arrival_with_queue_ahead_count = 0
         arrival_queue_ahead_sum = 0
@@ -1196,6 +1288,19 @@ def _verify_futures_event_trace_contract() -> list[str]:
                     source = row["source"]
                     for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
                         public_consumption_from_trace[source][field] += int(details[field])
+            elif event_type == "markout":
+                issue_count_before = len(issues)
+                issues.extend(_verify_markout_trace_details(trace_path, row_index, row, details))
+                if len(issues) == issue_count_before and details is not None:
+                    fill_source = row["fill_source"]
+                    qty = Decimal(str(details["qty"]))
+                    markout = Decimal(str(details["markout"]))
+                    markout_from_trace[fill_source]["samples"] += 1
+                    markout_from_trace[fill_source]["qty"] += qty
+                    markout_from_trace[fill_source]["markout_sum"] += markout * qty
+                    if details.get("adverse") is True:
+                        markout_from_trace[fill_source]["adverse_samples"] += 1
+                    markout_row_count += 1
 
             if event_type == "fill":
                 fill_rows.append((row_index, row))
@@ -1256,6 +1361,53 @@ def _verify_futures_event_trace_contract() -> list[str]:
                                 f"{public_consumption_from_trace[source][field]} does not match summary value "
                                 f"{summary_stats.get(field)!r}"
                             )
+        markout_events = summary.get("markout_events")
+        if isinstance(markout_events, list) and len(markout_events) != markout_row_count:
+            issues.append(
+                f"{_repo_relative(trace_path)} has {markout_row_count} markout row(s), "
+                f"expected {len(markout_events)} from summary markout_events"
+            )
+        markout_by_source = summary.get("markout_by_fill_source")
+        if isinstance(markout_by_source, dict):
+            for source in FUTURES_FILL_SOURCES:
+                summary_stats = markout_by_source.get(source)
+                if not isinstance(summary_stats, dict):
+                    continue
+                expected_stats = markout_from_trace[source]
+                expected_samples = int(expected_stats["samples"])
+                expected_adverse = int(expected_stats["adverse_samples"])
+                expected_qty = float(expected_stats["qty"])
+                expected_avg = (
+                    float(expected_stats["markout_sum"] / expected_stats["qty"])
+                    if expected_stats["qty"] > 0
+                    else 0.0
+                )
+                expected_rate = float(Decimal(expected_adverse) / Decimal(expected_samples)) if expected_samples else 0.0
+                expected_values = {
+                    "samples": expected_samples,
+                    "adverse_samples": expected_adverse,
+                    "qty": expected_qty,
+                    "avg_markout_1s": expected_avg,
+                    "adverse_fill_rate_1s": expected_rate,
+                }
+                for field, expected_value in expected_values.items():
+                    observed = summary_stats.get(field)
+                    if isinstance(expected_value, float):
+                        if not isinstance(observed, (int, float)) or not math.isclose(
+                            float(observed),
+                            expected_value,
+                            rel_tol=1e-12,
+                            abs_tol=1e-12,
+                        ):
+                            issues.append(
+                                f"{_repo_relative(trace_path)} markout {source}.{field}="
+                                f"{expected_value} does not match summary value {observed!r}"
+                            )
+                    elif observed != expected_value:
+                        issues.append(
+                            f"{_repo_relative(trace_path)} markout {source}.{field}="
+                            f"{expected_value} does not match summary value {observed!r}"
+                        )
     return issues
 
 
