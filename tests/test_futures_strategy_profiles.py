@@ -51,6 +51,8 @@ def _build_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: 
         "MM_TRADE_IMBALANCE_WINDOW": "4",
         "MM_MICROSTRUCTURE_GATE_THRESHOLD": "0.20",
         "MM_MICROSTRUCTURE_GATE_BPS": "10.0",
+        "MM_FEE_FLOOR_BUFFER_BPS": "0.0",
+        "MM_TOXICITY_SPREAD_FACTOR": "0",
         "FEES_MAKER_BPS": "0",
         "FEES_TAKER_BPS": "0",
         "LOG_LEVEL": "ERROR",
@@ -75,6 +77,9 @@ def _book() -> LocalOrderBook:
 def test_strategy_profile_config_selection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = _build_config(monkeypatch, tmp_path, MM_STRATEGY_PROFILE="layered_mm")
     assert cfg.mm_strategy_profile == "layered_mm"
+
+    cfg = _build_config(monkeypatch, tmp_path, MM_STRATEGY_PROFILE="research_mm")
+    assert cfg.mm_strategy_profile == "research_mm"
 
     with pytest.raises(ConfigError):
         _build_config(monkeypatch, tmp_path, MM_STRATEGY_PROFILE="unknown_profile")
@@ -132,3 +137,83 @@ def test_layered_profile_microstructure_gate_widens_vulnerable_side(
     )
 
     assert gated_ask_inner > neutral_ask_inner
+
+
+def test_research_profile_uses_reservation_price_to_reduce_long_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_SKEW_BPS_PER_UNIT="100.0",
+        MM_HALF_SPREAD_BPS="1.0",
+    )
+    strategy = MarketMakingStrategy(cfg)
+    flat_quotes = strategy.propose(_book(), inventory_qty=Decimal("0")).quotes
+    long_quotes = strategy.propose(_book(), inventory_qty=Decimal("1")).quotes
+
+    flat_ask = next(quote.price_tick for quote in flat_quotes if quote.side == "ask" and quote.quote_slot == "near")
+    long_ask = next(quote.price_tick for quote in long_quotes if quote.side == "ask" and quote.quote_slot == "near")
+    flat_bid = next(quote.price_tick for quote in flat_quotes if quote.side == "bid" and quote.quote_slot == "near")
+    long_bid = next(quote.price_tick for quote in long_quotes if quote.side == "bid" and quote.quote_slot == "near")
+
+    assert long_ask < flat_ask
+    assert long_bid < flat_bid
+
+
+def test_research_profile_applies_fee_aware_half_spread_floor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="0",
+        MM_LAYERED_INNER_SPREAD_BPS="0",
+        MM_LAYERED_OUTER_SPREAD_BPS="0",
+        MM_FEE_FLOOR_BUFFER_BPS="0",
+        FEES_MAKER_BPS="100.0",
+    )
+
+    quotes = MarketMakingStrategy(cfg).propose(_book(), inventory_qty=Decimal("0")).quotes
+    near_bid = next(quote.price_tick for quote in quotes if quote.side == "bid" and quote.quote_slot == "near")
+    near_ask = next(quote.price_tick for quote in quotes if quote.side == "ask" and quote.quote_slot == "near")
+
+    assert near_ask - near_bid >= 20
+
+
+def test_research_profile_toxicity_widens_vulnerable_side(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+    )
+
+    neutral_strategy = MarketMakingStrategy(cfg)
+    neutral_ask = next(
+        quote.price_tick
+        for quote in neutral_strategy.propose(_book(), inventory_qty=Decimal("0")).quotes
+        if quote.side == "ask" and quote.quote_slot == "near"
+    )
+
+    gated_book = _book()
+    gated_book.reset_from_snapshot(101, bids={1000: 10}, asks={1002: 1})
+    gated_strategy = MarketMakingStrategy(cfg)
+    gated_strategy.observe_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=1002, qty_lots=1, buyer_is_maker=False, ts_local=1.0)
+    )
+    gated_ask = next(
+        quote.price_tick
+        for quote in gated_strategy.propose(gated_book, inventory_qty=Decimal("0")).quotes
+        if quote.side == "ask" and quote.quote_slot == "near"
+    )
+
+    assert gated_ask > neutral_ask

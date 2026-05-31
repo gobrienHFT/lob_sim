@@ -1,13 +1,13 @@
 {
-  "run_id": "321421fa8df7f04c",
+  "run_id": "a8abad27c18148ca",
   "schema_version": "lob_sim.simulation_run.v1",
-  "created_at_utc": "2026-05-31T14:00:16.839588Z",
+  "created_at_utc": "2026-05-31T14:34:54.051325Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 775,
     "sha256": "ff00c29cb45e2188aac03827cc76dfbb4cee1d8833b121b2ba0c555d2c571fa3",
-    "modified_at_utc": "2026-05-31T14:00:16.741725Z"
+    "modified_at_utc": "2026-05-31T14:34:54.035662Z"
   },
   "config": {
     "symbols": [
@@ -38,6 +38,8 @@
     "mm_trade_imbalance_window": 12,
     "mm_microstructure_gate_threshold": "0.20",
     "mm_microstructure_gate_bps": "0.10",
+    "mm_fee_floor_buffer_bps": "0.02",
+    "mm_toxicity_spread_factor": "2.0",
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
   },
@@ -46,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "5438f49f06c868365735b6607696cb85479abcbd",
+    "git_commit": "6936fd1e34dca8b2457eade69ec1e3e3154fc0c6",
     "git_branch": "master",
     "git_dirty": true
   },

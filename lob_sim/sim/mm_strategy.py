@@ -99,10 +99,17 @@ class MarketMakingStrategy:
             return "bearish", gate_ticks
         return "neutral", 0
 
+    def _combined_imbalance(self, book: LocalOrderBook) -> Decimal:
+        return (self._top_of_book_imbalance(book) + self._recent_trade_imbalance(book.symbol)) / Decimal("2")
+
+    def _fee_floor_half_spread_bps(self) -> Decimal:
+        round_trip_maker_fee = max(Decimal("0"), self.cfg.fees_maker_bps * Decimal("2"))
+        return (round_trip_maker_fee / Decimal("2")) + self.cfg.mm_fee_floor_buffer_bps
+
     def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
         if order is None:
             return False
-        if self.cfg.mm_strategy_profile == "layered_mm" and order.refresh_key != target.refresh_key:
+        if self.cfg.mm_strategy_profile in {"layered_mm", "research_mm"} and order.refresh_key != target.refresh_key:
             return True
         return order.queue_ahead_lots > self.cfg.mm_queue_repost_lots
 
@@ -169,13 +176,63 @@ class MarketMakingStrategy:
             QuoteTarget("ask", "outer", int(ask_outer), size_lots, f"outer:ask:{refresh_base}"),
         ]
 
+    def _research_quotes(self, book: LocalOrderBook, inventory_qty: Decimal, size_lots: int) -> list[QuoteTarget]:
+        bid_tick, ask_tick, mid_ticks, skew_ticks = self._base_quote_inputs(book, inventory_qty)
+        spread_scale = Decimal("1") + (self._volatility(book.symbol) * self.cfg.mm_volatility_spread_factor)
+        combined_imbalance = self._combined_imbalance(book)
+        toxicity_bps = abs(combined_imbalance) * self.cfg.mm_toxicity_spread_factor
+        base_half_spread_bps = self.cfg.mm_half_spread_bps * spread_scale
+        fee_floor_bps = self._fee_floor_half_spread_bps()
+        half_spread_bps = max(Decimal("0"), base_half_spread_bps + toxicity_bps, fee_floor_bps)
+        half_spread_ticks = max(Decimal("1"), self._bps_to_ticks(book, half_spread_bps))
+
+        threshold = self.cfg.mm_microstructure_gate_threshold
+        gate_ticks = self._tick_round(self._bps_to_ticks(book, self.cfg.mm_microstructure_gate_bps))
+        if combined_imbalance >= threshold:
+            gate_label = "bullish_toxic"
+            bid_extra = Decimal("0")
+            ask_extra = Decimal(gate_ticks)
+        elif combined_imbalance <= -threshold:
+            gate_label = "bearish_toxic"
+            bid_extra = Decimal(gate_ticks)
+            ask_extra = Decimal("0")
+        else:
+            gate_label = "neutral"
+            bid_extra = Decimal("0")
+            ask_extra = Decimal("0")
+
+        reservation_ticks = mid_ticks - skew_ticks
+        bid_near = self._tick_round(reservation_ticks - half_spread_ticks - bid_extra)
+        ask_near = self._tick_round(reservation_ticks + half_spread_ticks + ask_extra)
+        outer_spread_ticks = max(
+            half_spread_ticks + Decimal("1"),
+            self._bps_to_ticks(book, max(self.cfg.mm_layered_outer_spread_bps, half_spread_bps * Decimal("2"))),
+        )
+        bid_far = min(self._tick_round(reservation_ticks - outer_spread_ticks - bid_extra), bid_near - 1)
+        ask_far = max(self._tick_round(reservation_ticks + outer_spread_ticks + ask_extra), ask_near + 1)
+        if bid_near >= ask_near or bid_far >= ask_far:
+            return []
+
+        refresh_base = (
+            f"research:{bid_tick}:{ask_tick}:{self._tick_round(reservation_ticks)}:{gate_label}:"
+            f"{self._tick_round(half_spread_ticks)}"
+        )
+        return [
+            QuoteTarget("bid", "near", int(bid_near), size_lots, f"near:bid:{refresh_base}"),
+            QuoteTarget("bid", "far", int(bid_far), size_lots, f"far:bid:{refresh_base}"),
+            QuoteTarget("ask", "near", int(ask_near), size_lots, f"near:ask:{refresh_base}"),
+            QuoteTarget("ask", "far", int(ask_far), size_lots, f"far:ask:{refresh_base}"),
+        ]
+
     def propose(self, book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
         self._update_volatility(book)
         if book.best_ticks() is None:
             return StrategyDecision(reason="no_best_quotes")
 
         size_lots = max(1, self._size_lots(book))
-        if self.cfg.mm_strategy_profile == "layered_mm":
+        if self.cfg.mm_strategy_profile == "research_mm":
+            quotes = self._research_quotes(book, inventory_qty, size_lots)
+        elif self.cfg.mm_strategy_profile == "layered_mm":
             quotes = self._layered_quotes(book, inventory_qty, size_lots)
         else:
             quotes = self._baseline_quotes(book, inventory_qty, size_lots)

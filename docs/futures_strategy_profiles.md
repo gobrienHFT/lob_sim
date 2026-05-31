@@ -21,6 +21,19 @@ The replay and matching core is the main artifact. The strategy layer stays deli
 - The same inventory skew is applied across all four quotes
 - Refresh logic is stricter than the baseline: quotes repost on price change, queue deterioration, or a microstructure-gate state change
 
+## Research Profile
+
+- Profile name: `research_mm`
+- Opt-in via `MM_STRATEGY_PROFILE=research_mm`
+- Two quote levels per side: `near` and `far`
+- Uses a reservation-price center: positive inventory lowers both bid and ask, making new buys less attractive and sells more reachable
+- Applies volatility-scaled half-spread plus a toxicity spread component from combined book/trade imbalance
+- Applies a fee-aware half-spread floor from configured maker fees plus `MM_FEE_FLOOR_BUFFER_BPS`
+- Widens the vulnerable side when top-of-book and trade-sign pressure point in the same direction
+- Refreshes on quote tick change, queue-ahead deterioration, and research-state refresh-key changes
+
+This profile is intended for research inspection. It is still not a production market maker and does not claim hidden alpha.
+
 ## Signals Used
 
 - Top-of-book imbalance from visible best-bid and best-ask size
@@ -38,6 +51,7 @@ The microstructure gate is intentionally simple:
 - Reproducible reference: [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md)
 - Committed input: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Refresh command: `python scripts/refresh_futures_strategy_profile_reference.py`
+- Default candidate in the reference doc: `research_mm`
 - The committed clip is short, so the comparison is useful for inspecting profile behavior, not for claiming dramatic performance separation.
 
 ## Parameter Sweep Tool
@@ -48,7 +62,7 @@ Use the deterministic sweep runner to compare transparent parameter choices on a
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 ```
 
-The sweep ranks runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, and queue metrics. The score is for inspection only; it is not an alpha or profitability claim.
+The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, and queue metrics. The score is for inspection only; it is not an alpha or profitability claim.
 
 ## Why The Layered Profile Is More Realistic
 
@@ -66,5 +80,5 @@ The sweep ranks runs by a diagnostic score combining spread capture, signed mark
 ## Limitations And Non-Goals
 
 - Public depth and `aggTrade` data still leave cancel-vs-trade attribution ambiguous inside a level reduction.
-- The layered profile is a quoting/control variant for comparison, not a production market-making model.
+- The layered and research profiles are quoting/control variants for comparison, not production market-making models.
 - The reference comparison in [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md) is a strategy-profile comparison on one committed recorded input, not a claim of alpha.

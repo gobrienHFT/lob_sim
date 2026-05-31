@@ -460,6 +460,10 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md is missing the refresh command"
         )
+    if "research_mm" not in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md must include the research_mm profile"
+        )
 
     section_expectations = [
         (

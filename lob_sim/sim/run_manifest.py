@@ -90,6 +90,8 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "mm_trade_imbalance_window": cfg.mm_trade_imbalance_window,
         "mm_microstructure_gate_threshold": str(cfg.mm_microstructure_gate_threshold),
         "mm_microstructure_gate_bps": str(cfg.mm_microstructure_gate_bps),
+        "mm_fee_floor_buffer_bps": str(cfg.mm_fee_floor_buffer_bps),
+        "mm_toxicity_spread_factor": str(cfg.mm_toxicity_spread_factor),
         "fees_maker_bps": str(cfg.fees_maker_bps),
         "fees_taker_bps": str(cfg.fees_taker_bps),
     }

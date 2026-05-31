@@ -56,7 +56,7 @@ def _format_value(value: object) -> str:
 
 def _render_table(result: dict) -> str:
     rows = [
-        "| Metric | Baseline | `layered_mm` |",
+        f"| Metric | Baseline | `{result['candidate_profile']}` |",
         "|---|---:|---:|",
     ]
     for label, key in REFERENCE_FIELDS:
@@ -70,10 +70,10 @@ def _render_reference_doc(result: dict, input_path: Path) -> str:
     input_file = _repo_relative(input_path)
     comparison_command = COMPARISON_COMMAND_TEMPLATE.format(input_file=input_file)
     interpretation = (
-        "On this short committed BTCUSDT clip, `layered_mm` quotes and refreshes more often than the baseline "
+        f"On this short committed BTCUSDT clip, `{result['candidate_profile']}` quotes and refreshes differently from the baseline "
         f"({result['baseline']['quote_count']} quotes versus {result['candidate']['quote_count']}). It also changes "
         f"fill frequency ({result['baseline']['fill_count']} baseline fills versus "
-        f"{result['candidate']['fill_count']} for `layered_mm`) and the resulting inventory/PnL mix. The clip is "
+        f"{result['candidate']['fill_count']} for `{result['candidate_profile']}`) and the resulting inventory/PnL mix. The clip is "
         "intentionally small, so the comparison is useful for inspecting profile behavior, not for making broad "
         "performance claims."
     )
@@ -96,7 +96,7 @@ def _render_reference_doc(result: dict, input_path: Path) -> str:
             comparison_command,
             "```",
             "",
-            "## Baseline vs Layered",
+            "## Baseline vs Candidate",
             "",
             _render_table(result),
             "",
@@ -115,12 +115,12 @@ def _render_reference_doc(result: dict, input_path: Path) -> str:
 
 def refresh_reference(reference_doc: Path = REFERENCE_DOC) -> dict[str, Path]:
     input_path = _find_committed_input()
-    result = compare_profiles(input_path, str(ENV_PATH), "layered_mm")
+    result = compare_profiles(input_path, str(ENV_PATH), "research_mm")
 
     if result["baseline"]["quote_count"] <= 0:
         raise RuntimeError("Baseline profile did not produce any quotes on the committed input.")
     if result["candidate"]["quote_count"] <= 0:
-        raise RuntimeError("layered_mm did not produce any quotes on the committed input.")
+        raise RuntimeError("research_mm did not produce any quotes on the committed input.")
 
     reference_doc.parent.mkdir(parents=True, exist_ok=True)
     reference_doc.write_text(_render_reference_doc(result, input_path), encoding="utf-8")

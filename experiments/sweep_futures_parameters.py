@@ -149,7 +149,7 @@ def main() -> int:
     parser.add_argument("--file", required=True, help="Path to NDJSON or NDJSON.GZ replay file")
     parser.add_argument("--env", default=".env.example", help="Config source for replay parameters")
     parser.add_argument("--out-dir", default="outputs/futures_sweeps", help="Directory for CSV/Markdown outputs")
-    parser.add_argument("--profiles", default="baseline,layered_mm", help="Comma-separated strategy profiles")
+    parser.add_argument("--profiles", default="baseline,layered_mm,research_mm", help="Comma-separated strategy profiles")
     parser.add_argument("--half-spreads-bps", default="0.05,0.10,0.25", help="Comma-separated half-spread bps values")
     parser.add_argument("--queue-repost-lots", default="0,5,99", help="Comma-separated queue repost thresholds")
     args = parser.parse_args()

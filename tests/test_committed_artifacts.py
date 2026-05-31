@@ -206,7 +206,9 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert FUTURES_STRATEGY_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
+    assert "research_mm" in profiles
     assert COMMITTED_STRATEGY_INPUT in reference
+    assert "research_mm" in reference
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
     assert "local-only" not in reference
     assert "data/raw_1772633471.ndjson" not in reference

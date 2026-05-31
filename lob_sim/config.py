@@ -116,6 +116,8 @@ class Config:
     mm_trade_imbalance_window: int
     mm_microstructure_gate_threshold: Decimal
     mm_microstructure_gate_bps: Decimal
+    mm_fee_floor_buffer_bps: Decimal
+    mm_toxicity_spread_factor: Decimal
     fees_maker_bps: Decimal
     fees_taker_bps: Decimal
     log_level: str
@@ -159,8 +161,8 @@ class Config:
             errs.append("MM_ORDER_QTY must be > 0")
         if self.mm_max_position <= 0:
             errs.append("MM_MAX_POSITION must be > 0")
-        if self.mm_strategy_profile not in {"baseline", "layered_mm"}:
-            errs.append("MM_STRATEGY_PROFILE must be baseline or layered_mm")
+        if self.mm_strategy_profile not in {"baseline", "layered_mm", "research_mm"}:
+            errs.append("MM_STRATEGY_PROFILE must be baseline, layered_mm, or research_mm")
         if self.mm_half_spread_bps < 0:
             errs.append("MM_HALF_SPREAD_BPS must be >= 0")
         if self.mm_layered_inner_spread_bps < 0:
@@ -179,6 +181,10 @@ class Config:
             errs.append("MM_MICROSTRUCTURE_GATE_THRESHOLD must be between 0 and 1")
         if self.mm_microstructure_gate_bps < 0:
             errs.append("MM_MICROSTRUCTURE_GATE_BPS must be >= 0")
+        if self.mm_fee_floor_buffer_bps < 0:
+            errs.append("MM_FEE_FLOOR_BUFFER_BPS must be >= 0")
+        if self.mm_toxicity_spread_factor < 0:
+            errs.append("MM_TOXICITY_SPREAD_FACTOR must be >= 0")
         if self.sim_adverse_markout_seconds < 0:
             errs.append("SIM_ADVERSE_MARKOUT_SECONDS must be >= 0")
         if self.sim_kill_max_drawdown < 0:
@@ -273,6 +279,14 @@ def load_config(env_path: str = ".env") -> Config:
         mm_microstructure_gate_bps=_parse_decimal(
             "MM_MICROSTRUCTURE_GATE_BPS",
             _get_optional("MM_MICROSTRUCTURE_GATE_BPS", "1.0"),
+        ),
+        mm_fee_floor_buffer_bps=_parse_decimal(
+            "MM_FEE_FLOOR_BUFFER_BPS",
+            _get_optional("MM_FEE_FLOOR_BUFFER_BPS", "0.02"),
+        ),
+        mm_toxicity_spread_factor=_parse_decimal(
+            "MM_TOXICITY_SPREAD_FACTOR",
+            _get_optional("MM_TOXICITY_SPREAD_FACTOR", "2.0"),
         ),
         fees_maker_bps=_parse_decimal("FEES_MAKER_BPS", _get_optional("FEES_MAKER_BPS", "-0.2")),
         fees_taker_bps=_parse_decimal("FEES_TAKER_BPS", _get_optional("FEES_TAKER_BPS", "4.0")),

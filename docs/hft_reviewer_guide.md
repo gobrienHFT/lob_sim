@@ -87,6 +87,7 @@ Inferred:
 - Level reductions can be cancels, trades, or both; the simulator documents the attribution assumption instead of hiding it.
 - No hidden liquidity, queue-jump, exchange matching-engine private IDs, or production order gateway.
 - Strategy profiles are transparent controls for exercising the replay engine, not production alpha claims.
+- `research_mm` adds reservation-price inventory skew, toxicity-sensitive spread, and a fee-aware spread floor for inspection; it is still a research profile, not a trading system.
 - Benchmarks are machine/dataset specific and include Python overhead.
 
 ## What This Proves
