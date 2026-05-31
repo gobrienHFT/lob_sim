@@ -25,6 +25,8 @@ python experiments/compare_futures_strategy_profiles.py --file docs/sample_outpu
 | fill_rate | 0.0 | 0.0 |
 | fill_from_top_count | 0 | 0 |
 | avg_queue_ahead_lots | 0.0 | 0.0 |
+| avg_arrival_queue_ahead_lots | 0.5 | 254.77358490566039 |
+| max_arrival_queue_ahead_lots | 2 | 2096 |
 | avg_markout_1s | 0.0 | 0.0 |
 | adverse_fill_rate_1s | 0.0 | 0.0 |
 | inventory_stdev | 0.0 | 0.0 |
