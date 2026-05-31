@@ -20,7 +20,7 @@ from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
-from .run_manifest import build_run_manifest
+from .run_manifest import build_run_manifest, instrument_specs_snapshot
 
 EVENT_TRACE_FIELDS = [
     "ts_local",
@@ -690,6 +690,7 @@ class SimulationEngine:
         summary["run_id"] = manifest_seed.run_id
         summary["input_sha256"] = manifest_seed.input["sha256"]
         summary["feed_adapter"] = manifest_seed.feed_adapter
+        summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
         summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)
@@ -736,6 +737,7 @@ class SimulationEngine:
             created_at_utc=manifest_seed.created_at_utc,
             source=manifest_seed.source,
             adapter=self.adapter,
+            instrument_specs=self._specs,
         )
         with open(manifest_path, "w", encoding="utf-8") as fh:
             json.dump(manifest.as_dict(), fh, indent=2)

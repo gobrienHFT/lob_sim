@@ -42,6 +42,8 @@ The event trace CSV is the compact event-time audit trail: replay records, strat
 
 Decision rows include strategy diagnostics in `details`: decision reason when present, best bid/ask ticks, mid, inventory, volatility, quote-size lots, spread inputs, imbalance inputs, and profile-specific gate state when available. These fields are intended for offline audit of why a quote target was chosen or why live quotes were pulled.
 
+Summaries and manifests include the adapter-normalized `instrument_specs` block for each replayed symbol: venue, price currency, quantity unit, tick size, lot size, and contract multiplier. This makes the units behind inventory, notional, fee, and markout math visible in the generated artifacts.
+
 Trades CSV rows include fill source, normalized quantity, instrument notional, contract multiplier, maker/taker fee rate, fee amount, and fee currency. PnL, spread capture, fees, and markout are multiplier-adjusted; inventory remains in normalized quantity units.
 
 Committed event traces are semantically checked by `scripts/verify_committed_artifacts.py`: row counts must match `summary["event_trace_count"]`, sequence numbers must be contiguous, rows must stay in event-time order, `details` must be JSON objects, fill rows must match `summary["fill_count"]` with a recognized fill source, and order lifecycle counters must agree with the trace rows.
@@ -51,6 +53,7 @@ The manifest records:
 - input path, size, modified time, and SHA-256 digest;
 - non-secret replay and strategy configuration;
 - replay feed-adapter name, venue label, and supported record types;
+- normalized instrument metadata by symbol;
 - Python/platform/runtime metadata;
 - git branch, commit, and dirty-worktree flag when available;
 - output paths and a deterministic `run_id` derived from input digest, simulator version, config, and feed adapter.

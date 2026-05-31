@@ -4,7 +4,36 @@ import json
 
 import pytest
 
+from lob_sim.book.types import InstrumentSpec
 from lob_sim.sim import run_manifest
+
+
+def test_instrument_specs_snapshot_is_stable_json_metadata() -> None:
+    snapshot = run_manifest.instrument_specs_snapshot(
+        {
+            "BTCUSDT": InstrumentSpec(
+                symbol="BTCUSDT",
+                tick_size="0.10",
+                step_size="0.001",
+                price_currency="USDT",
+                quantity_unit="BTC",
+                contract_multiplier="1",
+                venue="BINANCE_USDM",
+            )
+        }
+    )
+
+    assert snapshot == {
+        "BTCUSDT": {
+            "symbol": "BTCUSDT",
+            "venue": "BINANCE_USDM",
+            "price_currency": "USDT",
+            "quantity_unit": "BTC",
+            "tick_size": "0.10",
+            "step_size": "0.001",
+            "contract_multiplier": "1",
+        }
+    }
 
 
 def test_source_state_uses_json_override(monkeypatch: pytest.MonkeyPatch) -> None:

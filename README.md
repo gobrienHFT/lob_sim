@@ -129,6 +129,7 @@ Tracked metrics include:
 - per-fill attribution source (`depth_update`, `agg_trade`, or `taker_order`)
 - summary-level fill-source counts so depth-inferred fills are visible without scanning every trade row
 - public-consumption diagnostics that show how much depth/print consumption was modeled versus netted away
+- summary and manifest instrument specs for venue, tick size, lot size, units, and contract multiplier
 - self-trade prevention count for marketable strategy orders stopped before own resting liquidity
 - per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics

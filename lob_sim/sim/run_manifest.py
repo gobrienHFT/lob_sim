@@ -9,9 +9,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .. import __version__
+from ..book.types import InstrumentSpec
 from ..config import Config
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from ..replay.inspection import file_sha256
@@ -130,6 +131,23 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
     }
 
 
+def instrument_specs_snapshot(specs: Mapping[str, InstrumentSpec]) -> dict[str, dict[str, str]]:
+    """Return stable, JSON-friendly instrument metadata keyed by symbol."""
+
+    snapshot: dict[str, dict[str, str]] = {}
+    for symbol, spec in sorted(specs.items()):
+        snapshot[str(symbol)] = {
+            "symbol": spec.symbol,
+            "venue": spec.venue,
+            "price_currency": spec.price_currency,
+            "quantity_unit": spec.quantity_unit,
+            "tick_size": str(spec.tick_size),
+            "step_size": str(spec.step_size),
+            "contract_multiplier": str(spec.contract_multiplier),
+        }
+    return snapshot
+
+
 def _run_id(input_sha: str, cfg: Config, feed_adapter: dict[str, Any]) -> str:
     payload = json.dumps(
         {
@@ -154,6 +172,7 @@ class RunManifest:
     input: dict[str, Any]
     config: dict[str, Any]
     feed_adapter: dict[str, Any]
+    instrument_specs: dict[str, dict[str, str]]
     runtime: dict[str, Any]
     source: dict[str, Any]
     outputs: dict[str, str]
@@ -168,6 +187,7 @@ class RunManifest:
             "input": self.input,
             "config": self.config,
             "feed_adapter": self.feed_adapter,
+            "instrument_specs": self.instrument_specs,
             "runtime": self.runtime,
             "source": self.source,
             "outputs": self.outputs,
@@ -183,6 +203,7 @@ def build_run_manifest(
     created_at_utc: str | None = None,
     source: dict[str, Any] | None = None,
     adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
+    instrument_specs: Mapping[str, InstrumentSpec] | None = None,
 ) -> RunManifest:
     path = Path(input_path)
     input_sha = file_sha256(path)
@@ -200,6 +221,7 @@ def build_run_manifest(
         },
         config=config_snapshot(cfg),
         feed_adapter=feed_adapter,
+        instrument_specs=instrument_specs_snapshot(instrument_specs or {}),
         runtime={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

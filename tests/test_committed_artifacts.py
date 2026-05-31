@@ -134,6 +134,87 @@ def test_futures_feed_adapter_verifier_rejects_stale_metadata(tmp_path, monkeypa
     ]
 
 
+def _write_instrument_spec_case(
+    directory: Path,
+    *,
+    input_name: str,
+    manifest_specs: dict,
+    summary_specs: dict,
+) -> None:
+    directory.mkdir()
+    input_row = {
+        "ts_local": 1.0,
+        "symbol": "BTCUSDT",
+        "type": "exchangeInfo",
+        "data": {
+            "symbol": "BTCUSDT",
+            "tickSize": "0.10",
+            "stepSize": "0.001",
+            "baseAsset": "BTC",
+            "quoteAsset": "USDT",
+            "venue": "BINANCE_USDM",
+        },
+    }
+    (directory / input_name).write_text(json.dumps(input_row) + "\n", encoding="utf-8")
+    (directory / "manifest.json").write_text(
+        json.dumps({"instrument_specs": manifest_specs}),
+        encoding="utf-8",
+    )
+    (directory / "summary.json").write_text(
+        json.dumps({"instrument_specs": summary_specs}),
+        encoding="utf-8",
+    )
+    with (directory / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["instrument_specs"])
+        writer.writeheader()
+        writer.writerow({"instrument_specs": json.dumps(summary_specs, sort_keys=True)})
+
+
+def test_futures_instrument_spec_verifier_rejects_stale_metadata(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    expected = {
+        "BTCUSDT": {
+            "symbol": "BTCUSDT",
+            "venue": "BINANCE_USDM",
+            "price_currency": "USDT",
+            "quantity_unit": "BTC",
+            "tick_size": "0.10",
+            "step_size": "0.001",
+            "contract_multiplier": "1",
+        }
+    }
+    stale = {
+        "BTCUSDT": {
+            **expected["BTCUSDT"],
+            "contract_multiplier": "100",
+        }
+    }
+
+    _write_instrument_spec_case(
+        showcase,
+        input_name="input_fixture.ndjson",
+        manifest_specs=stale,
+        summary_specs=expected,
+    )
+    _write_instrument_spec_case(
+        recorded,
+        input_name="input_clip.ndjson",
+        manifest_specs=expected,
+        summary_specs=expected,
+    )
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_instrument_specs_metadata()
+
+    assert issues == [
+        f"{showcase / 'manifest.json'} instrument_specs does not match summary.json",
+        f"{showcase / 'manifest.json'} instrument_specs does not match replay input metadata",
+    ]
+
+
 def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path, monkeypatch) -> None:
     showcase = tmp_path / "showcase"
     recorded = tmp_path / "recorded"

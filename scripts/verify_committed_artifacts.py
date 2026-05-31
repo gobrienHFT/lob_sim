@@ -5,6 +5,7 @@ import json
 import math
 import re
 import sys
+from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from pathlib import Path
 
@@ -238,6 +239,15 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "venue_label": "BINANCE_USDM",
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
+EXPECTED_INSTRUMENT_SPEC_FIELDS = {
+    "symbol",
+    "venue",
+    "price_currency",
+    "quantity_unit",
+    "tick_size",
+    "step_size",
+    "contract_multiplier",
+}
 EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
 EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
     "observed_lots",
@@ -463,6 +473,112 @@ def _verify_futures_feed_adapter_metadata() -> list[str]:
             issues.append(f"{_repo_relative(summary_path)} has missing or stale feed_adapter metadata")
         if manifest.get("feed_adapter") != summary.get("feed_adapter"):
             issues.append(f"{_repo_relative(manifest_path)} feed_adapter does not match summary.json")
+    return issues
+
+
+def _format_positive_decimal(value: object) -> str:
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"expected a positive decimal, got {value!r}") from exc
+    if not decimal_value.is_finite() or decimal_value <= 0:
+        raise ValueError(f"expected a positive decimal, got {value!r}")
+    return str(decimal_value)
+
+
+def _instrument_specs_from_replay_input(input_path: Path) -> dict[str, dict[str, str]]:
+    specs: dict[str, dict[str, str]] = {}
+    with input_path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if record.get("type") != "exchangeInfo":
+                continue
+            data = record.get("data")
+            if not isinstance(data, dict):
+                raise ValueError(f"{_repo_relative(input_path)}:{line_number} exchangeInfo data must be an object")
+            symbol = str(record.get("symbol", "")).strip()
+            if not symbol:
+                raise ValueError(f"{_repo_relative(input_path)}:{line_number} exchangeInfo symbol is missing")
+            specs[symbol] = {
+                "symbol": symbol,
+                "venue": str(data.get("venue") or EXPECTED_FUTURES_FEED_ADAPTER["venue_label"]),
+                "price_currency": str(data.get("quoteAsset", "")),
+                "quantity_unit": str(data.get("baseAsset", "")),
+                "tick_size": _format_positive_decimal(data.get("tickSize")),
+                "step_size": _format_positive_decimal(data.get("stepSize")),
+                "contract_multiplier": _format_positive_decimal(data.get("contractMultiplier", "1")),
+            }
+    return specs
+
+
+def _validate_instrument_specs_shape(path: Path, specs: object) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(specs, dict) or not specs:
+        return [f"{_repo_relative(path)} is missing instrument_specs"]
+    for symbol, spec in specs.items():
+        if not isinstance(symbol, str) or not symbol:
+            issues.append(f"{_repo_relative(path)} instrument_specs has an invalid symbol key")
+            continue
+        if not isinstance(spec, dict):
+            issues.append(f"{_repo_relative(path)} instrument_specs[{symbol}] must be an object")
+            continue
+        if set(spec) != EXPECTED_INSTRUMENT_SPEC_FIELDS:
+            issues.append(f"{_repo_relative(path)} instrument_specs[{symbol}] has unexpected fields")
+            continue
+        if spec.get("symbol") != symbol:
+            issues.append(f"{_repo_relative(path)} instrument_specs[{symbol}].symbol does not match its key")
+        for field in ["tick_size", "step_size", "contract_multiplier"]:
+            try:
+                _format_positive_decimal(spec.get(field))
+            except ValueError:
+                issues.append(f"{_repo_relative(path)} instrument_specs[{symbol}].{field} is invalid")
+    return issues
+
+
+def _verify_futures_instrument_specs_metadata() -> list[str]:
+    issues: list[str] = []
+    for directory, input_name in [
+        (FUTURES_SHOWCASE_DIR, "input_fixture.ndjson"),
+        (RECORDED_CLIP_DIR, "input_clip.ndjson"),
+    ]:
+        manifest_path = directory / "manifest.json"
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        input_path = directory / input_name
+        manifest = json.loads(_read_text(manifest_path))
+        summary = json.loads(_read_text(summary_path))
+        manifest_specs = manifest.get("instrument_specs")
+        summary_specs = summary.get("instrument_specs")
+
+        issues.extend(_validate_instrument_specs_shape(manifest_path, manifest_specs))
+        issues.extend(_validate_instrument_specs_shape(summary_path, summary_specs))
+        if manifest_specs != summary_specs:
+            issues.append(f"{_repo_relative(manifest_path)} instrument_specs does not match summary.json")
+
+        try:
+            expected_specs = _instrument_specs_from_replay_input(input_path)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            issues.append(f"{_repo_relative(input_path)} could not be inspected for instrument metadata: {exc}")
+            continue
+        if manifest_specs != expected_specs:
+            issues.append(f"{_repo_relative(manifest_path)} instrument_specs does not match replay input metadata")
+        if summary_specs != expected_specs:
+            issues.append(f"{_repo_relative(summary_path)} instrument_specs does not match replay input metadata")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "instrument_specs" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing instrument_specs")
+            continue
+        try:
+            csv_specs = json.loads(rows[0]["instrument_specs"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} instrument_specs is not valid JSON: {exc}")
+        else:
+            if csv_specs != summary_specs:
+                issues.append(f"{_repo_relative(summary_csv_path)} instrument_specs does not match summary.json")
     return issues
 
 
@@ -1192,6 +1308,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_manifest_source_provenance())
     issues.extend(_verify_futures_feed_adapter_metadata())
+    issues.extend(_verify_futures_instrument_specs_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())

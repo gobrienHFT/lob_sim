@@ -22,7 +22,7 @@ The futures replay core is intentionally built around normalized events and inte
 3. Implement a `ReplayFeedAdapter` that returns the same `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` outputs as the default Binance USD-M adapter.
 4. Translate snapshots and incremental updates into the replay record contract, or into a venue-specific sibling contract behind that adapter.
 5. Write a feed-semantics doc that states sequence rules, snapshot coverage rules, and gap behavior.
-6. Confirm manifests, benchmark metadata, and parameter-sweep reports identify the adapter name, venue label, and supported record types.
+6. Confirm summaries, manifests, benchmark metadata, and parameter-sweep reports identify the adapter name, venue label, supported record types, and normalized instrument metadata used for units and multipliers.
 7. Add sync tests with stale diffs, first-diff coverage, continuity gaps, and resync/non-resync behavior.
 8. Run `python -m lob_sim.cli inspect --file ...` before replaying captured data.
 
@@ -49,7 +49,7 @@ Today fees are configured as maker/taker bps in `Config` and applied through `lo
 - currency of fee charging;
 - multiplier handling for derivatives or tokenized products.
 
-Keep fee assumptions in manifests and summaries. Fee-aware spread floors should remain visible and configurable rather than hidden inside a strategy.
+Keep fee assumptions and instrument units in manifests and summaries. Fee-aware spread floors should remain visible and configurable rather than hidden inside a strategy.
 
 ## What Not To Generalize Yet
 

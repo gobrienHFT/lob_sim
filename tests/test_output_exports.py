@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from lob_sim.book.types import InstrumentSpec
 from lob_sim.config import Config, load_config
 from lob_sim.options.demo import (
     OptionsMarketMakerDemo,
@@ -87,6 +88,15 @@ def test_write_summary_csv_serializes_nested_values(tmp_path: Path):
 def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeypatch):
     cfg = replace(_build_config(tmp_path), record_dir=tmp_path)
     engine = SimulationEngine(cfg)
+    engine._specs["BTCUSDT"] = InstrumentSpec(
+        symbol="BTCUSDT",
+        tick_size=Decimal("0.10"),
+        step_size=Decimal("0.001"),
+        price_currency="USDT",
+        quantity_unit="BTC",
+        contract_multiplier=Decimal("1"),
+        venue="BINANCE_USDM",
+    )
     source_calls = 0
 
     def fake_source_state():
@@ -146,6 +156,17 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
+    assert summary["instrument_specs"] == {
+        "BTCUSDT": {
+            "symbol": "BTCUSDT",
+            "venue": "BINANCE_USDM",
+            "price_currency": "USDT",
+            "quantity_unit": "BTC",
+            "tick_size": "0.10",
+            "step_size": "0.001",
+            "contract_multiplier": "1",
+        }
+    }
     assert summary["public_consumption_summary"] == {
         "overlap_window_seconds": 0.125,
         "sources": {
@@ -176,6 +197,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
 
     assert row["total_pnl"] == "7.25"
     assert row["inventory_by_symbol"] == '{"BTCUSDT": 0.001}'
+    assert json.loads(row["instrument_specs"]) == summary["instrument_specs"]
     assert json.loads(row["public_consumption_summary"]) == summary["public_consumption_summary"]
     assert "fills" not in row
     assert "markout_events" not in row
@@ -198,6 +220,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert manifest["run_id"] == summary["run_id"]
     assert manifest["input"]["sha256"] == summary["input_sha256"]
     assert manifest["feed_adapter"] == summary["feed_adapter"]
+    assert manifest["instrument_specs"] == summary["instrument_specs"]
     assert manifest["source"] == {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
     assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]
