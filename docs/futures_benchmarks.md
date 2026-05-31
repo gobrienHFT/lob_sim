@@ -5,11 +5,11 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 ## Published Reference Run
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
-- Input SHA-256: `826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be`
+- Input SHA-256: `729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4`
 - Config digest: `96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4`
 - Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-05-31T15:20:05Z`
+- Benchmark date: `2026-05-31T15:41:32Z`
 - Human-readable output: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
 - Structured JSON: [docs/benchmark_results/futures_replay_reference.json](benchmark_results/futures_replay_reference.json)
 
@@ -24,7 +24,7 @@ Event counts for the committed input:
 
 | Run | Total events | ExchangeInfo events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.565582 | 141.45 | 74.15 | 91657.96 | 0.78 |
+| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 1.333566 | 59.99 | 221.20 | 193239.88 | 0.78 |
 
 Exact benchmark command:
 
