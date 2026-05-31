@@ -175,6 +175,84 @@ def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
     assert model.get_order("BTCUSDT", "bid") is None
 
 
+def test_cancelled_resting_order_cannot_fill_after_queue_ahead_clears() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 2)], asks=[(10010, 2)])
+
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=1,
+        remaining_lots=1,
+        created_ts=0.0,
+    )
+    model.place_order(order)
+
+    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 2, 0)], 1.0)
+    assert fills == []
+    assert model.queue_ahead_lots("BTCUSDT", order) == 0
+
+    model.cancel_order(order.order_id)
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=2.0),
+        2.0,
+    )
+    assert fills == []
+    assert model.get_order("BTCUSDT", "bid") is None
+
+
+def test_marketable_limit_generates_taker_fill_and_posts_remainder() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1), (10011, 1)])
+
+    fills = model.place_order(
+        Order(
+            order_id="crossing-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=10010,
+            qty_lots=2,
+            remaining_lots=2,
+            created_ts=1.0,
+        )
+    )
+
+    assert [(fill.price_tick, fill.qty_lots, fill.maker) for fill in fills] == [(10010, 1, False)]
+    resting = model.get_order("BTCUSDT", "bid")
+    assert resting is not None
+    assert resting.order_id == "crossing-bid"
+    assert resting.remaining_lots == 1
+    assert model.depth_levels("BTCUSDT", "ask") == [(10011, 1)]
+
+
+def test_market_order_sweeps_visible_depth_levels_as_taker() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1), (10011, 2)])
+
+    fills = model.place_order(
+        Order(
+            order_id="market-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=None,
+            qty_lots=3,
+            remaining_lots=3,
+            created_ts=1.0,
+            order_type="market",
+        )
+    )
+
+    assert [(fill.price_tick, fill.qty_lots, fill.maker) for fill in fills] == [
+        (10010, 1, False),
+        (10011, 2, False),
+    ]
+    assert model.get_order("BTCUSDT", "bid") is None
+    assert model.depth_levels("BTCUSDT", "ask") == []
+
+
 def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     replay_path = _write_replay_file(tmp_path / "deterministic.ndjson")
     cfg = _build_config(monkeypatch, tmp_path)

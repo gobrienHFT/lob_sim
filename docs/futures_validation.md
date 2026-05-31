@@ -29,6 +29,12 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - A resting order can fill in multiple chunks as queue is consumed.
 - Remaining quantity stays active until fully filled or canceled.
 
+### Cancel and taker-order handling
+
+- A canceled resting order cannot fill after its visible queue ahead has cleared.
+- Marketable strategy limits and market orders generate taker fills against visible venue liquidity.
+- Unfilled marketable-limit remainder can rest at its limit price after the visible sweep.
+
 ### Queue-ahead behavior
 
 - Strategy orders only fill after visible queue ahead has been consumed.

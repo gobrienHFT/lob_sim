@@ -8,10 +8,14 @@ Side = Literal["bid", "ask"]
 
 
 @dataclass(frozen=True)
-class SymbolSpec:
+class InstrumentSpec:
     symbol: str
     tick_size: Decimal
     step_size: Decimal
+    price_currency: str = ""
+    quantity_unit: str = ""
+    contract_multiplier: Decimal = Decimal("1")
+    venue: str = ""
 
     def price_to_tick(self, price: Decimal | str | float | int) -> int:
         value = Decimal(str(price))
@@ -26,6 +30,9 @@ class SymbolSpec:
 
     def lot_to_qty(self, lots: int) -> Decimal:
         return Decimal(lots) * self.step_size
+
+
+SymbolSpec = InstrumentSpec
 
 
 @dataclass(frozen=True)

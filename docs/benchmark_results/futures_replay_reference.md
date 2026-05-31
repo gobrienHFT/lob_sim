@@ -1,78 +1,68 @@
 # Futures Replay Reference Benchmark
 
-- Benchmark date: `2026-03-19 21:17:35 +00:00`
-- Commit SHA: `3d219dd7856f46db4d1e080e74affea2632e5661`
-- OS: `Microsoft Windows 11 Pro (10.0.26200)`
-- CPU: `Intel(R) Core(TM) i5-1035G7 CPU @ 1.20GHz`
+- Benchmark date: `2026-05-31T13:53:54Z`
+- Commit SHA at run time: `5438f49f06c868365735b6607696cb85479abcbd`
+- Git dirty at run time: `true`
+- OS/platform: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Input file: `data/raw_1772633471.ndjson`
-- Input status: local-only recorded BTCUSDT raw file (not committed)
+- Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
+- Input SHA-256: `826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be`
+- Config digest: `f7707661e9bfb641a9771046406699948081496b10d23e1c878cb6b14052e562`
 
-Exact benchmark commands:
+Exact benchmark command:
 
-1. `python experiments/benchmark_futures_replay.py --file data/raw_1772633471.ndjson --env .env.example`
-2. `python experiments/benchmark_futures_replay.py --file data/raw_1772633471.ndjson --env .env.example`
-3. `python experiments/benchmark_futures_replay.py --file data/raw_1772633471.ndjson --env .env.example`
-
-Median summary numbers:
-
-- Total events: `1997`
-- Snapshot events: `2`
-- Depth events: `281`
-- AggTrade events: `1713`
-- Gap count: `1`
-- Wall time: `4.325651s`
-- Events/sec: `461.66`
-- Loop latency p50: `66.10us`
-- Loop latency p99: `32194.98us`
-- Peak traced memory: `1.28 MiB`
-
-This result is specific to this machine and dataset.
-
-## Run 1 Raw Stdout
-
-```text
-Replay benchmark file: data\raw_1772633471.ndjson
-Total events: 1997
-Snapshot events: 2
-Depth events: 281
-AggTrade events: 1713
-Gap count: 1
-Wall time: 4.814621s
-Events/sec: 414.78
-Loop latency p50: 72.40us
-Loop latency p99: 33975.98us
-Peak traced memory: 1.28 MiB
+```bash
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example
 ```
 
-## Run 2 Raw Stdout
+Summary:
+
+- Total events: `80`
+- Snapshot events: `1`
+- Depth events: `9`
+- AggTrade events: `69`
+- Gap count: `0`
+- Wall time: `0.898962s`
+- Events/sec: `88.99`
+- Loop latency p50: `146.35us`
+- Loop latency p99: `128700.99us`
+- Peak traced memory: `0.78 MiB`
+
+This result is specific to this machine, this Python interpreter, and this committed fixture. The fixture is intentionally small, so fixed interpreter and validation overhead dominate.
+
+## Raw Stdout
 
 ```text
-Replay benchmark file: data\raw_1772633471.ndjson
-Total events: 1997
-Snapshot events: 2
-Depth events: 281
-AggTrade events: 1713
-Gap count: 1
-Wall time: 4.325651s
-Events/sec: 461.66
-Loop latency p50: 66.10us
-Loop latency p99: 32194.98us
-Peak traced memory: 1.28 MiB
-```
-
-## Run 3 Raw Stdout
-
-```text
-Replay benchmark file: data\raw_1772633471.ndjson
-Total events: 1997
-Snapshot events: 2
-Depth events: 281
-AggTrade events: 1713
-Gap count: 1
-Wall time: 3.613670s
-Events/sec: 552.62
-Loop latency p50: 62.90us
-Loop latency p99: 26668.89us
-Peak traced memory: 1.28 MiB
+Replay benchmark file: docs\sample_outputs\futures_recorded_clip_case\input_clip.ndjson
+Input SHA-256: 826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be
+Config digest: f7707661e9bfb641a9771046406699948081496b10d23e1c878cb6b14052e562
+Python: 3.13.1
+Platform: Windows-11-10.0.26200-SP0
+Git commit: 5438f49f06c868365735b6607696cb85479abcbd
+Git branch: master
+Git dirty: True
+Total events: 80
+Snapshot events: 1
+Depth events: 9
+AggTrade events: 69
+Gap count: 0
+Wall time: 0.898962s
+Events/sec: 88.99
+Loop latency p50: 146.35us
+Loop latency p99: 128700.99us
+Peak traced memory: 0.78 MiB
+Benchmark metadata JSON:
+{
+  "benchmark_created_at_utc": "2026-05-31T13:53:54.160822Z",
+  "input_file": "docs\\sample_outputs\\futures_recorded_clip_case\\input_clip.ndjson",
+  "input_sha256": "826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be",
+  "config_digest": "f7707661e9bfb641a9771046406699948081496b10d23e1c878cb6b14052e562",
+  "python_version": "3.13.1",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "source": {
+    "git_commit": "5438f49f06c868365735b6607696cb85479abcbd",
+    "git_branch": "master",
+    "git_dirty": true
+  }
+}
 ```

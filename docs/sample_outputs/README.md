@@ -6,6 +6,7 @@ This directory contains committed, deterministic sample artifacts for both the f
 
 - Pack entry: [`futures_replay_walkthrough/README.md`](futures_replay_walkthrough/README.md)
 - Summary: [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
+- Manifest: [`futures_replay_walkthrough/manifest.json`](futures_replay_walkthrough/manifest.json)
 - Trades: [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
 - Notes: [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 - Input type: synthetic deterministic walkthrough fixture
@@ -19,13 +20,15 @@ Open first:
 
 1. [`futures_replay_walkthrough/README.md`](futures_replay_walkthrough/README.md)
 2. [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
-3. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
-4. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
+3. [`futures_replay_walkthrough/manifest.json`](futures_replay_walkthrough/manifest.json)
+4. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
+5. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 
 ## Recorded Futures Clip Case
 
 - Pack entry: [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)
 - Summary: [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
+- Manifest: [`futures_recorded_clip_case/manifest.json`](futures_recorded_clip_case/manifest.json)
 - Trades: [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
 - Notes: [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
 - Input type: clipped recorded BTCUSDT event stream from an existing local raw capture
@@ -39,8 +42,9 @@ Open first:
 
 1. [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)
 2. [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
-3. [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
-4. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
+3. [`futures_recorded_clip_case/manifest.json`](futures_recorded_clip_case/manifest.json)
+4. [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
+5. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
 
 ## Controlled Options Case Study
 
@@ -135,4 +139,4 @@ That regenerates:
 
 ### Scope
 
-These artifacts come from the synthetic options dealer study. They do not come from replayed exchange options order-book data.
+The futures packs come from deterministic Binance USD-M style replay inputs. The options packs come from the synthetic dealer-pricing study and do not represent replayed exchange options order-book data.

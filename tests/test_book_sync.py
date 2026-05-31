@@ -4,7 +4,8 @@ from decimal import Decimal
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSynchronizer
-from lob_sim.book.types import DepthUpdateEvent, SnapshotEvent, SymbolSpec
+from lob_sim.book.types import DepthUpdateEvent, InstrumentSpec, SnapshotEvent, SymbolSpec
+from lob_sim.binance.symbols import parse_exchange_info_for_symbol
 
 
 def _spec() -> SymbolSpec:
@@ -48,3 +49,42 @@ def test_book_sync_applies_snapshot_then_continuous_diffs():
     assert book.best_ticks() == (10000, 10100)
     assert book.bids[10000] == 8
     assert book.asks[10100] == 7
+
+
+def test_symbol_spec_is_compatibility_alias_for_instrument_spec():
+    spec = SymbolSpec(
+        symbol="BTCUSDT",
+        tick_size=Decimal("0.1"),
+        step_size=Decimal("0.001"),
+        price_currency="USDT",
+        quantity_unit="BTC",
+        venue="BINANCE_USDM",
+    )
+
+    assert isinstance(spec, InstrumentSpec)
+    assert spec.tick_to_price(1000) == Decimal("100.0")
+    assert spec.lot_to_qty(2) == Decimal("0.002")
+    assert spec.price_currency == "USDT"
+
+
+def test_binance_symbol_parser_preserves_asset_metadata():
+    spec = parse_exchange_info_for_symbol(
+        {
+            "symbols": [
+                {
+                    "symbol": "BTCUSDT",
+                    "baseAsset": "BTC",
+                    "quoteAsset": "USDT",
+                    "filters": [
+                        {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
+                        {"filterType": "LOT_SIZE", "stepSize": "0.001"},
+                    ],
+                }
+            ]
+        },
+        "BTCUSDT",
+    )
+
+    assert spec.price_currency == "USDT"
+    assert spec.quantity_unit == "BTC"
+    assert spec.venue == "BINANCE_USDM"

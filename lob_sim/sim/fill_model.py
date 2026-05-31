@@ -230,53 +230,70 @@ class PassiveFillModel:
         # any unfinished consumption implies all volume at this level has been consumed.
         return fills
 
-    def _consume_book(
+    def _price_breaches_limit(self, taker_side: str, level_tick: int, price_cap: int | None) -> bool:
+        if price_cap is None:
+            return False
+        if taker_side == "bid":
+            return level_tick > price_cap
+        return level_tick < price_cap
+
+    def _execute_taker_order(
         self,
-        symbol: str,
-        taker_side: str,
-        qty: int,
-        price_cap: int | None,
+        order: Order,
         ts_local: float,
-        maker_fill: bool,
     ) -> list[Fill]:
-        if qty <= 0:
+        if order.remaining_lots <= 0:
             return []
 
-        opposite_bucket = self._bucket(self._reverse_side(taker_side))
-        levels = self._book(symbol)[opposite_bucket]
-        level_ticks = sorted(levels.keys(), reverse=(taker_side == "ask"))
+        opposite_bucket = self._bucket(self._reverse_side(order.side))
+        levels = self._book(order.symbol)[opposite_bucket]
+        level_ticks = sorted(levels.keys(), reverse=(order.side == "ask"))
 
         fills: list[Fill] = []
-        remaining = qty
-
+        remaining = order.remaining_lots
         for tick in level_ticks:
             if remaining <= 0:
                 break
-            if price_cap is not None:
-                if taker_side == "bid" and tick > price_cap:
+            if self._price_breaches_limit(order.side, tick, order.price_tick):
+                break
+
+            queue = levels.get(tick)
+            while remaining > 0 and queue:
+                head = queue[0]
+                if not head.active or head.remaining_lots <= 0:
+                    queue.popleft()
                     continue
-                if taker_side == "ask" and tick < price_cap:
-                    continue
-            fills_level, remaining = self._consume_front(
-                symbol=symbol,
-                side=self._reverse_side(taker_side),
-                queue=levels[tick],
-                lots=remaining,
-                ts_local=ts_local,
-                maker_fill=maker_fill,
-            )
-            fills.extend(fills_level)
-            current_queue = levels.get(tick)
-            if current_queue is None or not current_queue:
-                levels.pop(tick, None)
-            if remaining > 0:
-                # Venue liquidity at this level was only partially consumed, so
-                # price-time matching should stop for this side. This protects
-                # from crossing into worse prices too aggressively.
-                current_queue = levels.get(tick)
-                if current_queue and not current_queue[0].is_strategy:
+
+                take = min(remaining, head.remaining_lots)
+                head.remaining_lots -= take
+                remaining -= take
+                fills.append(
+                    Fill(
+                        ts_local=ts_local,
+                        symbol=order.symbol,
+                        side=order.side,
+                        price_tick=tick,
+                        qty_lots=take,
+                        maker=False,
+                        order_id=order.order_id,
+                        queue_ahead_lots=0,
+                        created_ts=order.created_ts,
+                    )
+                )
+
+                if head.remaining_lots <= 0:
+                    if head.is_strategy:
+                        self._orders.pop((head.symbol, head.side, head.quote_slot), None)
+                        self._order_index.pop(head.order_id, None)
+                    head.active = False
+                    queue.popleft()
+                elif not head.is_strategy:
                     break
 
+            if queue is None or not queue:
+                levels.pop(tick, None)
+
+        order.remaining_lots = remaining
         return fills
 
     def _marketable_fill(
@@ -284,17 +301,7 @@ class PassiveFillModel:
         order: Order,
         ts_local: float,
     ) -> list[Fill]:
-        fills = self._consume_book(
-            symbol=order.symbol,
-            taker_side=order.side,
-            qty=order.remaining_lots,
-            price_cap=order.price_tick,
-            ts_local=ts_local,
-            maker_fill=False,
-        )
-        consumed = sum(fill.qty_lots for fill in fills)
-        order.remaining_lots = max(0, order.remaining_lots - consumed)
-        return fills
+        return self._execute_taker_order(order, ts_local=ts_local)
 
     def _can_market(self, order: Order) -> bool:
         if order.price_tick is None:
@@ -337,14 +344,8 @@ class PassiveFillModel:
         if order.order_type == "cancel":
             return []
         if order.order_type == "market":
-            return self._consume_book(
-                symbol=order.symbol,
-                taker_side=order.side,
-                qty=order.remaining_lots,
-                price_cap=None,
-                ts_local=order.created_ts,
-                maker_fill=False,
-            )
+            order.price_tick = None
+            return self._execute_taker_order(order, ts_local=order.created_ts)
 
         existing = self.get_order(order.symbol, order.side, order.quote_slot)
         if existing is not None and existing.order_id != order.order_id:

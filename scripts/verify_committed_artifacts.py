@@ -21,6 +21,9 @@ FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
+HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
+EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
+TOKENIZED_ASSETS_ROADMAP = REPO_ROOT / "docs" / "tokenized_assets_roadmap.md"
 COMMITTED_STRATEGY_PROFILE_INPUTS = (
     "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
@@ -50,10 +53,12 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
     REPO_ROOT / "docs" / "sample_outputs" / "README.md": [
         "futures_replay_walkthrough/README.md",
         "futures_replay_walkthrough/summary.json",
+        "futures_replay_walkthrough/manifest.json",
         "futures_replay_walkthrough/trades.csv",
         "futures_replay_walkthrough/walkthrough.md",
         "futures_recorded_clip_case/README.md",
         "futures_recorded_clip_case/summary.json",
+        "futures_recorded_clip_case/manifest.json",
         "futures_recorded_clip_case/trades.csv",
         "futures_recorded_clip_case/case_notes.md",
     ],
@@ -122,7 +127,10 @@ STRATEGY_PROFILE_FRONT_DOOR_LINKS = {
 
 REPLAY_CONTRACT_FRONT_DOOR_LINKS = {
     REPO_ROOT / "README.md": [
+        "docs/hft_reviewer_guide.md",
         "docs/replay_contract.md",
+        "docs/extension_points.md",
+        "docs/tokenized_assets_roadmap.md",
     ],
     REPO_ROOT / "docs" / "futures_validation.md": [
         "tests/test_record_schema.py",
@@ -134,7 +142,10 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "WALKTHROUGH.md",
     REPO_ROOT / "docs" / "binance_usdm_feed_semantics.md",
     REPO_ROOT / "docs" / "futures_validation.md",
+    HFT_REVIEWER_GUIDE,
     REPLAY_CONTRACT,
+    EXTENSION_POINTS,
+    TOKENIZED_ASSETS_ROADMAP,
     REPO_ROOT / "docs" / "futures_strategy_profiles.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
@@ -158,6 +169,7 @@ FUTURES_SHOWCASE_CORE_FILES = [
     "input_fixture.ndjson",
     "summary.json",
     "summary.csv",
+    "manifest.json",
     "trades.csv",
 ]
 
@@ -167,6 +179,7 @@ RECORDED_CLIP_CORE_FILES = [
     "input_clip.ndjson",
     "summary.json",
     "summary.csv",
+    "manifest.json",
     "trades.csv",
 ]
 
@@ -298,10 +311,12 @@ def _verify_no_temp_paths() -> list[str]:
         FUTURES_SHOWCASE_DIR / "walkthrough.md",
         FUTURES_SHOWCASE_DIR / "summary.json",
         FUTURES_SHOWCASE_DIR / "summary.csv",
+        FUTURES_SHOWCASE_DIR / "manifest.json",
         RECORDED_CLIP_DIR / "README.md",
         RECORDED_CLIP_DIR / "case_notes.md",
         RECORDED_CLIP_DIR / "summary.json",
         RECORDED_CLIP_DIR / "summary.csv",
+        RECORDED_CLIP_DIR / "manifest.json",
         FUTURES_BENCHMARKS,
         FUTURES_BENCHMARK_REFERENCE,
         FUTURES_STRATEGY_PROFILES,
@@ -311,6 +326,9 @@ def _verify_no_temp_paths() -> list[str]:
         CASE_STUDY_DIR / "summary.json",
     ]:
         text = _read_text(path)
+        if path in {FUTURES_BENCHMARKS, FUTURES_BENCHMARK_REFERENCE}:
+            if "local-only" in text or "data/raw_1772633471.ndjson" in text:
+                issues.append(f"Benchmark doc still depends on a local-only raw file: {_repo_relative(path)}")
         for marker in TEMP_PATH_MARKERS:
             if marker in text:
                 issues.append(f"Temporary path marker '{marker}' leaked into {_repo_relative(path)}")
@@ -404,6 +422,9 @@ def _verify_replay_contract_publication() -> list[str]:
         for link in expected_links:
             if link not in path_text:
                 issues.append(f"Missing replay-contract link in {_repo_relative(path)}: {link}")
+    for path in [HFT_REVIEWER_GUIDE, EXTENSION_POINTS, TOKENIZED_ASSETS_ROADMAP]:
+        if not path.exists():
+            issues.append(f"Missing reviewer/extension doc: {_repo_relative(path)}")
     return issues
 
 

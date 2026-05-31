@@ -1,6 +1,6 @@
 # lob_sim
 
-lob_sim is a deterministic Binance USD-M L2 replay and queue-aware passive-fill simulator, plus a controlled dealer-pricing case study for reservation price, inventory skew, signed markout, and hedging logic.
+lob_sim is a deterministic Binance USD-M L2 capture/replay and queue-aware passive-fill simulator for market-making research. A secondary controlled options case study is included for reservation price, inventory skew, signed markout, and hedging logic.
 
 ## Overview
 
@@ -8,6 +8,8 @@ The repo has two artifacts:
 
 - A futures core that records public Binance USD-M market data, reconstructs the local book from snapshots and depth diffs, and replays that stream through an event-driven queue-aware passive-fill simulation.
 - A controlled options case study that keeps pricing and inventory logic explicit instead of claiming venue-calibrated options microstructure.
+
+For a reviewer-focused path through the futures core, start with [docs/hft_reviewer_guide.md](docs/hft_reviewer_guide.md).
 
 ### Why this stands out
 
@@ -28,6 +30,7 @@ The repo has two artifacts:
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py).
+- Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
 ### Controlled options case study
 
@@ -116,11 +119,13 @@ Tracked metrics include:
 - kill-switch state and reason
 
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), raw benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py).
+Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py).
 
 Committed futures walkthrough artifacts:
 
 - Pack entry: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)
 - Summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
+- Manifest: [docs/sample_outputs/futures_replay_walkthrough/manifest.json](docs/sample_outputs/futures_replay_walkthrough/manifest.json)
 - Trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
 - Notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)

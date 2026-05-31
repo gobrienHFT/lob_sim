@@ -21,4 +21,11 @@ def parse_exchange_info_for_symbol(exchange_info: dict, symbol: str) -> SymbolSp
             step_size = f.get("stepSize")
     if not tick_size or not step_size:
         raise ValueError(f"Missing tickSize or stepSize for {symbol}")
-    return SymbolSpec(symbol=symbol, tick_size=Decimal(tick_size), step_size=Decimal(step_size))
+    return SymbolSpec(
+        symbol=symbol,
+        tick_size=Decimal(tick_size),
+        step_size=Decimal(step_size),
+        price_currency=str(entry.get("quoteAsset", "")),
+        quantity_unit=str(entry.get("baseAsset", "")),
+        venue="BINANCE_USDM",
+    )

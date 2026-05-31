@@ -1,54 +1,54 @@
 # Futures Benchmarks
 
-Benchmark numbers are machine- and dataset-specific. Treat the published run below as a reference point for this workspace and this recorded input, not as a portability claim.
+Benchmark numbers are machine- and dataset-specific. Treat the published run below as a small committed-fixture reference for reproducibility and instrumentation, not as a low-latency claim.
 
 ## Published Reference Run
 
-- Input file: `data/raw_1772633471.ndjson`
-- Input status: local-only recorded BTCUSDT raw file (not committed)
-- Machine: `Microsoft Windows 11 Pro (10.0.26200)` on `Intel(R) Core(TM) i5-1035G7 CPU @ 1.20GHz`
+- Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
+- Input SHA-256: `826795685d02f78a5fac2d07b409c1d7c37b2cb3ddfbacd5c79d99e79d9997be`
+- Config digest: `f7707661e9bfb641a9771046406699948081496b10d23e1c878cb6b14052e562`
+- Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-03-19 21:17:35 +00:00`
-- Commit SHA: `3d219dd7856f46db4d1e080e74affea2632e5661`
+- Benchmark date: `2026-05-31T13:53:54Z`
 - Raw stdout: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
-- The tiny committed futures packs under [docs/sample_outputs/README.md](sample_outputs/README.md) are for mechanics and inspection, not the primary throughput benchmark.
 
-Event counts for the chosen input:
+Event counts for the committed input:
 
-- Total events: `1997`
-- Snapshot events: `2`
-- Depth events: `281`
-- AggTrade events: `1713`
-- Gap count: `1`
+- Total events: `80`
+- Snapshot events: `1`
+- Depth events: `9`
+- AggTrade events: `69`
+- Gap count: `0`
 
 | Run | Total events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 1997 | 2 | 281 | 1713 | 1 | 4.814621 | 414.78 | 72.40 | 33975.98 | 1.28 |
-| 2 | 1997 | 2 | 281 | 1713 | 1 | 4.325651 | 461.66 | 66.10 | 32194.98 | 1.28 |
-| 3 | 1997 | 2 | 281 | 1713 | 1 | 3.613670 | 552.62 | 62.90 | 26668.89 | 1.28 |
-| Median summary | 1997 | 2 | 281 | 1713 | 1 | 4.325651 | 461.66 | 66.10 | 32194.98 | 1.28 |
+| Reference | 80 | 1 | 9 | 69 | 0 | 0.898962 | 88.99 | 146.35 | 128700.99 | 0.78 |
 
-Exact benchmark command used:
+Exact benchmark command:
 
 ```bash
-python experiments/benchmark_futures_replay.py --file data/raw_1772633471.ndjson --env .env.example
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example
 ```
 
 Interpretation:
 
-- On this machine and this recorded BTCUSDT input, replaying 1,997 events took `3.613670s` to `4.814621s` across three runs, with a median of `4.325651s` and `461.66` events/sec.
-- The reference file contains one continuity gap, so the published run measures the current replay path with one resync event rather than an idealized gap-free fixture.
+- This is a tiny committed replay clip, so fixed overhead dominates throughput.
+- The value of the benchmark is provenance: input digest, config digest, Python/platform/git metadata, p50/p99 loop timing, events/sec, memory, and gap count are reported together.
+- For serious throughput analysis, use a larger recorded file and publish the input digest plus hardware context alongside the result.
 
 ## Benchmark Tool
 
 Use the lightweight replay benchmark runner:
 
 ```bash
-python experiments/benchmark_futures_replay.py --file data/raw_....ndjson --env .env.example
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example
 ```
 
 The script prints:
 
+- input SHA-256
+- non-secret config digest
+- Python/platform/git metadata
 - total events
 - snapshot events
 - depth events
@@ -62,5 +62,6 @@ The script prints:
 ## Caveats
 
 - `tracemalloc` measures Python-traced allocations, not every native allocation.
-- Loop timing in the benchmark includes Python bookkeeping overhead from the benchmark itself.
-- Benchmark numbers should always be reported with dataset size and hardware context.
+- Loop timing includes Python bookkeeping overhead from the benchmark itself.
+- Fixture-scale benchmark numbers should not be compared to colocated production systems.
+- Benchmark numbers should always be reported with dataset size, input digest, config digest, and hardware context.

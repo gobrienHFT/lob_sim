@@ -40,6 +40,16 @@ The microstructure gate is intentionally simple:
 - Refresh command: `python scripts/refresh_futures_strategy_profile_reference.py`
 - The committed clip is short, so the comparison is useful for inspecting profile behavior, not for claiming dramatic performance separation.
 
+## Parameter Sweep Tool
+
+Use the deterministic sweep runner to compare transparent parameter choices on a committed fixture:
+
+```bash
+python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
+```
+
+The sweep ranks runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, and queue metrics. The score is for inspection only; it is not an alpha or profitability claim.
+
 ## Why The Layered Profile Is More Realistic
 
 - It can rest inside and outside levels at the same time instead of assuming a single quote per side.

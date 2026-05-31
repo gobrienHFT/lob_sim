@@ -11,13 +11,14 @@ python scripts/refresh_futures_recorded_case.py
 ## What To Inspect First
 
 1. [`summary.json`](summary.json)
-2. [`trades.csv`](trades.csv)
-3. [`case_notes.md`](case_notes.md)
-4. [`input_clip.ndjson`](input_clip.ndjson)
+2. [`manifest.json`](manifest.json)
+3. [`trades.csv`](trades.csv)
+4. [`case_notes.md`](case_notes.md)
+5. [`input_clip.ndjson`](input_clip.ndjson)
 
 ## Provenance
 
-- Original local source file: `data/raw_1772633471.ndjson`
+- Source lineage: clipped from a prior BTCUSDT Binance USD-M capture; the committed `input_clip.ndjson` is the authoritative replay input for this pack
 - Selected window: BTCUSDT `exchangeInfo`, the second recorded snapshot, and the next 78 recorded events
 - Committed clip time range: `ts_local` `1772633472.3978999` to `1772633474.824`
 

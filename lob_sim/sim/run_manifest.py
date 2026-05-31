@@ -46,13 +46,18 @@ def _git_output(args: list[str]) -> str | None:
     return result.stdout.strip()
 
 
-def _git_source_state() -> dict[str, Any]:
+def source_state() -> dict[str, Any]:
     status = _git_output(["status", "--short"])
     return {
         "git_commit": _git_output(["rev-parse", "HEAD"]),
         "git_branch": _git_output(["rev-parse", "--abbrev-ref", "HEAD"]),
         "git_dirty": bool(status),
     }
+
+
+def config_digest(config: dict[str, Any]) -> str:
+    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    return sha256(payload.encode("utf-8")).hexdigest()
 
 
 def config_snapshot(cfg: Config) -> dict[str, Any]:
@@ -153,6 +158,6 @@ def build_run_manifest(
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),
         },
-        source=_git_source_state(),
+        source=source_state(),
         outputs={name: str(path) for name, path in sorted(output_files.items())},
     )

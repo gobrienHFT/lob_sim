@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+import platform
+import sys
 import time
 import tracemalloc
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict
 
@@ -10,8 +14,10 @@ from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
 from lob_sim.book.types import DepthUpdateEvent, SnapshotEvent, SymbolSpec
 from lob_sim.config import load_config
+from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.replay.runner import parse_symbol_spec_from_record
+from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
 def _percentile(sorted_values: list[float], pct: float) -> float:
@@ -28,6 +34,16 @@ def _percentile(sorted_values: list[float], pct: float) -> float:
 
 def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     cfg = load_config(env_path)
+    cfg_snapshot = config_snapshot(cfg)
+    metadata = {
+        "benchmark_created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "input_file": str(path),
+        "input_sha256": file_sha256(path),
+        "config_digest": config_digest(cfg_snapshot),
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
+        "source": source_state(),
+    }
     symbols: Dict[str, SymbolSpec] = {}
     syncers: Dict[str, BookSynchronizer] = {}
 
@@ -119,6 +135,13 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     events_per_sec = total_events / wall_time if wall_time > 0 else 0.0
 
     print(f"Replay benchmark file: {path}")
+    print(f"Input SHA-256: {metadata['input_sha256']}")
+    print(f"Config digest: {metadata['config_digest']}")
+    print(f"Python: {metadata['python_version']}")
+    print(f"Platform: {metadata['platform']}")
+    print(f"Git commit: {metadata['source']['git_commit']}")
+    print(f"Git branch: {metadata['source']['git_branch']}")
+    print(f"Git dirty: {metadata['source']['git_dirty']}")
     print(f"Total events: {total_events}")
     print(f"Snapshot events: {snapshot_events}")
     print(f"Depth events: {depth_events}")
@@ -129,6 +152,8 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     print(f"Loop latency p50: {_percentile(latencies_sorted, 0.50):.2f}us")
     print(f"Loop latency p99: {_percentile(latencies_sorted, 0.99):.2f}us")
     print(f"Peak traced memory: {peak_bytes / (1024 * 1024):.2f} MiB")
+    print("Benchmark metadata JSON:")
+    print(json.dumps(metadata, indent=2))
 
     return 0
 
