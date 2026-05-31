@@ -47,6 +47,29 @@
     "bid": 0.0,
     "ask": 0.0
   },
+  "markout_by_fill_source": {
+    "depth_update": {
+      "samples": 0,
+      "adverse_samples": 0,
+      "qty": 0.0,
+      "avg_markout_1s": 0.0,
+      "adverse_fill_rate_1s": 0.0
+    },
+    "agg_trade": {
+      "samples": 1,
+      "adverse_samples": 0,
+      "qty": 0.001,
+      "avg_markout_1s": 0.05,
+      "adverse_fill_rate_1s": 0.0
+    },
+    "taker_order": {
+      "samples": 0,
+      "adverse_samples": 0,
+      "qty": 0.0,
+      "avg_markout_1s": 0.0,
+      "adverse_fill_rate_1s": 0.0
+    }
+  },
   "queue_fill_count": 0,
   "avg_queue_ahead_lots": 0.0,
   "max_queue_ahead_lots": 0,
@@ -61,6 +84,7 @@
     {
       "symbol": "BTCUSDT",
       "side": "bid",
+      "fill_source": "agg_trade",
       "regime": "tight_sell",
       "fill_price": "100.0",
       "qty": "0.001",
