@@ -27,7 +27,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Queue consumption happens from the front of the level.
 - Later venue additions stay behind earlier resting orders at the same price.
 - Regression tests cover reconciliation of near-simultaneous depth reductions and `aggTrade` prints so one public-feed signal is not consumed twice.
-- Strategy decisions are not backfilled before the first accepted depth sync; decisions due before a later market row are drained before that row, and same-timestamp reactions are scheduled after the row and any fills it creates.
+- Strategy decisions are not backfilled before the first accepted depth sync or before the snapshot timestamp that made buffered diffs usable; decisions due before a later market row are drained before that row, and same-timestamp reactions are scheduled after the row and any fills it creates.
 
 ### Partial fill handling
 

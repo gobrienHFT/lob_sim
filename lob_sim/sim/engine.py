@@ -64,6 +64,7 @@ class SimulationEngine:
         self._trading_halted = False
         self._pending_cancel_ack_ts: dict[str, float] = {}
         self._pending_replacement_slots: set[tuple[str, str, str]] = set()
+        self._symbol_time_watermark: Dict[str, float] = {}
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
         heappush(self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload))
@@ -534,6 +535,8 @@ class SimulationEngine:
             now = float(rec.ts_local)
             if now > last_ts:
                 last_ts = now
+            symbol_now = max(now, self._symbol_time_watermark.get(rec.symbol, now))
+            self._symbol_time_watermark[rec.symbol] = symbol_now
 
             self._drain_events(now)
             self._trace_market_record(rec)
@@ -549,7 +552,7 @@ class SimulationEngine:
             if rec.symbol not in self._specs:
                 continue
 
-            self._schedule_decisions_up_to(rec.symbol, now, include_now=False)
+            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=False)
             self._drain_events(now)
 
             if rec.type == "snapshot":
@@ -624,7 +627,7 @@ class SimulationEngine:
                 if fills:
                     self._emit_trade_event(now, rec.symbol, fills)
 
-            self._schedule_decisions_up_to(rec.symbol, now, include_now=True)
+            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
             self._drain_events(now)
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now)

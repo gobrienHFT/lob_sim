@@ -84,7 +84,7 @@ flowchart LR
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
-- Strategy decisions are only scheduled after the book is synchronized; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
+- Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 
 See [docs/futures_validation.md](docs/futures_validation.md) for the assumptions that are currently tested.
 

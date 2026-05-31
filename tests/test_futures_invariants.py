@@ -415,6 +415,48 @@ def test_strategy_decisions_are_not_backfilled_before_first_depth_sync(
     assert summary["quote_count"] == 1
 
 
+def test_first_strategy_decision_does_not_predate_snapshot_timestamp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "snapshot_time_watermark.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.002")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=1.5,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_REQUOTE_MS="100", MM_MAX_POSITION="1")
+
+    engine = SimulationEngine(cfg)
+    engine.strategy = _StaticBidStrategy()
+    engine.run(replay_path)
+
+    decision_ts = [row["ts_local"] for row in engine.event_trace if row["event_type"] == "decision"]
+    assert decision_ts[0] == 2.0
+
+
 def test_queue_ahead_state_is_visible_to_strategy_refresh_and_trace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

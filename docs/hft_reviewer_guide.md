@@ -86,7 +86,7 @@ Inferred:
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
-- Strategy decisions are gated on synchronized books; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
+- Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes fee rate, fee amount, and fee currency.
 
