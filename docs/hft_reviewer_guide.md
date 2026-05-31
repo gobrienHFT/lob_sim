@@ -79,6 +79,7 @@ Inferred:
 - Depth reductions consume FIFO from the front of a level.
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
+- Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 
 ## Limitations

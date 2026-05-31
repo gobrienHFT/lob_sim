@@ -45,6 +45,8 @@ class SimulationEngine:
         self._actions: list[_EngineEvent] = []
         self._id_counter = count()
         self._trading_halted = False
+        self._pending_cancel_ack_ts: dict[str, float] = {}
+        self._pending_replacement_slots: set[tuple[str, str, str]] = set()
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
         heappush(self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload))
@@ -57,6 +59,25 @@ class SimulationEngine:
         if not fills:
             return
         self._schedule(ts, "trade_execution", symbol, {"fills": fills})
+
+    def _slot_key(self, symbol: str, side: str, quote_slot: str) -> tuple[str, str, str]:
+        return (symbol, side, quote_slot)
+
+    def _request_cancel(self, ts: float, symbol: str, order: Order) -> float:
+        pending_ts = self._pending_cancel_ack_ts.get(order.order_id)
+        if pending_ts is not None:
+            return pending_ts
+
+        ack_ts = ts + self.cfg.sim_cancel_latency_ms / 1000.0
+        self._pending_cancel_ack_ts[order.order_id] = ack_ts
+        self.metrics.on_cancel_requested()
+        self._schedule(
+            ack_ts,
+            "order_cancel",
+            symbol,
+            {"order_id": order.order_id},
+        )
+        return ack_ts
 
     def _schedule_decisions_up_to(self, symbol: str, now: float) -> None:
         if self._trading_halted:
@@ -100,6 +121,8 @@ class SimulationEngine:
         for symbol in list(self._books):
             self.fill_model.cancel_all_for_symbol_side(symbol, "bid")
             self.fill_model.cancel_all_for_symbol_side(symbol, "ask")
+        self._pending_cancel_ack_ts.clear()
+        self._pending_replacement_slots.clear()
 
     def _handle_decision(self, symbol: str, ts: float) -> None:
         if self._trading_halted or not self.cfg.mm_enabled:
@@ -126,60 +149,51 @@ class SimulationEngine:
             }
             if side == "bid" and inventory > self.cfg.mm_max_position:
                 for existing in existing_orders.values():
-                    self.metrics.on_cancel_requested()
-                    self._schedule(
-                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
-                        "order_cancel",
-                        symbol,
-                        {"order_id": existing.order_id},
-                    )
+                    self._request_cancel(ts, symbol, existing)
                 continue
             if side == "ask" and inventory < -self.cfg.mm_max_position:
                 for existing in existing_orders.values():
-                    self.metrics.on_cancel_requested()
-                    self._schedule(
-                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
-                        "order_cancel",
-                        symbol,
-                        {"order_id": existing.order_id},
-                    )
+                    self._request_cancel(ts, symbol, existing)
                 continue
 
             for slot, existing in existing_orders.items():
                 if slot in desired_targets:
                     continue
-                self.metrics.on_cancel_requested()
-                self._schedule(
-                    ts + self.cfg.sim_cancel_latency_ms / 1000.0,
-                    "order_cancel",
-                    symbol,
-                    {"order_id": existing.order_id},
-                )
+                self._request_cancel(ts, symbol, existing)
 
             for slot, target in desired_targets.items():
                 existing = existing_orders.get(slot)
+                slot_key = self._slot_key(symbol, side, slot)
+                replacement_ack_ts: float | None = None
+                replacement_pending = slot_key in self._pending_replacement_slots
+                if existing is None and replacement_pending:
+                    continue
                 if existing is not None:
                     existing.queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, existing)
+                    pending_cancel_ack_ts = self._pending_cancel_ack_ts.get(existing.order_id)
+                else:
+                    pending_cancel_ack_ts = None
                 refresh = self.strategy.should_refresh(target, existing)
                 if existing is not None and (
                     existing.price_tick != target.price_tick
                     or existing.qty_lots != target.qty_lots
                     or refresh
+                    or pending_cancel_ack_ts is not None
                 ):
-                    self.metrics.on_cancel_requested()
-                    self._schedule(
-                        ts + self.cfg.sim_cancel_latency_ms / 1000.0,
-                        "order_cancel",
-                        symbol,
-                        {"order_id": existing.order_id},
-                    )
+                    replacement_ack_ts = self._request_cancel(ts, symbol, existing)
                     existing = None
+                    if replacement_pending:
+                        continue
+                    self._pending_replacement_slots.add(slot_key)
 
                 if existing is not None and existing.price_tick == target.price_tick and existing.qty_lots == target.qty_lots:
                     continue
 
+                arrival_ts = ts + self.cfg.sim_order_latency_ms / 1000.0
+                if replacement_ack_ts is not None:
+                    arrival_ts = replacement_ack_ts + self.cfg.sim_order_latency_ms / 1000.0
                 self._schedule(
-                    ts + self.cfg.sim_order_latency_ms / 1000.0,
+                    arrival_ts,
                     "order_arrival",
                     symbol,
                     {
@@ -192,11 +206,12 @@ class SimulationEngine:
                 )
 
     def _handle_arrival(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
+        side = payload["side"]
+        quote_slot = str(payload.get("quote_slot", "base"))
+        self._pending_replacement_slots.discard(self._slot_key(symbol, side, quote_slot))
         if self._trading_halted:
             return
 
-        side = payload["side"]
-        quote_slot = str(payload.get("quote_slot", "base"))
         price_tick = int(payload["price_tick"])
         qty_lots = int(payload["qty_lots"])
         refresh_key = str(payload.get("refresh_key", ""))
@@ -225,6 +240,7 @@ class SimulationEngine:
         order_id = payload.get("order_id")
         if order_id is None:
             return
+        self._pending_cancel_ack_ts.pop(str(order_id), None)
         self.fill_model.cancel_order(str(order_id))
 
     def _handle_trades(self, fills: list) -> None:

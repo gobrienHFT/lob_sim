@@ -13,6 +13,7 @@ from lob_sim.record.format import NDJSONRecord, snapshot_payload
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import SimulationMetrics
+from lob_sim.sim.mm_strategy import QuoteTarget, StrategyDecision
 from lob_sim.sim.orders import Fill, Order
 
 
@@ -251,6 +252,85 @@ def test_market_order_sweeps_visible_depth_levels_as_taker() -> None:
     ]
     assert model.get_order("BTCUSDT", "bid") is None
     assert model.depth_levels("BTCUSDT", "ask") == []
+
+
+class _ScriptedReplaceStrategy:
+    def __init__(self) -> None:
+        self.decisions = 0
+
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        return order is not None and order.refresh_key != target.refresh_key
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        self.decisions += 1
+        if self.decisions == 1:
+            return StrategyDecision(
+                quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="old")]
+            )
+        return StrategyDecision(
+            quotes=[QuoteTarget("bid", "base", price_tick=998, qty_lots=1, refresh_key="new")]
+        )
+
+
+def test_replace_order_waits_for_cancel_latency_before_new_arrival(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "cancel_replace_race.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("99.9", "0.001")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["99.9", "0.001"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.05,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.001", "m": True},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="150",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="1000",
+        MM_ORDER_QTY="0.001",
+        MM_MAX_POSITION="1",
+        MM_HALF_SPREAD_BPS="0",
+        FEES_MAKER_BPS="0",
+    )
+    engine = SimulationEngine(cfg)
+    engine.strategy = _ScriptedReplaceStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["fill_count"] == 1
+    assert summary["fills"][0]["order_id"].startswith("BTCUSDT-bid-")
+    assert summary["fills"][0]["price"] == "100.0"
+    assert summary["fills"][0]["maker"] is True
+    assert summary["quote_count"] == 2
+    assert summary["cancel_count"] == 1
 
 
 def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
