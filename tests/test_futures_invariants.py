@@ -142,6 +142,37 @@ def test_fifo_queue_priority_keeps_later_venue_volume_behind_resting_strategy_or
     assert fills[0].source == "depth_update"
 
 
+def test_observed_queue_ahead_does_not_mutate_fifo_consumption_state() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 2)], asks=[(10010, 2)])
+
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=1,
+        remaining_lots=1,
+        created_ts=0.0,
+    )
+    model.place_order(order)
+
+    order.queue_ahead_lots = model.queue_ahead_lots("BTCUSDT", order)
+    assert order.queue_ahead_lots == 2
+
+    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 2, 0)], 1.0)
+    assert fills == []
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=1.2),
+        1.2,
+    )
+    assert [(fill.order_id, fill.qty_lots, fill.source) for fill in fills] == [
+        ("strategy-bid", 1, "agg_trade")
+    ]
+    assert model.get_order("BTCUSDT", "bid") is None
+
+
 def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
     model = PassiveFillModel()
     model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
@@ -377,6 +408,26 @@ class _QueueRefreshSpyStrategy:
         )
 
 
+class _QueueObserveHoldStrategy:
+    def __init__(self) -> None:
+        self.observed_queue_ahead: list[int] = []
+
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        _ = target
+        if order is not None:
+            self.observed_queue_ahead.append(order.queue_ahead_lots)
+        return False
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        return StrategyDecision(
+            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
+        )
+
+
 def test_strategy_decisions_are_not_backfilled_before_first_depth_sync(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -517,6 +568,75 @@ def test_queue_ahead_state_is_visible_to_strategy_refresh_and_trace(
     assert cancel_details["queue_ahead_lots"] == 2
     assert cancel_details["refresh_requested"] is True
     assert cancel_details["price_changed"] is False
+
+
+def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "queue_observation_is_read_only.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.002")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.002"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=3.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 107, "u": 107, "pu": 106, "b": [["100.0", "0.000"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=3.3,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.001", "m": True},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="1000",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="0",
+        MM_ORDER_QTY="0.001",
+        MM_MAX_POSITION="1",
+        MM_HALF_SPREAD_BPS="0",
+        FEES_MAKER_BPS="0",
+    )
+
+    strategy = _QueueObserveHoldStrategy()
+    engine = SimulationEngine(cfg)
+    engine.strategy = strategy
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert strategy.observed_queue_ahead == [2]
+    assert summary["fill_count"] == 1
+    assert summary["fills"][0]["fill_source"] == "agg_trade"
+    assert summary["fills"][0]["queue_ahead_lots"] == 0
+    assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
 
 
 def test_replace_order_waits_for_cancel_latency_before_new_arrival(

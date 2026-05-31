@@ -89,6 +89,7 @@ Inferred:
 - Depth reductions consume FIFO from the front of a level.
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
 - Recent depth/trade overlap at the same symbol, side, and price is netted before queue consumption to reduce public-feed double counting.
+- Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.

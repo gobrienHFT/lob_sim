@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from heapq import heappush, heappop
 from itertools import count
 from pathlib import Path
@@ -352,12 +352,15 @@ class SimulationEngine:
                 replacement_pending = slot_key in self._pending_replacement_slots
                 if existing is None and replacement_pending:
                     continue
+                observed_queue_ahead_lots = 0
+                strategy_existing = existing
                 if existing is not None:
-                    existing.queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, existing)
+                    observed_queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, existing)
+                    strategy_existing = replace(existing, queue_ahead_lots=observed_queue_ahead_lots)
                     pending_cancel_ack_ts = self._pending_cancel_ack_ts.get(existing.order_id)
                 else:
                     pending_cancel_ack_ts = None
-                refresh = self.strategy.should_refresh(target, existing)
+                refresh = self.strategy.should_refresh(target, strategy_existing)
                 if existing is not None and (
                     existing.price_tick != target.price_tick
                     or existing.qty_lots != target.qty_lots
@@ -374,7 +377,7 @@ class SimulationEngine:
                             "target_qty_lots": target.qty_lots,
                             "target_refresh_key": target.refresh_key,
                             "current_refresh_key": existing.refresh_key,
-                            "queue_ahead_lots": existing.queue_ahead_lots,
+                            "queue_ahead_lots": observed_queue_ahead_lots,
                             "price_changed": existing.price_tick != target.price_tick,
                             "qty_changed": existing.qty_lots != target.qty_lots,
                             "refresh_requested": refresh,

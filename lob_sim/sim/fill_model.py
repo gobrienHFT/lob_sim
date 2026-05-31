@@ -23,6 +23,7 @@ class PassiveFillModel:
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
         self._orders: dict[tuple[str, OrderSide, str], Order] = {}
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
+        self._synthetic_queue_ahead: dict[str, int] = {}
         self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
         self._seq = 0
 
@@ -78,6 +79,9 @@ class PassiveFillModel:
             ahead += q.remaining_lots
         if ahead > 0:
             return max(0, ahead)
+        synthetic_ahead = self._synthetic_queue_ahead.get(order.order_id)
+        if synthetic_ahead is not None:
+            return max(0, synthetic_ahead)
         return max(0, order.queue_ahead_lots)
 
     def best_bid_tick(self, symbol: str) -> int | None:
@@ -125,6 +129,7 @@ class PassiveFillModel:
             return
         if not queue:
             bucket.pop(order.price_tick, None)
+        self._synthetic_queue_ahead.pop(order.order_id, None)
         order.active = False
 
     def _clean_side_level_if_empty(self, symbol: str, side: str, price_tick: int) -> None:
@@ -205,6 +210,7 @@ class PassiveFillModel:
 
     def cancel_order(self, order_id: str) -> None:
         key = self._order_index.pop(order_id, None)
+        self._synthetic_queue_ahead.pop(order_id, None)
         if key is None:
             return
         self._orders.pop(key, None)
@@ -245,10 +251,16 @@ class PassiveFillModel:
                 queue.popleft()
                 continue
 
-            if head.is_strategy and head.queue_ahead_lots > 0:
-                consumed_ahead = min(remaining, head.queue_ahead_lots)
-                head.queue_ahead_lots -= consumed_ahead
+            synthetic_ahead = self._synthetic_queue_ahead.get(head.order_id, 0)
+            if head.is_strategy and synthetic_ahead > 0:
+                consumed_ahead = min(remaining, synthetic_ahead)
+                synthetic_ahead -= consumed_ahead
                 remaining -= consumed_ahead
+                if synthetic_ahead > 0:
+                    self._synthetic_queue_ahead[head.order_id] = synthetic_ahead
+                else:
+                    self._synthetic_queue_ahead.pop(head.order_id, None)
+                head.queue_ahead_lots = synthetic_ahead
                 if remaining <= 0:
                     break
 
@@ -276,6 +288,7 @@ class PassiveFillModel:
                 if head.remaining_lots <= 0:
                     self._orders.pop((symbol, head.side, head.quote_slot), None)
                     self._order_index.pop(head.order_id, None)
+                    self._synthetic_queue_ahead.pop(head.order_id, None)
 
             if head.remaining_lots <= 0:
                 queue.popleft()
@@ -368,6 +381,7 @@ class PassiveFillModel:
                     if head.is_strategy:
                         self._orders.pop((head.symbol, head.side, head.quote_slot), None)
                         self._order_index.pop(head.order_id, None)
+                        self._synthetic_queue_ahead.pop(head.order_id, None)
                     head.active = False
                     queue.popleft()
                 elif not head.is_strategy:
@@ -402,7 +416,12 @@ class PassiveFillModel:
         bucket = self._book(order.symbol)[self._bucket(order.side)]
         queue = bucket.setdefault(order.price_tick, deque())
         visible_queue_ahead = sum(q.remaining_lots for q in queue)
-        order.queue_ahead_lots = 0 if visible_queue_ahead > 0 else max(0, order.queue_ahead_lots)
+        synthetic_ahead = 0 if visible_queue_ahead > 0 else max(0, order.queue_ahead_lots)
+        if synthetic_ahead > 0:
+            self._synthetic_queue_ahead[order.order_id] = synthetic_ahead
+        else:
+            self._synthetic_queue_ahead.pop(order.order_id, None)
+        order.queue_ahead_lots = synthetic_ahead
         order.active = True
         queue.append(order)
         self._orders[(order.symbol, order.side, order.quote_slot)] = order

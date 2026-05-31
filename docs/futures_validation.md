@@ -45,6 +45,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 
 - Strategy orders only fill after visible queue ahead has been consumed.
 - Queue-ahead deterioration is visible to the strategy layer and can trigger repost logic.
+- Queue-ahead observations passed to strategy refresh logic are read-only views; reading queue position cannot create extra hidden queue ahead inside the fill model.
 - Event traces record queue ahead after order arrival and cancel-request reasons, including queue-driven replacement metadata.
 
 ### Deterministic replay expectation
