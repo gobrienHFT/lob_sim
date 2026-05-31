@@ -1,7 +1,7 @@
 {
   "run_id": "9ca4a7a87ab927c4",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T17:35:58.499938Z",
+  "created_at_utc": "2026-05-31T18:11:38.121694Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "6e6599399b17943427d373661920927cc4b9c5a9",
+    "git_commit": "354b22ebc7ea7168a661de84b5cbecbbe1f5a7f8",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -62,9 +62,9 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
-      "size_bytes": 15214,
-      "sha256": "5124c6ae3a51dff67a819a64a89380288c056bb0c89b976907bc93447b3cd83d",
-      "modified_at_utc": "2026-05-31T17:36:01.524903Z"
+      "size_bytes": 15358,
+      "sha256": "ed96f9ce5e9a260a1bac8f0216f8faaa76328e88f0786ea73dfd16c21ad5c7e2",
+      "modified_at_utc": "2026-05-31T18:11:41.507989Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
@@ -73,19 +73,19 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
       "size_bytes": 2885,
       "sha256": "fdca5c2b88254cda99f7462b3949137a90539bb96ce67bb87ba887990f5e18be",
-      "modified_at_utc": "2026-05-31T17:36:01.491773Z"
+      "modified_at_utc": "2026-05-31T18:11:41.443006Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 1593,
       "sha256": "981a89bb97ea23976f2fab0853d61937f829cb4688fdddfaf1d2178052810e37",
-      "modified_at_utc": "2026-05-31T17:36:01.510947Z"
+      "modified_at_utc": "2026-05-31T18:11:41.456033Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 346,
       "sha256": "c038f05c38ac2143de8393bda230c667365e39b435ab1be6a000240e0db52b39",
-      "modified_at_utc": "2026-05-31T17:36:01.516930Z"
+      "modified_at_utc": "2026-05-31T18:11:41.467120Z"
     }
   }
 }
