@@ -412,6 +412,56 @@ def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monke
     assert first_summary == second_summary
 
 
+def test_simulation_summary_surfaces_event_counts_and_book_gaps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "gap_diagnostics.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.010")], [("100.1", "0.010")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.010"]], "a": [["100.1", "0.011"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 999, "b": [["100.0", "0.009"]], "a": [["100.1", "0.011"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_ENABLED="0", RESYNC_ON_GAP="1")
+
+    engine = SimulationEngine(cfg)
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["event_counts"] == {
+        "records_processed": 4,
+        "exchange_info": 1,
+        "snapshot": 1,
+        "depth_update": 2,
+        "agg_trade": 0,
+        "depth_changes_applied": 1,
+        "book_gap_count": 1,
+    }
+    assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": 1}
+
+
 def test_markout_inventory_and_pnl_sanity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = _build_config(monkeypatch, tmp_path)
     metrics = SimulationMetrics(cfg)

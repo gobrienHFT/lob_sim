@@ -33,6 +33,11 @@ class SimulationMetrics:
         self.fill_qty: Decimal = Decimal("0")
         self.quote_count = 0
         self.cancel_count = 0
+        self.records_processed = 0
+        self.record_type_counts: dict[str, int] = defaultdict(int)
+        self.depth_changes_applied = 0
+        self.book_gap_count = 0
+        self.book_gap_count_by_symbol: dict[str, int] = defaultdict(int)
         self.spread_capture_sum = Decimal("0")
         self.spread_capture_qty = Decimal("0")
         self.max_drawdown = Decimal("0")
@@ -78,6 +83,17 @@ class SimulationMetrics:
 
     def on_cancel_requested(self) -> None:
         self.cancel_count += 1
+
+    def on_record(self, record_type: str) -> None:
+        self.records_processed += 1
+        self.record_type_counts[record_type] += 1
+
+    def on_depth_changes(self, count: int) -> None:
+        self.depth_changes_applied += max(0, count)
+
+    def on_book_gap(self, symbol: str) -> None:
+        self.book_gap_count += 1
+        self.book_gap_count_by_symbol[symbol] += 1
 
     def inventory_lots(self, symbol: str) -> int:
         return self.position.get(symbol, PositionState()).lot_size
@@ -414,8 +430,20 @@ class SimulationMetrics:
                 "adverse_markout_rate": float(Decimal(adverse) / Decimal(markouts)) if markouts else 0.0,
             }
 
+        event_counts = {
+            "records_processed": self.records_processed,
+            "exchange_info": self.record_type_counts.get("exchangeInfo", 0),
+            "snapshot": self.record_type_counts.get("snapshot", 0),
+            "depth_update": self.record_type_counts.get("depthUpdate", 0),
+            "agg_trade": self.record_type_counts.get("aggTrade", 0),
+            "depth_changes_applied": self.depth_changes_applied,
+            "book_gap_count": self.book_gap_count,
+        }
+
         return {
             "strategy_profile": self.cfg.mm_strategy_profile,
+            "event_counts": event_counts,
+            "book_gap_count_by_symbol": dict(sorted(self.book_gap_count_by_symbol.items())),
             "total_pnl": float(self.realized_pnl + self.unrealized_pnl),
             "realized_pnl": float(self.realized_pnl),
             "unrealized_pnl": float(self.unrealized_pnl),

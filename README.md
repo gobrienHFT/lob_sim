@@ -111,6 +111,7 @@ The futures simulation writes:
 Tracked metrics include:
 
 - realized and unrealized PnL
+- replay event counts and book-sync gap counts observed during simulation
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead

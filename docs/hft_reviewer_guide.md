@@ -64,6 +64,7 @@ Observed:
 - public depth diffs and sequence IDs;
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
+- replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 
 Inferred:
 
@@ -102,5 +103,6 @@ Inferred:
 - Feed-specific sequence handling and gap policy.
 - Queue mechanics implemented with explicit FIFO queues.
 - Risk and fill-quality metrics beyond PnL.
+- Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
 - Reproducible artifacts with input/config/source manifests.
 - Extensible boundaries for future venue adapters and asset metadata.

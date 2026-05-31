@@ -280,6 +280,7 @@ class SimulationEngine:
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         for rec in iter_records(file_path):
             records_processed += 1
+            self.metrics.on_record(rec.type)
             now = float(rec.ts_local)
             if now > last_ts:
                 last_ts = now
@@ -340,10 +341,12 @@ class SimulationEngine:
                 try:
                     changes: list[LevelChange] = syncer.on_depth_update(event)
                 except BookSyncGapError:
+                    self.metrics.on_book_gap(rec.symbol)
                     if self.cfg.resync_on_gap:
                         continue
                     changes = []
 
+                self.metrics.on_depth_changes(len(changes))
                 if changes:
                     fills = self.fill_model.apply_depth_changes(rec.symbol, changes, now)
                     if fills:
@@ -455,7 +458,13 @@ class SimulationEngine:
             for row in summary.get("fills", []):
                 writer.writerow(row)
 
-        manifest = build_run_manifest(file_path, self.cfg, output_files)
+        manifest = build_run_manifest(
+            file_path,
+            self.cfg,
+            output_files,
+            created_at_utc=manifest_seed.created_at_utc,
+            source=manifest_seed.source,
+        )
         with open(manifest_path, "w", encoding="utf-8") as fh:
             json.dump(manifest.as_dict(), fh, indent=2)
         return output_files, summary

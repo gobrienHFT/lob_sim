@@ -32,6 +32,8 @@ It reports record counts, symbols, event-time span, symbol tick/lot metadata, fi
 
 Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.csv`, and `trades_*.csv`.
 
+The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, and book-sync gap counts. Those fields make it visible when a run skipped gap-affected depth data instead of silently advancing the book.
+
 The manifest records:
 
 - input path, size, modified time, and SHA-256 digest;

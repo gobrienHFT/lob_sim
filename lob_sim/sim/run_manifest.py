@@ -163,13 +163,16 @@ def build_run_manifest(
     input_path: str | Path,
     cfg: Config,
     output_files: dict[str, Path],
+    *,
+    created_at_utc: str | None = None,
+    source: dict[str, Any] | None = None,
 ) -> RunManifest:
     path = Path(input_path)
     input_sha = file_sha256(path)
     return RunManifest(
         run_id=_run_id(input_sha, cfg),
         schema_version=RUN_MANIFEST_SCHEMA_VERSION,
-        created_at_utc=_utc_now(),
+        created_at_utc=created_at_utc or _utc_now(),
         lob_sim_version=__version__,
         input={
             "path": str(path),
@@ -182,7 +185,7 @@ def build_run_manifest(
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),
         },
-        source=source_state(),
+        source=source if source is not None else source_state(),
         outputs={name: str(path) for name, path in sorted(output_files.items())},
         output_artifacts=output_artifact_snapshot(output_files),
     )

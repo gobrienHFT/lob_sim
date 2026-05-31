@@ -19,6 +19,7 @@ from lob_sim.options.demo import (
 )
 from lob_sim.options.markout import signed_markout
 from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim import run_manifest
 from lob_sim.util import write_summary_csv
 
 
@@ -83,9 +84,17 @@ def test_write_summary_csv_serializes_nested_values(tmp_path: Path):
     assert "fills" not in row
 
 
-def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
+def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeypatch):
     cfg = replace(_build_config(tmp_path), record_dir=tmp_path)
     engine = SimulationEngine(cfg)
+    source_calls = 0
+
+    def fake_source_state():
+        nonlocal source_calls
+        source_calls += 1
+        return {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
+
+    monkeypatch.setattr(run_manifest, "source_state", fake_source_state)
 
     class StubMetrics:
         def get_summary(self, _books):
@@ -146,6 +155,8 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     assert manifest["run_id"] == summary["run_id"]
     assert manifest["input"]["sha256"] == summary["input_sha256"]
+    assert manifest["source"] == {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
+    assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]
     assert manifest["config"]["mm_strategy_profile"] == cfg.mm_strategy_profile
     assert manifest["output_artifacts"]["summary"]["sha256"]
