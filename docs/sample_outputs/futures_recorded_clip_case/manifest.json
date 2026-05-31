@@ -1,7 +1,7 @@
 {
   "run_id": "9ca4a7a87ab927c4",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T16:11:21.666465Z",
+  "created_at_utc": "2026-05-31T16:25:58.303194Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "f8879cd311cca0287ce1de5ac9efb5d59525c69e",
+    "git_commit": "380aea9460e3f70d8ba702eb549a8b7cf0304b1a",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -66,19 +66,19 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
       "size_bytes": 2527,
       "sha256": "0b19a2c6fe7b2aac2c02f2ccc2ffd6d5149255e240d1746d5b173d6b53f746c0",
-      "modified_at_utc": "2026-05-31T16:11:21.998928Z"
+      "modified_at_utc": "2026-05-31T16:25:59.066444Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 1281,
       "sha256": "b215abe23e9f1e74f40e785d2f02ade776fe439cabb7e11bc9beadcc27542115",
-      "modified_at_utc": "2026-05-31T16:11:21.998928Z"
+      "modified_at_utc": "2026-05-31T16:25:59.068965Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 346,
       "sha256": "c038f05c38ac2143de8393bda230c667365e39b435ab1be6a000240e0db52b39",
-      "modified_at_utc": "2026-05-31T16:11:22.005626Z"
+      "modified_at_utc": "2026-05-31T16:25:59.071523Z"
     }
   }
 }
