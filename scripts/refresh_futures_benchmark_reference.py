@@ -30,6 +30,23 @@ def _created_at(metadata: dict[str, Any]) -> str:
     return value.split(".", 1)[0] + "Z" if "." in value else value
 
 
+def _format_instrument_specs(metadata: dict[str, Any]) -> str:
+    specs = metadata.get("instrument_specs")
+    if not isinstance(specs, dict) or not specs:
+        return "`<none>`"
+    rendered: list[str] = []
+    for symbol, spec in sorted(specs.items()):
+        if not isinstance(spec, dict):
+            rendered.append(f"`{symbol}`")
+            continue
+        rendered.append(
+            f"`{symbol}` tick `{spec.get('tick_size')}` lot `{spec.get('step_size')}` "
+            f"unit `{spec.get('quantity_unit')}` price `{spec.get('price_currency')}` "
+            f"multiplier `{spec.get('contract_multiplier')}` venue `{spec.get('venue')}`"
+        )
+    return "; ".join(rendered)
+
+
 def _render_reference(result: dict[str, Any]) -> str:
     metadata = result["metadata"]
     counts = result["event_counts"]
@@ -48,6 +65,7 @@ def _render_reference(result: dict[str, Any]) -> str:
 - Input SHA-256: `{metadata["input_sha256"]}`
 - Config digest: `{metadata["config_digest"]}`
 - Feed adapter: `{metadata["feed_adapter"]["name"]}` (`{metadata["feed_adapter"]["venue_label"]}`)
+- Instrument specs: {_format_instrument_specs(metadata)}
 - Structured JSON: [`futures_replay_reference.json`](futures_replay_reference.json)
 
 Exact benchmark command:
@@ -74,7 +92,7 @@ This result is specific to this machine, this Python interpreter, and this commi
 
 ## Structured Result
 
-The committed JSON artifact contains the schema version, input/config/source metadata, event counts, p50/p99 loop timing, events/sec, and traced-memory peak. Prefer the JSON file for repeated local comparisons; this Markdown file is the human-readable summary.
+The committed JSON artifact contains the schema version, input/config/source/instrument metadata, event counts, p50/p99 loop timing, events/sec, and traced-memory peak. Prefer the JSON file for repeated local comparisons; this Markdown file is the human-readable summary.
 """
 
 
@@ -94,6 +112,7 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 - Input SHA-256: `{metadata["input_sha256"]}`
 - Config digest: `{metadata["config_digest"]}`
 - Feed adapter: `{metadata["feed_adapter"]["name"]}` (`{metadata["feed_adapter"]["venue_label"]}`)
+- Instrument specs: {_format_instrument_specs(metadata)}
 - Machine: `{metadata["platform"]}`
 - Python: `{metadata["python_version"]}`
 - Benchmark date: `{_created_at(metadata)}`
@@ -122,7 +141,7 @@ Exact benchmark command:
 Interpretation:
 
 - This is a tiny committed replay clip, so fixed overhead dominates throughput.
-- The value of the benchmark is provenance: input digest, config digest, feed adapter, Python/platform/git metadata, p50/p99 loop timing, events/sec, memory, and gap count are reported together.
+- The value of the benchmark is provenance: input digest, full non-secret config metadata, instrument specs, feed adapter, Python/platform/git metadata, p50/p99 loop timing, events/sec, memory, and gap count are reported together.
 - For serious throughput analysis, use a larger recorded file and publish the input digest plus hardware context alongside the result.
 
 ## Benchmark Tool
@@ -136,8 +155,9 @@ python experiments/benchmark_futures_replay.py --file docs/sample_outputs/future
 The script prints:
 
 - input SHA-256
-- non-secret config digest
+- non-secret config snapshot and digest
 - feed adapter
+- instrument specs
 - Python/platform/git metadata
 - total events
 - exchangeInfo events
@@ -150,7 +170,7 @@ The script prints:
 - p50 / p99 loop timing
 - peak traced memory
 
-With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
+With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. Metadata includes the full non-secret config snapshot and normalized instrument specs so repeated runs can be audited without guessing units or environment settings. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
 
 ## Caveats
 

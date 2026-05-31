@@ -23,7 +23,14 @@ def _write_benchmark_fixture(path: Path) -> Path:
             ts_local=0.5,
             symbol="BTCUSDT",
             type="exchangeInfo",
-            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+            data={
+                "symbol": "BTCUSDT",
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "baseAsset": "BTC",
+                "quoteAsset": "USDT",
+                "contractMultiplier": "1",
+            },
         ),
         NDJSONRecord(
             ts_local=1.0,
@@ -61,10 +68,22 @@ def test_benchmark_replay_returns_machine_readable_result(
     assert result["metadata"]["input_file"] == input_path.as_posix()
     assert result["metadata"]["input_sha256"] == file_sha256(input_path)
     assert result["metadata"]["config_digest"]
+    assert result["metadata"]["config"]["book_top_n"] > 0
     assert result["metadata"]["feed_adapter"] == {
         "name": "binance_usdm",
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
+    }
+    assert result["metadata"]["instrument_specs"] == {
+        "BTCUSDT": {
+            "symbol": "BTCUSDT",
+            "venue": "BINANCE_USDM",
+            "price_currency": "USDT",
+            "quantity_unit": "BTC",
+            "tick_size": "0.1",
+            "step_size": "0.001",
+            "contract_multiplier": "1",
+        }
     }
     assert set(result["metadata"]["source"]) == {"git_commit", "git_branch", "git_dirty"}
     assert result["event_counts"] == {

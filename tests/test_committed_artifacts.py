@@ -664,6 +664,10 @@ def test_futures_benchmark_reference_is_published() -> None:
     assert "TBD" not in published_section
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in published_section
     assert "benchmark_results/futures_replay_reference.md" in benchmarks
+    assert "Instrument specs: `BTCUSDT`" in benchmarks
+    assert benchmark_json["schema_version"] == verifier.EXPECTED_BENCHMARK_SCHEMA_VERSION
+    assert "config" in benchmark_json["metadata"]
+    assert "instrument_specs" in benchmark_json["metadata"]
     assert benchmark_json["metadata"]["feed_adapter"] == verifier.EXPECTED_FUTURES_FEED_ADAPTER
 
 

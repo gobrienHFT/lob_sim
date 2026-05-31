@@ -239,6 +239,7 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "venue_label": "BINANCE_USDM",
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
+EXPECTED_BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
 EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "symbol",
     "venue",
@@ -343,6 +344,11 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _config_digest(config: dict) -> str:
+    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    return sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _iter_repo_relative_links(path: Path) -> list[str]:
@@ -980,15 +986,28 @@ def _verify_benchmark_publication() -> list[str]:
         else:
             expected_input = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
             expected_sha = _file_sha256(REPO_ROOT / expected_input)
-            if result.get("schema_version") != "lob_sim.replay_benchmark.v1":
+            if result.get("schema_version") != EXPECTED_BENCHMARK_SCHEMA_VERSION:
                 issues.append("Benchmark JSON artifact has an unexpected schema_version")
-            if result.get("metadata", {}).get("input_file") != expected_input:
+            metadata = result.get("metadata", {})
+            if metadata.get("input_file") != expected_input:
                 issues.append("Benchmark JSON artifact does not reference the committed recorded clip input")
-            if result.get("metadata", {}).get("input_sha256") != expected_sha:
+            if metadata.get("input_sha256") != expected_sha:
                 issues.append("Benchmark JSON artifact input_sha256 does not match the committed recorded clip")
-            if result.get("metadata", {}).get("feed_adapter") != EXPECTED_FUTURES_FEED_ADAPTER:
+            if metadata.get("feed_adapter") != EXPECTED_FUTURES_FEED_ADAPTER:
                 issues.append("Benchmark JSON artifact has missing or stale feed_adapter metadata")
-            if result.get("metadata", {}).get("source", {}).get("git_dirty") is not False:
+            config = metadata.get("config")
+            if not isinstance(config, dict) or not config:
+                issues.append("Benchmark JSON artifact is missing non-secret config metadata")
+            elif metadata.get("config_digest") != _config_digest(config):
+                issues.append("Benchmark JSON artifact config_digest does not match config metadata")
+            try:
+                expected_specs = _instrument_specs_from_replay_input(REPO_ROOT / expected_input)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                issues.append(f"Benchmark replay input could not be inspected for instrument metadata: {exc}")
+            else:
+                if metadata.get("instrument_specs") != expected_specs:
+                    issues.append("Benchmark JSON artifact instrument_specs does not match replay input metadata")
+            if metadata.get("source", {}).get("git_dirty") is not False:
                 issues.append("Benchmark JSON artifact should be refreshed from a clean source tree")
             for section in ["event_counts", "timing", "memory"]:
                 if section not in result:

@@ -17,10 +17,10 @@ from lob_sim.config import load_config
 from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
-from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
+from lob_sim.sim.run_manifest import config_digest, config_snapshot, instrument_specs_snapshot, source_state
 
 
-BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v1"
+BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
 
 
 def _percentile(sorted_values: list[float], pct: float) -> float:
@@ -47,6 +47,7 @@ def benchmark_replay(
         "benchmark_created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "input_file": path.as_posix(),
         "input_sha256": file_sha256(path),
+        "config": cfg_snapshot,
         "config_digest": config_digest(cfg_snapshot),
         "feed_adapter": adapter_metadata(adapter),
         "python_version": sys.version.split()[0],
@@ -120,6 +121,7 @@ def benchmark_replay(
     wall_time = time.perf_counter() - wall_start
     _current, peak_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()
+    metadata["instrument_specs"] = instrument_specs_snapshot(symbols)
 
     latencies_sorted = sorted(loop_latencies_us)
     events_per_sec = total_events / wall_time if wall_time > 0 else 0.0
@@ -163,6 +165,7 @@ def print_benchmark(result: dict[str, Any]) -> None:
     print(f"Input SHA-256: {metadata['input_sha256']}")
     print(f"Config digest: {metadata['config_digest']}")
     print(f"Feed adapter: {metadata['feed_adapter']['name']} ({metadata['feed_adapter']['venue_label']})")
+    print(f"Instrument specs: {', '.join(sorted(metadata['instrument_specs'])) or '<none>'}")
     print(f"Python: {metadata['python_version']}")
     print(f"Platform: {metadata['platform']}")
     print(f"Git commit: {metadata['source']['git_commit']}")
