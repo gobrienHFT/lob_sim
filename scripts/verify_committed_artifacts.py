@@ -240,6 +240,7 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
 EXPECTED_BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
+EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
 EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "symbol",
     "venue",
@@ -248,6 +249,29 @@ EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "tick_size",
     "step_size",
     "contract_multiplier",
+}
+EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
+    "schema_version",
+    "data_scope",
+    "private_exchange_execution_reports",
+    "queue_priority_model",
+    "snapshot_seed",
+    "depth_increase",
+    "depth_decrease",
+    "agg_trade_consumption",
+    "overlap_netting",
+    "cancel_model",
+    "same_timestamp_ordering",
+    "marketable_limits",
+    "self_trade_prevention",
+    "markout",
+    "limitations",
+}
+EXPECTED_SIMULATION_LIMITATIONS = {
+    "no_private_queue_ids",
+    "no_hidden_liquidity",
+    "not_private_exchange_fill_truth",
+    "public_l2_cannot_distinguish_all_cancels_from_trades",
 }
 EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
 EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
@@ -585,6 +609,70 @@ def _verify_futures_instrument_specs_metadata() -> list[str]:
         else:
             if csv_specs != summary_specs:
                 issues.append(f"{_repo_relative(summary_csv_path)} instrument_specs does not match summary.json")
+    return issues
+
+
+def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(assumptions, dict):
+        return [f"{_repo_relative(path)} is missing simulation_assumptions"]
+    if set(assumptions) != EXPECTED_SIMULATION_ASSUMPTION_FIELDS:
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected fields")
+        return issues
+    if assumptions.get("schema_version") != EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION:
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected schema_version")
+    if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected data_scope")
+    if assumptions.get("private_exchange_execution_reports") is not False:
+        issues.append(f"{_repo_relative(path)} simulation_assumptions must not claim private exchange execution reports")
+    if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected queue priority model")
+
+    overlap = assumptions.get("overlap_netting")
+    if not isinstance(overlap, dict):
+        issues.append(f"{_repo_relative(path)} simulation_assumptions.overlap_netting must be an object")
+    else:
+        if overlap.get("enabled") is not True:
+            issues.append(f"{_repo_relative(path)} simulation_assumptions overlap netting must be enabled")
+        if overlap.get("window_seconds") != EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS:
+            issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected overlap window")
+
+    limitations = assumptions.get("limitations")
+    if not isinstance(limitations, list):
+        issues.append(f"{_repo_relative(path)} simulation_assumptions.limitations must be a list")
+    elif not EXPECTED_SIMULATION_LIMITATIONS <= set(limitations):
+        issues.append(f"{_repo_relative(path)} simulation_assumptions is missing required limitation token(s)")
+    return issues
+
+
+def _verify_futures_simulation_assumptions_metadata() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
+        manifest_path = directory / "manifest.json"
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        manifest = json.loads(_read_text(manifest_path))
+        summary = json.loads(_read_text(summary_path))
+        manifest_assumptions = manifest.get("simulation_assumptions")
+        summary_assumptions = summary.get("simulation_assumptions")
+
+        issues.extend(_validate_simulation_assumptions_shape(manifest_path, manifest_assumptions))
+        issues.extend(_validate_simulation_assumptions_shape(summary_path, summary_assumptions))
+        if manifest_assumptions != summary_assumptions:
+            issues.append(f"{_repo_relative(manifest_path)} simulation_assumptions does not match summary.json")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "simulation_assumptions" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing simulation_assumptions")
+            continue
+        try:
+            csv_assumptions = json.loads(rows[0]["simulation_assumptions"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} simulation_assumptions is not valid JSON: {exc}")
+        else:
+            if csv_assumptions != summary_assumptions:
+                issues.append(f"{_repo_relative(summary_csv_path)} simulation_assumptions does not match summary.json")
     return issues
 
 
@@ -1328,6 +1416,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_manifest_source_provenance())
     issues.extend(_verify_futures_feed_adapter_metadata())
     issues.extend(_verify_futures_instrument_specs_metadata())
+    issues.extend(_verify_futures_simulation_assumptions_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())

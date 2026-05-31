@@ -215,6 +215,79 @@ def test_futures_instrument_spec_verifier_rejects_stale_metadata(tmp_path, monke
     ]
 
 
+def _valid_simulation_assumptions() -> dict:
+    return {
+        "schema_version": verifier.EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION,
+        "data_scope": "public_l2_order_book_and_agg_trade_records",
+        "private_exchange_execution_reports": False,
+        "queue_priority_model": "visible_price_time_fifo",
+        "snapshot_seed": "snapshot queue",
+        "depth_increase": "depth increases append",
+        "depth_decrease": "depth reductions consume",
+        "agg_trade_consumption": "aggTrade consumes",
+        "overlap_netting": {
+            "enabled": True,
+            "window_seconds": verifier.EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS,
+            "purpose": "dedupe public consumption",
+        },
+        "cancel_model": "cancel latency",
+        "same_timestamp_ordering": "event-time ordering",
+        "marketable_limits": "taker execution",
+        "self_trade_prevention": "stop before own liquidity",
+        "markout": "mid-price markout",
+        "limitations": sorted(verifier.EXPECTED_SIMULATION_LIMITATIONS),
+    }
+
+
+def _write_simulation_assumption_case(
+    directory: Path,
+    *,
+    manifest_assumptions: dict,
+    summary_assumptions: dict,
+) -> None:
+    directory.mkdir()
+    (directory / "manifest.json").write_text(
+        json.dumps({"simulation_assumptions": manifest_assumptions}),
+        encoding="utf-8",
+    )
+    (directory / "summary.json").write_text(
+        json.dumps({"simulation_assumptions": summary_assumptions}),
+        encoding="utf-8",
+    )
+    with (directory / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["simulation_assumptions"])
+        writer.writeheader()
+        writer.writerow({"simulation_assumptions": json.dumps(summary_assumptions, sort_keys=True)})
+
+
+def test_futures_simulation_assumption_verifier_rejects_private_fill_claim(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    expected = _valid_simulation_assumptions()
+    stale = {**expected, "private_exchange_execution_reports": True}
+
+    _write_simulation_assumption_case(
+        showcase,
+        manifest_assumptions=stale,
+        summary_assumptions=expected,
+    )
+    _write_simulation_assumption_case(
+        recorded,
+        manifest_assumptions=expected,
+        summary_assumptions=expected,
+    )
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_simulation_assumptions_metadata()
+
+    assert issues == [
+        f"{showcase / 'manifest.json'} simulation_assumptions must not claim private exchange execution reports",
+        f"{showcase / 'manifest.json'} simulation_assumptions does not match summary.json",
+    ]
+
+
 def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path, monkeypatch) -> None:
     showcase = tmp_path / "showcase"
     recorded = tmp_path / "recorded"

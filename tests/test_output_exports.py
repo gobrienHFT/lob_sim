@@ -167,6 +167,9 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
             "contract_multiplier": "1",
         }
     }
+    assert summary["simulation_assumptions"]["private_exchange_execution_reports"] is False
+    assert summary["simulation_assumptions"]["queue_priority_model"] == "visible_price_time_fifo"
+    assert "not_private_exchange_fill_truth" in summary["simulation_assumptions"]["limitations"]
     assert summary["public_consumption_summary"] == {
         "overlap_window_seconds": 0.125,
         "sources": {
@@ -198,6 +201,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert row["total_pnl"] == "7.25"
     assert row["inventory_by_symbol"] == '{"BTCUSDT": 0.001}'
     assert json.loads(row["instrument_specs"]) == summary["instrument_specs"]
+    assert json.loads(row["simulation_assumptions"]) == summary["simulation_assumptions"]
     assert json.loads(row["public_consumption_summary"]) == summary["public_consumption_summary"]
     assert "fills" not in row
     assert "markout_events" not in row
@@ -221,6 +225,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert manifest["input"]["sha256"] == summary["input_sha256"]
     assert manifest["feed_adapter"] == summary["feed_adapter"]
     assert manifest["instrument_specs"] == summary["instrument_specs"]
+    assert manifest["simulation_assumptions"] == summary["simulation_assumptions"]
     assert manifest["source"] == {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
     assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]

@@ -16,8 +16,10 @@ from ..book.types import InstrumentSpec
 from ..config import Config
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from ..replay.inspection import file_sha256
+from .fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
+SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
 SOURCE_STATE_OVERRIDE_ENV = "LOB_SIM_SOURCE_STATE_JSON"
 
 
@@ -148,6 +150,52 @@ def instrument_specs_snapshot(specs: Mapping[str, InstrumentSpec]) -> dict[str, 
     return snapshot
 
 
+def simulation_assumptions_snapshot() -> dict[str, Any]:
+    """Return the public-data and queue-fill assumptions attached to run artifacts."""
+
+    return {
+        "schema_version": SIMULATION_ASSUMPTIONS_SCHEMA_VERSION,
+        "data_scope": "public_l2_order_book_and_agg_trade_records",
+        "private_exchange_execution_reports": False,
+        "queue_priority_model": "visible_price_time_fifo",
+        "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
+        "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
+        "depth_decrease": (
+            "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, "
+            "cancels, or both, so unmatched public consumption is reported instead of hidden."
+        ),
+        "agg_trade_consumption": (
+            "Public aggTrade prints consume same-price visible queue on the resting side as an additional "
+            "queue-consumption signal."
+        ),
+        "overlap_netting": {
+            "enabled": True,
+            "window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
+            "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting.",
+        },
+        "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
+        "same_timestamp_ordering": (
+            "Engine events due at a market-row timestamp are drained before that row; strategy reactions to "
+            "that row run after the row and any fills it produced."
+        ),
+        "marketable_limits": (
+            "Marketable strategy limits execute as taker orders against visible depth and post only any "
+            "non-crossing remainder."
+        ),
+        "self_trade_prevention": (
+            "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead "
+            "of self-trading."
+        ),
+        "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
+        "limitations": [
+            "no_private_queue_ids",
+            "no_hidden_liquidity",
+            "not_private_exchange_fill_truth",
+            "public_l2_cannot_distinguish_all_cancels_from_trades",
+        ],
+    }
+
+
 def _run_id(input_sha: str, cfg: Config, feed_adapter: dict[str, Any]) -> str:
     payload = json.dumps(
         {
@@ -173,6 +221,7 @@ class RunManifest:
     config: dict[str, Any]
     feed_adapter: dict[str, Any]
     instrument_specs: dict[str, dict[str, str]]
+    simulation_assumptions: dict[str, Any]
     runtime: dict[str, Any]
     source: dict[str, Any]
     outputs: dict[str, str]
@@ -188,6 +237,7 @@ class RunManifest:
             "config": self.config,
             "feed_adapter": self.feed_adapter,
             "instrument_specs": self.instrument_specs,
+            "simulation_assumptions": self.simulation_assumptions,
             "runtime": self.runtime,
             "source": self.source,
             "outputs": self.outputs,
@@ -222,6 +272,7 @@ def build_run_manifest(
         config=config_snapshot(cfg),
         feed_adapter=feed_adapter,
         instrument_specs=instrument_specs_snapshot(instrument_specs or {}),
+        simulation_assumptions=simulation_assumptions_snapshot(),
         runtime={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

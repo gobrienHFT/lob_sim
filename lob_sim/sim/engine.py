@@ -20,7 +20,7 @@ from .fill_model import PassiveFillModel
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
-from .run_manifest import build_run_manifest, instrument_specs_snapshot
+from .run_manifest import build_run_manifest, instrument_specs_snapshot, simulation_assumptions_snapshot
 
 EVENT_TRACE_FIELDS = [
     "ts_local",
@@ -691,6 +691,7 @@ class SimulationEngine:
         summary["input_sha256"] = manifest_seed.input["sha256"]
         summary["feed_adapter"] = manifest_seed.feed_adapter
         summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
+        summary["simulation_assumptions"] = simulation_assumptions_snapshot()
         summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)

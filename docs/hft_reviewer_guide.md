@@ -76,6 +76,7 @@ Observed:
 - local event timestamps stored in the record stream.
 - adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created.
 - generated summary and manifest `instrument_specs`, matching the replay input metadata used for units and multiplier economics.
+- generated summary and manifest `simulation_assumptions`, explicitly stating public-data scope, FIFO assumptions, overlap netting, cancel-latency behavior, and no private execution-report claim.
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
@@ -137,4 +138,5 @@ Inferred:
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.
+- Artifact verification rejects committed futures packs whose public-data simulation assumptions are missing, inconsistent, or claim private exchange fills.
 - Extensible boundaries for future venue adapters and asset metadata.
