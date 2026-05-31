@@ -32,6 +32,10 @@ SWEEP_FIELDS = [
     "avg_queue_ahead_lots",
     "queue_fill_count",
     "max_queue_ahead_lots",
+    "resting_arrival_queue_samples",
+    "arrival_with_queue_ahead_count",
+    "avg_arrival_queue_ahead_lots",
+    "max_arrival_queue_ahead_lots",
     "avg_fill_wait_ms",
     "fill_source_counts",
     "order_lifecycle_counts",
@@ -67,6 +71,7 @@ def _diagnostic_score(summary: dict) -> float:
         - 0.25 * float(summary["inventory_stdev"])
         - float(summary["max_drawdown"])
         - 0.001 * float(summary["avg_queue_ahead_lots"])
+        - 0.0005 * float(summary["avg_arrival_queue_ahead_lots"])
     )
 
 

@@ -80,6 +80,7 @@ Observed:
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
+- summary-level queue-ahead-at-arrival diagnostics, verified against event traces, so initial queue position is visible even when fill-time residual queue ahead is zero.
 - strategy decision diagnostics: best ticks, mid, inventory, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
 
 Inferred:
@@ -135,6 +136,7 @@ Inferred:
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
 - Public-feed diagnostics that expose how much depth/print consumption was modeled, consumed from FIFO queue, left unmatched, or netted away.
 - Event traces that make order/cancel/fill sequencing inspectable without a debugger.
+- Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.

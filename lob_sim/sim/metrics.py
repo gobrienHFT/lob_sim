@@ -90,6 +90,10 @@ class SimulationMetrics:
         self.fill_wait_count = 0
         self.fill_wait_ms_total = Decimal("0")
         self.max_queue_ahead_lots = 0
+        self.resting_arrival_queue_samples = 0
+        self.arrival_with_queue_ahead_count = 0
+        self.arrival_queue_ahead_sum = 0
+        self.max_arrival_queue_ahead_lots = 0
         self.public_consumption_summary: dict[str, Any] | None = None
 
         self.consecutive_loss_count = 0
@@ -112,11 +116,19 @@ class SimulationMetrics:
         resting_after_arrival: bool,
         immediate_fills: int,
         remaining_lots_after_arrival: int,
+        queue_ahead_lots_after_arrival: int = 0,
     ) -> None:
         self.on_quote_requested()
         self.order_arrival_count += 1
         if resting_after_arrival:
             self.order_rested_after_arrival_count += 1
+            queue_ahead = max(0, queue_ahead_lots_after_arrival)
+            self.resting_arrival_queue_samples += 1
+            self.arrival_queue_ahead_sum += queue_ahead
+            if queue_ahead > 0:
+                self.arrival_with_queue_ahead_count += 1
+            if queue_ahead > self.max_arrival_queue_ahead_lots:
+                self.max_arrival_queue_ahead_lots = queue_ahead
         if immediate_fills > 0:
             self.order_immediate_fill_arrival_count += 1
         if not resting_after_arrival and remaining_lots_after_arrival > 0:
@@ -471,6 +483,12 @@ class SimulationMetrics:
         if self.fill_count > 0:
             avg_queue_ahead_lots = Decimal(self.queue_ahead_sum) / Decimal(self.fill_count)
 
+        avg_arrival_queue_ahead_lots = Decimal("0")
+        if self.resting_arrival_queue_samples > 0:
+            avg_arrival_queue_ahead_lots = (
+                Decimal(self.arrival_queue_ahead_sum) / Decimal(self.resting_arrival_queue_samples)
+            )
+
         regime_performance: dict[str, dict[str, float]] = {}
         for regime in self._regime_fill_counts:
             fills = self._regime_fill_counts[regime]
@@ -541,6 +559,10 @@ class SimulationMetrics:
             "queue_fill_count": self.queue_fill_count,
             "avg_queue_ahead_lots": float(avg_queue_ahead_lots),
             "max_queue_ahead_lots": self.max_queue_ahead_lots,
+            "resting_arrival_queue_samples": self.resting_arrival_queue_samples,
+            "arrival_with_queue_ahead_count": self.arrival_with_queue_ahead_count,
+            "avg_arrival_queue_ahead_lots": float(avg_arrival_queue_ahead_lots),
+            "max_arrival_queue_ahead_lots": self.max_arrival_queue_ahead_lots,
             "max_consecutive_loss_count": self.max_consecutive_loss_count,
             "markout_samples_remaining": len(self._pending_markouts),
             "avg_markout_1s": float(avg_markout),

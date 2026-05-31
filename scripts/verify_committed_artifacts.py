@@ -883,6 +883,10 @@ def _verify_futures_event_trace_contract() -> list[str]:
         previous_key: tuple[float, int] | None = None
         fill_rows = []
         lifecycle_from_trace = {key: 0 for key in FUTURES_ORDER_LIFECYCLE_KEYS}
+        arrival_queue_samples = 0
+        arrival_with_queue_ahead_count = 0
+        arrival_queue_ahead_sum = 0
+        max_arrival_queue_ahead_lots = 0
         for row_index, row in enumerate(rows, start=2):
             seq_value = row.get("seq", "")
             try:
@@ -930,6 +934,17 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 if details is not None:
                     if details.get("resting_after_arrival") is True:
                         lifecycle_from_trace["rested_after_arrival"] += 1
+                        queue_ahead = details.get("queue_ahead_lots_after_arrival")
+                        if not isinstance(queue_ahead, int) or queue_ahead < 0:
+                            issues.append(
+                                f"{_repo_relative(trace_path)}:{row_index} order_arrival has invalid queue_ahead_lots_after_arrival"
+                            )
+                        else:
+                            arrival_queue_samples += 1
+                            arrival_queue_ahead_sum += queue_ahead
+                            if queue_ahead > 0:
+                                arrival_with_queue_ahead_count += 1
+                            max_arrival_queue_ahead_lots = max(max_arrival_queue_ahead_lots, queue_ahead)
                     immediate_fills = details.get("immediate_fills")
                     if isinstance(immediate_fills, int) and immediate_fills > 0:
                         lifecycle_from_trace["immediate_fill_arrivals"] += 1
@@ -970,6 +985,29 @@ def _verify_futures_event_trace_contract() -> list[str]:
                         f"{_repo_relative(trace_path)} lifecycle {key}={lifecycle_from_trace[key]} "
                         f"does not match summary value {lifecycle_counts[key]}"
                     )
+        expected_arrival_queue_fields = {
+            "resting_arrival_queue_samples": arrival_queue_samples,
+            "arrival_with_queue_ahead_count": arrival_with_queue_ahead_count,
+            "max_arrival_queue_ahead_lots": max_arrival_queue_ahead_lots,
+        }
+        for field, expected_value in expected_arrival_queue_fields.items():
+            if summary.get(field) != expected_value:
+                issues.append(
+                    f"{_repo_relative(trace_path)} {field}={expected_value} "
+                    f"does not match summary value {summary.get(field)!r}"
+                )
+        expected_avg_queue = arrival_queue_ahead_sum / arrival_queue_samples if arrival_queue_samples else 0.0
+        observed_avg_queue = summary.get("avg_arrival_queue_ahead_lots")
+        if not isinstance(observed_avg_queue, (int, float)) or not math.isclose(
+            float(observed_avg_queue),
+            expected_avg_queue,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            issues.append(
+                f"{_repo_relative(trace_path)} avg_arrival_queue_ahead_lots={expected_avg_queue} "
+                f"does not match summary value {observed_avg_queue!r}"
+            )
     return issues
 
 
@@ -1236,6 +1274,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             "max_drawdown",
             "fill_from_top_rate",
             "avg_queue_ahead_lots",
+            "resting_arrival_queue_samples",
+            "arrival_with_queue_ahead_count",
+            "avg_arrival_queue_ahead_lots",
+            "max_arrival_queue_ahead_lots",
             "fill_source_counts",
             "order_lifecycle_counts",
         }

@@ -455,15 +455,43 @@ def _write_event_trace_case(
     lifecycle_counts: dict[str, int] | None = None,
 ) -> None:
     directory.mkdir()
+    arrival_queue_samples = 0
+    arrival_with_queue_ahead_count = 0
+    arrival_queue_ahead_sum = 0
+    max_arrival_queue_ahead_lots = 0
+    for row in rows:
+        if row.get("event_type") != "order_arrival":
+            continue
+        try:
+            details = json.loads(row.get("details") or "{}")
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(details, dict) or details.get("resting_after_arrival") is not True:
+            continue
+        queue_ahead = details.get("queue_ahead_lots_after_arrival", 0)
+        if isinstance(queue_ahead, int) and queue_ahead >= 0:
+            arrival_queue_samples += 1
+            arrival_queue_ahead_sum += queue_ahead
+            if queue_ahead > 0:
+                arrival_with_queue_ahead_count += 1
+            max_arrival_queue_ahead_lots = max(max_arrival_queue_ahead_lots, queue_ahead)
+    avg_arrival_queue_ahead_lots = (
+        arrival_queue_ahead_sum / arrival_queue_samples if arrival_queue_samples else 0.0
+    )
+    counts = lifecycle_counts or _lifecycle_counts()
     (directory / "summary.json").write_text(
         json.dumps(
             {
                 "event_trace_count": event_trace_count,
                 "fill_count": fill_count,
-                "quote_count": 0,
-                "cancel_count": 0,
-                "self_trade_prevention_count": 0,
-                "order_lifecycle_counts": lifecycle_counts or _lifecycle_counts(),
+                "quote_count": counts["arrived"],
+                "cancel_count": counts["cancel_requested"],
+                "self_trade_prevention_count": counts["self_trade_prevented"],
+                "order_lifecycle_counts": counts,
+                "resting_arrival_queue_samples": arrival_queue_samples,
+                "arrival_with_queue_ahead_count": arrival_with_queue_ahead_count,
+                "avg_arrival_queue_ahead_lots": avg_arrival_queue_ahead_lots,
+                "max_arrival_queue_ahead_lots": max_arrival_queue_ahead_lots,
             }
         ),
         encoding="utf-8",
@@ -560,6 +588,39 @@ def test_futures_event_trace_verifier_rejects_lifecycle_summary_mismatch(tmp_pat
 
     assert (
         f"{showcase / 'event_trace.csv'} lifecycle arrival_scheduled=1 does not match summary value 0"
+        in issues
+    )
+
+
+def test_futures_event_trace_verifier_rejects_arrival_queue_mismatch(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="order_arrival",
+                source="engine",
+                details='{"resting_after_arrival":true,"queue_ahead_lots_after_arrival":3,"immediate_fills":0}',
+            )
+        ],
+        lifecycle_counts=_lifecycle_counts(arrived=1, rested_after_arrival=1),
+    )
+    summary = json.loads((showcase / "summary.json").read_text(encoding="utf-8"))
+    summary["max_arrival_queue_ahead_lots"] = 0
+    (showcase / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert (
+        f"{showcase / 'event_trace.csv'} max_arrival_queue_ahead_lots=3 does not match summary value 0"
         in issues
     )
 

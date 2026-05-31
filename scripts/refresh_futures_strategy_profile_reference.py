@@ -28,6 +28,8 @@ REFERENCE_FIELDS: list[tuple[str, str]] = [
     ("fill_rate", "fill_rate"),
     ("fill_from_top_count", "fill_from_top_count"),
     ("avg_queue_ahead_lots", "avg_queue_ahead_lots"),
+    ("avg_arrival_queue_ahead_lots", "avg_arrival_queue_ahead_lots"),
+    ("max_arrival_queue_ahead_lots", "max_arrival_queue_ahead_lots"),
     ("avg_markout_1s", "avg_markout_1s"),
     ("adverse_fill_rate_1s", "adverse_fill_rate_1s"),
     ("inventory_stdev", "inventory_stdev"),

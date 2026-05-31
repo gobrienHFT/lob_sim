@@ -765,6 +765,10 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
     assert summary["fill_count"] == 1
     assert summary["fills"][0]["fill_source"] == "agg_trade"
     assert summary["fills"][0]["queue_ahead_lots"] == 0
+    assert summary["resting_arrival_queue_samples"] == 1
+    assert summary["arrival_with_queue_ahead_count"] == 1
+    assert summary["avg_arrival_queue_ahead_lots"] == pytest.approx(2.0)
+    assert summary["max_arrival_queue_ahead_lots"] == 2
     assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
     assert summary["public_consumption_summary"] == {
         "overlap_window_seconds": 0.125,

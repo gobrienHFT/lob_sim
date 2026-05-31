@@ -462,6 +462,7 @@ class SimulationEngine:
             resting_after_arrival=resting_after_arrival,
             immediate_fills=len(fills),
             remaining_lots_after_arrival=order.remaining_lots,
+            queue_ahead_lots_after_arrival=queue_ahead_after_arrival,
         )
         if self.fill_model.last_self_trade_prevented:
             self.metrics.on_self_trade_prevented()
