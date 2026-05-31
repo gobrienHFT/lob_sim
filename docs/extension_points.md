@@ -4,7 +4,7 @@ The futures replay core is intentionally built around normalized events and inte
 
 ## Current Boundaries
 
-- `lob_sim.book.types.InstrumentSpec`: tick size, lot size, optional currency/unit metadata, contract multiplier, and venue label. `SymbolSpec` remains as a compatibility alias.
+- `lob_sim.book.types.InstrumentSpec`: tick size, lot size, optional currency/unit metadata, contract multiplier, and venue label. Tick size, lot size, multiplier, and symbol identity are validated before normalized events can enter replay or simulation state. `SymbolSpec` remains as a compatibility alias.
 - `lob_sim.record.schema`: normalized replay row contract for `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 - `lob_sim.replay.adapters`: explicit feed-adapter boundary. The default `BinanceUsdMReplayAdapter` maps the committed Binance USD-M-style record contract into normalized events, and tests show the engine can accept an injected adapter without changing queue/fill logic.
 - `lob_sim.replay.normalization`: single conversion boundary from validated replay rows into `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent`.
@@ -30,9 +30,9 @@ The futures replay core is intentionally built around normalized events and inte
 
 The simulator expects prices and quantities to become integer ticks and lots. Asset-specific work should live at the adapter/config boundary:
 
-- tick size and lot size;
+- positive finite tick size and lot size;
 - price currency and quantity unit;
-- contract multiplier;
+- positive finite contract multiplier;
 - maker/taker fee model inputs;
 - venue-specific event ordering and sequence semantics;
 - whether public prints are reliable enough to use as a queue-consumption hint.

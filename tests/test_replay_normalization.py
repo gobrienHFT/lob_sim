@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from lob_sim.book.types import InstrumentSpec
 from lob_sim.replay.normalization import (
     agg_trade_from_record,
     depth_update_from_record,
@@ -41,6 +42,41 @@ def test_exchange_info_normalizes_to_instrument_spec_with_metadata() -> None:
     assert spec.venue == "BINANCE_USDM"
     assert symbol_spec_from_record(record) == spec
     assert parse_symbol_spec_from_record(record) == ("BTCUSDT", spec.tick_size, spec.step_size)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("symbol", "", "symbol must be non-empty"),
+        ("tick_size", "0", "tick_size must be a positive finite decimal"),
+        ("tick_size", "-0.01", "tick_size must be a positive finite decimal"),
+        ("step_size", "0", "step_size must be a positive finite decimal"),
+        ("contract_multiplier", "NaN", "contract_multiplier must be a positive finite decimal"),
+    ],
+)
+def test_instrument_spec_rejects_invalid_metadata(field: str, value: str, match: str) -> None:
+    kwargs = {
+        "symbol": "BTCUSDT",
+        "tick_size": Decimal("0.10"),
+        "step_size": Decimal("0.001"),
+        "contract_multiplier": Decimal("1"),
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match=match):
+        InstrumentSpec(**kwargs)
+
+
+def test_exchange_info_rejects_invalid_tick_or_lot_metadata() -> None:
+    record = RecordedEvent(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="exchangeInfo",
+        data={"tickSize": "0", "stepSize": "0.001"},
+    )
+
+    with pytest.raises(ValueError, match="tick_size must be a positive finite decimal"):
+        instrument_spec_from_record(record)
 
 
 def test_default_replay_adapter_supplies_binance_venue_label_when_missing() -> None:

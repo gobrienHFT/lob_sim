@@ -74,7 +74,7 @@ Observed:
 - public depth diffs and sequence IDs;
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
-- adapter-normalized instrument metadata and integer tick/lot events.
+- adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created.
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.

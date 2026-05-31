@@ -17,6 +17,27 @@ class InstrumentSpec:
     contract_multiplier: Decimal = Decimal("1")
     venue: str = ""
 
+    def __post_init__(self) -> None:
+        if not str(self.symbol).strip():
+            raise ValueError("symbol must be non-empty")
+        object.__setattr__(self, "tick_size", self._positive_decimal(self.tick_size, "tick_size"))
+        object.__setattr__(self, "step_size", self._positive_decimal(self.step_size, "step_size"))
+        object.__setattr__(
+            self,
+            "contract_multiplier",
+            self._positive_decimal(self.contract_multiplier, "contract_multiplier"),
+        )
+
+    @staticmethod
+    def _positive_decimal(value: Decimal | str | float | int, field_name: str) -> Decimal:
+        try:
+            decimal_value = Decimal(str(value))
+        except Exception as exc:
+            raise ValueError(f"{field_name} must be a positive finite decimal") from exc
+        if not decimal_value.is_finite() or decimal_value <= 0:
+            raise ValueError(f"{field_name} must be a positive finite decimal")
+        return decimal_value
+
     def price_to_tick(self, price: Decimal | str | float | int) -> int:
         value = Decimal(str(price))
         return int((value / self.tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP))

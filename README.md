@@ -44,6 +44,7 @@ For a reviewer-focused path through the futures core, start with [docs/hft_revie
 - The collector writes a deterministic event stream of `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade` records to NDJSON.
 - The replay path consumes that same recorded stream; there is no separate replay-only data format.
 - The reader validates the replay contract before yielding events, so malformed rows fail with file and line context instead of leaking into simulation state.
+- `InstrumentSpec` rejects empty symbols, non-positive tick/lot sizes, and non-finite multipliers at the adapter boundary before book or fill code sees them.
 - Snapshot seeding uses the REST snapshot as the local book baseline, then requires the first accepted diff to cover the snapshot update id.
 - Diff continuity is enforced with Binance USD-M `U`, `u`, and `pu` semantics; gap handling is explicit rather than patched over.
 - With `RESYNC_ON_GAP=1`, live collection re-snapshots on continuity failure. Offline replay and simulation do not fabricate missing updates.
