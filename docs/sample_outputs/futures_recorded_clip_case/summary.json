@@ -91,9 +91,11 @@
   "run_id": "9ca4a7a87ab927c4",
   "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
   "output_files": {
+    "event_trace": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
     "summary": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
     "summary_csv": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
     "trades": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
     "manifest": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
-  }
+  },
+  "event_trace_count": 86
 }
