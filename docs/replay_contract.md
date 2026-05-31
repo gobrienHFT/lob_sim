@@ -48,6 +48,8 @@ Summaries and manifests include the adapter-normalized `instrument_specs` block 
 
 Trades CSV rows include fill source, normalized quantity, instrument notional, contract multiplier, maker/taker fee rate, fee amount, and fee currency. PnL, spread capture, fees, and markout are multiplier-adjusted; inventory remains in normalized quantity units.
 
+Summaries include `markout_by_fill_source`, splitting markout sample count, adverse sample count, quantity, average signed markout, and adverse-fill rate across `depth_update`, `agg_trade`, and `taker_order` fills. This makes it easier to audit whether a run's fill-quality story is coming from inferred passive fills or explicit taker execution.
+
 Committed event traces are semantically checked by `scripts/verify_committed_artifacts.py`: row counts must match `summary["event_trace_count"]`, sequence numbers must be contiguous, rows must stay in event-time order, `details` must be JSON objects, fill rows must match `summary["fill_count"]` with a recognized fill source, and order lifecycle counters must agree with the trace rows.
 
 The manifest records:

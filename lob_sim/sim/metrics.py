@@ -77,6 +77,10 @@ class SimulationMetrics:
         self.adverse_markout_count = 0
         self._markout_by_side: dict[str, int] = defaultdict(int)
         self._markout_adverse_by_side: dict[str, int] = defaultdict(int)
+        self._markout_by_source: dict[FillSource, int] = defaultdict(int)
+        self._markout_adverse_by_source: dict[FillSource, int] = defaultdict(int)
+        self._markout_qty_by_source: dict[FillSource, Decimal] = defaultdict(lambda: Decimal("0"))
+        self._markout_sum_by_source: dict[FillSource, Decimal] = defaultdict(lambda: Decimal("0"))
 
         self._regime_fill_counts: dict[str, int] = defaultdict(int)
         self._regime_fill_qty: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
@@ -213,6 +217,7 @@ class SimulationMetrics:
                 continue
 
             side = str(entry["side"])
+            fill_source = str(entry.get("fill_source", "depth_update"))
             price = Decimal(str(entry["price"]))
             qty = Decimal(str(entry["qty"]))
             regime = str(entry["regime"])
@@ -226,8 +231,12 @@ class SimulationMetrics:
             self.markout_count += 1
             self._regime_markout_counts[regime] += 1
             self._markout_by_side[side] += 1
+            self._markout_by_source[fill_source] += 1
+            self._markout_qty_by_source[fill_source] += qty
+            self._markout_sum_by_source[fill_source] += markout * qty
             if adverse:
                 self._markout_adverse_by_side[side] += 1
+                self._markout_adverse_by_source[fill_source] += 1
 
             if adverse:
                 self.adverse_markout_count += 1
@@ -237,6 +246,7 @@ class SimulationMetrics:
                 {
                     "symbol": symbol,
                     "side": side,
+                    "fill_source": fill_source,
                     "regime": regime,
                     "fill_price": str(price),
                     "qty": str(qty),
@@ -377,6 +387,7 @@ class SimulationMetrics:
                     "ts_local": fill.ts_local,
                     "deadline_ts": fill.ts_local + self.cfg.sim_adverse_markout_seconds,
                     "mid_at_fill": str(mid) if mid is not None else None,
+                    "fill_source": fill.source,
                 }
             )
 
@@ -460,6 +471,20 @@ class SimulationMetrics:
             sample = self._markout_by_side.get(side, 0)
             adverse = self._markout_adverse_by_side.get(side, 0)
             adverse_markout_rate_by_side[side] = float(Decimal(adverse) / Decimal(sample)) if sample else 0.0
+
+        markout_by_fill_source: dict[str, dict[str, float | int]] = {}
+        for source in FILL_SOURCES:
+            samples = self._markout_by_source.get(source, 0)
+            adverse = self._markout_adverse_by_source.get(source, 0)
+            source_qty = self._markout_qty_by_source.get(source, Decimal("0"))
+            source_sum = self._markout_sum_by_source.get(source, Decimal("0"))
+            markout_by_fill_source[source] = {
+                "samples": samples,
+                "adverse_samples": adverse,
+                "qty": float(source_qty),
+                "avg_markout_1s": float(source_sum / source_qty) if source_qty > 0 else 0.0,
+                "adverse_fill_rate_1s": float(Decimal(adverse) / Decimal(samples)) if samples else 0.0,
+            }
 
         inv_stdev = Decimal("0")
         if self._inv_n > 1:
@@ -556,6 +581,7 @@ class SimulationMetrics:
             "fill_from_top_rate": float(fill_from_top_rate),
             "adverse_fill_rate_1s": float(adverse_markout_rate),
             "adverse_fill_rate_1s_by_side": adverse_markout_rate_by_side,
+            "markout_by_fill_source": markout_by_fill_source,
             "queue_fill_count": self.queue_fill_count,
             "avg_queue_ahead_lots": float(avg_queue_ahead_lots),
             "max_queue_ahead_lots": self.max_queue_ahead_lots,

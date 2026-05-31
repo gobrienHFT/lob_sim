@@ -141,9 +141,98 @@ def test_metrics_apply_contract_multiplier_to_pnl_spread_and_markout(
     assert summary["avg_markout_1s"] == pytest.approx(30.0)
     assert summary["markout_events"][0]["markout"] == "30"
     assert summary["markout_events"][0]["contract_multiplier"] == "10"
+    assert summary["markout_events"][0]["fill_source"] == "depth_update"
+    assert summary["markout_by_fill_source"] == {
+        "depth_update": {
+            "samples": 1,
+            "adverse_samples": 0,
+            "qty": 2.0,
+            "avg_markout_1s": 30.0,
+            "adverse_fill_rate_1s": 0.0,
+        },
+        "agg_trade": {
+            "samples": 0,
+            "adverse_samples": 0,
+            "qty": 0.0,
+            "avg_markout_1s": 0.0,
+            "adverse_fill_rate_1s": 0.0,
+        },
+        "taker_order": {
+            "samples": 0,
+            "adverse_samples": 0,
+            "qty": 0.0,
+            "avg_markout_1s": 0.0,
+            "adverse_fill_rate_1s": 0.0,
+        },
+    }
     assert summary["regime_performance"]["normal_balanced"]["avg_spread_capture"] == pytest.approx(10.0)
     assert summary["fills"][0]["notional"] == "2000"
     assert summary["fills"][0]["contract_multiplier"] == "10"
+
+
+def test_metrics_split_markout_quality_by_fill_source(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(
+            ts_local=0.0,
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=100,
+            qty_lots=1,
+            maker=True,
+            source="agg_trade",
+        ),
+        book,
+        book.mid_price(),
+    )
+    metrics.on_fill(
+        Fill(
+            ts_local=0.0,
+            symbol="BTCUSDT",
+            side="ask",
+            price_tick=102,
+            qty_lots=2,
+            maker=False,
+            source="taker_order",
+        ),
+        book,
+        book.mid_price(),
+    )
+
+    book.reset_from_snapshot(2, bids={98: 2}, asks={100: 2})
+    metrics.update_unrealized({"BTCUSDT": book}, now_ts=1.1)
+    summary = metrics.get_summary({"BTCUSDT": book})
+
+    assert summary["markout_by_fill_source"]["agg_trade"] == {
+        "samples": 1,
+        "adverse_samples": 1,
+        "qty": 1.0,
+        "avg_markout_1s": -1.0,
+        "adverse_fill_rate_1s": 1.0,
+    }
+    assert summary["markout_by_fill_source"]["taker_order"] == {
+        "samples": 1,
+        "adverse_samples": 0,
+        "qty": 2.0,
+        "avg_markout_1s": 3.0,
+        "adverse_fill_rate_1s": 0.0,
+    }
+    assert summary["markout_events"][0]["fill_source"] == "agg_trade"
+    assert summary["markout_events"][1]["fill_source"] == "taker_order"
 
 
 def test_metrics_apply_contract_multiplier_to_realized_pnl(

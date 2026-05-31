@@ -87,6 +87,7 @@ flowchart LR
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
 - Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots for both public sources.
 - Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.
+- Markout summaries are split by fill source, so adverse selection can be inspected separately for depth-inferred, aggregate-trade, and taker-order fills.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 - A strategy decision with no desired quotes pulls stale live quotes instead of silently leaving them in the book.

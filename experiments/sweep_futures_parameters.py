@@ -26,6 +26,7 @@ SWEEP_FIELDS = [
     "avg_spread_captured",
     "adverse_fill_rate_1s",
     "avg_markout_1s",
+    "markout_by_fill_source",
     "inventory_stdev",
     "max_drawdown",
     "fill_from_top_rate",

@@ -284,6 +284,13 @@ EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
 EXPECTED_QUEUE_CONSUMPTION_TRACE_FIELDS = EXPECTED_PUBLIC_CONSUMPTION_FIELDS | {
     "overlap_window_seconds",
 }
+EXPECTED_MARKOUT_BY_SOURCE_FIELDS = {
+    "samples",
+    "adverse_samples",
+    "qty",
+    "avg_markout_1s",
+    "adverse_fill_rate_1s",
+}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
 REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
@@ -714,6 +721,121 @@ def _verify_futures_fill_source_counts() -> list[str]:
             continue
         if sum(counts.values()) != summary.get("fill_count"):
             issues.append(f"{_repo_relative(path)} fill_source_counts do not sum to fill_count")
+    return issues
+
+
+def _verify_futures_markout_by_source() -> list[str]:
+    issues: list[str] = []
+    for summary_path, summary_csv_path in [
+        (FUTURES_SHOWCASE_SUMMARY, FUTURES_SHOWCASE_DIR / "summary.csv"),
+        (RECORDED_CLIP_SUMMARY, RECORDED_CLIP_DIR / "summary.csv"),
+    ]:
+        summary = json.loads(_read_text(summary_path))
+        diagnostics = summary.get("markout_by_fill_source")
+        if not isinstance(diagnostics, dict) or set(diagnostics) != FUTURES_FILL_SOURCES:
+            issues.append(f"{_repo_relative(summary_path)} has invalid markout_by_fill_source")
+            continue
+
+        expected = {
+            source: {
+                "samples": 0,
+                "adverse_samples": 0,
+                "qty": Decimal("0"),
+                "markout_sum": Decimal("0"),
+            }
+            for source in FUTURES_FILL_SOURCES
+        }
+        markout_events = summary.get("markout_events", [])
+        if isinstance(markout_events, list):
+            for event in markout_events:
+                if not isinstance(event, dict):
+                    issues.append(f"{_repo_relative(summary_path)} markout_events contains a non-object entry")
+                    continue
+                source = event.get("fill_source")
+                if source not in FUTURES_FILL_SOURCES:
+                    issues.append(f"{_repo_relative(summary_path)} markout event has invalid fill_source: {source!r}")
+                    continue
+                try:
+                    qty = Decimal(str(event.get("qty")))
+                    markout = Decimal(str(event.get("markout")))
+                except (InvalidOperation, TypeError):
+                    issues.append(f"{_repo_relative(summary_path)} markout event has invalid qty/markout")
+                    continue
+                expected[source]["samples"] += 1
+                expected[source]["qty"] += qty
+                expected[source]["markout_sum"] += markout * qty
+                if event.get("adverse") is True:
+                    expected[source]["adverse_samples"] += 1
+        else:
+            issues.append(f"{_repo_relative(summary_path)} has invalid markout_events")
+
+        for source, stats in diagnostics.items():
+            if not isinstance(stats, dict) or set(stats) != EXPECTED_MARKOUT_BY_SOURCE_FIELDS:
+                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}] has unexpected fields")
+                continue
+            samples = stats.get("samples")
+            adverse_samples = stats.get("adverse_samples")
+            if not isinstance(samples, int) or samples < 0:
+                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].samples is invalid")
+                continue
+            if not isinstance(adverse_samples, int) or adverse_samples < 0 or adverse_samples > samples:
+                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_samples is invalid")
+                continue
+            for field in ["qty", "avg_markout_1s", "adverse_fill_rate_1s"]:
+                value = stats.get(field)
+                if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                    issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].{field} is invalid")
+            if not isinstance(stats.get("adverse_fill_rate_1s"), (int, float)) or not 0 <= float(stats["adverse_fill_rate_1s"]) <= 1:
+                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_fill_rate_1s is out of range")
+
+            expected_stats = expected[source]
+            expected_samples = int(expected_stats["samples"])
+            expected_adverse = int(expected_stats["adverse_samples"])
+            expected_qty = float(expected_stats["qty"])
+            expected_avg = (
+                float(expected_stats["markout_sum"] / expected_stats["qty"])
+                if expected_stats["qty"] > 0
+                else 0.0
+            )
+            expected_rate = float(Decimal(expected_adverse) / Decimal(expected_samples)) if expected_samples else 0.0
+            if samples != expected_samples:
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].samples "
+                    f"does not match markout_events"
+                )
+            if adverse_samples != expected_adverse:
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_samples "
+                    f"does not match markout_events"
+                )
+            if not math.isclose(float(stats.get("qty", 0)), expected_qty, rel_tol=1e-12, abs_tol=1e-12):
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].qty "
+                    f"does not match markout_events"
+                )
+            if not math.isclose(float(stats.get("avg_markout_1s", 0)), expected_avg, rel_tol=1e-12, abs_tol=1e-12):
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].avg_markout_1s "
+                    f"does not match markout_events"
+                )
+            if not math.isclose(float(stats.get("adverse_fill_rate_1s", 0)), expected_rate, rel_tol=1e-12, abs_tol=1e-12):
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_fill_rate_1s "
+                    f"does not match markout_events"
+                )
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "markout_by_fill_source" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing markout_by_fill_source")
+            continue
+        try:
+            csv_diagnostics = json.loads(rows[0]["markout_by_fill_source"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} markout_by_fill_source is not valid JSON: {exc}")
+        else:
+            if csv_diagnostics != diagnostics:
+                issues.append(f"{_repo_relative(summary_csv_path)} markout_by_fill_source does not match summary.json")
     return issues
 
 
@@ -1396,6 +1518,7 @@ def _verify_strategy_profile_publication() -> list[str]:
             "queue_repost_lots",
             "fill_count",
             "adverse_fill_rate_1s",
+            "markout_by_fill_source",
             "inventory_stdev",
             "max_drawdown",
             "fill_from_top_rate",
@@ -1588,6 +1711,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
+    issues.extend(_verify_futures_markout_by_source())
     issues.extend(_verify_public_consumption_diagnostics())
     issues.extend(_verify_futures_self_trade_prevention_counts())
     issues.extend(_verify_futures_event_trace_contract())

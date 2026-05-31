@@ -62,6 +62,7 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
     assert rows[0]["rank"] == 1
     assert "diagnostic_score" in rows[0]
     assert "fill_source_counts" in rows[0]
+    assert "markout_by_fill_source" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
     assert metadata["input_sha256"]
     assert metadata["config_digest"]

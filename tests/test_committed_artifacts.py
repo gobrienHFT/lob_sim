@@ -424,6 +424,62 @@ def test_public_consumption_verifier_rejects_inconsistent_unmatched_lots(tmp_pat
     ]
 
 
+def _write_markout_by_source_case(directory: Path, diagnostics: dict, events: list[dict]) -> None:
+    directory.mkdir()
+    (directory / "summary.json").write_text(
+        json.dumps({"markout_by_fill_source": diagnostics, "markout_events": events}),
+        encoding="utf-8",
+    )
+    with (directory / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["markout_by_fill_source"])
+        writer.writeheader()
+        writer.writerow({"markout_by_fill_source": json.dumps(diagnostics, sort_keys=True)})
+
+
+def test_markout_by_source_verifier_rejects_event_mismatch(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_SUMMARY", showcase / "summary.json")
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_SUMMARY", recorded / "summary.json")
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    good = {
+        "depth_update": {
+            "samples": 0,
+            "adverse_samples": 0,
+            "qty": 0.0,
+            "avg_markout_1s": 0.0,
+            "adverse_fill_rate_1s": 0.0,
+        },
+        "agg_trade": {
+            "samples": 1,
+            "adverse_samples": 1,
+            "qty": 0.001,
+            "avg_markout_1s": -2.0,
+            "adverse_fill_rate_1s": 1.0,
+        },
+        "taker_order": {
+            "samples": 0,
+            "adverse_samples": 0,
+            "qty": 0.0,
+            "avg_markout_1s": 0.0,
+            "adverse_fill_rate_1s": 0.0,
+        },
+    }
+    events = [{"fill_source": "agg_trade", "qty": "0.001", "markout": "-2", "adverse": True}]
+    stale = {**good, "agg_trade": {**good["agg_trade"], "avg_markout_1s": 0.0}}
+    _write_markout_by_source_case(showcase, stale, events)
+    _write_markout_by_source_case(recorded, good, events)
+
+    issues = verifier._verify_futures_markout_by_source()
+
+    assert issues == [
+        f"{showcase / 'summary.json'} markout_by_fill_source[agg_trade].avg_markout_1s does not match markout_events"
+    ]
+
+
 def _event_trace_row(**overrides: str) -> dict[str, str]:
     row = {field: "" for field in verifier.FUTURES_EVENT_TRACE_FIELDS}
     row.update(
