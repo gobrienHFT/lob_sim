@@ -49,12 +49,16 @@ python experiments/sweep_futures_parameters.py --file docs/sample_outputs/future
 With `make` available:
 
 ```bash
+make ci
 make test
+make verify-artifacts
 make inspect-fixture
 make simulate-fixture
 make benchmark-fixture
 make sweep-fixture
 ```
+
+CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, verifies committed artifacts, and checks whitespace.
 
 ## Observed vs Inferred
 

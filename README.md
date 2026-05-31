@@ -129,6 +129,16 @@ Tracked metrics include:
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
 Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py).
 
+## Verification And CI
+
+Local green gate:
+
+```bash
+make ci
+```
+
+That runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs the same gates on Python 3.11, 3.12, and 3.13 to match the package metadata.
+
 Committed futures walkthrough artifacts:
 
 - Pack entry: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)

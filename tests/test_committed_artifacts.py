@@ -12,6 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_committed_artifacts.py"
 README = REPO_ROOT / "README.md"
 WALKTHROUGH = REPO_ROOT / "WALKTHROUGH.md"
+MAKEFILE = REPO_ROOT / "Makefile"
+PYPROJECT = REPO_ROOT / "pyproject.toml"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = (
@@ -24,6 +26,7 @@ FUTURES_STRATEGY_REFERENCE = (
 FUTURES_STRATEGY_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 )
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
 FUTURES_WALKTHROUGH_README = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
@@ -74,6 +77,24 @@ def test_verify_committed_artifacts_script_runs_cleanly() -> None:
     )
     assert result.returncode == 0, result.stderr or result.stdout
     assert "Committed artifact verification passed." in result.stdout
+
+
+def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
+    assert CI_WORKFLOW.exists()
+    workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+    makefile = MAKEFILE.read_text(encoding="utf-8")
+    pyproject = PYPROJECT.read_text(encoding="utf-8")
+    for version in ("3.11", "3.12", "3.13"):
+        assert f"Programming Language :: Python :: {version}" in pyproject
+        assert f'"{version}"' in workflow
+    assert "python -m pip install -r requirements.txt" in workflow
+    assert "python -m pip check" in workflow
+    assert "python -m lob_sim.cli --help" in workflow
+    assert "python -m pytest -q" in workflow
+    assert "python scripts/verify_committed_artifacts.py" in workflow
+    assert "git diff --check" in workflow
+    assert "MPLBACKEND: Agg" in workflow
+    assert "ci: test verify-artifacts check-whitespace" in makefile
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:
