@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .. import __version__
 from ..config import Config
 from ..replay.inspection import file_sha256
 
-RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v1"
+RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 
 
 def _utc_now() -> str:
@@ -58,6 +58,26 @@ def source_state() -> dict[str, Any]:
 def config_digest(config: dict[str, Any]) -> str:
     payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
     return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def output_artifact_snapshot(
+    output_files: dict[str, Path],
+    path_formatter: Callable[[Path], str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    artifacts: dict[str, dict[str, Any]] = {}
+    format_path = path_formatter or str
+    for name, path in sorted(output_files.items()):
+        metadata: dict[str, Any] = {"path": format_path(path)}
+        if name != "manifest" and path.exists():
+            metadata.update(
+                {
+                    "size_bytes": path.stat().st_size,
+                    "sha256": file_sha256(path),
+                    "modified_at_utc": _mtime_utc(path),
+                }
+            )
+        artifacts[name] = metadata
+    return artifacts
 
 
 def config_snapshot(cfg: Config) -> dict[str, Any]:
@@ -122,6 +142,7 @@ class RunManifest:
     runtime: dict[str, Any]
     source: dict[str, Any]
     outputs: dict[str, str]
+    output_artifacts: dict[str, dict[str, Any]]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -134,6 +155,7 @@ class RunManifest:
             "runtime": self.runtime,
             "source": self.source,
             "outputs": self.outputs,
+            "output_artifacts": self.output_artifacts,
         }
 
 
@@ -162,4 +184,5 @@ def build_run_manifest(
         },
         source=source_state(),
         outputs={name: str(path) for name, path in sorted(output_files.items())},
+        output_artifacts=output_artifact_snapshot(output_files),
     )

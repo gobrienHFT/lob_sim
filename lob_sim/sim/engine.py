@@ -418,15 +418,13 @@ class SimulationEngine:
             "trades": trades_path,
             "manifest": manifest_path,
         }
-        manifest = build_run_manifest(file_path, self.cfg, output_files)
-        summary["run_id"] = manifest.run_id
-        summary["input_sha256"] = manifest.input["sha256"]
+        manifest_seed = build_run_manifest(file_path, self.cfg, output_files)
+        summary["run_id"] = manifest_seed.run_id
+        summary["input_sha256"] = manifest_seed.input["sha256"]
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
 
         with open(summary_path, "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)
-        with open(manifest_path, "w", encoding="utf-8") as fh:
-            json.dump(manifest.as_dict(), fh, indent=2)
         write_summary_csv(summary_csv_path, summary, exclude_keys={"fills", "markout_events"})
 
         with open(trades_path, "w", encoding="utf-8", newline="") as csv_file:
@@ -456,4 +454,8 @@ class SimulationEngine:
             writer.writeheader()
             for row in summary.get("fills", []):
                 writer.writerow(row)
+
+        manifest = build_run_manifest(file_path, self.cfg, output_files)
+        with open(manifest_path, "w", encoding="utf-8") as fh:
+            json.dump(manifest.as_dict(), fh, indent=2)
         return output_files, summary

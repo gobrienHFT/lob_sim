@@ -304,6 +304,40 @@ def _verify_core_files() -> list[str]:
     return issues
 
 
+def _verify_manifest_output_artifacts() -> list[str]:
+    issues: list[str] = []
+    for manifest_path in [FUTURES_SHOWCASE_DIR / "manifest.json", RECORDED_CLIP_DIR / "manifest.json"]:
+        manifest = json.loads(_read_text(manifest_path))
+        if manifest.get("schema_version") != "lob_sim.simulation_run.v2":
+            issues.append(f"{_repo_relative(manifest_path)} has unexpected simulation manifest schema_version")
+        artifacts = manifest.get("output_artifacts")
+        if not isinstance(artifacts, dict):
+            issues.append(f"{_repo_relative(manifest_path)} is missing output_artifacts")
+            continue
+        for label in ["summary", "summary_csv", "trades"]:
+            metadata = artifacts.get(label)
+            if not isinstance(metadata, dict):
+                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}] is missing")
+                continue
+            relative_path = metadata.get("path")
+            if not isinstance(relative_path, str):
+                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}].path is missing")
+                continue
+            target = REPO_ROOT / relative_path
+            if not target.exists():
+                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}] target is missing: {relative_path}")
+                continue
+            if metadata.get("size_bytes") != target.stat().st_size:
+                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}].size_bytes is stale")
+            if metadata.get("sha256") != _file_sha256(target):
+                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}].sha256 is stale")
+        manifest_artifact = artifacts.get("manifest")
+        expected_manifest_path = _repo_relative(manifest_path)
+        if not isinstance(manifest_artifact, dict) or manifest_artifact.get("path") != expected_manifest_path:
+            issues.append(f"{_repo_relative(manifest_path)} output_artifacts[manifest].path is missing or stale")
+    return issues
+
+
 def _verify_futures_trade_audit_fields() -> list[str]:
     issues: list[str] = []
     for path in [FUTURES_SHOWCASE_DIR / "trades.csv", RECORDED_CLIP_DIR / "trades.csv"]:
@@ -666,6 +700,7 @@ def collect_artifact_issues() -> list[str]:
     issues: list[str] = []
     issues.extend(_verify_markdown_links())
     issues.extend(_verify_summary_output_files())
+    issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_implied_vol_snapshot_references())

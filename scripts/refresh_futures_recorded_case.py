@@ -10,6 +10,7 @@ from typing import Iterator
 
 from lob_sim.config import load_config
 from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim.run_manifest import output_artifact_snapshot
 from lob_sim.util import write_summary_csv
 
 
@@ -124,9 +125,10 @@ def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[
         manifest["outputs"] = dict(summary["output_files"])
 
         committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
         shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
+        manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_path_for_summary)
+        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     return {
         "input": input_path,

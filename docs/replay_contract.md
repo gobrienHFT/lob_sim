@@ -39,5 +39,6 @@ The manifest records:
 - Python/platform/runtime metadata;
 - git branch, commit, and dirty-worktree flag when available;
 - output paths and a deterministic `run_id` derived from input digest, simulator version, and config.
+- output artifact size and SHA-256 metadata for generated summary, summary CSV, and trades CSV files.
 
 The manifest is provenance metadata. It is not a latency or production-readiness claim.

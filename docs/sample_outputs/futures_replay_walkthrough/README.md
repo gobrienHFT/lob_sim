@@ -8,7 +8,7 @@ This pack is a tiny deterministic walkthrough fixture for the futures replay and
 - [`walkthrough.md`](walkthrough.md): continuity, queue-ahead, and passive-fill notes tied to exact timestamps.
 - [`summary.json`](summary.json): machine-readable run summary.
 - [`summary.csv`](summary.csv): flat summary row for quick scanning.
-- [`manifest.json`](manifest.json): input digest, non-secret config, runtime/source metadata, and output paths.
+- [`manifest.json`](manifest.json): input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests.
 - [`trades.csv`](trades.csv): passive-fill rows produced by the replay.
 
 ## Regenerate

@@ -21,5 +21,6 @@ python scripts/refresh_futures_recorded_case.py
 - Source lineage: clipped from a prior BTCUSDT Binance USD-M capture; the committed `input_clip.ndjson` is the authoritative replay input for this pack
 - Selected window: BTCUSDT `exchangeInfo`, the second recorded snapshot, and the next 78 recorded events
 - Committed clip time range: `ts_local` `1772633472.3978999` to `1772633474.824`
+- `manifest.json` records input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests
 
 The original larger raw file is not committed in this pack. The committed input here is the clipped replay window used to regenerate the case outputs.

@@ -148,6 +148,11 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
     assert manifest["input"]["sha256"] == summary["input_sha256"]
     assert "binance_api_key" not in manifest["config"]
     assert manifest["config"]["mm_strategy_profile"] == cfg.mm_strategy_profile
+    assert manifest["output_artifacts"]["summary"]["sha256"]
+    assert manifest["output_artifacts"]["summary"]["size_bytes"] == output_files["summary"].stat().st_size
+    assert manifest["output_artifacts"]["summary_csv"]["sha256"]
+    assert manifest["output_artifacts"]["trades"]["sha256"]
+    assert manifest["output_artifacts"]["manifest"] == {"path": str(output_files["manifest"])}
 
 
 def test_options_demo_writes_demo_artifacts(tmp_path: Path, monkeypatch):
