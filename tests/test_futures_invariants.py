@@ -178,6 +178,65 @@ def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
     assert model.get_order("BTCUSDT", "bid") is None
 
 
+def test_recent_agg_trade_then_depth_update_does_not_double_count_same_consumption() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=2,
+        remaining_lots=2,
+        created_ts=0.0,
+    )
+    model.place_order(order)
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+    )
+    assert [(fill.qty_lots, fill.source) for fill in fills] == [(1, "agg_trade")]
+    resting = model.get_order("BTCUSDT", "bid")
+    assert resting is not None
+    assert resting.remaining_lots == 1
+
+    depth_fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.05)
+    assert depth_fills == []
+    resting = model.get_order("BTCUSDT", "bid")
+    assert resting is not None
+    assert resting.remaining_lots == 1
+
+
+def test_recent_depth_update_then_agg_trade_nets_overlapping_consumption() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=2,
+        remaining_lots=2,
+        created_ts=0.0,
+    )
+    model.place_order(order)
+
+    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.0)
+    assert fills == []
+
+    trade_fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.05),
+        1.05,
+    )
+    assert [(fill.qty_lots, fill.source) for fill in trade_fills] == [(1, "agg_trade")]
+    resting = model.get_order("BTCUSDT", "bid")
+    assert resting is not None
+    assert resting.remaining_lots == 1
+
+
 def test_cancelled_resting_order_cannot_fill_after_queue_ahead_clears() -> None:
     model = PassiveFillModel()
     model.seed_from_snapshot("BTCUSDT", bids=[(10000, 2)], asks=[(10010, 2)])

@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Deque, Dict, List
+from dataclasses import dataclass
+from typing import Deque
 
 from ..book.types import AggTradeEvent, LevelChange
 from .orders import Fill, FillSource, Order, OrderSide
+
+# One Binance 100 ms diff bucket plus a small local timestamp tolerance.
+TRADE_DEPTH_OVERLAP_WINDOW_SECONDS = 0.125
+
+
+@dataclass
+class _ConsumptionCredit:
+    ts_local: float
+    lots: int
+    source: FillSource
 
 
 class PassiveFillModel:
@@ -12,6 +23,7 @@ class PassiveFillModel:
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
         self._orders: dict[tuple[str, OrderSide, str], Order] = {}
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
+        self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
         self._seq = 0
 
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
@@ -22,6 +34,9 @@ class PassiveFillModel:
 
     def _reverse_side(self, side: str) -> str:
         return "ask" if side == "bid" else "bid"
+
+    def _credit_key(self, symbol: str, side: str, price_tick: int) -> tuple[str, OrderSide, int]:
+        return (symbol, self._ensure_order_type(side), price_tick)
 
     def _ensure_order_type(self, side: str) -> OrderSide:
         if side not in {"bid", "ask"}:
@@ -120,6 +135,70 @@ class PassiveFillModel:
             queue.popleft()
         if not queue:
             self._book(symbol)[self._bucket(side)].pop(price_tick, None)
+
+    def _opposite_public_source(self, source: FillSource) -> FillSource | None:
+        if source == "depth_update":
+            return "agg_trade"
+        if source == "agg_trade":
+            return "depth_update"
+        return None
+
+    def _net_recent_public_consumption(
+        self,
+        symbol: str,
+        side: str,
+        price_tick: int,
+        lots: int,
+        ts_local: float,
+        source: FillSource,
+    ) -> int:
+        opposite_source = self._opposite_public_source(source)
+        if opposite_source is None or lots <= 0:
+            return lots
+
+        key = self._credit_key(symbol, side, price_tick)
+        credits = self._public_consumption_credits.get(key)
+        if not credits:
+            return lots
+
+        remaining = lots
+        kept: Deque[_ConsumptionCredit] = deque()
+        for credit in credits:
+            age = ts_local - credit.ts_local
+            if age > TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+                continue
+            if age < 0:
+                kept.append(credit)
+                continue
+            if credit.source == opposite_source and remaining > 0:
+                used = min(remaining, credit.lots)
+                remaining -= used
+                credit.lots -= used
+            if credit.lots > 0:
+                kept.append(credit)
+
+        if kept:
+            self._public_consumption_credits[key] = kept
+        else:
+            self._public_consumption_credits.pop(key, None)
+        return remaining
+
+    def _record_public_consumption_credit(
+        self,
+        symbol: str,
+        side: str,
+        price_tick: int,
+        lots: int,
+        ts_local: float,
+        source: FillSource,
+    ) -> None:
+        if self._opposite_public_source(source) is None or lots <= 0:
+            return
+        key = self._credit_key(symbol, side, price_tick)
+        credits = self._public_consumption_credits.setdefault(key, deque())
+        while credits and ts_local - credits[0].ts_local > TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+            credits.popleft()
+        credits.append(_ConsumptionCredit(ts_local=ts_local, lots=lots, source=source))
 
     def queue_position(self, order: Order) -> int:
         return self.queue_ahead_lots(order.symbol, order)
@@ -334,6 +413,11 @@ class PassiveFillModel:
         self.cancel_all_for_symbol_side(symbol, "bid")
         self.cancel_all_for_symbol_side(symbol, "ask")
         self._books[symbol] = {"bids": {}, "asks": {}}
+        self._public_consumption_credits = {
+            key: credits
+            for key, credits in self._public_consumption_credits.items()
+            if key[0] != symbol
+        }
 
         for price, qty in bids:
             self._add_venue_order(symbol=symbol, side="bid", price_tick=price, lots=qty)
@@ -374,12 +458,30 @@ class PassiveFillModel:
             side = "bid" if change.side == "bids" else "ask"
             if change.previous_lots > change.new_lots:
                 dec = change.previous_lots - change.new_lots
+                lots_to_consume = self._net_recent_public_consumption(
+                    symbol=symbol,
+                    side=side,
+                    price_tick=change.price_tick,
+                    lots=dec,
+                    ts_local=ts_local,
+                    source="depth_update",
+                )
+                self._record_public_consumption_credit(
+                    symbol=symbol,
+                    side=side,
+                    price_tick=change.price_tick,
+                    lots=lots_to_consume,
+                    ts_local=ts_local,
+                    source="depth_update",
+                )
+                if lots_to_consume <= 0:
+                    continue
                 fills.extend(
                     self._consume_level(
                         symbol=symbol,
                         side=side,
                         price_tick=change.price_tick,
-                        lots=dec,
+                        lots=lots_to_consume,
                         ts_local=ts_local,
                         maker_fill=True,
                         source="depth_update",
@@ -395,13 +497,31 @@ class PassiveFillModel:
 
         return fills
 
-    def apply_agg_trade(self, trade, ts_local: float) -> list[Fill]:
+    def apply_agg_trade(self, trade: AggTradeEvent, ts_local: float) -> list[Fill]:
         side = "bid" if trade.buyer_is_maker else "ask"
-        return self._consume_level(
+        lots_to_consume = self._net_recent_public_consumption(
             symbol=trade.symbol,
             side=side,
             price_tick=trade.price_tick,
             lots=trade.qty_lots,
+            ts_local=ts_local,
+            source="agg_trade",
+        )
+        self._record_public_consumption_credit(
+            symbol=trade.symbol,
+            side=side,
+            price_tick=trade.price_tick,
+            lots=lots_to_consume,
+            ts_local=ts_local,
+            source="agg_trade",
+        )
+        if lots_to_consume <= 0:
+            return []
+        return self._consume_level(
+            symbol=trade.symbol,
+            side=side,
+            price_tick=trade.price_tick,
+            lots=lots_to_consume,
             ts_local=ts_local,
             maker_fill=True,
             source="agg_trade",

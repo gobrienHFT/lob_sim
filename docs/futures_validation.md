@@ -23,6 +23,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Resting queue is modeled explicitly at each price level.
 - Queue consumption happens from the front of the level.
 - Later venue additions stay behind earlier resting orders at the same price.
+- Regression tests cover reconciliation of near-simultaneous depth reductions and `aggTrade` prints so one public-feed signal is not consumed twice.
 
 ### Partial fill handling
 

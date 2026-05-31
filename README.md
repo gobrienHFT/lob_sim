@@ -82,6 +82,7 @@ flowchart LR
 - Depth reductions consume the front of the queue before later arrivals, which is the core price-time assumption behind passive fills.
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
+- Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
 
 See [docs/futures_validation.md](docs/futures_validation.md) for the assumptions that are currently tested.
