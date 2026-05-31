@@ -87,14 +87,19 @@
       "fill_source": "depth_update",
       "regime": "tight_sell",
       "fill_price": "71600.10",
+      "price_tick": 716001,
       "qty": "0.001",
+      "qty_lots": 1,
+      "order_id": "BTCUSDT-ask-1772633474227860-4",
       "fill_mid": "71586.55",
       "mid_after": "71586.55",
       "markout": "13.55",
       "contract_multiplier": "1",
       "adverse": false,
       "horizon": 1.0,
-      "ts_local": 1772633474.341
+      "ts_local": 1772633474.341,
+      "deadline_ts": 1772633475.341,
+      "markout_ts_local": 1772633475.824
     }
   ],
   "inventory_by_symbol": {
@@ -215,5 +220,5 @@
     "trades": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
     "manifest": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
   },
-  "event_trace_count": 1113
+  "event_trace_count": 1114
 }

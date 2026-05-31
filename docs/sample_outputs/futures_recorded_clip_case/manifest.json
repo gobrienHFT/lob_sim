@@ -1,7 +1,7 @@
 {
   "run_id": "eaf2e309ed31d75c",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T23:39:29.182978Z",
+  "created_at_utc": "2026-05-31T23:53:09.112959Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "b50f402854d2e172b713e9265e2b400369eb24da",
+    "git_commit": "3902077d8cdb36616fc6f50877c79938c8cbc6f8",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -109,30 +109,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
-      "size_bytes": 260578,
-      "sha256": "259c589807e7d61a67808ab29b969202e8eb03ec26bed36d4cdf1cdd7f097963",
-      "modified_at_utc": "2026-05-31T23:39:29.793842Z"
+      "size_bytes": 260981,
+      "sha256": "21cb29eb19a116a23fadb293f27c6eb4515b4fecce99b6b335e1cc60f1ffd38f",
+      "modified_at_utc": "2026-05-31T23:53:09.346987Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 7269,
-      "sha256": "6e1042a6ef57a0e275446f03853338979ed971a87cb6588ca8a2cf412233b83f",
-      "modified_at_utc": "2026-05-31T23:39:29.770971Z"
+      "size_bytes": 7454,
+      "sha256": "bab37a66104a56386c9b6edc0536a6c65973c24fbdb639a4c9b000ee59d22d37",
+      "modified_at_utc": "2026-05-31T23:53:09.339578Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 5338,
-      "sha256": "dd63e4a0ff3a735db05e7fda84761b544e2bdfeb680aeb3955b4b0f437e8bd84",
-      "modified_at_utc": "2026-05-31T23:39:29.779736Z"
+      "sha256": "02c6321c52772fbd88cb4c4eaefe294dfd60d5fdecd16743db1a2108a4c38603",
+      "modified_at_utc": "2026-05-31T23:53:09.341573Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 386,
       "sha256": "ee6cd021b33124483a514bfaaafcb93745fd836c5ebee5b773f1b588dd938340",
-      "modified_at_utc": "2026-05-31T23:39:29.787792Z"
+      "modified_at_utc": "2026-05-31T23:53:09.344718Z"
     }
   }
 }

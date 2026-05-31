@@ -87,14 +87,19 @@
       "fill_source": "agg_trade",
       "regime": "tight_sell",
       "fill_price": "100.0",
+      "price_tick": 1000,
       "qty": "0.001",
+      "qty_lots": 1,
+      "order_id": "BTCUSDT-bid-2000000-3",
       "fill_mid": "100.05",
       "mid_after": "100.05",
       "markout": "0.05",
       "contract_multiplier": "1",
       "adverse": false,
       "horizon": 1.0,
-      "ts_local": 2.4
+      "ts_local": 2.4,
+      "deadline_ts": 3.4,
+      "markout_ts_local": 3.6
     }
   ],
   "inventory_by_symbol": {
@@ -215,5 +220,5 @@
     "trades": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
     "manifest": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
   },
-  "event_trace_count": 17
+  "event_trace_count": 18
 }
