@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from lob_sim.config import load_config
+from lob_sim.replay.inspection import file_sha256
 from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
 SWEEP_FIELDS = [
@@ -25,7 +29,16 @@ SWEEP_FIELDS = [
     "max_drawdown",
     "fill_from_top_rate",
     "avg_queue_ahead_lots",
+    "queue_fill_count",
+    "max_queue_ahead_lots",
+    "avg_fill_wait_ms",
+    "fill_source_counts",
+    "order_lifecycle_counts",
+    "self_trade_prevention_count",
     "total_pnl",
+    "total_fees",
+    "kill_switch_triggered",
+    "kill_switch_reason",
 ]
 
 
@@ -104,16 +117,51 @@ def run_sweep(
     return rows
 
 
-def write_sweep_outputs(rows: list[dict], out_dir: Path, input_file: Path) -> dict[str, Path]:
+def _csv_cell(value: Any) -> Any:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    return value
+
+
+def build_sweep_metadata(
+    input_file: Path,
+    env_path: str,
+    profiles: list[str],
+    half_spreads_bps: list[Decimal],
+    queue_repost_lots: list[int],
+) -> dict[str, Any]:
+    cfg = load_config(env_path)
+    cfg_snapshot = config_snapshot(cfg)
+    return {
+        "input_file": input_file.as_posix(),
+        "input_sha256": file_sha256(input_file),
+        "env_path": env_path,
+        "config_digest": config_digest(cfg_snapshot),
+        "profiles": profiles,
+        "half_spreads_bps": [str(value) for value in half_spreads_bps],
+        "queue_repost_lots": queue_repost_lots,
+        "source": source_state(),
+    }
+
+
+def write_sweep_outputs(
+    rows: list[dict],
+    out_dir: Path,
+    input_file: Path,
+    *,
+    output_stem: str = "futures_parameter_sweep",
+    metadata: dict[str, Any] | None = None,
+    command: str | None = None,
+) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = out_dir / "futures_parameter_sweep.csv"
-    md_path = out_dir / "futures_parameter_sweep.md"
+    csv_path = out_dir / f"{output_stem}.csv"
+    md_path = out_dir / f"{output_stem}.md"
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=SWEEP_FIELDS)
         writer.writeheader()
         for row in rows:
-            writer.writerow({field: row.get(field, "") for field in SWEEP_FIELDS})
+            writer.writerow({field: _csv_cell(row.get(field, "")) for field in SWEEP_FIELDS})
 
     table = [
         "| Rank | Profile | Half-spread bps | Queue repost lots | Score | Fills | Fill rate | Avg spread | Adverse 1s | Inventory stdev | Max drawdown |",
@@ -126,12 +174,29 @@ def write_sweep_outputs(rows: list[dict], out_dir: Path, input_file: Path) -> di
             "{adverse_fill_rate_1s:.6f} | {inventory_stdev:.6f} | {max_drawdown:.6f} |".format(**row)
         )
 
+    metadata_lines = [f"- Input file: `{input_file.as_posix()}`"]
+    if metadata:
+        metadata_lines.extend(
+            [
+                f"- Input SHA-256: `{metadata['input_sha256']}`",
+                f"- Config digest: `{metadata['config_digest']}`",
+                f"- Profiles: `{', '.join(metadata['profiles'])}`",
+                f"- Half-spread bps grid: `{', '.join(metadata['half_spreads_bps'])}`",
+                f"- Queue repost lots grid: `{', '.join(str(value) for value in metadata['queue_repost_lots'])}`",
+                f"- Git commit at run time: `{metadata['source']['git_commit']}`",
+                f"- Git dirty at run time: `{metadata['source']['git_dirty']}`",
+            ]
+        )
+    if command:
+        metadata_lines.extend(["", "Exact command:", "", "```bash", command, "```"])
+
     md_path.write_text(
         "\n".join(
             [
                 "# Futures Parameter Sweep",
                 "",
-                f"- Input file: `{input_file.as_posix()}`",
+                *metadata_lines,
+                "",
                 "- Ranking score is diagnostic only; it is not an alpha or profitability claim.",
                 "- Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.",
                 "",
@@ -155,14 +220,29 @@ def main() -> int:
     args = parser.parse_args()
 
     profiles = [profile.strip() for profile in args.profiles.split(",") if profile.strip()]
+    half_spreads_bps = _parse_decimals(args.half_spreads_bps)
+    queue_repost_lots = _parse_ints(args.queue_repost_lots)
     rows = run_sweep(
         input_file=Path(args.file),
         env_path=args.env,
         profiles=profiles,
-        half_spreads_bps=_parse_decimals(args.half_spreads_bps),
-        queue_repost_lots=_parse_ints(args.queue_repost_lots),
+        half_spreads_bps=half_spreads_bps,
+        queue_repost_lots=queue_repost_lots,
     )
-    paths = write_sweep_outputs(rows, Path(args.out_dir), Path(args.file))
+    metadata = build_sweep_metadata(
+        input_file=Path(args.file),
+        env_path=args.env,
+        profiles=profiles,
+        half_spreads_bps=half_spreads_bps,
+        queue_repost_lots=queue_repost_lots,
+    )
+    command = (
+        f"python experiments/sweep_futures_parameters.py --file {args.file} "
+        f"--env {args.env} --out-dir {args.out_dir} "
+        f"--profiles {args.profiles} --half-spreads-bps {args.half_spreads_bps} "
+        f"--queue-repost-lots {args.queue_repost_lots}"
+    )
+    paths = write_sweep_outputs(rows, Path(args.out_dir), Path(args.file), metadata=metadata, command=command)
     print(f"Wrote {len(rows)} sweep rows")
     for label, path in paths.items():
         print(f"- {label}: {path}")

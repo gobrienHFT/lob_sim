@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
-from experiments.sweep_futures_parameters import run_sweep, write_sweep_outputs
+from experiments.sweep_futures_parameters import build_sweep_metadata, run_sweep, write_sweep_outputs
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
 
 
@@ -49,11 +49,25 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
         half_spreads_bps=[Decimal("0.05")],
         queue_repost_lots=[0],
     )
-    paths = write_sweep_outputs(rows, tmp_path / "sweep", fixture)
+    metadata = build_sweep_metadata(
+        input_file=fixture,
+        env_path=".env.example",
+        profiles=["baseline"],
+        half_spreads_bps=[Decimal("0.05")],
+        queue_repost_lots=[0],
+    )
+    paths = write_sweep_outputs(rows, tmp_path / "sweep", fixture, metadata=metadata, command="python sweep")
 
     assert len(rows) == 1
     assert rows[0]["rank"] == 1
     assert "diagnostic_score" in rows[0]
+    assert "fill_source_counts" in rows[0]
+    assert "order_lifecycle_counts" in rows[0]
+    assert metadata["input_sha256"]
+    assert metadata["config_digest"]
     assert paths["csv"].exists()
     assert paths["markdown"].exists()
-    assert "not an alpha or profitability claim" in paths["markdown"].read_text(encoding="utf-8")
+    markdown = paths["markdown"].read_text(encoding="utf-8")
+    assert "not an alpha or profitability claim" in markdown
+    assert "Input SHA-256" in markdown
+    assert "python sweep" in markdown
