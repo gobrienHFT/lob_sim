@@ -1,13 +1,13 @@
 {
   "run_id": "a520825cf78bd0b1",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T16:05:28.906742Z",
+  "created_at_utc": "2026-05-31T16:24:29.245511Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 836,
     "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
-    "modified_at_utc": "2026-05-31T16:05:27.838363Z"
+    "modified_at_utc": "2026-05-31T16:24:27.568771Z"
   },
   "config": {
     "symbols": [
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "099306d89aaafa916233699f7510c8cd56f890f0",
+    "git_commit": "d1e2abc74522381021d81785abbc16367a3e938e",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -66,19 +66,19 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 2487,
       "sha256": "db415bee250713b53b91e4d32160dcae4f6a21163bb844628c4f4d0272db251e",
-      "modified_at_utc": "2026-05-31T16:05:29.891976Z"
+      "modified_at_utc": "2026-05-31T16:24:30.189187Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 1294,
       "sha256": "37f7a34c2d8d8457513a8da3395c510ede9799b41b4e3c54d04c09bf0f4be88f",
-      "modified_at_utc": "2026-05-31T16:05:29.898444Z"
+      "modified_at_utc": "2026-05-31T16:24:30.196026Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 312,
       "sha256": "4874ad131bf99435ad52be74ead82b53d3ef3a215c065d21344198516031c6c1",
-      "modified_at_utc": "2026-05-31T16:05:29.903425Z"
+      "modified_at_utc": "2026-05-31T16:24:30.203571Z"
     }
   }
 }
