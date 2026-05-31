@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter
 from ..replay.inspection import file_sha256
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
+SOURCE_STATE_OVERRIDE_ENV = "LOB_SIM_SOURCE_STATE_JSON"
 
 
 def _utc_now() -> str:
@@ -48,6 +50,16 @@ def _git_output(args: list[str]) -> str | None:
 
 
 def source_state() -> dict[str, Any]:
+    override = os.getenv(SOURCE_STATE_OVERRIDE_ENV)
+    if override:
+        decoded = json.loads(override)
+        if not isinstance(decoded, dict):
+            raise ValueError(f"{SOURCE_STATE_OVERRIDE_ENV} must decode to a JSON object")
+        return {
+            "git_commit": decoded.get("git_commit"),
+            "git_branch": decoded.get("git_branch"),
+            "git_dirty": bool(decoded.get("git_dirty")),
+        }
     status = _git_output(["status", "--short"])
     return {
         "git_commit": _git_output(["rev-parse", "HEAD"]),

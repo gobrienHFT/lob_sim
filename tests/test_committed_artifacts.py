@@ -366,6 +366,8 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
     assert "ci: test verify-artifacts check-whitespace" in makefile
+    assert "refresh-artifacts:" in makefile
+    assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:

@@ -61,9 +61,10 @@ make inspect-fixture
 make simulate-fixture
 make benchmark-fixture
 make sweep-fixture
+make refresh-artifacts
 ```
 
-CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, verifies committed artifacts, and checks whitespace.
+CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
 
 ## Observed vs Inferred
 

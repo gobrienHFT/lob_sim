@@ -146,6 +146,14 @@ make ci
 
 That runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs the same gates on Python 3.11, 3.12, and 3.13 to match the package metadata.
 
+To refresh the committed futures reviewer artifacts from a clean source tree, run:
+
+```bash
+make refresh-artifacts
+```
+
+That target uses one source-provenance snapshot for the walkthrough pack, recorded clip pack, strategy comparison, parameter sweep reference, and benchmark reference, so later generated files are not stamped dirty just because earlier generated files changed.
+
 Committed futures walkthrough artifacts:
 
 - Pack entry: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)

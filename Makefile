@@ -37,7 +37,4 @@ sweep-fixture:
 	$(PY) experiments/sweep_futures_parameters.py --file $(RECORDED_FIXTURE) --env $(ENV) --out-dir outputs/futures_sweeps
 
 refresh-artifacts:
-	$(PY) scripts/refresh_futures_showcase.py
-	$(PY) scripts/refresh_futures_recorded_case.py
-	$(PY) scripts/refresh_futures_strategy_profile_reference.py
-	$(PY) scripts/refresh_futures_benchmark_reference.py
+	$(PY) scripts/refresh_futures_reviewer_artifacts.py
