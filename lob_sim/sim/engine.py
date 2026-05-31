@@ -257,13 +257,50 @@ class SimulationEngine:
             return None
         return self._syncers[symbol]
 
-    def _disable_trading(self) -> None:
+    def _disable_trading(self) -> dict[str, Any]:
         self._trading_halted = True
+        canceled_by_symbol: dict[str, dict[str, int]] = {}
+        pending_cancel_ack_count = len(self._pending_cancel_ack_ts)
+        pending_replacement_slot_count = len(self._pending_replacement_slots)
         for symbol in list(self._books):
+            bid_count = len(self.fill_model.get_orders(symbol, "bid"))
+            ask_count = len(self.fill_model.get_orders(symbol, "ask"))
+            if bid_count or ask_count:
+                canceled_by_symbol[symbol] = {
+                    "bid": bid_count,
+                    "ask": ask_count,
+                    "total": bid_count + ask_count,
+                }
             self.fill_model.cancel_all_for_symbol_side(symbol, "bid")
             self.fill_model.cancel_all_for_symbol_side(symbol, "ask")
         self._pending_cancel_ack_ts.clear()
         self._pending_replacement_slots.clear()
+        return {
+            "canceled_order_count": sum(counts["total"] for counts in canceled_by_symbol.values()),
+            "canceled_orders_by_symbol": canceled_by_symbol,
+            "cleared_pending_cancel_ack_count": pending_cancel_ack_count,
+            "cleared_pending_replacement_slot_count": pending_replacement_slot_count,
+        }
+
+    def _handle_kill_switch(self, ts: float, symbol: str, phase: str, verbose: bool) -> None:
+        if not self.metrics.kill_switch_triggered or self._trading_halted:
+            return
+        halt_details = self._disable_trading()
+        halt_details.update(
+            {
+                "reason": self.metrics.kill_switch_reason,
+                "phase": phase,
+                "realized_pnl": str(self.metrics.realized_pnl),
+                "unrealized_pnl": str(self.metrics.unrealized_pnl),
+                "max_drawdown": str(self.metrics.max_drawdown),
+                "max_consecutive_loss_count": self.metrics.max_consecutive_loss_count,
+            }
+        )
+        self._trace(ts, symbol, "risk_halt", "risk", details=halt_details)
+        self._verbose(
+            verbose,
+            f"[simulate] kill switch triggered: {self.metrics.kill_switch_reason}",
+        )
 
     def _handle_decision(self, symbol: str, ts: float) -> None:
         if self._trading_halted or not self.cfg.mm_enabled:
@@ -616,12 +653,7 @@ class SimulationEngine:
             self._drain_events(now)
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now)
-            if self.metrics.kill_switch_triggered and not self._trading_halted:
-                self._disable_trading()
-                self._verbose(
-                    verbose,
-                    f"[simulate] kill switch triggered: {self.metrics.kill_switch_reason}",
-                )
+            self._handle_kill_switch(now, rec.symbol, "market_record", verbose)
 
             if verbose and progress_every > 0 and records_processed % progress_every == 0:
                 total_pnl = float(self.metrics.realized_pnl + self.metrics.unrealized_pnl)
@@ -640,12 +672,8 @@ class SimulationEngine:
         )
         self._drain_events(final_ts)
         self.metrics.update_unrealized(self._books, now_ts=final_ts)
-        if self.metrics.kill_switch_triggered and not self._trading_halted:
-            self._disable_trading()
-            self._verbose(
-                verbose,
-                f"[simulate] kill switch triggered at shutdown: {self.metrics.kill_switch_reason}",
-            )
+        shutdown_symbol = next(iter(self._books), "")
+        self._handle_kill_switch(final_ts, shutdown_symbol, "shutdown", verbose)
         self._verbose(
             verbose,
             f"[simulate] completed records={records_processed} fills={self.metrics.fill_count} "

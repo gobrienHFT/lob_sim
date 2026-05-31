@@ -122,6 +122,7 @@ Tracked metrics include:
 - realized and unrealized PnL
 - replay event counts and book-sync gap counts observed during simulation
 - event-time trace rows for market records, strategy decisions, scheduled arrivals, cancels, and fills
+- risk-halt trace rows when configured kill-switch limits stop trading and clear live strategy state
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead

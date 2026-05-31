@@ -625,6 +625,34 @@ def test_futures_event_trace_verifier_rejects_arrival_queue_mismatch(tmp_path, m
     )
 
 
+def test_futures_event_trace_verifier_rejects_unstructured_risk_halt(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[
+            _event_trace_row(
+                event_type="risk_halt",
+                source="risk",
+                details='{"reason":"","phase":"mystery","canceled_order_count":-1}',
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 risk_halt row is missing reason" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 risk_halt row has invalid phase" in issues
+    assert f"{showcase / 'event_trace.csv'}:2 risk_halt row has invalid canceled_order_count" in issues
+
+
 def test_futures_event_trace_verifier_rejects_missing_decision_diagnostics(tmp_path, monkeypatch) -> None:
     showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
     _write_event_trace_case(

@@ -826,6 +826,36 @@ def _verify_decision_trace_details(path: Path, row_index: int, details: dict[str
     return issues
 
 
+def _verify_risk_halt_trace_details(path: Path, row_index: int, details: dict[str, object] | None) -> list[str]:
+    issues: list[str] = []
+    if details is None:
+        return [f"{_repo_relative(path)}:{row_index} risk_halt row is missing details"]
+    reason = details.get("reason")
+    if not isinstance(reason, str) or not reason:
+        issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row is missing reason")
+    if details.get("phase") not in {"market_record", "shutdown"}:
+        issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid phase")
+    canceled_count = details.get("canceled_order_count")
+    if not isinstance(canceled_count, int) or canceled_count < 0:
+        issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid canceled_order_count")
+    canceled_by_symbol = details.get("canceled_orders_by_symbol")
+    if not isinstance(canceled_by_symbol, dict):
+        issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid canceled_orders_by_symbol")
+    for field in ["cleared_pending_cancel_ack_count", "cleared_pending_replacement_slot_count", "max_consecutive_loss_count"]:
+        value = details.get(field)
+        if not isinstance(value, int) or value < 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid {field}")
+    for field in ["realized_pnl", "unrealized_pnl", "max_drawdown"]:
+        try:
+            value = float(str(details.get(field)))
+        except (TypeError, ValueError):
+            issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid {field}")
+            continue
+        if not math.isfinite(value):
+            issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has non-finite {field}")
+    return issues
+
+
 def _verify_futures_event_trace_contract() -> list[str]:
     issues: list[str] = []
     for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
@@ -963,6 +993,8 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 lifecycle_from_trace["cancel_acknowledged"] += 1
             elif event_type == "decision":
                 issues.extend(_verify_decision_trace_details(trace_path, row_index, details))
+            elif event_type == "risk_halt":
+                issues.extend(_verify_risk_halt_trace_details(trace_path, row_index, details))
 
             if event_type == "fill":
                 fill_rows.append((row_index, row))

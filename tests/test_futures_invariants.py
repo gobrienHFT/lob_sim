@@ -1261,6 +1261,91 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert order_row["quote_slot"] == "base"
 
 
+def test_kill_switch_traces_risk_halt_and_clears_resting_quotes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "kill_switch_trace.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.001")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.001"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.1,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.002", "m": True},
+        ),
+        NDJSONRecord(
+            ts_local=2.2,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={
+                "U": 106,
+                "u": 106,
+                "pu": 105,
+                "b": [["100.0", "0"], ["90.0", "0.001"]],
+                "a": [["100.2", "0"], ["90.2", "0.001"]],
+            },
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 107, "u": 107, "pu": 106, "b": [["90.0", "0.001"]], "a": [["90.2", "0.001"]]},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="1000",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="0",
+        SIM_KILL_SWITCH_ENABLED="1",
+        SIM_KILL_MAX_DRAWDOWN="0.001",
+        MM_MAX_POSITION="1",
+        MM_HALF_SPREAD_BPS="0",
+    )
+
+    engine = SimulationEngine(cfg)
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["kill_switch_triggered"] is True
+    assert str(summary["kill_switch_reason"]).startswith("max_drawdown_exceeded")
+    assert summary["fill_count"] == 1
+    assert len([row for row in engine.event_trace if row["event_type"] == "decision"]) == 1
+    assert engine.fill_model.get_orders("BTCUSDT", "bid") == []
+    assert engine.fill_model.get_orders("BTCUSDT", "ask") == []
+
+    risk_rows = [row for row in engine.event_trace if row["event_type"] == "risk_halt"]
+    assert len(risk_rows) == 1
+    assert risk_rows[0]["ts_local"] == pytest.approx(2.2)
+    assert risk_rows[0]["source"] == "risk"
+    details = risk_rows[0]["details"]
+    assert details["reason"] == summary["kill_switch_reason"]
+    assert details["phase"] == "market_record"
+    assert details["canceled_order_count"] == 1
+    assert details["canceled_orders_by_symbol"] == {"BTCUSDT": {"bid": 0, "ask": 1, "total": 1}}
+    assert Decimal(details["max_drawdown"]) >= Decimal("0.001")
+
+
 def test_markout_inventory_and_pnl_sanity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = _build_config(monkeypatch, tmp_path)
     metrics = SimulationMetrics(cfg)
