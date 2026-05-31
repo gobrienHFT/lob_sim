@@ -1,13 +1,13 @@
 {
   "run_id": "a520825cf78bd0b1",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T16:37:44.708502Z",
+  "created_at_utc": "2026-05-31T17:20:48.579216Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 836,
     "sha256": "699b7ee1020c53d934efb8230c0591ae65e3ad5eaf8d744f2f7aa7a1db4d20b5",
-    "modified_at_utc": "2026-05-31T16:37:44.632123Z"
+    "modified_at_utc": "2026-05-31T17:20:48.552676Z"
   },
   "config": {
     "symbols": [
@@ -48,37 +48,44 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "58289b753e8bf75842e914d5342628e384903d30",
+    "git_commit": "15a1425a5273a8116609d9597be3b6e844425b0b",
     "git_branch": "master",
     "git_dirty": false
   },
   "outputs": {
+    "event_trace": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
     "summary": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
     "summary_csv": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
     "trades": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
     "manifest": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
   },
   "output_artifacts": {
+    "event_trace": {
+      "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
+      "size_bytes": 3106,
+      "sha256": "8f49cd8456c6ceca6e3b42bb806b46d6c895ae9a57b355f107a415896ad71ea8",
+      "modified_at_utc": "2026-05-31T17:20:49.162737Z"
+    },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 2726,
-      "sha256": "f43aa5fa4cce4cdb7c2744eecc4dc25f8b2dfbdc0c4a002d8c196f228c5d1f55",
-      "modified_at_utc": "2026-05-31T16:37:47.048065Z"
+      "size_bytes": 2840,
+      "sha256": "06059af7639f1a8e185cf56378d4bfb812868850e96fffec0d64568a5ba89cca",
+      "modified_at_utc": "2026-05-31T17:20:49.158230Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 1495,
-      "sha256": "7c66330838325ce4994bda7d44c56e93d3434a08b8bfee0506097c802e9bdbbd",
-      "modified_at_utc": "2026-05-31T16:37:47.052604Z"
+      "size_bytes": 1601,
+      "sha256": "d8c14456d3ba29dff8d7d663aaf51cd15408e6938801185546b6551d5c897351",
+      "modified_at_utc": "2026-05-31T17:20:49.158754Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 312,
       "sha256": "4874ad131bf99435ad52be74ead82b53d3ef3a215c065d21344198516031c6c1",
-      "modified_at_utc": "2026-05-31T16:37:47.062442Z"
+      "modified_at_utc": "2026-05-31T17:20:49.158754Z"
     }
   }
 }
