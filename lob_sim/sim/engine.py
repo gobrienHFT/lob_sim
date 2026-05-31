@@ -276,8 +276,6 @@ class SimulationEngine:
 
         inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
         plan = self.strategy.propose(book, inventory_qty=inventory)
-        if not plan.quotes:
-            return
         decision_details: dict[str, Any] = {
             "inventory_qty": str(inventory),
             "quote_count": len(plan.quotes),
@@ -293,6 +291,8 @@ class SimulationEngine:
                 for quote in plan.quotes
             ],
         }
+        if plan.reason:
+            decision_details["reason"] = plan.reason
         if plan.diagnostics:
             decision_details["diagnostics"] = plan.diagnostics
         self._trace(ts, symbol, "decision", "strategy", details=decision_details)

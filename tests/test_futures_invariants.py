@@ -467,6 +467,28 @@ class _StaticBidStrategy:
         )
 
 
+class _CancelAfterFirstQuoteStrategy:
+    def __init__(self) -> None:
+        self.decisions = 0
+
+    def observe_trade(self, _trade: AggTradeEvent) -> None:
+        return
+
+    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+        _ = target
+        _ = order
+        return False
+
+    def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+        _ = inventory_qty
+        self.decisions += 1
+        if self.decisions == 1:
+            return StrategyDecision(
+                quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="one-shot")]
+            )
+        return StrategyDecision(quotes=[], reason="pull_quotes")
+
+
 class _QueueRefreshSpyStrategy:
     def __init__(self) -> None:
         self.observed_queue_ahead: list[int] = []
@@ -909,6 +931,123 @@ def test_replace_order_waits_for_cancel_latency_before_new_arrival(
         "cancel_acknowledged": 1,
         "self_trade_prevented": 0,
     }
+
+
+def _write_cancel_latency_boundary_replay(path: Path, trade_ts: float) -> Path:
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.001")], [("100.2", "0.001")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.001"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=2.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.001"]], "a": [["100.2", "0.001"]]},
+        ),
+        NDJSONRecord(
+            ts_local=trade_ts,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.002", "m": True},
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    return path
+
+
+def _cancel_latency_boundary_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Config:
+    return _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="100",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="100",
+        MM_ORDER_QTY="0.001",
+        MM_MAX_POSITION="1",
+        MM_HALF_SPREAD_BPS="0",
+        FEES_MAKER_BPS="0",
+    )
+
+
+def test_public_trade_before_cancel_ack_can_still_fill_old_quote(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = _write_cancel_latency_boundary_replay(tmp_path / "trade_before_cancel_ack.ndjson", 2.199)
+    cfg = _cancel_latency_boundary_config(monkeypatch, tmp_path)
+
+    engine = SimulationEngine(cfg)
+    engine.strategy = _CancelAfterFirstQuoteStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["fill_count"] == 1
+    assert summary["fills"][0]["fill_source"] == "agg_trade"
+    assert summary["fills"][0]["queue_ahead_lots"] == 0
+    assert summary["cancel_count"] == 1
+    assert summary["order_lifecycle_counts"]["cancel_acknowledged"] == 1
+
+    fill_ts = [row["ts_local"] for row in engine.event_trace if row["event_type"] == "fill"]
+    cancel_ack_ts = [row["ts_local"] for row in engine.event_trace if row["event_type"] == "cancel_ack"]
+    assert fill_ts == [2.199]
+    assert cancel_ack_ts == [2.2]
+
+    pull_decision = [
+        row
+        for row in engine.event_trace
+        if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
+    ]
+    assert pull_decision[0]["ts_local"] == 2.1
+    assert {row["details"]["reason"] for row in pull_decision} == {"pull_quotes"}
+
+
+def test_cancel_ack_at_same_timestamp_precedes_public_trade_fill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = _write_cancel_latency_boundary_replay(tmp_path / "trade_at_cancel_ack.ndjson", 2.2)
+    cfg = _cancel_latency_boundary_config(monkeypatch, tmp_path)
+
+    engine = SimulationEngine(cfg)
+    engine.strategy = _CancelAfterFirstQuoteStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["fill_count"] == 0
+    assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 0, "taker_order": 0}
+    assert summary["cancel_count"] == 1
+    assert summary["order_lifecycle_counts"]["cancel_acknowledged"] == 1
+
+    same_ts_rows = [
+        row
+        for row in engine.event_trace
+        if row["ts_local"] == 2.2 and row["event_type"] in {"cancel_ack", "market_record", "fill"}
+    ]
+    assert [row["event_type"] for row in same_ts_rows] == ["cancel_ack", "market_record"]
+    assert same_ts_rows[1]["source"] == "aggTrade"
+
+    pull_decision = [
+        row
+        for row in engine.event_trace
+        if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
+    ]
+    assert pull_decision[0]["ts_local"] == 2.1
+    assert {row["details"]["reason"] for row in pull_decision} == {"pull_quotes"}
 
 
 def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

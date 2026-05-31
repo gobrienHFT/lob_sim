@@ -87,6 +87,8 @@ flowchart LR
 - Run summaries expose observed public-consumption lots, modeled queue-consumption lots, and overlap-netted lots for both sources.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
+- A strategy decision with no desired quotes pulls stale live quotes instead of silently leaving them in the book.
+- Cancel latency is explicit: old quotes remain fillable until the modeled acknowledgement time, and a same-timestamp cancel acknowledgement is applied before the corresponding public market row.
 
 See [docs/futures_validation.md](docs/futures_validation.md) for the assumptions that are currently tested.
 

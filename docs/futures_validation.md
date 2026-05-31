@@ -38,7 +38,9 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 ### Cancel and taker-order handling
 
 - A canceled resting order cannot fill after its visible queue ahead has cleared.
+- A strategy decision with zero desired quotes is treated as a quote pull and cancels existing live quotes for that symbol.
 - Replacement quotes wait for the modeled cancel acknowledgement before order-arrival latency is applied, so the old quote remains fillable during cancel latency.
+- A public trade that arrives before the modeled cancel acknowledgement can still fill the old quote; if the trade row has the exact cancel-ack timestamp, the engine applies the local cancel acknowledgement before processing that market row.
 - Marketable strategy limits and market orders generate taker fills against visible venue liquidity.
 - Marketable strategy orders stop before matching the strategy's own opposite-side resting liquidity; the unfilled self-trade-prevented remainder is expired rather than posted crossed.
 - Simulation summaries expose `self_trade_prevention_count`, so own-cross prevention is visible without scanning the full event trace.

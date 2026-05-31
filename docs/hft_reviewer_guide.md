@@ -102,9 +102,11 @@ Inferred:
 - Summaries report public-consumption diagnostics: observed depth/print lots, modeled queue-consumption lots, and overlap-netted lots inside the depth/`aggTrade` reconciliation window.
 - Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
+- A no-quote strategy decision is a quote pull, not a no-op; existing live quotes are canceled through the same latency path.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
+- During cancel latency the old quote remains fillable; a cancel acknowledgement at the exact timestamp of a public market row is applied before that row consumes queue.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
-- Decision trace rows carry the strategy inputs used to produce quote targets, so reservation-price and spread/gate logic can be inspected after the run.
+- Decision trace rows carry the strategy inputs and reason used to produce quote targets or pull quotes, so reservation-price and spread/gate logic can be inspected after the run.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Self-trade prevention is conservative: a strategy taker order can consume venue liquidity, but stops before its own opposite-side resting order and expires the crossed remainder.
 - Summaries include `self_trade_prevention_count`, and event traces flag the exact order arrival when prevention occurs.
