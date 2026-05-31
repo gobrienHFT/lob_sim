@@ -101,6 +101,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
                         "price": 100000.0,
                         "qty": 0.001,
                         "maker": True,
+                        "fill_source": "depth_update",
                         "order_id": "o1",
                         "mid_at_fill": 100000.5,
                         "regime": "neutral",
@@ -140,6 +141,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path):
 
     assert len(rows) == 1
     assert rows[0]["symbol"] == "BTCUSDT"
+    assert rows[0]["fill_source"] == "depth_update"
 
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     assert manifest["run_id"] == summary["run_id"]

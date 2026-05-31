@@ -32,6 +32,7 @@ The simulator expects prices and quantities to become integer ticks and lots. As
 - maker/taker fee model inputs;
 - venue-specific event ordering and sequence semantics;
 - whether public prints are reliable enough to use as a queue-consumption hint.
+- how fill sources should be labeled when the venue has different public trade/update semantics.
 
 Do not put venue-specific sequencing, decimal parsing, or product metadata inside `PassiveFillModel`. That layer should stay event-contract driven.
 

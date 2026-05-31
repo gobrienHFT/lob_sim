@@ -266,6 +266,7 @@ class SimulationMetrics:
                 "price": str(price),
                 "qty": str(qty),
                 "maker": fill.maker,
+                "fill_source": fill.source,
                 "fee_bps": str(fee.rate_bps),
                 "fee": str(fee.amount),
                 "fee_currency": fee.currency,

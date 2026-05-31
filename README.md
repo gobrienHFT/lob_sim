@@ -113,6 +113,7 @@ Tracked metrics include:
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead
+- per-fill attribution source (`depth_update`, `agg_trade`, or `taker_order`)
 - per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics
 - inventory mean and variability

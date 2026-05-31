@@ -439,6 +439,7 @@ class SimulationEngine:
                     "price",
                     "qty",
                     "maker",
+                    "fill_source",
                     "fee_bps",
                     "fee",
                     "fee_currency",

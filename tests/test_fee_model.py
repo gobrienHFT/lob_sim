@@ -90,3 +90,4 @@ def test_metrics_records_per_fill_fee_audit_fields(
     assert summary["fills"][0]["fee_bps"] == "-1.0"
     assert Decimal(summary["fills"][0]["fee"]) == Decimal("-0.02")
     assert summary["fills"][0]["fee_currency"] == "USDT"
+    assert summary["fills"][0]["fill_source"] == "depth_update"

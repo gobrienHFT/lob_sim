@@ -138,6 +138,7 @@ def test_fifo_queue_priority_keeps_later_venue_volume_behind_resting_strategy_or
     assert len(fills) == 1
     assert fills[0].order_id == "strategy-bid"
     assert fills[0].qty_lots == 1
+    assert fills[0].source == "depth_update"
 
 
 def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
@@ -164,6 +165,7 @@ def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
         2.0,
     )
     assert [fill.qty_lots for fill in first] == [1]
+    assert [fill.source for fill in first] == ["agg_trade"]
     resting = model.get_order("BTCUSDT", "bid")
     assert resting is not None
     assert resting.remaining_lots == 2
@@ -222,6 +224,7 @@ def test_marketable_limit_generates_taker_fill_and_posts_remainder() -> None:
     )
 
     assert [(fill.price_tick, fill.qty_lots, fill.maker) for fill in fills] == [(10010, 1, False)]
+    assert [fill.source for fill in fills] == ["taker_order"]
     resting = model.get_order("BTCUSDT", "bid")
     assert resting is not None
     assert resting.order_id == "crossing-bid"
@@ -250,6 +253,7 @@ def test_market_order_sweeps_visible_depth_levels_as_taker() -> None:
         (10010, 1, False),
         (10011, 2, False),
     ]
+    assert [fill.source for fill in fills] == ["taker_order", "taker_order"]
     assert model.get_order("BTCUSDT", "bid") is None
     assert model.depth_levels("BTCUSDT", "ask") == []
 
@@ -329,6 +333,7 @@ def test_replace_order_waits_for_cancel_latency_before_new_arrival(
     assert summary["fills"][0]["order_id"].startswith("BTCUSDT-bid-")
     assert summary["fills"][0]["price"] == "100.0"
     assert summary["fills"][0]["maker"] is True
+    assert summary["fills"][0]["fill_source"] == "agg_trade"
     assert summary["quote_count"] == 2
     assert summary["cancel_count"] == 1
 

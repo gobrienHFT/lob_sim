@@ -5,6 +5,7 @@ from typing import Literal
 
 OrderSide = Literal["bid", "ask"]
 OrderType = Literal["limit", "market", "cancel"]
+FillSource = Literal["depth_update", "agg_trade", "taker_order"]
 
 
 @dataclass
@@ -35,3 +36,4 @@ class Fill:
     order_id: str | None = None
     queue_ahead_lots: int = 0
     created_ts: float | None = None
+    source: FillSource = "depth_update"

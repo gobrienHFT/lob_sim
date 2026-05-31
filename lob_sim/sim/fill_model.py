@@ -4,7 +4,7 @@ from collections import deque
 from typing import Deque, Dict, List
 
 from ..book.types import AggTradeEvent, LevelChange
-from .orders import Fill, Order, OrderSide
+from .orders import Fill, FillSource, Order, OrderSide
 
 
 class PassiveFillModel:
@@ -156,6 +156,7 @@ class PassiveFillModel:
         lots: int,
         ts_local: float,
         maker_fill: bool,
+        source: FillSource,
     ) -> tuple[list[Fill], int]:
         fills: list[Fill] = []
         remaining = max(0, lots)
@@ -189,6 +190,7 @@ class PassiveFillModel:
                         order_id=head.order_id,
                         queue_ahead_lots=queue_ahead,
                         created_ts=head.created_ts,
+                        source=source,
                     )
                 )
 
@@ -215,13 +217,14 @@ class PassiveFillModel:
         lots: int,
         ts_local: float,
         maker_fill: bool,
+        source: FillSource,
     ) -> list[Fill]:
         bucket = self._bucket(side)
         queue = self._book(symbol)[bucket].get(price_tick)
         if queue is None:
             return []
 
-        fills, remaining = self._consume_front(symbol, side, queue, lots, ts_local, maker_fill)
+        fills, remaining = self._consume_front(symbol, side, queue, lots, ts_local, maker_fill, source)
         if not queue:
             self._book(symbol)[bucket].pop(price_tick, None)
         if remaining <= 0:
@@ -278,6 +281,7 @@ class PassiveFillModel:
                         order_id=order.order_id,
                         queue_ahead_lots=0,
                         created_ts=order.created_ts,
+                        source="taker_order",
                     )
                 )
 
@@ -378,6 +382,7 @@ class PassiveFillModel:
                         lots=dec,
                         ts_local=ts_local,
                         maker_fill=True,
+                        source="depth_update",
                     )
                 )
             elif change.new_lots > change.previous_lots:
@@ -399,4 +404,5 @@ class PassiveFillModel:
             lots=trade.qty_lots,
             ts_local=ts_local,
             maker_fill=True,
+            source="agg_trade",
         )

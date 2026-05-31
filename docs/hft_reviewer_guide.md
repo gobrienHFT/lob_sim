@@ -70,6 +70,7 @@ Inferred:
 - passive fills from visible level reductions and trade-print consumption;
 - queue position at price level, not participant-level identity;
 - adverse selection from post-fill mid-price markout;
+- fill source attribution from the observed or simulated event that produced the fill;
 - net maker/taker fee impact from configured fee assumptions;
 - strategy behavior under configured latency assumptions.
 
@@ -79,6 +80,7 @@ Inferred:
 - Depth increases append later venue liquidity behind existing resting orders at that price.
 - Depth reductions consume FIFO from the front of a level.
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
+- Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
