@@ -1,7 +1,7 @@
 # Futures Replay Reference Benchmark
 
-- Benchmark date: `2026-05-31T22:16:47Z`
-- Commit SHA at run time: `50033ee276b0021b84e5720c7b07158c43f05557`
+- Benchmark date: `2026-05-31T22:28:44Z`
+- Commit SHA at run time: `83635e2af8334b4d74075a71b9edd14280714885`
 - Git dirty at run time: `False`
 - OS/platform: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
@@ -25,10 +25,10 @@ Summary:
 - Depth events: `9`
 - AggTrade events: `69`
 - Gap count: `0`
-- Wall time: `1.132650s`
-- Events/sec: `70.63`
-- Loop latency p50: `199.45us`
-- Loop latency p99: `173359.00us`
+- Wall time: `0.535319s`
+- Events/sec: `149.44`
+- Loop latency p50: `128.65us`
+- Loop latency p99: `73702.64us`
 - Peak traced memory: `0.67 MiB`
 
 This result is specific to this machine, this Python interpreter, and this committed fixture. The fixture is intentionally small, so fixed interpreter and validation overhead dominate.

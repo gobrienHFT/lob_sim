@@ -143,6 +143,17 @@
       "snapshot"
     ]
   },
+  "instrument_specs": {
+    "BTCUSDT": {
+      "symbol": "BTCUSDT",
+      "venue": "BINANCE_USDM",
+      "price_currency": "USDT",
+      "quantity_unit": "BTC",
+      "tick_size": "0.10",
+      "step_size": "0.001",
+      "contract_multiplier": "1"
+    }
+  },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
     "summary": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
