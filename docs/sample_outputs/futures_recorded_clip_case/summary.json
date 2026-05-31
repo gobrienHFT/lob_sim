@@ -29,6 +29,16 @@
   "quote_count": 2,
   "cancel_count": 0,
   "self_trade_prevention_count": 0,
+  "order_lifecycle_counts": {
+    "arrival_scheduled": 2,
+    "arrived": 2,
+    "rested_after_arrival": 2,
+    "immediate_fill_arrivals": 0,
+    "expired_unfilled_arrivals": 0,
+    "cancel_requested": 0,
+    "cancel_acknowledged": 0,
+    "self_trade_prevented": 0
+  },
   "avg_fill_wait_ms": 113.13986778259277,
   "fill_from_top_count": 1,
   "fill_from_top_rate": 1.0,

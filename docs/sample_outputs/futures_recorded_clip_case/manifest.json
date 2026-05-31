@@ -1,7 +1,7 @@
 {
   "run_id": "9ca4a7a87ab927c4",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T19:35:25.995143Z",
+  "created_at_utc": "2026-05-31T19:55:30.439251Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -48,7 +48,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "0a5c0118e82ef4043a3f3295d6f38e9c8691e2c1",
+    "git_commit": "3500cf6066f7a23574c5130c80d9c1b1c9677400",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -64,28 +64,28 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
       "size_bytes": 15358,
       "sha256": "ed96f9ce5e9a260a1bac8f0216f8faaa76328e88f0786ea73dfd16c21ad5c7e2",
-      "modified_at_utc": "2026-05-31T19:35:28.221189Z"
+      "modified_at_utc": "2026-05-31T19:55:30.930126Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 3022,
-      "sha256": "5a7c726068ef0a51159fcc58a85687f2e8577c9efea0f4ed8f547d50ef0b0f98",
-      "modified_at_utc": "2026-05-31T19:35:28.117210Z"
+      "size_bytes": 3301,
+      "sha256": "cafd9d8708edbd045fb514ccd2ce3b484a7cde3790b47d35f3953bea634fda41",
+      "modified_at_utc": "2026-05-31T19:55:30.924983Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
-      "size_bytes": 1704,
-      "sha256": "6576b59aeaf033e711a8d39b3b049cc780c714e64af8e332b5706c2f35e9fa12",
-      "modified_at_utc": "2026-05-31T19:35:28.128183Z"
+      "size_bytes": 1949,
+      "sha256": "127253b4734f800e4f488488d6aa5071e7b853a877ca44b83252c1360d556b23",
+      "modified_at_utc": "2026-05-31T19:55:30.926979Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 346,
       "sha256": "c038f05c38ac2143de8393bda230c667365e39b435ab1be6a000240e0db52b39",
-      "modified_at_utc": "2026-05-31T19:35:28.206226Z"
+      "modified_at_utc": "2026-05-31T19:55:30.928972Z"
     }
   }
 }
