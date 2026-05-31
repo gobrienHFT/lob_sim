@@ -92,6 +92,7 @@ Inferred:
 - Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
+- Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.

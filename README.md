@@ -120,6 +120,7 @@ Tracked metrics include:
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead
+- order lifecycle counts for scheduled arrivals, arrived quotes, resting outcomes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements
 - per-fill attribution source (`depth_update`, `agg_trade`, or `taker_order`)
 - summary-level fill-source counts so depth-inferred fills are visible without scanning every trade row
 - self-trade prevention count for marketable strategy orders stopped before own resting liquidity

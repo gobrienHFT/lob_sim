@@ -12,6 +12,16 @@ from .fees import StaticFeeModel
 from .orders import Fill, FillSource
 
 FILL_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade", "taker_order")
+ORDER_LIFECYCLE_COUNT_KEYS: tuple[str, ...] = (
+    "arrival_scheduled",
+    "arrived",
+    "rested_after_arrival",
+    "immediate_fill_arrivals",
+    "expired_unfilled_arrivals",
+    "cancel_requested",
+    "cancel_acknowledged",
+    "self_trade_prevented",
+)
 
 
 @dataclass
@@ -36,7 +46,13 @@ class SimulationMetrics:
         self.fill_source_counts: dict[FillSource, int] = {source: 0 for source in FILL_SOURCES}
         self.quote_count = 0
         self.cancel_count = 0
+        self.cancel_ack_count = 0
         self.self_trade_prevention_count = 0
+        self.order_arrival_scheduled_count = 0
+        self.order_arrival_count = 0
+        self.order_rested_after_arrival_count = 0
+        self.order_immediate_fill_arrival_count = 0
+        self.order_expired_unfilled_arrival_count = 0
         self.records_processed = 0
         self.record_type_counts: dict[str, int] = defaultdict(int)
         self.depth_changes_applied = 0
@@ -85,8 +101,30 @@ class SimulationMetrics:
     def on_quote_requested(self) -> None:
         self.quote_count += 1
 
+    def on_order_arrival_scheduled(self) -> None:
+        self.order_arrival_scheduled_count += 1
+
+    def on_order_arrival(
+        self,
+        *,
+        resting_after_arrival: bool,
+        immediate_fills: int,
+        remaining_lots_after_arrival: int,
+    ) -> None:
+        self.on_quote_requested()
+        self.order_arrival_count += 1
+        if resting_after_arrival:
+            self.order_rested_after_arrival_count += 1
+        if immediate_fills > 0:
+            self.order_immediate_fill_arrival_count += 1
+        if not resting_after_arrival and remaining_lots_after_arrival > 0:
+            self.order_expired_unfilled_arrival_count += 1
+
     def on_cancel_requested(self) -> None:
         self.cancel_count += 1
+
+    def on_cancel_acknowledged(self) -> None:
+        self.cancel_ack_count += 1
 
     def on_self_trade_prevented(self) -> None:
         self.self_trade_prevention_count += 1
@@ -447,6 +485,16 @@ class SimulationMetrics:
             "depth_changes_applied": self.depth_changes_applied,
             "book_gap_count": self.book_gap_count,
         }
+        lifecycle_counts = {
+            "arrival_scheduled": self.order_arrival_scheduled_count,
+            "arrived": self.order_arrival_count,
+            "rested_after_arrival": self.order_rested_after_arrival_count,
+            "immediate_fill_arrivals": self.order_immediate_fill_arrival_count,
+            "expired_unfilled_arrivals": self.order_expired_unfilled_arrival_count,
+            "cancel_requested": self.cancel_count,
+            "cancel_acknowledged": self.cancel_ack_count,
+            "self_trade_prevented": self.self_trade_prevention_count,
+        }
 
         return {
             "strategy_profile": self.cfg.mm_strategy_profile,
@@ -470,6 +518,10 @@ class SimulationMetrics:
             "quote_count": self.quote_count,
             "cancel_count": self.cancel_count,
             "self_trade_prevention_count": self.self_trade_prevention_count,
+            "order_lifecycle_counts": {
+                key: lifecycle_counts[key]
+                for key in ORDER_LIFECYCLE_COUNT_KEYS
+            },
             "avg_fill_wait_ms": float(avg_fill_wait_ms),
             "fill_from_top_count": self.fill_from_top_count,
             "fill_from_top_rate": float(fill_from_top_rate),

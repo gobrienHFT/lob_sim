@@ -795,6 +795,16 @@ def test_engine_summary_counts_self_trade_prevention_and_trace_flag(
     assert summary["fill_count"] == 0
     assert summary["self_trade_prevention_count"] == 1
     assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 0, "taker_order": 0}
+    assert summary["order_lifecycle_counts"] == {
+        "arrival_scheduled": 2,
+        "arrived": 2,
+        "rested_after_arrival": 1,
+        "immediate_fill_arrivals": 0,
+        "expired_unfilled_arrivals": 1,
+        "cancel_requested": 0,
+        "cancel_acknowledged": 0,
+        "self_trade_prevented": 1,
+    }
     assert engine.fill_model.get_order("BTCUSDT", "ask", "maker_ask") is not None
     assert engine.fill_model.get_order("BTCUSDT", "bid", "crossing_bid") is None
 
@@ -870,6 +880,16 @@ def test_replace_order_waits_for_cancel_latency_before_new_arrival(
     assert summary["fill_source_counts"] == {"depth_update": 0, "agg_trade": 1, "taker_order": 0}
     assert summary["quote_count"] == 2
     assert summary["cancel_count"] == 1
+    assert summary["order_lifecycle_counts"] == {
+        "arrival_scheduled": 2,
+        "arrived": 2,
+        "rested_after_arrival": 2,
+        "immediate_fill_arrivals": 0,
+        "expired_unfilled_arrivals": 0,
+        "cancel_requested": 1,
+        "cancel_acknowledged": 1,
+        "self_trade_prevented": 0,
+    }
 
 
 def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1032,6 +1052,16 @@ def test_simulation_event_trace_exports_order_lifecycle(
 
     event_types = [row["event_type"] for row in rows]
     assert summary["event_trace_count"] == len(rows)
+    assert summary["order_lifecycle_counts"] == {
+        "arrival_scheduled": 3,
+        "arrived": 3,
+        "rested_after_arrival": 3,
+        "immediate_fill_arrivals": 0,
+        "expired_unfilled_arrivals": 0,
+        "cancel_requested": 0,
+        "cancel_acknowledged": 0,
+        "self_trade_prevented": 0,
+    }
     assert "market_record" in event_types
     assert "decision" in event_types
     assert "order_arrival_scheduled" in event_types

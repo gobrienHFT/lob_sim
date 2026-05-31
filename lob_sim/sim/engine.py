@@ -407,6 +407,7 @@ class SimulationEngine:
                         "refresh_key": target.refresh_key,
                     },
                 )
+                self.metrics.on_order_arrival_scheduled()
                 self._trace(
                     ts,
                     symbol,
@@ -457,7 +458,6 @@ class SimulationEngine:
         )
         if fills:
             self._emit_trade_event(now, symbol, fills)
-        self.metrics.on_quote_requested()
         arrival_details = {
             "refresh_key": refresh_key,
             "remaining_lots_after_arrival": order.remaining_lots,
@@ -465,6 +465,11 @@ class SimulationEngine:
             "queue_ahead_lots_after_arrival": queue_ahead_after_arrival,
             "immediate_fills": len(fills),
         }
+        self.metrics.on_order_arrival(
+            resting_after_arrival=resting_after_arrival,
+            immediate_fills=len(fills),
+            remaining_lots_after_arrival=order.remaining_lots,
+        )
         if self.fill_model.last_self_trade_prevented:
             self.metrics.on_self_trade_prevented()
             arrival_details["self_trade_prevented"] = True
@@ -487,6 +492,7 @@ class SimulationEngine:
             return
         self._pending_cancel_ack_ts.pop(str(order_id), None)
         self.fill_model.cancel_order(str(order_id))
+        self.metrics.on_cancel_acknowledged()
         self._trace(now, symbol, "cancel_ack", "engine", order_id=str(order_id))
 
     def _handle_trades(self, fills: list) -> None:
