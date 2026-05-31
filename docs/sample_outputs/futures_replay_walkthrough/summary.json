@@ -64,6 +64,7 @@
       "price": "100.0",
       "qty": "0.001",
       "maker": true,
+      "fill_source": "agg_trade",
       "fee_bps": "0",
       "fee": "0.0000",
       "fee_currency": "USDT",
