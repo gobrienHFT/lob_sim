@@ -8,7 +8,7 @@ import time
 import tracemalloc
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
@@ -18,6 +18,9 @@ from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.replay.runner import parse_symbol_spec_from_record
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
+
+
+BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v1"
 
 
 def _percentile(sorted_values: list[float], pct: float) -> float:
@@ -32,7 +35,7 @@ def _percentile(sorted_values: list[float], pct: float) -> float:
     return sorted_values[low] * (1.0 - fraction) + sorted_values[high] * fraction
 
 
-def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
+def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> dict[str, Any]:
     cfg = load_config(env_path)
     cfg_snapshot = config_snapshot(cfg)
     metadata = {
@@ -48,6 +51,7 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     syncers: Dict[str, BookSynchronizer] = {}
 
     total_events = 0
+    exchange_info_events = 0
     snapshot_events = 0
     depth_events = 0
     trade_events = 0
@@ -62,6 +66,7 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
         total_events += 1
 
         if rec.type == "exchangeInfo":
+            exchange_info_events += 1
             parsed = parse_symbol_spec_from_record(rec)
             if parsed is not None:
                 symbol, tick_size, step_size = parsed
@@ -134,7 +139,42 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     latencies_sorted = sorted(loop_latencies_us)
     events_per_sec = total_events / wall_time if wall_time > 0 else 0.0
 
-    print(f"Replay benchmark file: {path}")
+    return {
+        "schema_version": BENCHMARK_SCHEMA_VERSION,
+        "metadata": metadata,
+        "event_counts": {
+            "total_events": total_events,
+            "exchange_info_events": exchange_info_events,
+            "snapshot_events": snapshot_events,
+            "depth_events": depth_events,
+            "agg_trade_events": trade_events,
+            "gap_count": gap_count,
+        },
+        "timing": {
+            "wall_time_seconds": wall_time,
+            "events_per_second": events_per_sec,
+            "loop_latency_p50_us": _percentile(latencies_sorted, 0.50),
+            "loop_latency_p99_us": _percentile(latencies_sorted, 0.99),
+        },
+        "memory": {
+            "peak_traced_bytes": peak_bytes,
+            "peak_traced_mib": peak_bytes / (1024 * 1024),
+        },
+    }
+
+
+def write_benchmark_json(result: dict[str, Any], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def print_benchmark(result: dict[str, Any]) -> None:
+    metadata = result["metadata"]
+    event_counts = result["event_counts"]
+    timing = result["timing"]
+    memory = result["memory"]
+
+    print(f"Replay benchmark file: {metadata['input_file']}")
     print(f"Input SHA-256: {metadata['input_sha256']}")
     print(f"Config digest: {metadata['config_digest']}")
     print(f"Python: {metadata['python_version']}")
@@ -142,20 +182,19 @@ def benchmark_replay(path: Path, env_path: str, progress_every: int = 0) -> int:
     print(f"Git commit: {metadata['source']['git_commit']}")
     print(f"Git branch: {metadata['source']['git_branch']}")
     print(f"Git dirty: {metadata['source']['git_dirty']}")
-    print(f"Total events: {total_events}")
-    print(f"Snapshot events: {snapshot_events}")
-    print(f"Depth events: {depth_events}")
-    print(f"AggTrade events: {trade_events}")
-    print(f"Gap count: {gap_count}")
-    print(f"Wall time: {wall_time:.6f}s")
-    print(f"Events/sec: {events_per_sec:.2f}")
-    print(f"Loop latency p50: {_percentile(latencies_sorted, 0.50):.2f}us")
-    print(f"Loop latency p99: {_percentile(latencies_sorted, 0.99):.2f}us")
-    print(f"Peak traced memory: {peak_bytes / (1024 * 1024):.2f} MiB")
-    print("Benchmark metadata JSON:")
-    print(json.dumps(metadata, indent=2))
-
-    return 0
+    print(f"Total events: {event_counts['total_events']}")
+    print(f"ExchangeInfo events: {event_counts['exchange_info_events']}")
+    print(f"Snapshot events: {event_counts['snapshot_events']}")
+    print(f"Depth events: {event_counts['depth_events']}")
+    print(f"AggTrade events: {event_counts['agg_trade_events']}")
+    print(f"Gap count: {event_counts['gap_count']}")
+    print(f"Wall time: {timing['wall_time_seconds']:.6f}s")
+    print(f"Events/sec: {timing['events_per_second']:.2f}")
+    print(f"Loop latency p50: {timing['loop_latency_p50_us']:.2f}us")
+    print(f"Loop latency p99: {timing['loop_latency_p99_us']:.2f}us")
+    print(f"Peak traced memory: {memory['peak_traced_mib']:.2f} MiB")
+    print("Benchmark JSON:")
+    print(json.dumps(result, indent=2, sort_keys=True))
 
 
 def main() -> int:
@@ -163,9 +202,14 @@ def main() -> int:
     parser.add_argument("--file", required=True, help="Path to NDJSON or NDJSON.GZ replay file")
     parser.add_argument("--env", default=".env.example", help="Config source for replay parameters")
     parser.add_argument("--progress-every", type=int, default=0, help="Optional progress print interval")
+    parser.add_argument("--json-out", help="Optional path for a machine-readable benchmark JSON artifact")
     args = parser.parse_args()
 
-    return benchmark_replay(Path(args.file), args.env, progress_every=args.progress_every)
+    result = benchmark_replay(Path(args.file), args.env, progress_every=args.progress_every)
+    print_benchmark(result)
+    if args.json_out:
+        write_benchmark_json(result, Path(args.json_out))
+    return 0
 
 
 if __name__ == "__main__":

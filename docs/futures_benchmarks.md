@@ -27,7 +27,7 @@ Event counts for the committed input:
 Exact benchmark command:
 
 ```bash
-python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 ```
 
 Interpretation:
@@ -41,7 +41,7 @@ Interpretation:
 Use the lightweight replay benchmark runner:
 
 ```bash
-python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 ```
 
 The script prints:
@@ -58,6 +58,8 @@ The script prints:
 - events per second
 - p50 / p99 loop timing
 - peak traced memory
+
+With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
 
 ## Caveats
 
