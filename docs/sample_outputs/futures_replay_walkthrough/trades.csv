@@ -1,2 +1,2 @@
-ts_local,symbol,side,price,qty,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick
-2.4,BTCUSDT,bid,100.0,0.001,True,agg_trade,0,0.0000,USDT,BTCUSDT-bid-2000000-3,100.05,tight_sell,0,399.9999999999999,1.0,1000,1001
+ts_local,symbol,side,price,qty,notional,contract_multiplier,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick
+2.4,BTCUSDT,bid,100.0,0.001,0.1000,1,True,agg_trade,0,0.0000,USDT,BTCUSDT-bid-2000000-3,100.05,tight_sell,0,399.9999999999999,1.0,1000,1001

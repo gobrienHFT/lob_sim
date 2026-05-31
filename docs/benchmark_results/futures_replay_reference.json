@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6704607009887695
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-05-31T22:02:09.580251Z",
+    "benchmark_created_at_utc": "2026-05-31T22:16:47.959623Z",
     "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
     "feed_adapter": {
       "name": "binance_usdm",
@@ -30,15 +30,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "ddce08da975ee56d560c4cfe964a739a11a57094",
+      "git_commit": "50033ee276b0021b84e5720c7b07158c43f05557",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v1",
   "timing": {
-    "events_per_second": 126.39494596881525,
-    "loop_latency_p50_us": 178.25,
-    "loop_latency_p99_us": 81508.01799999957,
-    "wall_time_seconds": 0.6329367000143975
+    "events_per_second": 70.63079658556178,
+    "loop_latency_p50_us": 199.45,
+    "loop_latency_p99_us": 173359.00099999865,
+    "wall_time_seconds": 1.1326503999298438
   }
 }
