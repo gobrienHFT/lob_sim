@@ -131,9 +131,12 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert output_files["summary"].exists()
     assert output_files["summary_csv"].exists()
     assert output_files["trades"].exists()
+    assert output_files["event_trace"].exists()
     assert output_files["manifest"].exists()
     assert summary["output_files"]["summary_csv"] == str(output_files["summary_csv"])
+    assert summary["output_files"]["event_trace"] == str(output_files["event_trace"])
     assert summary["output_files"]["manifest"] == str(output_files["manifest"])
+    assert summary["event_trace_count"] == 0
     assert len(summary["run_id"]) == 16
     assert len(summary["input_sha256"]) == 64
 
@@ -152,6 +155,11 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert rows[0]["symbol"] == "BTCUSDT"
     assert rows[0]["fill_source"] == "depth_update"
 
+    with output_files["event_trace"].open("r", encoding="utf-8", newline="") as handle:
+        trace_rows = list(csv.DictReader(handle))
+
+    assert trace_rows == []
+
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     assert manifest["run_id"] == summary["run_id"]
     assert manifest["input"]["sha256"] == summary["input_sha256"]
@@ -163,6 +171,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert manifest["output_artifacts"]["summary"]["size_bytes"] == output_files["summary"].stat().st_size
     assert manifest["output_artifacts"]["summary_csv"]["sha256"]
     assert manifest["output_artifacts"]["trades"]["sha256"]
+    assert manifest["output_artifacts"]["event_trace"]["sha256"]
     assert manifest["output_artifacts"]["manifest"] == {"path": str(output_files["manifest"])}
 
 

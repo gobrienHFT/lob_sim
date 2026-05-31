@@ -8,6 +8,7 @@ This directory contains committed, deterministic sample artifacts for both the f
 - Summary: [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
 - Manifest: [`futures_replay_walkthrough/manifest.json`](futures_replay_walkthrough/manifest.json)
 - Trades: [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
+- Event trace: [`futures_replay_walkthrough/event_trace.csv`](futures_replay_walkthrough/event_trace.csv)
 - Notes: [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 - Input type: synthetic deterministic walkthrough fixture
 - Regenerate with:
@@ -22,7 +23,8 @@ Open first:
 2. [`futures_replay_walkthrough/summary.json`](futures_replay_walkthrough/summary.json)
 3. [`futures_replay_walkthrough/manifest.json`](futures_replay_walkthrough/manifest.json)
 4. [`futures_replay_walkthrough/trades.csv`](futures_replay_walkthrough/trades.csv)
-5. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
+5. [`futures_replay_walkthrough/event_trace.csv`](futures_replay_walkthrough/event_trace.csv)
+6. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 
 ## Recorded Futures Clip Case
 
@@ -30,6 +32,7 @@ Open first:
 - Summary: [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
 - Manifest: [`futures_recorded_clip_case/manifest.json`](futures_recorded_clip_case/manifest.json)
 - Trades: [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
+- Event trace: [`futures_recorded_clip_case/event_trace.csv`](futures_recorded_clip_case/event_trace.csv)
 - Notes: [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
 - Input type: clipped recorded BTCUSDT event stream from an existing local raw capture
 - Regenerate with:
@@ -44,7 +47,8 @@ Open first:
 2. [`futures_recorded_clip_case/summary.json`](futures_recorded_clip_case/summary.json)
 3. [`futures_recorded_clip_case/manifest.json`](futures_recorded_clip_case/manifest.json)
 4. [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
-5. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
+5. [`futures_recorded_clip_case/event_trace.csv`](futures_recorded_clip_case/event_trace.csv)
+6. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
 
 ## Controlled Options Case Study
 

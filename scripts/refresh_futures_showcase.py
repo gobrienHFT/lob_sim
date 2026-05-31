@@ -181,6 +181,7 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
             raise RuntimeError("Showcase fixture did not produce any strategy quotes.")
 
         committed_paths = {
+            "event_trace": output_dir / "event_trace.csv",
             "summary": output_dir / "summary.json",
             "summary_csv": output_dir / "summary.csv",
             "trades": output_dir / "trades.csv",
@@ -197,6 +198,7 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
         committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
         shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
+        shutil.copyfile(generated_paths["event_trace"], committed_paths["event_trace"])
         manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_path_for_summary)
         committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 

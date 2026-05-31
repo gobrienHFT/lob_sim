@@ -106,12 +106,14 @@ The futures simulation writes:
 - `summary_<stem>.json`
 - `summary_<stem>.csv`
 - `trades_<stem>.csv`
+- `event_trace_<stem>.csv`
 - `manifest_<stem>.json`
 
 Tracked metrics include:
 
 - realized and unrealized PnL
 - replay event counts and book-sync gap counts observed during simulation
+- event-time trace rows for market records, strategy decisions, scheduled arrivals, cancels, and fills
 - average spread captured
 - fill rate and fill-from-top rate
 - queue-fill count and max queue ahead
@@ -131,6 +133,7 @@ Committed futures walkthrough artifacts:
 - Summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
 - Manifest: [docs/sample_outputs/futures_replay_walkthrough/manifest.json](docs/sample_outputs/futures_replay_walkthrough/manifest.json)
 - Trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
+- Event trace: [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv)
 - Notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
 - Strategy profiles: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)

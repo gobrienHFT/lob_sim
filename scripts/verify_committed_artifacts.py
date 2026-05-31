@@ -42,6 +42,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/README.md",
         "docs/sample_outputs/futures_replay_walkthrough/summary.json",
         "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
+        "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
     ],
@@ -49,6 +50,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/README.md",
         "docs/sample_outputs/futures_replay_walkthrough/summary.json",
         "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
+        "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
         "docs/sample_outputs/futures_recorded_clip_case/case_notes.md",
@@ -58,11 +60,13 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "futures_replay_walkthrough/summary.json",
         "futures_replay_walkthrough/manifest.json",
         "futures_replay_walkthrough/trades.csv",
+        "futures_replay_walkthrough/event_trace.csv",
         "futures_replay_walkthrough/walkthrough.md",
         "futures_recorded_clip_case/README.md",
         "futures_recorded_clip_case/summary.json",
         "futures_recorded_clip_case/manifest.json",
         "futures_recorded_clip_case/trades.csv",
+        "futures_recorded_clip_case/event_trace.csv",
         "futures_recorded_clip_case/case_notes.md",
     ],
 }
@@ -175,6 +179,7 @@ FUTURES_SHOWCASE_CORE_FILES = [
     "summary.csv",
     "manifest.json",
     "trades.csv",
+    "event_trace.csv",
 ]
 
 RECORDED_CLIP_CORE_FILES = [
@@ -185,6 +190,7 @@ RECORDED_CLIP_CORE_FILES = [
     "summary.csv",
     "manifest.json",
     "trades.csv",
+    "event_trace.csv",
 ]
 
 FUTURES_TRADE_AUDIT_FIELDS = {"fill_source", "fee_bps", "fee", "fee_currency"}
@@ -314,7 +320,7 @@ def _verify_manifest_output_artifacts() -> list[str]:
         if not isinstance(artifacts, dict):
             issues.append(f"{_repo_relative(manifest_path)} is missing output_artifacts")
             continue
-        for label in ["summary", "summary_csv", "trades"]:
+        for label in ["summary", "summary_csv", "trades", "event_trace"]:
             metadata = artifacts.get(label)
             if not isinstance(metadata, dict):
                 issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}] is missing")

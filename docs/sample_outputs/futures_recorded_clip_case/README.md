@@ -13,8 +13,9 @@ python scripts/refresh_futures_recorded_case.py
 1. [`summary.json`](summary.json)
 2. [`manifest.json`](manifest.json)
 3. [`trades.csv`](trades.csv)
-4. [`case_notes.md`](case_notes.md)
-5. [`input_clip.ndjson`](input_clip.ndjson)
+4. [`event_trace.csv`](event_trace.csv)
+5. [`case_notes.md`](case_notes.md)
+6. [`input_clip.ndjson`](input_clip.ndjson)
 
 ## Provenance
 
@@ -22,5 +23,6 @@ python scripts/refresh_futures_recorded_case.py
 - Selected window: BTCUSDT `exchangeInfo`, the second recorded snapshot, and the next 78 recorded events
 - Committed clip time range: `ts_local` `1772633472.3978999` to `1772633474.824`
 - `manifest.json` records input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests
+- `event_trace.csv` records the event-time sequence of market rows, strategy decisions, scheduled arrivals, cancel acknowledgements, and fills
 
 The original larger raw file is not committed in this pack. The committed input here is the clipped replay window used to regenerate the case outputs.

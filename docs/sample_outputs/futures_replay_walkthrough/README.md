@@ -10,6 +10,7 @@ This pack is a tiny deterministic walkthrough fixture for the futures replay and
 - [`summary.csv`](summary.csv): flat summary row for quick scanning.
 - [`manifest.json`](manifest.json): input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests.
 - [`trades.csv`](trades.csv): passive-fill rows produced by the replay.
+- [`event_trace.csv`](event_trace.csv): event-time audit trail of market records, strategy decisions, scheduled arrivals, cancels, and fills.
 
 ## Regenerate
 
@@ -19,4 +20,4 @@ From the repo root:
 python scripts/refresh_futures_showcase.py
 ```
 
-Inspect first: [`summary.json`](summary.json), [`manifest.json`](manifest.json), [`trades.csv`](trades.csv), then [`walkthrough.md`](walkthrough.md).
+Inspect first: [`summary.json`](summary.json), [`manifest.json`](manifest.json), [`trades.csv`](trades.csv), [`event_trace.csv`](event_trace.csv), then [`walkthrough.md`](walkthrough.md).

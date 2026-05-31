@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from decimal import Decimal
 from pathlib import Path
 
@@ -460,6 +461,74 @@ def test_simulation_summary_surfaces_event_counts_and_book_gaps(
         "book_gap_count": 1,
     }
     assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": 1}
+
+
+def test_simulation_event_trace_exports_order_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "trace_lifecycle.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.010")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.001"]], "a": [["100.1", "0.010"]]},
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.002", "m": True},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_REQUOTE_MS="1000",
+        SIM_ORDER_LATENCY_MS="0",
+        SIM_CANCEL_LATENCY_MS="0",
+    )
+
+    engine = SimulationEngine(cfg)
+    metrics = engine.run(replay_path)
+    output_files, summary = engine.write_outputs(str(replay_path), metrics)
+
+    with output_files["event_trace"].open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    event_types = [row["event_type"] for row in rows]
+    assert summary["event_trace_count"] == len(rows)
+    assert "market_record" in event_types
+    assert "decision" in event_types
+    assert "order_arrival_scheduled" in event_types
+    assert "order_arrival" in event_types
+    assert "fill" in event_types
+    assert [float(row["ts_local"]) for row in rows] == sorted(float(row["ts_local"]) for row in rows)
+
+    fill_row = next(row for row in rows if row["event_type"] == "fill")
+    assert fill_row["symbol"] == "BTCUSDT"
+    assert fill_row["side"] == "bid"
+    assert fill_row["price_tick"] == "1000"
+    assert fill_row["qty_lots"] == "1"
+    assert fill_row["fill_source"] == "agg_trade"
+
+    order_row = next(row for row in rows if row["event_type"] == "order_arrival")
+    assert order_row["order_id"].startswith("BTCUSDT-bid-")
+    assert order_row["quote_slot"] == "base"
 
 
 def test_markout_inventory_and_pnl_sanity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

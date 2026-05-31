@@ -104,6 +104,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in readme
+    assert "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in readme
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in readme
     assert "docs/futures_strategy_profiles.md" in readme
@@ -119,6 +120,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in walkthrough
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in walkthrough
     assert "docs/sample_outputs/futures_replay_walkthrough/trades.csv" in walkthrough
+    assert "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv" in walkthrough
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in walkthrough
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in walkthrough
     assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in walkthrough
@@ -136,11 +138,13 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "futures_replay_walkthrough/summary.json" in sample_outputs
     assert "futures_replay_walkthrough/manifest.json" in sample_outputs
     assert "futures_replay_walkthrough/trades.csv" in sample_outputs
+    assert "futures_replay_walkthrough/event_trace.csv" in sample_outputs
     assert "futures_replay_walkthrough/walkthrough.md" in sample_outputs
     assert "futures_recorded_clip_case/README.md" in sample_outputs
     assert "futures_recorded_clip_case/summary.json" in sample_outputs
     assert "futures_recorded_clip_case/manifest.json" in sample_outputs
     assert "futures_recorded_clip_case/trades.csv" in sample_outputs
+    assert "futures_recorded_clip_case/event_trace.csv" in sample_outputs
     assert "futures_recorded_clip_case/case_notes.md" in sample_outputs
 
 

@@ -65,6 +65,7 @@ Observed:
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
+- event-time traces of market records, decisions, scheduled arrivals, cancels, and fills in generated CSV outputs.
 
 Inferred:
 
@@ -104,5 +105,6 @@ Inferred:
 - Queue mechanics implemented with explicit FIFO queues.
 - Risk and fill-quality metrics beyond PnL.
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
+- Event traces that make order/cancel/fill sequencing inspectable without a debugger.
 - Reproducible artifacts with input/config/source manifests.
 - Extensible boundaries for future venue adapters and asset metadata.

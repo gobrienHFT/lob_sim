@@ -12,7 +12,7 @@ The options side is a separate controlled dealer-pricing case study. It is there
 2. Point to [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for snapshot seeding, `U/u/pu` continuity, and gap handling.
 3. Point to [lob_sim/sim/fill_model.py](lob_sim/sim/fill_model.py) and [tests/test_fill_model.py](tests/test_fill_model.py) for FIFO queue consumption, queue-ahead tracking, and passive fill attribution.
 4. Open [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures artifact path.
-5. Open [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json) and [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv).
+5. Open [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), and [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv).
 6. Open [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the continuity, queue-ahead, and passive-fill notes.
 7. Open [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the baseline-vs-layered profile comparison on a committed recorded clip.
 8. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
@@ -23,7 +23,7 @@ The options side is a separate controlled dealer-pricing case study. It is there
 2. [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for market-data semantics and what is inferred.
 3. [docs/futures_validation.md](docs/futures_validation.md) for invariants, tests, and non-goals.
 4. [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures walkthrough pack.
-5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
+5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
 6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
 7. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
 8. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
@@ -66,10 +66,12 @@ Real data would calibrate the volatility surface, customer flow, toxicity assump
 - Futures walkthrough pack: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)
 - Futures summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
 - Futures trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
+- Futures event trace: [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv)
 - Futures notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
 - Recorded clip summary: [docs/sample_outputs/futures_recorded_clip_case/summary.json](docs/sample_outputs/futures_recorded_clip_case/summary.json)
 - Recorded clip trades: [docs/sample_outputs/futures_recorded_clip_case/trades.csv](docs/sample_outputs/futures_recorded_clip_case/trades.csv)
+- Recorded clip event trace: [docs/sample_outputs/futures_recorded_clip_case/event_trace.csv](docs/sample_outputs/futures_recorded_clip_case/event_trace.csv)
 - Recorded clip notes: [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md)
 - Strategy profile notes: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)
 - Strategy profile comparison: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
