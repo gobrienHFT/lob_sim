@@ -36,7 +36,7 @@ Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.
 
 The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, book-sync gap counts, fill-source counts, order-lifecycle counts, and self-trade-prevention counts. Those fields make it visible when a run skipped gap-affected depth data, relied on depth-inferred fills, posted quotes that never arrived, expired a marketable remainder, or prevented a strategy own-cross instead of silently advancing the book.
 
-Summaries also include `public_consumption_summary`: observed lots from public depth reductions and `aggTrade` prints, lots actually modeled as queue consumption after overlap reconciliation, and lots netted away inside the overlap window. This makes the cancel-vs-trade ambiguity explicit even when the strategy receives no fill.
+Summaries also include `public_consumption_summary`: observed lots from public depth reductions and `aggTrade` prints, lots eligible for modeled queue consumption after overlap reconciliation, lots actually consumed from the internal FIFO queue, lots netted away inside the overlap window, and unmatched lots when no internal queue remained at that level. This makes the cancel-vs-trade and book-divergence ambiguity explicit even when the strategy receives no fill.
 
 The event trace CSV is the compact event-time audit trail: replay records, strategy decisions, scheduled order arrivals, cancel requests and acknowledgements, book gaps, and fills share one timestamped sequence. Arrival rows include resting-state queue-ahead metadata; cancel-request rows include the reason and replacement context when a quote is being refreshed.
 

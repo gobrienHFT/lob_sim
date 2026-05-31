@@ -773,16 +773,22 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
                 "observed_lots": 2,
                 "modeled_lots": 2,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 2,
+                "unmatched_lots": 0,
             },
             "agg_trade": {
                 "observed_lots": 1,
                 "modeled_lots": 1,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 1,
+                "unmatched_lots": 0,
             },
         },
         "total_observed_lots": 3,
         "total_modeled_lots": 3,
         "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 3,
+        "total_unmatched_lots": 0,
     }
 
 
@@ -1222,6 +1228,7 @@ def test_simulation_event_trace_exports_order_lifecycle(
     }
     assert summary["public_consumption_summary"]["sources"]["agg_trade"]["observed_lots"] == 2
     assert summary["public_consumption_summary"]["sources"]["agg_trade"]["modeled_lots"] == 2
+    assert summary["public_consumption_summary"]["sources"]["agg_trade"]["queue_consumed_lots"] == 2
     assert "market_record" in event_types
     assert "decision" in event_types
     assert "order_arrival_scheduled" in event_types

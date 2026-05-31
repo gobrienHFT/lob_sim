@@ -151,16 +151,22 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
                 "observed_lots": 0,
                 "modeled_lots": 0,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
             },
             "agg_trade": {
                 "observed_lots": 0,
                 "modeled_lots": 0,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
             },
         },
         "total_observed_lots": 0,
         "total_modeled_lots": 0,
         "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 0,
+        "total_unmatched_lots": 0,
     }
 
     with output_files["summary_csv"].open("r", encoding="utf-8", newline="") as handle:

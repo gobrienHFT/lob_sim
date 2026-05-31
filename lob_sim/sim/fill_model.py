@@ -37,6 +37,8 @@ class PassiveFillModel:
                 "observed_lots": 0,
                 "modeled_lots": 0,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
             }
             for source in PUBLIC_CONSUMPTION_SOURCES
         }
@@ -221,15 +223,24 @@ class PassiveFillModel:
             credits.popleft()
         credits.append(_ConsumptionCredit(ts_local=ts_local, lots=lots, source=source))
 
-    def _record_public_consumption_stats(self, source: FillSource, observed_lots: int, modeled_lots: int) -> None:
+    def _record_public_consumption_stats(
+        self,
+        source: FillSource,
+        observed_lots: int,
+        modeled_lots: int,
+        queue_consumed_lots: int,
+    ) -> None:
         stats = self._public_consumption_stats.get(source)
         if stats is None:
             return
         observed = max(0, observed_lots)
         modeled = max(0, modeled_lots)
+        queue_consumed = min(modeled, max(0, queue_consumed_lots))
         stats["observed_lots"] += observed
         stats["modeled_lots"] += modeled
         stats["overlap_netted_lots"] += max(0, observed - modeled)
+        stats["queue_consumed_lots"] += queue_consumed
+        stats["unmatched_lots"] += max(0, modeled - queue_consumed)
 
     def public_consumption_summary(self) -> dict[str, object]:
         sources = {
@@ -242,6 +253,8 @@ class PassiveFillModel:
             "total_observed_lots": sum(source["observed_lots"] for source in sources.values()),
             "total_modeled_lots": sum(source["modeled_lots"] for source in sources.values()),
             "total_overlap_netted_lots": sum(source["overlap_netted_lots"] for source in sources.values()),
+            "total_queue_consumed_lots": sum(source["queue_consumed_lots"] for source in sources.values()),
+            "total_unmatched_lots": sum(source["unmatched_lots"] for source in sources.values()),
         }
 
     def queue_position(self, order: Order) -> int:
@@ -349,20 +362,17 @@ class PassiveFillModel:
         ts_local: float,
         maker_fill: bool,
         source: FillSource,
-    ) -> list[Fill]:
+    ) -> tuple[list[Fill], int]:
         bucket = self._bucket(side)
         queue = self._book(symbol)[bucket].get(price_tick)
         if queue is None:
-            return []
+            return [], 0
 
         fills, remaining = self._consume_front(symbol, side, queue, lots, ts_local, maker_fill, source)
+        queue_consumed_lots = max(0, lots) - remaining
         if not queue:
             self._book(symbol)[bucket].pop(price_tick, None)
-        if remaining <= 0:
-            return fills
-
-        # any unfinished consumption implies all volume at this level has been consumed.
-        return fills
+        return fills, queue_consumed_lots
 
     def _price_breaches_limit(self, taker_side: str, level_tick: int, price_cap: int | None) -> bool:
         if price_cap is None:
@@ -532,7 +542,6 @@ class PassiveFillModel:
                     ts_local=ts_local,
                     source="depth_update",
                 )
-                self._record_public_consumption_stats("depth_update", dec, lots_to_consume)
                 self._record_public_consumption_credit(
                     symbol=symbol,
                     side=side,
@@ -542,18 +551,24 @@ class PassiveFillModel:
                     source="depth_update",
                 )
                 if lots_to_consume <= 0:
+                    self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
                     continue
-                fills.extend(
-                    self._consume_level(
-                        symbol=symbol,
-                        side=side,
-                        price_tick=change.price_tick,
-                        lots=lots_to_consume,
-                        ts_local=ts_local,
-                        maker_fill=True,
-                        source="depth_update",
-                    )
+                level_fills, queue_consumed_lots = self._consume_level(
+                    symbol=symbol,
+                    side=side,
+                    price_tick=change.price_tick,
+                    lots=lots_to_consume,
+                    ts_local=ts_local,
+                    maker_fill=True,
+                    source="depth_update",
                 )
+                self._record_public_consumption_stats(
+                    "depth_update",
+                    dec,
+                    lots_to_consume,
+                    queue_consumed_lots,
+                )
+                fills.extend(level_fills)
             elif change.new_lots > change.previous_lots:
                 self._add_venue_order(
                     symbol=symbol,
@@ -574,7 +589,6 @@ class PassiveFillModel:
             ts_local=ts_local,
             source="agg_trade",
         )
-        self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume)
         self._record_public_consumption_credit(
             symbol=trade.symbol,
             side=side,
@@ -584,8 +598,9 @@ class PassiveFillModel:
             source="agg_trade",
         )
         if lots_to_consume <= 0:
+            self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume, 0)
             return []
-        return self._consume_level(
+        fills, queue_consumed_lots = self._consume_level(
             symbol=trade.symbol,
             side=side,
             price_tick=trade.price_tick,
@@ -594,3 +609,10 @@ class PassiveFillModel:
             maker_fill=True,
             source="agg_trade",
         )
+        self._record_public_consumption_stats(
+            "agg_trade",
+            trade.qty_lots,
+            lots_to_consume,
+            queue_consumed_lots,
+        )
+        return fills

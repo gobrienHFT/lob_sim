@@ -156,16 +156,22 @@ def test_public_consumption_verifier_rejects_inconsistent_totals(tmp_path, monke
                 "observed_lots": 2,
                 "modeled_lots": 1,
                 "overlap_netted_lots": 1,
+                "queue_consumed_lots": 1,
+                "unmatched_lots": 0,
             },
             "agg_trade": {
                 "observed_lots": 3,
                 "modeled_lots": 3,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 3,
+                "unmatched_lots": 0,
             },
         },
         "total_observed_lots": 5,
         "total_modeled_lots": 4,
         "total_overlap_netted_lots": 1,
+        "total_queue_consumed_lots": 4,
+        "total_unmatched_lots": 0,
     }
     stale_diagnostics = {**good_diagnostics, "total_observed_lots": 99}
 
@@ -181,6 +187,52 @@ def test_public_consumption_verifier_rejects_inconsistent_totals(tmp_path, monke
 
     assert issues == [
         f"{showcase / 'summary.json'} public_consumption_summary.total_observed_lots is inconsistent"
+    ]
+
+
+def test_public_consumption_verifier_rejects_inconsistent_unmatched_lots(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    good_diagnostics = {
+        "overlap_window_seconds": 0.125,
+        "sources": {
+            "depth_update": {
+                "observed_lots": 3,
+                "modeled_lots": 2,
+                "overlap_netted_lots": 1,
+                "queue_consumed_lots": 1,
+                "unmatched_lots": 1,
+            },
+            "agg_trade": {
+                "observed_lots": 0,
+                "modeled_lots": 0,
+                "overlap_netted_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
+            },
+        },
+        "total_observed_lots": 3,
+        "total_modeled_lots": 2,
+        "total_overlap_netted_lots": 1,
+        "total_queue_consumed_lots": 1,
+        "total_unmatched_lots": 1,
+    }
+    stale_diagnostics = json.loads(json.dumps(good_diagnostics))
+    stale_diagnostics["sources"]["depth_update"]["unmatched_lots"] = 0
+
+    _write_public_consumption_case(showcase, stale_diagnostics)
+    _write_public_consumption_case(recorded, good_diagnostics)
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_SUMMARY", showcase / "summary.json")
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_SUMMARY", recorded / "summary.json")
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_public_consumption_diagnostics()
+
+    assert issues == [
+        f"{showcase / 'summary.json'} public_consumption_summary[depth_update] has inconsistent unmatched lots",
+        f"{showcase / 'summary.json'} public_consumption_summary.total_unmatched_lots is inconsistent",
     ]
 
 

@@ -232,7 +232,13 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
 EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
-EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {"observed_lots", "modeled_lots", "overlap_netted_lots"}
+EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
+    "observed_lots",
+    "modeled_lots",
+    "overlap_netted_lots",
+    "queue_consumed_lots",
+    "unmatched_lots",
+}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
 REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
@@ -510,7 +516,13 @@ def _verify_public_consumption_diagnostics() -> list[str]:
             issues.append(f"{_repo_relative(summary_path)} has unexpected public-consumption sources")
             continue
 
-        source_totals = {"observed_lots": 0, "modeled_lots": 0, "overlap_netted_lots": 0}
+        source_totals = {
+            "observed_lots": 0,
+            "modeled_lots": 0,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 0,
+        }
         for source, stats in sources.items():
             if not isinstance(stats, dict) or set(stats) != EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
                 issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has unexpected fields")
@@ -525,11 +537,17 @@ def _verify_public_consumption_diagnostics() -> list[str]:
                 issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] models more lots than observed")
             if stats.get("overlap_netted_lots") != stats.get("observed_lots", 0) - stats.get("modeled_lots", 0):
                 issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent netted lots")
+            if stats.get("queue_consumed_lots", 0) > stats.get("modeled_lots", 0):
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] consumes more queue than modeled")
+            if stats.get("unmatched_lots") != stats.get("modeled_lots", 0) - stats.get("queue_consumed_lots", 0):
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent unmatched lots")
 
         expected_totals = {
             "total_observed_lots": source_totals["observed_lots"],
             "total_modeled_lots": source_totals["modeled_lots"],
             "total_overlap_netted_lots": source_totals["overlap_netted_lots"],
+            "total_queue_consumed_lots": source_totals["queue_consumed_lots"],
+            "total_unmatched_lots": source_totals["unmatched_lots"],
         }
         for field, expected_value in expected_totals.items():
             if diagnostics.get(field) != expected_value:

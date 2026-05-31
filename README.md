@@ -84,7 +84,7 @@ flowchart LR
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
-- Run summaries expose observed public-consumption lots, modeled queue-consumption lots, and overlap-netted lots for both sources.
+- Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots for both public sources.
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 - A strategy decision with no desired quotes pulls stale live quotes instead of silently leaving them in the book.

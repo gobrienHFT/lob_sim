@@ -126,14 +126,39 @@ def test_fill_model_public_consumption_summary_tracks_overlap_netting():
                 "observed_lots": 1,
                 "modeled_lots": 0,
                 "overlap_netted_lots": 1,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 0,
             },
             "agg_trade": {
                 "observed_lots": 2,
                 "modeled_lots": 2,
                 "overlap_netted_lots": 0,
+                "queue_consumed_lots": 2,
+                "unmatched_lots": 0,
             },
         },
         "total_observed_lots": 3,
         "total_modeled_lots": 2,
         "total_overlap_netted_lots": 1,
+        "total_queue_consumed_lots": 2,
+        "total_unmatched_lots": 0,
+    }
+
+
+def test_public_consumption_summary_exposes_unmatched_queue_consumption():
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[], asks=[(10010, 1)])
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=3, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+    )
+
+    assert fills == []
+    assert model.public_consumption_summary()["sources"]["agg_trade"] == {
+        "observed_lots": 3,
+        "modeled_lots": 3,
+        "overlap_netted_lots": 0,
+        "queue_consumed_lots": 0,
+        "unmatched_lots": 3,
     }
