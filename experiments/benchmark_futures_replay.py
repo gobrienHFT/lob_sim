@@ -14,7 +14,7 @@ from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
 from lob_sim.book.types import SymbolSpec
 from lob_sim.config import load_config
-from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
+from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
@@ -48,6 +48,7 @@ def benchmark_replay(
         "input_file": path.as_posix(),
         "input_sha256": file_sha256(path),
         "config_digest": config_digest(cfg_snapshot),
+        "feed_adapter": adapter_metadata(adapter),
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
         "source": source_state(),
@@ -161,6 +162,7 @@ def print_benchmark(result: dict[str, Any]) -> None:
     print(f"Replay benchmark file: {metadata['input_file']}")
     print(f"Input SHA-256: {metadata['input_sha256']}")
     print(f"Config digest: {metadata['config_digest']}")
+    print(f"Feed adapter: {metadata['feed_adapter']['name']} ({metadata['feed_adapter']['venue_label']})")
     print(f"Python: {metadata['python_version']}")
     print(f"Platform: {metadata['platform']}")
     print(f"Git commit: {metadata['source']['git_commit']}")

@@ -61,6 +61,11 @@ def test_benchmark_replay_returns_machine_readable_result(
     assert result["metadata"]["input_file"] == input_path.as_posix()
     assert result["metadata"]["input_sha256"] == file_sha256(input_path)
     assert result["metadata"]["config_digest"]
+    assert result["metadata"]["feed_adapter"] == {
+        "name": "binance_usdm",
+        "venue_label": "BINANCE_USDM",
+        "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
+    }
     assert set(result["metadata"]["source"]) == {"git_commit", "git_branch", "git_dirty"}
     assert result["event_counts"] == {
         "total_events": 4,

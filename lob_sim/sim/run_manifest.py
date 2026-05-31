@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from .. import __version__
 from ..config import Config
+from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from ..replay.inspection import file_sha256
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
@@ -117,11 +118,12 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
     }
 
 
-def _run_id(input_sha: str, cfg: Config) -> str:
+def _run_id(input_sha: str, cfg: Config, feed_adapter: dict[str, Any]) -> str:
     payload = json.dumps(
         {
             "input_sha256": input_sha,
             "config": config_snapshot(cfg),
+            "feed_adapter": feed_adapter,
             "lob_sim_version": __version__,
             "schema_version": RUN_MANIFEST_SCHEMA_VERSION,
         },
@@ -139,6 +141,7 @@ class RunManifest:
     lob_sim_version: str
     input: dict[str, Any]
     config: dict[str, Any]
+    feed_adapter: dict[str, Any]
     runtime: dict[str, Any]
     source: dict[str, Any]
     outputs: dict[str, str]
@@ -152,6 +155,7 @@ class RunManifest:
             "lob_sim_version": self.lob_sim_version,
             "input": self.input,
             "config": self.config,
+            "feed_adapter": self.feed_adapter,
             "runtime": self.runtime,
             "source": self.source,
             "outputs": self.outputs,
@@ -166,11 +170,13 @@ def build_run_manifest(
     *,
     created_at_utc: str | None = None,
     source: dict[str, Any] | None = None,
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
 ) -> RunManifest:
     path = Path(input_path)
     input_sha = file_sha256(path)
+    feed_adapter = adapter_metadata(adapter)
     return RunManifest(
-        run_id=_run_id(input_sha, cfg),
+        run_id=_run_id(input_sha, cfg, feed_adapter),
         schema_version=RUN_MANIFEST_SCHEMA_VERSION,
         created_at_utc=created_at_utc or _utc_now(),
         lob_sim_version=__version__,
@@ -181,6 +187,7 @@ def build_run_manifest(
             "modified_at_utc": _mtime_utc(path),
         },
         config=config_snapshot(cfg),
+        feed_adapter=feed_adapter,
         runtime={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

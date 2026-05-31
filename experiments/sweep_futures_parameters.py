@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from lob_sim.config import load_config
+from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
@@ -129,6 +130,7 @@ def build_sweep_metadata(
     profiles: list[str],
     half_spreads_bps: list[Decimal],
     queue_repost_lots: list[int],
+    adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
 ) -> dict[str, Any]:
     cfg = load_config(env_path)
     cfg_snapshot = config_snapshot(cfg)
@@ -137,6 +139,7 @@ def build_sweep_metadata(
         "input_sha256": file_sha256(input_file),
         "env_path": env_path,
         "config_digest": config_digest(cfg_snapshot),
+        "feed_adapter": adapter_metadata(adapter),
         "profiles": profiles,
         "half_spreads_bps": [str(value) for value in half_spreads_bps],
         "queue_repost_lots": queue_repost_lots,
@@ -180,6 +183,7 @@ def write_sweep_outputs(
             [
                 f"- Input SHA-256: `{metadata['input_sha256']}`",
                 f"- Config digest: `{metadata['config_digest']}`",
+                f"- Feed adapter: `{metadata['feed_adapter']['name']}` (`{metadata['feed_adapter']['venue_label']}`)",
                 f"- Profiles: `{', '.join(metadata['profiles'])}`",
                 f"- Half-spread bps grid: `{', '.join(metadata['half_spreads_bps'])}`",
                 f"- Queue repost lots grid: `{', '.join(str(value) for value in metadata['queue_repost_lots'])}`",

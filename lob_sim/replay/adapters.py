@@ -54,3 +54,11 @@ class BinanceUsdMReplayAdapter:
 
 
 DEFAULT_REPLAY_ADAPTER: ReplayFeedAdapter = BinanceUsdMReplayAdapter()
+
+
+def adapter_metadata(adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER) -> dict[str, object]:
+    return {
+        "name": adapter.name,
+        "venue_label": adapter.venue_label,
+        "supported_record_types": sorted(adapter.supported_record_types),
+    }

@@ -139,6 +139,11 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert summary["event_trace_count"] == 0
     assert len(summary["run_id"]) == 16
     assert len(summary["input_sha256"]) == 64
+    assert summary["feed_adapter"] == {
+        "name": "binance_usdm",
+        "venue_label": "BINANCE_USDM",
+        "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
+    }
 
     with output_files["summary_csv"].open("r", encoding="utf-8", newline="") as handle:
         row = next(csv.DictReader(handle))
@@ -163,6 +168,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     assert manifest["run_id"] == summary["run_id"]
     assert manifest["input"]["sha256"] == summary["input_sha256"]
+    assert manifest["feed_adapter"] == summary["feed_adapter"]
     assert manifest["source"] == {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
     assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]

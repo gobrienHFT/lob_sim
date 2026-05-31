@@ -688,9 +688,10 @@ class SimulationEngine:
             "trades": trades_path,
             "manifest": manifest_path,
         }
-        manifest_seed = build_run_manifest(file_path, self.cfg, output_files)
+        manifest_seed = build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
         summary["run_id"] = manifest_seed.run_id
         summary["input_sha256"] = manifest_seed.input["sha256"]
+        summary["feed_adapter"] = manifest_seed.feed_adapter
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)
 
@@ -733,6 +734,7 @@ class SimulationEngine:
             output_files,
             created_at_utc=manifest_seed.created_at_utc,
             source=manifest_seed.source,
+            adapter=self.adapter,
         )
         with open(manifest_path, "w", encoding="utf-8") as fh:
             json.dump(manifest.as_dict(), fh, indent=2)

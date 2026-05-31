@@ -22,8 +22,9 @@ The futures replay core is intentionally built around normalized events and inte
 3. Implement a `ReplayFeedAdapter` that returns the same `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` outputs as the default Binance USD-M adapter.
 4. Translate snapshots and incremental updates into the replay record contract, or into a venue-specific sibling contract behind that adapter.
 5. Write a feed-semantics doc that states sequence rules, snapshot coverage rules, and gap behavior.
-6. Add sync tests with stale diffs, first-diff coverage, continuity gaps, and resync/non-resync behavior.
-7. Run `python -m lob_sim.cli inspect --file ...` before replaying captured data.
+6. Confirm manifests, benchmark metadata, and parameter-sweep reports identify the adapter name, venue label, and supported record types.
+7. Add sync tests with stale diffs, first-diff coverage, continuity gaps, and resync/non-resync behavior.
+8. Run `python -m lob_sim.cli inspect --file ...` before replaying captured data.
 
 ## Adding Another Asset Class
 

@@ -47,6 +47,7 @@ def _render_reference(result: dict[str, Any]) -> str:
 - Input file: `{metadata["input_file"]}`
 - Input SHA-256: `{metadata["input_sha256"]}`
 - Config digest: `{metadata["config_digest"]}`
+- Feed adapter: `{metadata["feed_adapter"]["name"]}` (`{metadata["feed_adapter"]["venue_label"]}`)
 - Structured JSON: [`futures_replay_reference.json`](futures_replay_reference.json)
 
 Exact benchmark command:
@@ -92,6 +93,7 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 - Input file: `{metadata["input_file"]}`
 - Input SHA-256: `{metadata["input_sha256"]}`
 - Config digest: `{metadata["config_digest"]}`
+- Feed adapter: `{metadata["feed_adapter"]["name"]}` (`{metadata["feed_adapter"]["venue_label"]}`)
 - Machine: `{metadata["platform"]}`
 - Python: `{metadata["python_version"]}`
 - Benchmark date: `{_created_at(metadata)}`
@@ -120,7 +122,7 @@ Exact benchmark command:
 Interpretation:
 
 - This is a tiny committed replay clip, so fixed overhead dominates throughput.
-- The value of the benchmark is provenance: input digest, config digest, Python/platform/git metadata, p50/p99 loop timing, events/sec, memory, and gap count are reported together.
+- The value of the benchmark is provenance: input digest, config digest, feed adapter, Python/platform/git metadata, p50/p99 loop timing, events/sec, memory, and gap count are reported together.
 - For serious throughput analysis, use a larger recorded file and publish the input digest plus hardware context alongside the result.
 
 ## Benchmark Tool
@@ -135,6 +137,7 @@ The script prints:
 
 - input SHA-256
 - non-secret config digest
+- feed adapter
 - Python/platform/git metadata
 - total events
 - exchangeInfo events
