@@ -28,6 +28,7 @@
   "total_inventory": -0.001,
   "quote_count": 2,
   "cancel_count": 0,
+  "self_trade_prevention_count": 0,
   "avg_fill_wait_ms": 113.13986778259277,
   "fill_from_top_count": 1,
   "fill_from_top_rate": 1.0,
