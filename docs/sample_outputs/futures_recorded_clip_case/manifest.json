@@ -1,7 +1,7 @@
 {
   "run_id": "eaf2e309ed31d75c",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T21:52:56.216034Z",
+  "created_at_utc": "2026-05-31T22:02:01.140168Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -58,7 +58,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "66302dbabd7802b2cf534b0454704d196f5c5a63",
+    "git_commit": "ddce08da975ee56d560c4cfe964a739a11a57094",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -74,7 +74,7 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
       "size_bytes": 15810,
       "sha256": "729e7f69a0553a69f6e82ff244db377278a9068f0e80847763606cd7643318e8",
-      "modified_at_utc": "2026-05-31T21:52:56.366328Z"
+      "modified_at_utc": "2026-05-31T22:02:01.554111Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
@@ -83,19 +83,19 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
       "size_bytes": 4211,
       "sha256": "e25be2532f16415610b2fa5ba5fd57b17fd50a50254a3b132d7ceffc53dd7758",
-      "modified_at_utc": "2026-05-31T21:52:56.361563Z"
+      "modified_at_utc": "2026-05-31T22:02:01.537519Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 2681,
       "sha256": "b19594173c4f5f08a842ac762b486cf2b5c51688f2b2b2a07a69b402ea65a5de",
-      "modified_at_utc": "2026-05-31T21:52:56.363731Z"
+      "modified_at_utc": "2026-05-31T22:02:01.544933Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 346,
       "sha256": "c038f05c38ac2143de8393bda230c667365e39b435ab1be6a000240e0db52b39",
-      "modified_at_utc": "2026-05-31T21:52:56.364842Z"
+      "modified_at_utc": "2026-05-31T22:02:01.552568Z"
     }
   }
 }
