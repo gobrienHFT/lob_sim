@@ -191,5 +191,5 @@
     "trades": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
     "manifest": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
   },
-  "event_trace_count": 86
+  "event_trace_count": 1113
 }

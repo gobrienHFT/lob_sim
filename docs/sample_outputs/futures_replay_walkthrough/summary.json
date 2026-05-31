@@ -191,5 +191,5 @@
     "trades": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
     "manifest": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
   },
-  "event_trace_count": 15
+  "event_trace_count": 17
 }
