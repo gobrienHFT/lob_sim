@@ -134,6 +134,56 @@ def test_futures_feed_adapter_verifier_rejects_stale_metadata(tmp_path, monkeypa
     ]
 
 
+def _write_public_consumption_case(directory: Path, diagnostics: dict) -> None:
+    directory.mkdir(exist_ok=True)
+    (directory / "summary.json").write_text(
+        json.dumps({"public_consumption_summary": diagnostics}),
+        encoding="utf-8",
+    )
+    with (directory / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["public_consumption_summary"])
+        writer.writeheader()
+        writer.writerow({"public_consumption_summary": json.dumps(diagnostics, sort_keys=True)})
+
+
+def test_public_consumption_verifier_rejects_inconsistent_totals(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    good_diagnostics = {
+        "overlap_window_seconds": 0.125,
+        "sources": {
+            "depth_update": {
+                "observed_lots": 2,
+                "modeled_lots": 1,
+                "overlap_netted_lots": 1,
+            },
+            "agg_trade": {
+                "observed_lots": 3,
+                "modeled_lots": 3,
+                "overlap_netted_lots": 0,
+            },
+        },
+        "total_observed_lots": 5,
+        "total_modeled_lots": 4,
+        "total_overlap_netted_lots": 1,
+    }
+    stale_diagnostics = {**good_diagnostics, "total_observed_lots": 99}
+
+    _write_public_consumption_case(showcase, stale_diagnostics)
+    _write_public_consumption_case(recorded, good_diagnostics)
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_SUMMARY", showcase / "summary.json")
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_SUMMARY", recorded / "summary.json")
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_public_consumption_diagnostics()
+
+    assert issues == [
+        f"{showcase / 'summary.json'} public_consumption_summary.total_observed_lots is inconsistent"
+    ]
+
+
 def _event_trace_row(**overrides: str) -> dict[str, str]:
     row = {field: "" for field in verifier.FUTURES_EVENT_TRACE_FIELDS}
     row.update(

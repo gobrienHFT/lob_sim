@@ -231,6 +231,9 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "venue_label": "BINANCE_USDM",
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
+EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
+EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {"observed_lots", "modeled_lots", "overlap_netted_lots"}
+EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 
 CASE_STUDY_CORE_FILES = [
     "case_brief.md",
@@ -451,6 +454,65 @@ def _verify_futures_fill_source_counts() -> list[str]:
             continue
         if sum(counts.values()) != summary.get("fill_count"):
             issues.append(f"{_repo_relative(path)} fill_source_counts do not sum to fill_count")
+    return issues
+
+
+def _verify_public_consumption_diagnostics() -> list[str]:
+    issues: list[str] = []
+    for summary_path, summary_csv_path in [
+        (FUTURES_SHOWCASE_SUMMARY, FUTURES_SHOWCASE_DIR / "summary.csv"),
+        (RECORDED_CLIP_SUMMARY, RECORDED_CLIP_DIR / "summary.csv"),
+    ]:
+        summary = json.loads(_read_text(summary_path))
+        diagnostics = summary.get("public_consumption_summary")
+        if not isinstance(diagnostics, dict):
+            issues.append(f"{_repo_relative(summary_path)} is missing public_consumption_summary")
+            continue
+        if diagnostics.get("overlap_window_seconds") != EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS:
+            issues.append(f"{_repo_relative(summary_path)} has unexpected public-consumption overlap window")
+
+        sources = diagnostics.get("sources")
+        if not isinstance(sources, dict) or set(sources) != EXPECTED_PUBLIC_CONSUMPTION_SOURCES:
+            issues.append(f"{_repo_relative(summary_path)} has unexpected public-consumption sources")
+            continue
+
+        source_totals = {"observed_lots": 0, "modeled_lots": 0, "overlap_netted_lots": 0}
+        for source, stats in sources.items():
+            if not isinstance(stats, dict) or set(stats) != EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has unexpected fields")
+                continue
+            for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
+                value = stats.get(field)
+                if not isinstance(value, int) or value < 0:
+                    issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}].{field} is invalid")
+                    continue
+                source_totals[field] += value
+            if stats.get("observed_lots", 0) < stats.get("modeled_lots", 0):
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] models more lots than observed")
+            if stats.get("overlap_netted_lots") != stats.get("observed_lots", 0) - stats.get("modeled_lots", 0):
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent netted lots")
+
+        expected_totals = {
+            "total_observed_lots": source_totals["observed_lots"],
+            "total_modeled_lots": source_totals["modeled_lots"],
+            "total_overlap_netted_lots": source_totals["overlap_netted_lots"],
+        }
+        for field, expected_value in expected_totals.items():
+            if diagnostics.get(field) != expected_value:
+                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary.{field} is inconsistent")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "public_consumption_summary" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing public_consumption_summary")
+            continue
+        try:
+            csv_diagnostics = json.loads(rows[0]["public_consumption_summary"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} public_consumption_summary is not valid JSON: {exc}")
+        else:
+            if csv_diagnostics != diagnostics:
+                issues.append(f"{_repo_relative(summary_csv_path)} public_consumption_summary does not match summary.json")
     return issues
 
 
@@ -1041,6 +1103,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
+    issues.extend(_verify_public_consumption_diagnostics())
     issues.extend(_verify_futures_self_trade_prevention_counts())
     issues.extend(_verify_futures_event_trace_contract())
     issues.extend(_verify_implied_vol_snapshot_references())
