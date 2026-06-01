@@ -11,7 +11,7 @@ python scripts/reviewer_gate.py
 python scripts/audit_futures_pack.py --committed-futures
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
-python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m
+python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
 ```
 
 ## Fixture Provenance
@@ -19,7 +19,19 @@ python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
-- Larger public-data runs should follow `docs/real_data_runbook.md` and publish results using `docs/real_data_results_template.md`; raw files stay local-only unless they are small and redistributable.
+- Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
+
+## Published Local Real-Data Report
+
+`docs/real_data_runs/raw_1772633471.md` is generated from an available local BTCUSDT public-data tape. It is explicitly labeled as a short local tape: `30.0871000289917` seconds, not the requested 10-30 minute target. The JSON includes exact commands for generating a longer report-only artifact.
+
+Key evidence:
+
+- Input: `2,054,090` bytes, `1,997` records, SHA-256 `520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8`.
+- Fill-source mix: `20` fills from `467` arrived quote orders, quote-fill probability `0.042826552462526764`, with `depth_update=4`, `agg_trade=5`, and `taker_order=11`.
+- Audit/queue evidence: clean local audit, `35,561` event-trace rows, `30,986` queue-consumption rows, one documented book gap.
+
+Interpretation: negative or positive PnL is not the point. The report demonstrates replay/audit/fill-source/queue evidence on public tape while preserving the limits: no private fill truth, no alpha claim, no profitability claim, no production latency claim, and no gateway-readiness claim.
 
 ## Stress Pack Event Counts
 

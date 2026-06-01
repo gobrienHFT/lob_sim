@@ -13,10 +13,11 @@ class NDJSONWriter:
         self.path = path
         self.flush_every = max(1, flush_every)
         self._count = 0
+        self._fh: TextIO
         if path.suffix == ".gz":
             self._fh = gzip.open(path, "at", encoding="utf-8")
         else:
-            self._fh: TextIO = open(path, "a", encoding="utf-8")
+            self._fh = open(path, "a", encoding="utf-8")
 
     def write(self, record: NDJSONRecord) -> None:
         self._fh.write(record.to_json())

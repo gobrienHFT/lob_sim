@@ -11,7 +11,7 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
 
     assert [step.name for step in steps] == [
         "unit and invariant tests",
-        "type check core replay and simulation modules",
+        "type check core replay, record, and simulation modules",
         "ruff lint",
         "ruff format check",
         "committed artifact verification",
@@ -22,7 +22,10 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     ]
     assert steps[0].command == ("python", "-m", "pytest", "-q")
     assert steps[1].command[:3] == ("python", "-m", "mypy")
+    assert "lob_sim/record" in steps[1].command
     assert "lob_sim/sim/engine.py" in steps[1].command
+    assert "lob_sim/sim/run_manifest.py" in steps[1].command
+    assert "lob_sim/sim/mm_strategy.py" in steps[1].command
     assert steps[2].command == ("python", "-m", "ruff", "check", ".")
     assert steps[3].command == ("python", "-m", "ruff", "format", "--check", ".")
     assert steps[4].command == ("python", "scripts/verify_committed_artifacts.py")

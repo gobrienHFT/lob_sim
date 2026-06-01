@@ -6,6 +6,7 @@ BENCHMARK_JSON ?= outputs/futures_benchmark.json
 DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
+MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
 
 .PHONY: setup test type-check lint format-check verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
@@ -17,7 +18,7 @@ test:
 	$(PY) -m pytest
 
 type-check:
-	$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
+	$(PY) -m mypy $(MYPY_TARGETS)
 
 lint:
 	$(PY) -m ruff check .
@@ -31,18 +32,10 @@ verify-artifacts:
 check-whitespace:
 	git diff --check
 
-ci: test type-check lint format-check verify-artifacts check-whitespace
+ci: reviewer-gate
 
 reviewer-gate:
-	$(PY) -m pytest -q
-	$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
-	$(PY) -m ruff check .
-	$(PY) -m ruff format --check .
-	$(PY) scripts/verify_committed_artifacts.py
-	git diff --check
-	$(PY) scripts/check_futures_determinism.py --file $(FIXTURE) --env $(ENV) --json-out $(DETERMINISM_JSON)
-	$(PY) scripts/audit_futures_pack.py --committed-futures
-	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --mode all --pack docs/sample_outputs/futures_stress_case --json-out $(BENCHMARK_JSON)
+	$(PY) scripts/reviewer_gate.py --python $(PY) --file $(FIXTURE) --recorded-file $(RECORDED_FIXTURE) --env $(ENV) --determinism-json $(DETERMINISM_JSON) --benchmark-json $(BENCHMARK_JSON)
 
 inspect-fixture:
 	$(PY) -m lob_sim.cli inspect --file $(FIXTURE)

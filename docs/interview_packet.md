@@ -45,7 +45,21 @@ make reviewer-gate
 - `scripts/verify_committed_artifacts.py`: repository-level evidence gate.
 - `docs/sample_outputs/futures_recorded_clip_case/README.md`: small recorded public-data proof point.
 - `docs/sample_outputs/futures_stress_case/README.md`: synthetic stress pack for rare mechanics.
-- `docs/real_data_runbook.md`: larger local real-tape run path.
+- `scripts/run_real_data_report.py`: local real-tape inspect/simulate/audit/benchmark/report pipeline with report-only docs publishing.
+- `docs/real_data_runs/raw_1772633471.md`: available local BTCUSDT public-data report; clearly labeled as short of the 10-30 minute target.
+- `docs/real_data_runbook.md`: 10-30 minute real-tape run path.
+
+## Published Real-Data Report
+
+`docs/real_data_runs/raw_1772633471.md` is a report-only artifact generated from local BTCUSDT public data. The raw NDJSON is not committed. The run is useful evidence but is honestly labeled as a short local tape: duration `30.0871000289917` seconds, not the requested 10-30 minute target window.
+
+Three numbers to cite:
+
+- Input evidence: `2,054,090` bytes, `1,997` records, SHA-256 `520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8`.
+- Fill evidence: `20` fills from `467` arrived quote orders, quote-fill probability `0.042826552462526764`, source mix `depth_update=4`, `agg_trade=5`, `taker_order=11`.
+- Audit evidence: clean local pack audit, `35,561` event-trace rows and `30,986` queue-consumption rows checked.
+
+The PnL sign is not the claim. The value is that the same deterministic replay, queue-fill attribution, markout, inventory/drawdown, audit, and benchmark path runs on public tape and publishes reproducible hashes.
 
 ## Assumptions Tested
 

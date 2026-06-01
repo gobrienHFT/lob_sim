@@ -37,7 +37,7 @@ Public L2 and aggregate-trade feeds cannot prove private queue identity, hidden 
 The committed type-check target starts with the highest-risk futures core:
 
 ```bash
-python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
+python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
 ```
 
-Options demos, plotting-heavy experiments, artifact refresh scripts, and tests are intentionally outside the first mypy gate because they are more dynamic and less central to replay/fill correctness. They still run under pytest, ruff, artifact verification, and CI. The intent is to widen the typed surface after the core replay/queue path stays green.
+This includes replay inspection through the `lob_sim/replay` package, record schema/writing, run-manifest provenance, and the market-making strategy layer. Options demos, plotting-heavy experiments, artifact refresh scripts, and tests remain outside the gradual mypy gate because they are more dynamic and less central to replay/fill correctness. They still run under pytest, ruff, artifact verification, and CI.

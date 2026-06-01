@@ -952,33 +952,24 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")
     makefile = MAKEFILE.read_text(encoding="utf-8")
     pyproject = PYPROJECT.read_text(encoding="utf-8")
+    mypy_targets = (
+        "lob_sim/book lob_sim/replay lob_sim/record lob_sim/sim/fill_model.py "
+        "lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py"
+    )
     for version in ("3.11", "3.12", "3.13"):
         assert f"Programming Language :: Python :: {version}" in pyproject
         assert f'"{version}"' in workflow
     assert "python -m pip install -r requirements.txt" in workflow
     assert "python -m pip check" in workflow
     assert "python -m lob_sim.cli --help" in workflow
-    assert "python -m pytest -q" in workflow
-    assert (
-        "python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py"
-        in workflow
-    )
-    assert "python -m ruff check ." in workflow
-    assert "python -m ruff format --check ." in workflow
-    assert "python scripts/check_futures_determinism.py" in workflow
-    assert "python scripts/audit_futures_pack.py" in workflow
-    assert "python scripts/audit_futures_pack.py --committed-futures" in workflow
-    assert "python scripts/verify_committed_artifacts.py" in workflow
-    assert "git diff --check" in workflow
     assert "make reviewer-gate" in workflow
     assert "MPLBACKEND: Agg" in workflow
-    assert "ci: test type-check lint format-check verify-artifacts check-whitespace" in makefile
+    assert "ci: reviewer-gate" in makefile
     assert "reviewer-gate:" in makefile
     assert "type-check:" in makefile
-    assert (
-        "$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py"
-        in makefile
-    )
+    assert f"MYPY_TARGETS ?= {mypy_targets}" in makefile
+    assert "$(PY) -m mypy $(MYPY_TARGETS)" in makefile
+    assert "$(PY) scripts/reviewer_gate.py --python $(PY)" in makefile
     assert "lint:" in makefile
     assert "format-check:" in makefile
     assert "$(PY) -m ruff check ." in makefile
@@ -1025,9 +1016,18 @@ def test_published_real_data_report_contains_required_evidence() -> None:
     assert payload["raw_data_policy"] == "local-only raw data; raw NDJSON is not committed"
     assert payload["input"]["sha256"] == "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8"
     assert payload["input"]["file_size_bytes"] > 1_000_000
+    assert payload["input"]["symbol"] == "BTCUSDT"
+    assert payload["target_window"]["requested"] == "10-30 minutes"
+    assert payload["target_window"]["meets_target"] is False
+    assert payload["target_window"]["label"] == "short local public tape"
+    assert payload["target_window"]["env_overrides"]["COLLECT_SECONDS"] == "1800"
+    assert payload["target_window"]["longer_run_commands"]
+    assert payload["local_artifacts"]["report_only_docs_safe"] is True
     assert payload["event_counts"]["records_processed"] == 1997
     assert payload["event_counts"]["book_gap_count"] == 1
     assert payload["fills"]["fill_count"] == 20
+    assert payload["fills"]["quote_fill_probability"] == payload["fills"]["fills_per_quote_request"]
+    assert payload["fills"]["fills_per_quote_request"] == payload["fills"]["fills_per_arrived_order"]
     assert set(payload["fills"]["fill_source_counts"]) == {"depth_update", "agg_trade", "taker_order"}
     assert set(payload["markout_by_fill_source"]) == {"depth_update", "agg_trade", "taker_order"}
     assert "inventory_by_symbol" in payload["risk"]
@@ -1047,6 +1047,11 @@ def test_published_real_data_report_contains_required_evidence() -> None:
         "Markouts",
         "Inventory And Drawdown",
         "Benchmark",
+        "Plain Interpretation",
+        "Negative or positive PnL is not the point",
+        "Meets 10-30 minute target: `false`",
+        "Longer Target Run",
+        "python scripts/run_real_data_report.py",
         "local-only raw data",
     ]:
         assert token in markdown

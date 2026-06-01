@@ -7,6 +7,7 @@ import re
 import shutil
 import sys
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
@@ -24,10 +25,14 @@ from lob_sim.util import write_summary_csv
 from scripts.audit_futures_pack import audit_futures_pack
 
 
+REAL_DATA_REPORT_SCHEMA_VERSION = "lob_sim.real_data_report.v1"
+RAW_DATA_POLICY = "local-only raw data; raw NDJSON is not committed"
 LOCAL_ONLY_NOTE = (
-    "local-only raw data: the replay input is not committed; publish the input SHA-256, report, "
-    "and summary artifacts unless the raw file is small and shareable."
+    f"{RAW_DATA_POLICY}; publish the input SHA-256, report, and summary artifacts unless the raw file "
+    "is small and shareable."
 )
+TARGET_MIN_DURATION_SECONDS = 10 * 60
+TARGET_MAX_DURATION_SECONDS = 30 * 60
 
 
 @contextmanager
@@ -59,6 +64,47 @@ def _display_path(path: Path) -> str:
 
 def _json_line(value: Any) -> str:
     return json.dumps(value, sort_keys=True, default=str)
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_input_path(input_path: Path) -> Path:
+    resolved = input_path.resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Real-data input does not exist: {resolved}")
+    if not resolved.is_file():
+        raise ValueError(f"Real-data input must be a file, got: {resolved}")
+    return resolved
+
+
+def _validate_work_output_dir(out_dir: Path) -> Path:
+    resolved = out_dir.resolve()
+    docs_dir = (REPO_ROOT / "docs").resolve()
+    if _is_relative_to(resolved, docs_dir):
+        raise ValueError(
+            "--out-dir writes local audit packs, traces, and CSVs; keep it outside docs/. "
+            "Use --publish-dir docs/real_data_runs for committed report-only artifacts."
+        )
+    return resolved
+
+
+def _validate_publish_dir(publish_dir: Path) -> Path:
+    resolved = publish_dir.resolve()
+    docs_dir = (REPO_ROOT / "docs").resolve()
+    real_runs_dir = (REPO_ROOT / "docs" / "real_data_runs").resolve()
+    if _is_relative_to(resolved, docs_dir) and not _is_relative_to(resolved, real_runs_dir):
+        raise ValueError("Committed real-data reports belong under docs/real_data_runs")
+    return resolved
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _copy_to_local_pack(
@@ -135,68 +181,321 @@ def _copy_to_local_pack(
     return pack_dir
 
 
-def _render_report(
+def _benchmark_mode_context(benchmark: dict[str, Any], mode_name: str) -> dict[str, Any]:
+    mode = benchmark.get("modes", {}).get(mode_name, {})
+    if not isinstance(mode, dict):
+        return {}
+    timing = mode.get("timing", {})
+    memory = mode.get("memory", {})
+    if not isinstance(timing, dict):
+        timing = {}
+    if not isinstance(memory, dict):
+        memory = {}
+    return {
+        "wall_time_seconds": timing.get("wall_time_seconds"),
+        "events_per_second": timing.get("events_per_second"),
+        "wall_time_p50_seconds": timing.get("wall_time_p50_seconds"),
+        "wall_time_p99_seconds": timing.get("wall_time_p99_seconds"),
+        "loop_latency_p50_us": timing.get("loop_latency_p50_us"),
+        "loop_latency_p99_us": timing.get("loop_latency_p99_us"),
+        "peak_traced_mib": memory.get("peak_traced_mib"),
+    }
+
+
+def _longer_run_commands(symbol: str) -> list[str]:
+    return [
+        "copy .env.example .env.real-data",
+        "python -m lob_sim.cli --env .env.real-data collect",
+        (
+            "python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data "
+            f"--label {symbol}_30m --publish-dir docs/real_data_runs"
+        ),
+    ]
+
+
+def _longer_run_env(symbol: str) -> dict[str, str]:
+    return {
+        "SYMBOLS": symbol,
+        "COLLECT_SECONDS": "1800",
+        "RECORD_DIR": "data",
+        "RECORD_GZIP": "1",
+        "RESYNC_ON_GAP": "1",
+    }
+
+
+def _build_report_payload(
     *,
     input_path: Path,
     output_dir: Path,
+    pack_dir: Path,
     inspection: dict[str, Any],
     summary: dict[str, Any],
+    manifest: dict[str, Any],
     audit_result: dict[str, Any],
     benchmark: dict[str, Any],
-) -> str:
+) -> dict[str, Any]:
     lifecycle = summary.get("order_lifecycle_counts", {})
-    benchmark_modes = benchmark.get("modes", {})
+    if not isinstance(lifecycle, dict):
+        lifecycle = {}
+    event_counts = dict(summary.get("event_counts", {}))
+    event_counts["book_gap_count_by_symbol"] = summary.get("book_gap_count_by_symbol", {})
+    symbols = inspection.get("symbols") or sorted(summary.get("instrument_specs", {}))
+    symbol = symbols[0] if len(symbols) == 1 else ",".join(symbols)
+    duration_seconds = inspection.get("duration_seconds")
+    meets_target = (
+        isinstance(duration_seconds, (int, float))
+        and TARGET_MIN_DURATION_SECONDS <= float(duration_seconds) <= TARGET_MAX_DURATION_SECONDS
+    )
+    audit_counts = audit_result.get("counts", {})
+    if not isinstance(audit_counts, dict):
+        audit_counts = {}
+    benchmark_metadata = benchmark.get("metadata", {})
+    if not isinstance(benchmark_metadata, dict):
+        benchmark_metadata = {}
+    source = (
+        manifest.get("source") if isinstance(manifest.get("source"), dict) else benchmark_metadata.get("source", {})
+    )
+
+    return {
+        "schema_version": REAL_DATA_REPORT_SCHEMA_VERSION,
+        "generated_at_utc": _utc_now(),
+        "raw_data_policy": RAW_DATA_POLICY,
+        "input": {
+            "label": _display_path(input_path),
+            "sha256": inspection["sha256"],
+            "file_size_bytes": inspection["file_size_bytes"],
+            "symbol": symbol,
+            "symbols": symbols,
+            "duration_seconds": duration_seconds,
+            "first_ts_local": inspection.get("first_ts_local"),
+            "last_ts_local": inspection.get("last_ts_local"),
+        },
+        "source": source,
+        "local_artifacts": {
+            "output_dir": _display_path(output_dir),
+            "pack_dir": _display_path(pack_dir),
+            "report_only_docs_safe": True,
+        },
+        "target_window": {
+            "requested": "10-30 minutes",
+            "min_duration_seconds": TARGET_MIN_DURATION_SECONDS,
+            "max_duration_seconds": TARGET_MAX_DURATION_SECONDS,
+            "observed_duration_seconds": duration_seconds,
+            "meets_target": meets_target,
+            "label": "target-window public tape" if meets_target else "short local public tape",
+            "env_overrides": {} if meets_target else _longer_run_env(str(symbol or "BTCUSDT")),
+            "longer_run_commands": [] if meets_target else _longer_run_commands(str(symbol or "BTCUSDT")),
+        },
+        "event_counts": event_counts,
+        "fills": {
+            "fill_count": summary.get("fill_count"),
+            "quote_count": summary.get("quote_count"),
+            "cancel_count": summary.get("cancel_count"),
+            "arrived_orders": lifecycle.get("arrived"),
+            "quote_fill_probability": summary.get("quote_fill_probability"),
+            "fills_per_quote_request": summary.get("fills_per_quote_request"),
+            "fills_per_arrived_order": summary.get("fills_per_arrived_order"),
+            "fill_from_top_rate": summary.get("fill_from_top_rate"),
+            "avg_fill_wait_ms": summary.get("avg_fill_wait_ms"),
+            "fill_source_counts": summary.get("fill_source_counts", {}),
+        },
+        "markout_by_fill_source": summary.get("markout_by_fill_source", {}),
+        "risk": {
+            "total_pnl": summary.get("total_pnl"),
+            "realized_pnl": summary.get("realized_pnl"),
+            "unrealized_pnl": summary.get("unrealized_pnl"),
+            "max_drawdown": summary.get("max_drawdown"),
+            "avg_inventory": summary.get("avg_inventory"),
+            "inventory_stdev": summary.get("inventory_stdev"),
+            "inventory_by_symbol": summary.get("inventory_by_symbol", {}),
+            "self_trade_prevention_count": summary.get("self_trade_prevention_count"),
+        },
+        "audit": {
+            "ok": audit_result.get("ok"),
+            "issue_count": len(audit_result.get("issues", [])),
+            "event_trace_rows": audit_counts.get("event_trace_rows", summary.get("event_trace_count")),
+            "queue_consumption_rows": audit_counts.get("queue_consumption_rows"),
+        },
+        "benchmark": {
+            "schema_version": benchmark.get("schema_version"),
+            "config_digest": benchmark_metadata.get("config_digest"),
+            "feed_adapter": benchmark_metadata.get("feed_adapter"),
+            "python_version": benchmark_metadata.get("python_version"),
+            "platform": benchmark_metadata.get("platform"),
+            "replay_only": _benchmark_mode_context(benchmark, "replay_only"),
+            "simulation_no_export": _benchmark_mode_context(benchmark, "simulation_no_export"),
+            "simulation_with_event_trace_export": _benchmark_mode_context(
+                benchmark, "simulation_with_event_trace_export"
+            ),
+            "pack_audit": _benchmark_mode_context(benchmark, "pack_audit"),
+        },
+        "interpretation": [
+            (
+                "Negative or positive PnL is not the point of this artifact; the value is deterministic "
+                "public-L2 replay, queue-aware fill evidence, fill-source attribution, event-time auditability, "
+                "and benchmark context."
+            ),
+            "Passive fills are public-data queue inferences, not private exchange execution reports.",
+        ],
+        "limits": [
+            "public_l2_not_private_execution_reports",
+            "passive_fills_are_public_data_queue_inferences",
+            "not_alpha_or_profitability_claim",
+            "not_production_latency_claim",
+            "not_gateway_readiness_claim",
+        ],
+    }
+
+
+def _render_report(payload: dict[str, Any]) -> str:
+    input_meta = payload["input"]
+    target = payload["target_window"]
+    fills = payload["fills"]
+    risk = payload["risk"]
+    audit = payload["audit"]
+    benchmark = payload["benchmark"]
+    event_counts = payload["event_counts"]
+    markouts = payload["markout_by_fill_source"]
+    markout_rows = [
+        "| Source | Samples | Adverse Samples | Average Markout 1s | Adverse Rate |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for source in ("depth_update", "agg_trade", "taker_order"):
+        stats = markouts.get(source, {}) if isinstance(markouts, dict) else {}
+        markout_rows.append(
+            "| `{source}` | {samples} | {adverse_samples} | {avg_markout_1s} | {adverse_fill_rate_1s} |".format(
+                source=source,
+                samples=stats.get("samples", 0),
+                adverse_samples=stats.get("adverse_samples", 0),
+                avg_markout_1s=stats.get("avg_markout_1s", 0),
+                adverse_fill_rate_1s=stats.get("adverse_fill_rate_1s", 0),
+            )
+        )
+    command_lines = [f"```bash\n{command}\n```" for command in target.get("longer_run_commands", [])]
+    env_overrides = target.get("env_overrides", {})
+    env_block = []
+    if isinstance(env_overrides, dict) and env_overrides:
+        env_block = [
+            "Set these values in `.env.real-data` before collecting:",
+            "",
+            "```dotenv",
+            *[f"{key}={value}" for key, value in env_overrides.items()],
+            "```",
+            "",
+        ]
     return "\n".join(
         [
-            "# Local Real Data Report",
+            f"# {input_meta.get('symbol') or 'Local'} Public-Data Report",
             "",
-            f"Input file: `{input_path.resolve()}`",
-            f"Input SHA-256: `{inspection['sha256']}`",
-            f"Raw-data policy: {LOCAL_ONLY_NOTE}",
-            f"Output directory: `{output_dir.resolve()}`",
+            "This is a committed report-only artifact for a local public-data replay. The raw NDJSON tape is not committed.",
+            "",
+            "## Input",
+            "",
+            f"- Local raw file label: `{input_meta.get('label')}`",
+            f"- Raw-data policy: {payload['raw_data_policy']}",
+            f"- Input SHA-256: `{input_meta.get('sha256')}`",
+            f"- File size: `{input_meta.get('file_size_bytes')}` bytes",
+            f"- Symbol: `{input_meta.get('symbol')}`",
+            f"- Duration seconds: `{input_meta.get('duration_seconds')}`",
+            f"- Target window: `{target.get('requested')}`; observed label: `{target.get('label')}`",
+            f"- Meets 10-30 minute target: `{str(target.get('meets_target')).lower()}`",
+            f"- Source state: `{_json_line(payload.get('source', {}))}`",
             "",
             "## Event Counts",
             "",
-            f"- Records: `{inspection['records']}`",
-            f"- Duration seconds: `{inspection.get('duration_seconds')}`",
-            f"- Counts by type: `{_json_line(inspection['counts_by_type'])}`",
-            f"- Counts by symbol: `{_json_line(inspection['counts_by_symbol'])}`",
-            f"- Replay gaps: `{summary.get('event_counts', {}).get('book_gap_count', 0)}`",
+            f"- Records processed: `{event_counts.get('records_processed')}`",
+            f"- `exchangeInfo`: `{event_counts.get('exchange_info')}`",
+            f"- `snapshot`: `{event_counts.get('snapshot')}`",
+            f"- `depthUpdate`: `{event_counts.get('depth_update')}`",
+            f"- `aggTrade`: `{event_counts.get('agg_trade')}`",
+            f"- Depth changes applied: `{event_counts.get('depth_changes_applied')}`",
+            f"- Book gaps: `{event_counts.get('book_gap_count')}`",
+            f"- Gap count by symbol: `{_json_line(event_counts.get('book_gap_count_by_symbol', {}))}`",
             "",
             "## Fill Evidence",
             "",
-            f"- Fill count: `{summary.get('fill_count')}`",
-            f"- Quote count: `{summary.get('quote_count')}`",
-            f"- Arrived orders: `{lifecycle.get('arrived')}`",
-            f"- Quote-fill probability: `{summary.get('quote_fill_probability')}`",
-            f"- Fills per quote request: `{summary.get('fills_per_quote_request')}`",
-            f"- Fills per arrived order: `{summary.get('fills_per_arrived_order')}`",
-            f"- Fill source mix: `{_json_line(summary.get('fill_source_counts', {}))}`",
-            f"- Markout by source: `{_json_line(summary.get('markout_by_fill_source', {}))}`",
+            f"- Fill count: `{fills.get('fill_count')}`",
+            f"- Quote count: `{fills.get('quote_count')}`",
+            f"- Cancel count: `{fills.get('cancel_count')}`",
+            f"- Arrived orders: `{fills.get('arrived_orders')}`",
+            f"- Quote-fill probability: `{fills.get('quote_fill_probability')}`",
+            f"- Fills per quote request: `{fills.get('fills_per_quote_request')}`",
+            f"- Fills per arrived order: `{fills.get('fills_per_arrived_order')}`",
+            f"- Fill-source mix: `{_json_line(fills.get('fill_source_counts', {}))}`",
+            f"- Fill-from-top rate: `{fills.get('fill_from_top_rate')}`",
+            f"- Average fill wait ms: `{fills.get('avg_fill_wait_ms')}`",
             "",
-            "## Risk And Inventory",
+            "## Markouts",
             "",
-            f"- Total PnL: `{summary.get('total_pnl')}`",
-            f"- Max drawdown: `{summary.get('max_drawdown')}`",
-            f"- Inventory stdev: `{summary.get('inventory_stdev')}`",
-            f"- Inventory by symbol: `{_json_line(summary.get('inventory_by_symbol', {}))}`",
+            *markout_rows,
+            "",
+            "## Inventory And Drawdown",
+            "",
+            f"- Total PnL: `{risk.get('total_pnl')}`",
+            f"- Realized PnL: `{risk.get('realized_pnl')}`",
+            f"- Unrealized PnL: `{risk.get('unrealized_pnl')}`",
+            f"- Max drawdown: `{risk.get('max_drawdown')}`",
+            f"- Average inventory: `{risk.get('avg_inventory')}`",
+            f"- Inventory stdev: `{risk.get('inventory_stdev')}`",
+            f"- Final inventory: `{_json_line(risk.get('inventory_by_symbol', {}))}`",
+            f"- Self-trade prevention count: `{risk.get('self_trade_prevention_count')}`",
             "",
             "## Audit And Benchmark",
             "",
-            f"- Pack audit ok: `{audit_result.get('ok')}`",
-            f"- Audit issue count: `{len(audit_result.get('issues', []))}`",
-            f"- Benchmark modes: `{', '.join(sorted(benchmark_modes))}`",
-            f"- Replay events/sec: `{benchmark_modes.get('replay_only', {}).get('timing', {}).get('events_per_second')}`",
-            f"- Simulation+export events/sec: `{benchmark_modes.get('simulation_with_event_trace_export', {}).get('timing', {}).get('events_per_second')}`",
+            f"- Local pack audit ok: `{str(audit.get('ok')).lower()}`",
+            f"- Audit issue count: `{audit.get('issue_count')}`",
+            f"- Event trace rows audited locally: `{audit.get('event_trace_rows')}`",
+            f"- Queue-consumption rows audited locally: `{audit.get('queue_consumption_rows')}`",
+            f"- Replay-only wall time seconds: `{benchmark['replay_only'].get('wall_time_seconds')}`",
+            f"- Replay-only events/sec: `{benchmark['replay_only'].get('events_per_second')}`",
+            f"- Replay-only p50 loop latency us: `{benchmark['replay_only'].get('loop_latency_p50_us')}`",
+            f"- Replay-only p99 loop latency us: `{benchmark['replay_only'].get('loop_latency_p99_us')}`",
+            f"- Simulation without export events/sec: `{benchmark['simulation_no_export'].get('events_per_second')}`",
+            (
+                "- Simulation with event-trace export events/sec: "
+                f"`{benchmark['simulation_with_event_trace_export'].get('events_per_second')}`"
+            ),
+            (
+                "- Simulation with event-trace export peak traced MiB: "
+                f"`{benchmark['simulation_with_event_trace_export'].get('peak_traced_mib')}`"
+            ),
+            f"- Runtime: Python `{benchmark.get('python_version')}`, platform `{benchmark.get('platform')}`",
+            "",
+            "## Plain Interpretation",
+            "",
+            *[f"- {line}" for line in payload["interpretation"]],
+            "",
+            "## Longer Target Run",
+            "",
+            (
+                "The available local tape is below the requested 10-30 minute window. Use these exact commands "
+                "to create and publish a longer report-only artifact:"
+                if not target.get("meets_target")
+                else "This run meets the requested 10-30 minute window."
+            ),
+            "",
+            *env_block,
+            *command_lines,
             "",
             "## Limits",
             "",
             "- This report does not claim alpha, profitability, production latency, or private fill truth.",
             "- Passive fills are queue-aware public-data inferences over L2/aggTrade records.",
-            "- Publish this report and hashes when the raw NDJSON capture is too large or not appropriate to commit.",
+            "- It is not a production gateway-readiness claim.",
             "",
         ]
     )
+
+
+def _write_report_pair(payload: dict[str, Any], *, markdown_path: Path, json_path: Path) -> None:
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    markdown_path.write_text(_render_report(payload), encoding="utf-8", newline="\n")
 
 
 def run_report(
@@ -206,8 +505,11 @@ def run_report(
     out_dir: Path,
     label: str | None,
     runs: int,
+    publish_dir: Path | None = None,
 ) -> dict[str, Path]:
-    input_path = input_path.resolve()
+    input_path = _validate_input_path(input_path)
+    out_dir = _validate_work_output_dir(out_dir)
+    publish_dir = _validate_publish_dir(publish_dir) if publish_dir is not None else None
     inspection = inspect_stream(input_path).as_dict()
     run_label = _safe_label(label or f"{input_path.stem}_{inspection['sha256'][:12]}")
     output_dir = (out_dir / run_label).resolve()
@@ -226,8 +528,19 @@ def run_report(
         output_dir=output_dir,
     )
     audited_summary = json.loads((pack_dir / "summary.json").read_text(encoding="utf-8"))
+    manifest = json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
     audit_result = audit_futures_pack(pack_dir)
     benchmark = benchmark_reviewer_modes(input_path, env_path, runs=runs, pack_dir=pack_dir)
+    payload = _build_report_payload(
+        input_path=input_path,
+        output_dir=output_dir,
+        pack_dir=pack_dir,
+        inspection=inspection,
+        summary=audited_summary,
+        manifest=manifest,
+        audit_result=audit_result,
+        benchmark=benchmark,
+    )
 
     inspection_path = output_dir / "inspection.json"
     report_json_path = output_dir / "local_real_data_report.json"
@@ -240,38 +553,9 @@ def run_report(
         json.dumps(audit_result, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8", newline="\n"
     )
     write_benchmark_json(benchmark, benchmark_path)
-    report_json_path.write_text(
-        json.dumps(
-            {
-                "local_only_raw_data": True,
-                "raw_data_policy": LOCAL_ONLY_NOTE,
-                "input": inspection,
-                "pack_dir": _display_path(pack_dir),
-                "audit": audit_result,
-                "summary": audited_summary,
-                "benchmark": benchmark,
-            },
-            indent=2,
-            sort_keys=True,
-            default=str,
-        )
-        + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-    report_md_path.write_text(
-        _render_report(
-            input_path=input_path,
-            output_dir=output_dir,
-            inspection=inspection,
-            summary=audited_summary,
-            audit_result=audit_result,
-            benchmark=benchmark,
-        ),
-        encoding="utf-8",
-        newline="\n",
-    )
-    return {
+    _write_report_pair(payload, markdown_path=report_md_path, json_path=report_json_path)
+
+    paths = {
         "output_dir": output_dir,
         "pack_dir": pack_dir,
         "report_md": report_md_path,
@@ -280,6 +564,13 @@ def run_report(
         "audit_json": audit_path,
         "benchmark_json": benchmark_path,
     }
+    if publish_dir is not None:
+        published_md_path = publish_dir / f"{run_label}.md"
+        published_json_path = publish_dir / f"{run_label}.json"
+        _write_report_pair(payload, markdown_path=published_md_path, json_path=published_json_path)
+        paths["published_report_md"] = published_md_path
+        paths["published_report_json"] = published_json_path
+    return paths
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -289,6 +580,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/real_data_runs"), help="Report output root")
     parser.add_argument("--label", help="Optional stable run label under --out-dir")
     parser.add_argument("--runs", type=int, default=1, help="Runs per non-replay benchmark mode")
+    parser.add_argument(
+        "--publish-dir",
+        type=Path,
+        help="Optional report-only destination, usually docs/real_data_runs; writes only <label>.md and <label>.json",
+    )
     return parser.parse_args(argv)
 
 
@@ -300,6 +596,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         out_dir=args.out_dir,
         label=args.label,
         runs=max(1, args.runs),
+        publish_dir=args.publish_dir,
     )
     print("Local real-data report generated:")
     for name, path in paths.items():

@@ -351,6 +351,11 @@ EXPECTED_MARKOUT_TRACE_FIELDS = {
     "adverse",
     "regime",
 }
+FILL_FREQUENCY_REPLACEMENT_FIELDS = {
+    "quote_fill_probability",
+    "fills_per_quote_request",
+    "fills_per_arrived_order",
+}
 EXPECTED_FILL_TRACE_FIELDS = {
     "maker",
     "queue_ahead_lots",
@@ -467,6 +472,21 @@ def _file_sha256(path: Path) -> str:
 def _config_digest(config: dict) -> str:
     payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
     return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _has_explicit_deprecated_fill_rate(summary: dict) -> bool:
+    marker = summary.get("deprecated_fields")
+    if not isinstance(marker, dict):
+        return False
+    fill_rate_marker = marker.get("fill_rate")
+    if not isinstance(fill_rate_marker, dict):
+        return False
+    replacements = fill_rate_marker.get("replacement_fields")
+    if not isinstance(replacements, list):
+        return False
+    return fill_rate_marker.get("status") == "deprecated" and FILL_FREQUENCY_REPLACEMENT_FIELDS <= {
+        str(field) for field in replacements
+    }
 
 
 def _iter_repo_relative_links(path: Path) -> list[str]:
@@ -874,8 +894,8 @@ def _verify_futures_fill_frequency_metrics() -> list[str]:
         summary_csv_path = directory / "summary.csv"
         trades_path = directory / "trades.csv"
         summary = json.loads(_read_text(summary_path))
-        if "fill_rate" in summary:
-            issues.append(f"{_repo_relative(summary_path)} uses ambiguous fill_rate")
+        if "fill_rate" in summary and not _has_explicit_deprecated_fill_rate(summary):
+            issues.append(f"{_repo_relative(summary_path)} uses ambiguous fill_rate without deprecated_fields metadata")
 
         lifecycle = summary.get("order_lifecycle_counts")
         if not isinstance(lifecycle, dict):
@@ -915,7 +935,8 @@ def _verify_futures_fill_frequency_metrics() -> list[str]:
             continue
         fieldnames = set(rows[0])
         if "fill_rate" in fieldnames:
-            issues.append(f"{_repo_relative(summary_csv_path)} uses ambiguous fill_rate")
+            if not _has_explicit_deprecated_fill_rate(summary):
+                issues.append(f"{_repo_relative(summary_csv_path)} uses ambiguous fill_rate")
         missing = sorted(metric_fields - fieldnames)
         if missing:
             issues.append(f"{_repo_relative(summary_csv_path)} missing fill-frequency column(s): {', '.join(missing)}")
@@ -1918,8 +1939,12 @@ def _verify_reviewer_gate_publication() -> list[str]:
     script = _read_text(REVIEWER_GATE)
     required_tokens = [
         "build_reviewer_gate_steps",
+        "MYPY_TARGETS",
         "type check",
         "mypy",
+        "lob_sim/record",
+        "lob_sim/sim/run_manifest.py",
+        "lob_sim/sim/mm_strategy.py",
         "ruff",
         "format",
         "scripts/verify_committed_artifacts.py",
@@ -1937,6 +1962,17 @@ def _verify_reviewer_gate_publication() -> list[str]:
     for token in required_tokens:
         if token not in script:
             issues.append(f"Reviewer gate script is missing expected token: {token}")
+
+    makefile = _read_text(REPO_ROOT / "Makefile")
+    workflow = _read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml")
+    if "ci: reviewer-gate" not in makefile:
+        issues.append("Makefile ci target should delegate to reviewer-gate")
+    if "$(PY) scripts/reviewer_gate.py --python $(PY)" not in makefile:
+        issues.append("Makefile reviewer-gate should delegate to scripts/reviewer_gate.py")
+    if "MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record" not in makefile:
+        issues.append("Makefile is missing expanded MYPY_TARGETS")
+    if "run: make reviewer-gate" not in workflow:
+        issues.append("CI should use make reviewer-gate as the single evidence authority")
 
     for path in [REPO_ROOT / "README.md", HFT_REVIEWER_GUIDE]:
         text = _read_text(path)
@@ -2018,6 +2054,11 @@ def _verify_real_data_runbook_publication() -> list[str]:
             "Fill-source mix",
             "Markouts",
             "Inventory And Drawdown",
+            "Plain Interpretation",
+            "Negative or positive PnL is not the point",
+            "Meets 10-30 minute target: `false`",
+            "Longer Target Run",
+            "python scripts/run_real_data_report.py",
             "Benchmark",
             "local-only raw data",
             "not committed",
@@ -2043,12 +2084,40 @@ def _verify_real_data_runbook_publication() -> list[str]:
                     issues.append("docs/real_data_runs/raw_1772633471.json has unexpected input SHA")
                 if int(input_meta.get("file_size_bytes", 0)) <= 1_000_000:
                     issues.append("docs/real_data_runs/raw_1772633471.json should document a larger local tape")
+                if input_meta.get("symbol") != "BTCUSDT":
+                    issues.append("docs/real_data_runs/raw_1772633471.json must document the BTCUSDT symbol")
+            target_window = report.get("target_window")
+            if not isinstance(target_window, dict):
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing target_window")
+            else:
+                if target_window.get("requested") != "10-30 minutes":
+                    issues.append("docs/real_data_runs/raw_1772633471.json has unexpected target window")
+                if target_window.get("meets_target") is not False:
+                    issues.append("docs/real_data_runs/raw_1772633471.json must label the current local tape as short")
+                if target_window.get("label") != "short local public tape":
+                    issues.append("docs/real_data_runs/raw_1772633471.json has unexpected target-window label")
+                env_overrides = target_window.get("env_overrides")
+                if not isinstance(env_overrides, dict) or env_overrides.get("COLLECT_SECONDS") != "1800":
+                    issues.append("docs/real_data_runs/raw_1772633471.json is missing longer-run env overrides")
+                commands = target_window.get("longer_run_commands")
+                if not isinstance(commands, list) or not any(
+                    "python scripts/run_real_data_report.py" in str(c) for c in commands
+                ):
+                    issues.append("docs/real_data_runs/raw_1772633471.json is missing longer-run commands")
+            local_artifacts = report.get("local_artifacts")
+            if not isinstance(local_artifacts, dict) or local_artifacts.get("report_only_docs_safe") is not True:
+                issues.append("docs/real_data_runs/raw_1772633471.json must mark docs artifacts report-only")
             event_counts = report.get("event_counts")
             if not isinstance(event_counts, dict) or int(event_counts.get("records_processed", 0)) < 1000:
                 issues.append("docs/real_data_runs/raw_1772633471.json has insufficient event-count evidence")
             fills = report.get("fills")
             if not isinstance(fills, dict) or int(fills.get("fill_count", 0)) <= 0:
                 issues.append("docs/real_data_runs/raw_1772633471.json has no fill evidence")
+            elif not all(
+                isinstance(fills.get(field), (int, float))
+                for field in ["quote_fill_probability", "fills_per_quote_request", "fills_per_arrived_order"]
+            ):
+                issues.append("docs/real_data_runs/raw_1772633471.json has incomplete fill-frequency evidence")
             for source in ["depth_update", "agg_trade", "taker_order"]:
                 if not isinstance(fills, dict) or source not in fills.get("fill_source_counts", {}):
                     issues.append(f"docs/real_data_runs/raw_1772633471.json fill_source_counts missing {source}")
@@ -2064,6 +2133,11 @@ def _verify_real_data_runbook_publication() -> list[str]:
             audit = report.get("audit")
             if not isinstance(audit, dict) or audit.get("ok") is not True or audit.get("issue_count") != 0:
                 issues.append("docs/real_data_runs/raw_1772633471.json must publish a clean local audit result")
+            interpretation = report.get("interpretation")
+            if not isinstance(interpretation, list) or not any(
+                "Negative or positive PnL is not the point" in str(item) for item in interpretation
+            ):
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing plain interpretation")
     return issues
 
 

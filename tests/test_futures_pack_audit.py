@@ -245,6 +245,31 @@ def test_futures_pack_audit_rejects_ambiguous_fill_rate_metric(tmp_path: Path) -
     assert any("uses ambiguous fill_rate" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_allows_explicitly_deprecated_fill_rate_marker(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["fill_rate"] = summary["quote_fill_probability"]
+    summary["deprecated_fields"] = {
+        "fill_rate": {
+            "status": "deprecated",
+            "replacement_fields": [
+                "quote_fill_probability",
+                "fills_per_quote_request",
+                "fills_per_arrived_order",
+            ],
+        }
+    }
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert not any("uses ambiguous fill_rate" in issue for issue in result["issues"])
+    assert any("output_artifacts[summary].sha256 is stale" in issue for issue in result["issues"])
+
+
 def test_futures_pack_audit_rejects_stale_fixture_provenance(tmp_path: Path) -> None:
     copied_pack = tmp_path / "futures_recorded_clip_case"
     shutil.copytree(RECORDED_PACK, copied_pack)

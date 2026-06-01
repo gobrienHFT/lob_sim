@@ -14,6 +14,16 @@ DEFAULT_RECORDED_FIXTURE = Path("docs/sample_outputs/futures_recorded_clip_case/
 DEFAULT_ENV = Path(".env.example")
 DEFAULT_DETERMINISM_JSON = Path("outputs/futures_determinism.json")
 DEFAULT_BENCHMARK_JSON = Path("outputs/futures_benchmark.json")
+MYPY_TARGETS = (
+    "lob_sim/book",
+    "lob_sim/replay",
+    "lob_sim/record",
+    "lob_sim/sim/fill_model.py",
+    "lob_sim/sim/engine.py",
+    "lob_sim/sim/metrics.py",
+    "lob_sim/sim/run_manifest.py",
+    "lob_sim/sim/mm_strategy.py",
+)
 
 
 @dataclass(frozen=True)
@@ -46,17 +56,8 @@ def build_reviewer_gate_steps(
     steps = [
         GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q")),
         GateStep(
-            "type check core replay and simulation modules",
-            (
-                python_executable,
-                "-m",
-                "mypy",
-                "lob_sim/book",
-                "lob_sim/replay",
-                "lob_sim/sim/fill_model.py",
-                "lob_sim/sim/engine.py",
-                "lob_sim/sim/metrics.py",
-            ),
+            "type check core replay, record, and simulation modules",
+            (python_executable, "-m", "mypy", *MYPY_TARGETS),
         ),
         GateStep("ruff lint", (python_executable, "-m", "ruff", "check", ".")),
         GateStep("ruff format check", (python_executable, "-m", "ruff", "format", "--check", ".")),

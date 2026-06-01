@@ -1,114 +1,173 @@
 {
-  "schema_version": "lob_sim.real_data_report.v1",
-  "raw_data_policy": "local-only raw data; raw NDJSON is not committed",
+  "audit": {
+    "event_trace_rows": 35561,
+    "issue_count": 0,
+    "ok": true,
+    "queue_consumption_rows": 30986
+  },
+  "benchmark": {
+    "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+    "feed_adapter": {
+      "name": "binance_usdm",
+      "supported_record_types": [
+        "aggTrade",
+        "depthUpdate",
+        "exchangeInfo",
+        "snapshot"
+      ],
+      "venue_label": "BINANCE_USDM"
+    },
+    "pack_audit": {
+      "events_per_second": null,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 37.48209857940674,
+      "wall_time_p50_seconds": 22.590970399905927,
+      "wall_time_p99_seconds": 22.590970399905927,
+      "wall_time_seconds": 22.590970399905927
+    },
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.1",
+    "replay_only": {
+      "events_per_second": 119.61143306554811,
+      "loop_latency_p50_us": 201.8,
+      "loop_latency_p99_us": 83567.48,
+      "peak_traced_mib": 1.169489860534668,
+      "wall_time_p50_seconds": null,
+      "wall_time_p99_seconds": null,
+      "wall_time_seconds": 16.695728400023654
+    },
+    "schema_version": "lob_sim.reviewer_benchmark.v1",
+    "simulation_no_export": {
+      "events_per_second": 38.73698782484194,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 43.25300979614258,
+      "wall_time_p50_seconds": 51.552795200026594,
+      "wall_time_p99_seconds": 51.552795200026594,
+      "wall_time_seconds": 51.552795200026594
+    },
+    "simulation_with_event_trace_export": {
+      "events_per_second": 35.533020412386726,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 45.47316074371338,
+      "wall_time_p50_seconds": 56.20124540000688,
+      "wall_time_p99_seconds": 56.20124540000688,
+      "wall_time_seconds": 56.20124540000688
+    }
+  },
+  "event_counts": {
+    "agg_trade": 1713,
+    "book_gap_count": 1,
+    "book_gap_count_by_symbol": {
+      "BTCUSDT": 1
+    },
+    "depth_changes_applied": 60819,
+    "depth_update": 281,
+    "exchange_info": 1,
+    "records_processed": 1997,
+    "snapshot": 2
+  },
+  "fills": {
+    "arrived_orders": 467,
+    "avg_fill_wait_ms": 48.91692399978638,
+    "cancel_count": 448,
+    "fill_count": 20,
+    "fill_from_top_rate": 1.0,
+    "fill_source_counts": {
+      "agg_trade": 5,
+      "depth_update": 4,
+      "taker_order": 11
+    },
+    "fills_per_arrived_order": 0.042826552462526764,
+    "fills_per_quote_request": 0.042826552462526764,
+    "quote_count": 467,
+    "quote_fill_probability": 0.042826552462526764
+  },
+  "generated_at_utc": "2026-06-01T20:18:01.566285Z",
   "input": {
-    "label": "data/raw_1772633471.ndjson",
-    "sha256": "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8",
-    "file_size_bytes": 2054090,
     "duration_seconds": 30.0871000289917,
+    "file_size_bytes": 2054090,
+    "first_ts_local": 1772633472.3978999,
+    "label": "data/raw_1772633471.ndjson",
+    "last_ts_local": 1772633502.485,
+    "sha256": "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8",
+    "symbol": "BTCUSDT",
     "symbols": [
       "BTCUSDT"
     ]
   },
-  "source": {
-    "git_commit": "fcfeb379cc350f9d3419c9590653cbe5a04b8ae8",
-    "git_dirty": false
-  },
-  "event_counts": {
-    "records_processed": 1997,
-    "exchange_info": 1,
-    "snapshot": 2,
-    "depth_update": 281,
-    "agg_trade": 1713,
-    "depth_changes_applied": 60819,
-    "book_gap_count": 1,
-    "book_gap_count_by_symbol": {
-      "BTCUSDT": 1
-    }
-  },
-  "fills": {
-    "fill_count": 20,
-    "quote_count": 467,
-    "cancel_count": 448,
-    "arrived_orders": 467,
-    "quote_fill_probability": 0.042826552462526764,
-    "fills_per_quote_request": 0.042826552462526764,
-    "fills_per_arrived_order": 0.042826552462526764,
-    "fill_from_top_rate": 1.0,
-    "avg_fill_wait_ms": 48.91692399978638,
-    "fill_source_counts": {
-      "depth_update": 4,
-      "agg_trade": 5,
-      "taker_order": 11
-    }
-  },
-  "markout_by_fill_source": {
-    "depth_update": {
-      "samples": 4,
-      "adverse_samples": 2,
-      "avg_markout_1s": 1.225,
-      "adverse_fill_rate_1s": 0.5
-    },
-    "agg_trade": {
-      "samples": 5,
-      "adverse_samples": 4,
-      "avg_markout_1s": -7.97,
-      "adverse_fill_rate_1s": 0.8
-    },
-    "taker_order": {
-      "samples": 11,
-      "adverse_samples": 2,
-      "avg_markout_1s": 7.6863636363636365,
-      "adverse_fill_rate_1s": 0.18181818181818182
-    }
-  },
-  "risk": {
-    "total_pnl": -0.091644444,
-    "realized_pnl": -0.258044444,
-    "unrealized_pnl": 0.1664,
-    "max_drawdown": 0.3243966,
-    "avg_inventory": -0.0031759398496240604,
-    "inventory_stdev": 0.002277539046584521,
-    "inventory_by_symbol": {
-      "BTCUSDT": -0.006
-    },
-    "self_trade_prevention_count": 0
-  },
-  "audit": {
-    "ok": true,
-    "issue_count": 0,
-    "event_trace_rows": 35561,
-    "queue_consumption_rows": 30986
-  },
-  "benchmark": {
-    "python_version": "3.13.1",
-    "platform": "Windows-11-10.0.26200-SP0",
-    "replay_only": {
-      "wall_time_seconds": 10.137133199954405,
-      "events_per_second": 196.99849657780783,
-      "loop_latency_p50_us": 134.8,
-      "loop_latency_p99_us": 57722.603999999956,
-      "peak_traced_mib": 1.1694974899291992
-    },
-    "simulation_no_export": {
-      "wall_time_seconds": 32.22516489995178,
-      "events_per_second": 61.970202672352755,
-      "peak_traced_mib": 43.252838134765625
-    },
-    "simulation_with_event_trace_export": {
-      "wall_time_seconds": 41.946723900036886,
-      "events_per_second": 47.60800878655136,
-      "peak_traced_mib": 45.4736442565918
-    },
-    "pack_audit": {
-      "wall_time_seconds": 15.404709700029343,
-      "peak_traced_mib": 37.482110023498535
-    }
-  },
+  "interpretation": [
+    "Negative or positive PnL is not the point of this artifact; the value is deterministic public-L2 replay, queue-aware fill evidence, fill-source attribution, event-time auditability, and benchmark context.",
+    "Passive fills are public-data queue inferences, not private exchange execution reports."
+  ],
   "limits": [
     "public_l2_not_private_execution_reports",
     "passive_fills_are_public_data_queue_inferences",
     "not_alpha_or_profitability_claim",
-    "not_production_latency_claim"
-  ]
+    "not_production_latency_claim",
+    "not_gateway_readiness_claim"
+  ],
+  "local_artifacts": {
+    "output_dir": "outputs/real_data_runs/raw_1772633471",
+    "pack_dir": "outputs/real_data_runs/raw_1772633471/pack",
+    "report_only_docs_safe": true
+  },
+  "markout_by_fill_source": {
+    "agg_trade": {
+      "adverse_fill_rate_1s": 0.8,
+      "adverse_samples": 4,
+      "avg_markout_1s": -7.97,
+      "qty": 0.005,
+      "samples": 5
+    },
+    "depth_update": {
+      "adverse_fill_rate_1s": 0.5,
+      "adverse_samples": 2,
+      "avg_markout_1s": 1.225,
+      "qty": 0.004,
+      "samples": 4
+    },
+    "taker_order": {
+      "adverse_fill_rate_1s": 0.18181818181818182,
+      "adverse_samples": 2,
+      "avg_markout_1s": 7.6863636363636365,
+      "qty": 0.011,
+      "samples": 11
+    }
+  },
+  "raw_data_policy": "local-only raw data; raw NDJSON is not committed",
+  "risk": {
+    "avg_inventory": -0.0031759398496240604,
+    "inventory_by_symbol": {
+      "BTCUSDT": -0.006
+    },
+    "inventory_stdev": 0.002277539046584521,
+    "max_drawdown": 0.3243966,
+    "realized_pnl": -0.258044444,
+    "self_trade_prevention_count": 0,
+    "total_pnl": -0.091644444,
+    "unrealized_pnl": 0.1664
+  },
+  "schema_version": "lob_sim.real_data_report.v1",
+  "source": {
+    "git_branch": "master",
+    "git_commit": "51ed4aadd8130415d9460b8937bdf23fb27c2784",
+    "git_dirty": true
+  },
+  "target_window": {
+    "label": "short local public tape",
+    "longer_run_commands": [
+      "copy .env.example .env.real-data",
+      "Set SYMBOLS=BTCUSDT, COLLECT_SECONDS=1800, RECORD_DIR=data, RECORD_GZIP=1, RESYNC_ON_GAP=1 in .env.real-data",
+      "python -m lob_sim.cli --env .env.real-data collect",
+      "python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs"
+    ],
+    "max_duration_seconds": 1800,
+    "meets_target": false,
+    "min_duration_seconds": 600,
+    "observed_duration_seconds": 30.0871000289917,
+    "requested": "10-30 minutes"
+  }
 }

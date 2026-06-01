@@ -165,6 +165,11 @@ SUMMARY_CSV_JSON_FIELDS = (
     "simulation_assumptions",
     "output_files",
 )
+FILL_FREQUENCY_REPLACEMENT_FIELDS = {
+    "quote_fill_probability",
+    "fills_per_quote_request",
+    "fills_per_arrived_order",
+}
 
 
 def _repo_root() -> Path:
@@ -269,6 +274,21 @@ def _scalar_matches(left: Any, right: Any) -> bool:
     if left_decimal is not None and right_decimal is not None:
         return left_decimal == right_decimal
     return str(left) == str(right)
+
+
+def _has_explicit_deprecated_fill_rate(summary: dict[str, Any]) -> bool:
+    marker = summary.get("deprecated_fields")
+    if not isinstance(marker, dict):
+        return False
+    fill_rate_marker = marker.get("fill_rate")
+    if not isinstance(fill_rate_marker, dict):
+        return False
+    replacements = fill_rate_marker.get("replacement_fields")
+    if not isinstance(replacements, list):
+        return False
+    return fill_rate_marker.get("status") == "deprecated" and FILL_FREQUENCY_REPLACEMENT_FIELDS <= {
+        str(field) for field in replacements
+    }
 
 
 def _audit_manifest(pack_dir: Path, summary: dict[str, Any], manifest: dict[str, Any], issues: list[str]) -> None:
@@ -531,6 +551,10 @@ def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str
         issues.append(f"{_display_path(summary_csv_path)} must contain exactly one summary row")
         return
     row = rows[0]
+    if row.get("fill_rate") not in {None, ""} and not _has_explicit_deprecated_fill_rate(summary):
+        issues.append(
+            f"{_display_path(summary_csv_path)} uses ambiguous fill_rate; use explicit fill-frequency metrics"
+        )
 
     for field in SUMMARY_CSV_EXACT_FIELDS:
         actual = row.get(field)
@@ -575,8 +599,11 @@ def _audit_fill_frequency_metrics(
     issues: list[str],
 ) -> None:
     summary_path = pack_dir / "summary.json"
-    if "fill_rate" in summary:
-        issues.append(f"{_display_path(summary_path)} uses ambiguous fill_rate; use explicit fill-frequency metrics")
+    if "fill_rate" in summary and not _has_explicit_deprecated_fill_rate(summary):
+        issues.append(
+            f"{_display_path(summary_path)} uses ambiguous fill_rate; use explicit fill-frequency metrics "
+            "or mark deprecated_fields.fill_rate with replacement metrics"
+        )
 
     lifecycle = summary.get("order_lifecycle_counts")
     if not isinstance(lifecycle, dict):

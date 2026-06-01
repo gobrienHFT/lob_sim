@@ -42,10 +42,10 @@ Record the input SHA-256, event counts, symbols, first/last timestamps, and dura
 Generate a local-only evidence pack, audit, benchmark, and Markdown report:
 
 ```bash
-python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m
+python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
 ```
 
-The output is written under `outputs/real_data_runs/<label>/`. The raw input is not copied into the pack. The report states `local-only raw data`, the input SHA-256, fill-frequency metrics, fill-source mix, markouts, inventory, drawdown, audit result, and benchmark context.
+The local audit pack is written under `outputs/real_data_runs/<label>/`. The committed publication path writes only `docs/real_data_runs/<label>.md` and `docs/real_data_runs/<label>.json`; raw input, event traces, CSVs, and local packs are not copied into docs. The report states `local-only raw data`, the input SHA-256, file size, symbol, duration, fill-frequency metrics, fill-source mix, markouts, inventory, drawdown, audit result, benchmark context, source state, and whether the tape meets the 10-30 minute target window.
 
 ## Audit
 
@@ -71,15 +71,8 @@ Publish benchmark numbers with hardware, Python version, platform, input SHA-256
 
 If the raw file is too large or not appropriate to commit, publish only:
 
-- `local_real_data_report.md`
-- `local_real_data_report.json`
-- `inspection.json`
-- `benchmark.json`
-- `audit.json`
-- `pack/summary.json`
-- `pack/summary.csv`
-- `pack/trades.csv` when small enough
-- `pack/event_trace.csv` when small enough
+- `docs/real_data_runs/<label>.md`
+- `docs/real_data_runs/<label>.json`
 - the input SHA-256 and exact collection env
 
-Do not claim private fills, alpha, production latency, or profitability. The purpose is to show that the same replay, queue, audit, and benchmark path scales from committed clips to a larger public tape.
+Keep `outputs/real_data_runs/<label>/` local unless a reviewer explicitly asks for a small trace excerpt. Do not claim private fills, alpha, production latency, gateway readiness, or profitability. The purpose is to show that the same replay, queue, audit, and benchmark path scales from committed clips to a larger public tape.

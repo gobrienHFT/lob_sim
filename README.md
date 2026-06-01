@@ -7,7 +7,7 @@ Fast reviewer links:
 - [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
-- [Published Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): committed report artifact from a larger local BTCUSDT public-data tape, with raw data kept out of git.
+- [Published Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): committed report-only artifact from an available local BTCUSDT public-data tape, with raw data kept out of git.
 
 ## Overview
 
@@ -185,8 +185,7 @@ make benchmark-fixture
 make latency-sweep-fixture
 ```
 
-`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the core replay/simulation modules, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target runs the same checks as explicit Makefile steps. The checked-in GitHub Actions workflow runs the evidence gates, type check, committed-fixture determinism check, committed futures pack audit, and Makefile reviewer gate on Python 3.11, 3.12, and 3.13 to match the package metadata.
-`make ci` runs the test suite, core type check, committed-artifact verifier, and whitespace check.
+`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/simulation core, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.
 `make benchmark-fixture` writes `outputs/futures_benchmark.json` with input/config digests, p50/p99 loop timing, events/sec, memory, runtime, and source metadata.

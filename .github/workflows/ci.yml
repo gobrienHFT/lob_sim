@@ -38,29 +38,5 @@ jobs:
       - name: CLI smoke test
         run: python -m lob_sim.cli --help
 
-      - name: Run tests
-        run: python -m pytest -q
-
-      - name: Type check core replay and simulation modules
-        run: python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
-
-      - name: Run ruff lint
-        run: python -m ruff check .
-
-      - name: Check ruff formatting
-        run: python -m ruff format --check .
-
-      - name: Check deterministic futures fixture
-        run: python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
-
-      - name: Audit committed futures packs
-        run: python scripts/audit_futures_pack.py --committed-futures
-
-      - name: Verify committed artifacts
-        run: python scripts/verify_committed_artifacts.py
-
-      - name: Check whitespace
-        run: git diff --check
-
-      - name: Run Makefile reviewer gate
+      - name: Run reviewer gate
         run: make reviewer-gate
