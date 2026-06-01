@@ -28,6 +28,9 @@ FUTURES_STRATEGY_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_
 INTERVIEW_PACKET = REPO_ROOT / "docs" / "interview_packet.md"
 REAL_DATA_RUNBOOK = REPO_ROOT / "docs" / "real_data_runbook.md"
 REAL_DATA_RESULTS_TEMPLATE = REPO_ROOT / "docs" / "real_data_results_template.md"
+REAL_DATA_RUNS_README = REPO_ROOT / "docs" / "real_data_runs" / "README.md"
+PUBLISHED_REAL_DATA_REPORT = REPO_ROOT / "docs" / "real_data_runs" / "raw_1772633471.md"
+PUBLISHED_REAL_DATA_REPORT_JSON = REPO_ROOT / "docs" / "real_data_runs" / "raw_1772633471.json"
 REAL_DATA_REPORT_SCRIPT = REPO_ROOT / "scripts" / "run_real_data_report.py"
 FUTURES_PARAMETER_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
@@ -1000,6 +1003,9 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert INTERVIEW_PACKET.exists()
     assert REAL_DATA_RUNBOOK.exists()
     assert REAL_DATA_RESULTS_TEMPLATE.exists()
+    assert REAL_DATA_RUNS_README.exists()
+    assert PUBLISHED_REAL_DATA_REPORT.exists()
+    assert PUBLISHED_REAL_DATA_REPORT_JSON.exists()
     assert "python scripts/reviewer_gate.py" in README.read_text(encoding="utf-8")
     assert "python scripts/reviewer_gate.py" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
     assert "make reviewer-gate" in README.read_text(encoding="utf-8")
@@ -1008,6 +1014,42 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "docs/interview_packet.md" in WALKTHROUGH.read_text(encoding="utf-8")
     assert "docs/real_data_runbook.md" in README.read_text(encoding="utf-8")
     assert "docs/real_data_results_template.md" in README.read_text(encoding="utf-8")
+    assert "docs/real_data_runs/raw_1772633471.md" in README.read_text(encoding="utf-8")[:1200]
+
+
+def test_published_real_data_report_contains_required_evidence() -> None:
+    markdown = PUBLISHED_REAL_DATA_REPORT.read_text(encoding="utf-8")
+    payload = json.loads(PUBLISHED_REAL_DATA_REPORT_JSON.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == "lob_sim.real_data_report.v1"
+    assert payload["raw_data_policy"] == "local-only raw data; raw NDJSON is not committed"
+    assert payload["input"]["sha256"] == "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8"
+    assert payload["input"]["file_size_bytes"] > 1_000_000
+    assert payload["event_counts"]["records_processed"] == 1997
+    assert payload["event_counts"]["book_gap_count"] == 1
+    assert payload["fills"]["fill_count"] == 20
+    assert set(payload["fills"]["fill_source_counts"]) == {"depth_update", "agg_trade", "taker_order"}
+    assert set(payload["markout_by_fill_source"]) == {"depth_update", "agg_trade", "taker_order"}
+    assert "inventory_by_symbol" in payload["risk"]
+    assert "max_drawdown" in payload["risk"]
+    assert payload["audit"] == {
+        "ok": True,
+        "issue_count": 0,
+        "event_trace_rows": 35561,
+        "queue_consumption_rows": 30986,
+    }
+    assert payload["benchmark"]["replay_only"]["events_per_second"] > 0
+
+    for token in [
+        "Input SHA-256",
+        "Event Counts",
+        "Fill-source mix",
+        "Markouts",
+        "Inventory And Drawdown",
+        "Benchmark",
+        "local-only raw data",
+    ]:
+        assert token in markdown
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:

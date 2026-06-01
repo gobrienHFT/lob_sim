@@ -38,6 +38,9 @@ EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
 TOKENIZED_ASSETS_ROADMAP = REPO_ROOT / "docs" / "tokenized_assets_roadmap.md"
 REAL_DATA_RUNBOOK = REPO_ROOT / "docs" / "real_data_runbook.md"
 REAL_DATA_RESULTS_TEMPLATE = REPO_ROOT / "docs" / "real_data_results_template.md"
+REAL_DATA_RUNS_DIR = REPO_ROOT / "docs" / "real_data_runs"
+PUBLISHED_REAL_DATA_REPORT = REAL_DATA_RUNS_DIR / "raw_1772633471.md"
+PUBLISHED_REAL_DATA_REPORT_JSON = REAL_DATA_RUNS_DIR / "raw_1772633471.json"
 INTERVIEW_PACKET = REPO_ROOT / "docs" / "interview_packet.md"
 REAL_DATA_REPORT_SCRIPT = REPO_ROOT / "scripts" / "run_real_data_report.py"
 REVIEWER_GATE = REPO_ROOT / "scripts" / "reviewer_gate.py"
@@ -191,6 +194,8 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "architecture_decisions.md",
     REAL_DATA_RUNBOOK,
     REAL_DATA_RESULTS_TEMPLATE,
+    REAL_DATA_RUNS_DIR / "README.md",
+    PUBLISHED_REAL_DATA_REPORT,
     INTERVIEW_PACKET,
     REPO_ROOT / "CONTRIBUTING.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
@@ -1944,7 +1949,14 @@ def _verify_reviewer_gate_publication() -> list[str]:
 
 def _verify_real_data_runbook_publication() -> list[str]:
     issues: list[str] = []
-    for path in [REAL_DATA_RUNBOOK, REAL_DATA_RESULTS_TEMPLATE, REAL_DATA_REPORT_SCRIPT]:
+    for path in [
+        REAL_DATA_RUNBOOK,
+        REAL_DATA_RESULTS_TEMPLATE,
+        REAL_DATA_REPORT_SCRIPT,
+        REAL_DATA_RUNS_DIR / "README.md",
+        PUBLISHED_REAL_DATA_REPORT,
+        PUBLISHED_REAL_DATA_REPORT_JSON,
+    ]:
         if not path.exists():
             issues.append(f"Missing real-data evidence artifact: {_repo_relative(path)}")
 
@@ -1985,6 +1997,73 @@ def _verify_real_data_runbook_publication() -> list[str]:
             issues.append(f"Missing real-data runbook link in {_repo_relative(path)}")
         if "docs/real_data_results_template.md" not in text:
             issues.append(f"Missing real-data results template link in {_repo_relative(path)}")
+
+    readme = _read_text(REPO_ROOT / "README.md")
+    for token in [
+        "docs/interview_packet.md",
+        "docs/reviewer_results_memo.md",
+        "docs/real_data_runbook.md",
+        "docs/real_data_runs/raw_1772633471.md",
+    ]:
+        if token not in readme[:1200]:
+            issues.append(f"README.md top section is missing fast reviewer link: {token}")
+
+    if PUBLISHED_REAL_DATA_REPORT.exists():
+        text = _read_text(PUBLISHED_REAL_DATA_REPORT)
+        for token in [
+            "Input SHA-256",
+            "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8",
+            "Records processed",
+            "Book gaps",
+            "Fill-source mix",
+            "Markouts",
+            "Inventory And Drawdown",
+            "Benchmark",
+            "local-only raw data",
+            "not committed",
+        ]:
+            if token not in text:
+                issues.append(f"docs/real_data_runs/raw_1772633471.md is missing expected token: {token}")
+
+    if PUBLISHED_REAL_DATA_REPORT_JSON.exists():
+        try:
+            report = json.loads(_read_text(PUBLISHED_REAL_DATA_REPORT_JSON))
+        except json.JSONDecodeError as exc:
+            issues.append(f"docs/real_data_runs/raw_1772633471.json is invalid JSON: {exc.msg}")
+        else:
+            if report.get("schema_version") != "lob_sim.real_data_report.v1":
+                issues.append("docs/real_data_runs/raw_1772633471.json has unexpected schema_version")
+            if report.get("raw_data_policy") != "local-only raw data; raw NDJSON is not committed":
+                issues.append("docs/real_data_runs/raw_1772633471.json must keep raw data local-only")
+            input_meta = report.get("input")
+            if not isinstance(input_meta, dict):
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing input metadata")
+            else:
+                if input_meta.get("sha256") != "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8":
+                    issues.append("docs/real_data_runs/raw_1772633471.json has unexpected input SHA")
+                if int(input_meta.get("file_size_bytes", 0)) <= 1_000_000:
+                    issues.append("docs/real_data_runs/raw_1772633471.json should document a larger local tape")
+            event_counts = report.get("event_counts")
+            if not isinstance(event_counts, dict) or int(event_counts.get("records_processed", 0)) < 1000:
+                issues.append("docs/real_data_runs/raw_1772633471.json has insufficient event-count evidence")
+            fills = report.get("fills")
+            if not isinstance(fills, dict) or int(fills.get("fill_count", 0)) <= 0:
+                issues.append("docs/real_data_runs/raw_1772633471.json has no fill evidence")
+            for source in ["depth_update", "agg_trade", "taker_order"]:
+                if not isinstance(fills, dict) or source not in fills.get("fill_source_counts", {}):
+                    issues.append(f"docs/real_data_runs/raw_1772633471.json fill_source_counts missing {source}")
+            markouts = report.get("markout_by_fill_source")
+            if not isinstance(markouts, dict) or not {"depth_update", "agg_trade", "taker_order"} <= set(markouts):
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing source-split markouts")
+            risk = report.get("risk")
+            if not isinstance(risk, dict) or "max_drawdown" not in risk or "inventory_by_symbol" not in risk:
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing inventory/drawdown evidence")
+            benchmark = report.get("benchmark")
+            if not isinstance(benchmark, dict) or "replay_only" not in benchmark:
+                issues.append("docs/real_data_runs/raw_1772633471.json is missing benchmark context")
+            audit = report.get("audit")
+            if not isinstance(audit, dict) or audit.get("ok") is not True or audit.get("issue_count") != 0:
+                issues.append("docs/real_data_runs/raw_1772633471.json must publish a clean local audit result")
     return issues
 
 
