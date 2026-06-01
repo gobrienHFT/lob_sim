@@ -1,13 +1,13 @@
 {
   "run_id": "c85931a5c190978e",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:51:22.178746Z",
+  "created_at_utc": "2026-06-01T15:56:50.265921Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-06-01T15:51:22.096281Z"
+    "modified_at_utc": "2026-06-01T15:56:50.242819Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "dd873c6eb9e901259df0364697aec3b2d03d6a3b",
+    "git_commit": "d7607bdc601400193c061d4999da62e77874653c",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,7 +111,7 @@
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
       "size_bytes": 15324,
       "sha256": "c60f10d01f0011162852eaecf28259fb5ab9a8e50802f779a084f9fb1139ffd3",
-      "modified_at_utc": "2026-06-01T15:51:22.413266Z"
+      "modified_at_utc": "2026-06-01T15:56:50.420904Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
@@ -120,19 +120,19 @@
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
       "size_bytes": 12527,
       "sha256": "95916ac058cd4584906eb0a5d66fe8b653360d667c5b573ddc94b628b191c140",
-      "modified_at_utc": "2026-06-01T15:51:22.399622Z"
+      "modified_at_utc": "2026-06-01T15:56:50.414933Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
       "size_bytes": 5948,
       "sha256": "8871a5eb0852e344f0ebe10a98f2faf4af3f5ce2d4f6781a79d13aecad96d468",
-      "modified_at_utc": "2026-06-01T15:51:22.405127Z"
+      "modified_at_utc": "2026-06-01T15:56:50.416829Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 989,
       "sha256": "5a7cc28d37e6bc54de1b1dadea45677393c35dc31d02f7eea9dddcbbd491abd0",
-      "modified_at_utc": "2026-06-01T15:51:22.408146Z"
+      "modified_at_utc": "2026-06-01T15:56:50.418910Z"
     }
   },
   "fixture_provenance": {

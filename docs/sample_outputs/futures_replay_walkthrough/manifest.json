@@ -1,13 +1,13 @@
 {
   "run_id": "57f79f15b358450b",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:51:20.435499Z",
+  "created_at_utc": "2026-06-01T15:56:49.431328Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-    "modified_at_utc": "2026-06-01T15:51:20.327295Z"
+    "modified_at_utc": "2026-06-01T15:56:49.404428Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "dd873c6eb9e901259df0364697aec3b2d03d6a3b",
+    "git_commit": "d7607bdc601400193c061d4999da62e77874653c",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,7 +111,7 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 5450,
       "sha256": "f8654c29d1cdb1f49da75bfe8922ae7caf43ce27d28aefe385bafce9b9281395",
-      "modified_at_utc": "2026-06-01T15:51:21.112940Z"
+      "modified_at_utc": "2026-06-01T15:56:49.780101Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -120,19 +120,19 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 7187,
       "sha256": "2433f35a08ff3ffb84fd64e6c55af0497cdaa1c605909157c7bbe4b61a5af961",
-      "modified_at_utc": "2026-06-01T15:51:21.096340Z"
+      "modified_at_utc": "2026-06-01T15:56:49.772869Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 5313,
       "sha256": "cac345c0531b0da78e0521c0f2358e1421842639d9f4519bb00acc698a2afc57",
-      "modified_at_utc": "2026-06-01T15:51:21.101307Z"
+      "modified_at_utc": "2026-06-01T15:56:49.775379Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 399,
       "sha256": "fec9a6140683c2e4008c14c1eb5192e30d03ffdcb665eb7f4bd07e3381262d7b",
-      "modified_at_utc": "2026-06-01T15:51:21.105323Z"
+      "modified_at_utc": "2026-06-01T15:56:49.777499Z"
     }
   }
 }
