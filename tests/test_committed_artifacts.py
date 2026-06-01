@@ -52,6 +52,7 @@ FUTURES_LATENCY_SWEEP_REFRESH = (
 )
 FUTURES_DETERMINISM_CHECK = REPO_ROOT / "scripts" / "check_futures_determinism.py"
 FUTURES_PACK_AUDIT = REPO_ROOT / "scripts" / "audit_futures_pack.py"
+REVIEWER_GATE = REPO_ROOT / "scripts" / "reviewer_gate.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
 FUTURES_WALKTHROUGH_README = (
@@ -1009,6 +1010,9 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
     assert FUTURES_DETERMINISM_CHECK.exists()
     assert FUTURES_PACK_AUDIT.exists()
+    assert REVIEWER_GATE.exists()
+    assert "python scripts/reviewer_gate.py" in README.read_text(encoding="utf-8")
+    assert "python scripts/reviewer_gate.py" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
     assert "make reviewer-gate" in README.read_text(encoding="utf-8")
     assert "make reviewer-gate" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
 

@@ -156,6 +156,7 @@ Parameter sweeps over committed fixtures live in [experiments/sweep_futures_para
 Local green gate:
 
 ```bash
+python scripts/reviewer_gate.py
 make reviewer-gate
 ```
 
@@ -169,7 +170,7 @@ make benchmark-fixture
 make latency-sweep-fixture
 ```
 
-The `make reviewer-gate` target runs the local reviewer evidence path: tests, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The checked-in GitHub Actions workflow runs the non-benchmark gates plus the committed-fixture determinism check and committed futures pack audit on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target runs the same checks as explicit Makefile steps. The checked-in GitHub Actions workflow runs the non-benchmark gates plus the committed-fixture determinism check and committed futures pack audit on Python 3.11, 3.12, and 3.13 to match the package metadata.
 `make ci` runs the test suite, committed-artifact verifier, and whitespace check.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.

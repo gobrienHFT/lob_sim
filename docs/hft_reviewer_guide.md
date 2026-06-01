@@ -44,6 +44,7 @@ flowchart LR
 ## Exact Commands
 
 ```bash
+python scripts/reviewer_gate.py
 python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
@@ -74,7 +75,7 @@ make latency-sweep-fixture
 make refresh-artifacts
 ```
 
-CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, checks the committed futures fixture determinism, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` is the Makefile spelling of the same path. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, checks the committed futures fixture determinism, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
 
 ## Observed vs Inferred
 

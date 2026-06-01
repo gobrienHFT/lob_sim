@@ -35,6 +35,7 @@ REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
 TOKENIZED_ASSETS_ROADMAP = REPO_ROOT / "docs" / "tokenized_assets_roadmap.md"
+REVIEWER_GATE = REPO_ROOT / "scripts" / "reviewer_gate.py"
 COMMITTED_STRATEGY_PROFILE_INPUTS = (
     "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
@@ -1707,6 +1708,37 @@ def _verify_replay_contract_publication() -> list[str]:
     return issues
 
 
+def _verify_reviewer_gate_publication() -> list[str]:
+    issues: list[str] = []
+    if not REVIEWER_GATE.exists():
+        issues.append(f"Missing reviewer gate script: {_repo_relative(REVIEWER_GATE)}")
+        return issues
+
+    script = _read_text(REVIEWER_GATE)
+    required_tokens = [
+        "build_reviewer_gate_steps",
+        "scripts/verify_committed_artifacts.py",
+        "git",
+        "diff",
+        "--check",
+        "scripts/check_futures_determinism.py",
+        "scripts/audit_futures_pack.py",
+        "--committed-futures",
+        "experiments/benchmark_futures_replay.py",
+    ]
+    for token in required_tokens:
+        if token not in script:
+            issues.append(f"Reviewer gate script is missing expected token: {token}")
+
+    for path in [REPO_ROOT / "README.md", HFT_REVIEWER_GUIDE]:
+        text = _read_text(path)
+        if "python scripts/reviewer_gate.py" not in text:
+            issues.append(f"Missing portable reviewer gate command in {_repo_relative(path)}")
+        if "make reviewer-gate" not in text:
+            issues.append(f"Missing Makefile reviewer gate command in {_repo_relative(path)}")
+    return issues
+
+
 def _verify_strategy_profile_publication() -> list[str]:
     issues: list[str] = []
     if not FUTURES_STRATEGY_PROFILES.exists():
@@ -2073,6 +2105,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_strategy_profile_publication())
     issues.extend(_verify_benchmark_publication())
     issues.extend(_verify_replay_contract_publication())
+    issues.extend(_verify_reviewer_gate_publication())
     issues.extend(_verify_artifact_order())
     return issues
 
