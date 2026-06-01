@@ -208,8 +208,8 @@ def refresh_futures_benchmark_reference() -> dict[str, Path]:
         os.chdir(previous_cwd)
 
     write_benchmark_json(result, REFERENCE_JSON)
-    REFERENCE_MD.write_text(_render_reference(result), encoding="utf-8")
-    FUTURES_BENCHMARKS.write_text(_render_benchmark_doc(result), encoding="utf-8")
+    REFERENCE_MD.write_text(_render_reference(result), encoding="utf-8", newline="\n")
+    FUTURES_BENCHMARKS.write_text(_render_benchmark_doc(result), encoding="utf-8", newline="\n")
     return {
         "reference_md": REFERENCE_MD,
         "reference_json": REFERENCE_JSON,

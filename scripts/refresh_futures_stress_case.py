@@ -251,7 +251,7 @@ def stress_records() -> list[NDJSONRecord]:
 
 def _write_fixture(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
         for record in stress_records():
             handle.write(record.to_json())
             handle.write("\n")
@@ -445,17 +445,17 @@ def refresh_futures_stress_case(output_dir: Path = STRESS_CASE_DIR) -> dict[str,
         manifest["fixture_provenance"] = dict(summary["fixture_provenance"])
         manifest["stress_coverage"] = dict(summary["stress_coverage"])
 
-        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
         shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
         shutil.copyfile(generated_paths["event_trace"], committed_paths["event_trace"])
         manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_path_for_summary)
-        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     readme_path = output_dir / "README.md"
     notes_path = output_dir / "case_notes.md"
-    readme_path.write_text(_render_readme(summary), encoding="utf-8")
-    notes_path.write_text(_render_case_notes(summary, event_trace), encoding="utf-8")
+    readme_path.write_text(_render_readme(summary), encoding="utf-8", newline="\n")
+    notes_path.write_text(_render_case_notes(summary, event_trace), encoding="utf-8", newline="\n")
 
     return {
         "input": fixture_path,

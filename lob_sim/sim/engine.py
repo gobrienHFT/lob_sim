@@ -796,7 +796,7 @@ class SimulationEngine:
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)
 
-        with open(summary_path, "w", encoding="utf-8") as fh:
+        with open(summary_path, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(summary, fh, indent=2)
         write_summary_csv(summary_csv_path, summary, exclude_keys={"fills", "markout_events"})
 
@@ -842,6 +842,6 @@ class SimulationEngine:
             adapter=self.adapter,
             instrument_specs=self._specs,
         )
-        with open(manifest_path, "w", encoding="utf-8") as fh:
+        with open(manifest_path, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(manifest.as_dict(), fh, indent=2)
         return output_files, summary

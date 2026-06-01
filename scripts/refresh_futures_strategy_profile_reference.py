@@ -127,7 +127,7 @@ def refresh_reference(reference_doc: Path = REFERENCE_DOC) -> dict[str, Path]:
         raise RuntimeError("research_mm did not produce any quotes on the committed input.")
 
     reference_doc.parent.mkdir(parents=True, exist_ok=True)
-    reference_doc.write_text(_render_reference_doc(result, input_path), encoding="utf-8")
+    reference_doc.write_text(_render_reference_doc(result, input_path), encoding="utf-8", newline="\n")
     return {
         "input": input_path,
         "reference": reference_doc,

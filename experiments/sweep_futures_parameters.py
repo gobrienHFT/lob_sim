@@ -215,6 +215,7 @@ def write_sweep_outputs(
             ]
         ),
         encoding="utf-8",
+        newline="\n",
     )
     return {"csv": csv_path, "markdown": md_path}
 

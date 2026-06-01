@@ -132,7 +132,7 @@ def showcase_records() -> list[NDJSONRecord]:
 
 def _write_fixture(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
         for record in showcase_records():
             handle.write(record.to_json())
             handle.write("\n")
@@ -192,12 +192,12 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
         manifest["input"]["path"] = _path_for_summary(fixture_path)
         manifest["outputs"] = dict(summary["output_files"])
 
-        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
         shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
         shutil.copyfile(generated_paths["event_trace"], committed_paths["event_trace"])
         manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_path_for_summary)
-        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     return {
         "fixture": fixture_path,

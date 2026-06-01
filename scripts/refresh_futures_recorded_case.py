@@ -77,6 +77,10 @@ def _find_input_clip(case_dir: Path) -> Path:
     )
 
 
+def _normalize_lf(path: Path) -> None:
+    path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+
+
 @contextmanager
 def _temporary_env(overrides: dict[str, str]) -> Iterator[None]:
     previous = {key: os.environ.get(key) for key in overrides}
@@ -95,6 +99,7 @@ def _temporary_env(overrides: dict[str, str]) -> Iterator[None]:
 def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[str, Path]:
     output_dir = output_dir.resolve()
     input_path = _find_input_clip(output_dir)
+    _normalize_lf(input_path)
 
     with TemporaryDirectory(prefix="lob_sim_futures_recorded_case_") as temp_dir:
         env = dict(RECORDED_CASE_ENV)
@@ -122,12 +127,12 @@ def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[
         manifest["input"]["path"] = _path_for_summary(input_path)
         manifest["outputs"] = dict(summary["output_files"])
 
-        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
         shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
         shutil.copyfile(generated_paths["event_trace"], committed_paths["event_trace"])
         manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_path_for_summary)
-        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     return {
         "input": input_path,
