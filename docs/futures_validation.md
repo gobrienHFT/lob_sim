@@ -29,7 +29,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - Regression tests cover reconciliation of near-simultaneous depth reductions and `aggTrade` prints so one public-feed signal is not consumed twice.
 - Output summaries report observed public queue-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots separately for depth reductions and `aggTrade` prints.
 - Event traces export the same public queue-consumption accounting per symbol, side, price, source, and timestamp so the summary totals can be audited row by row.
-- `scripts/audit_futures_pack.py --committed-futures` checks that committed pack summary JSON/CSV, trades, event traces, manifests, and public-data assumptions agree on fill counts, per-fill economics, fill-source attribution, public queue-consumption totals, source-split markouts, markout event details, lifecycle counters, and artifact hashes.
+- `scripts/audit_futures_pack.py --committed-futures` checks that committed replay inputs, pack summary JSON/CSV, trades, event traces, manifests, and public-data assumptions agree on event counts, fill counts, per-fill economics, fill-source attribution, public queue-consumption totals, source-split markouts, markout event details, lifecycle counters, and artifact hashes.
 - Strategy decisions are not backfilled before the first accepted depth sync or before the snapshot timestamp that made buffered diffs usable; decisions due before a later market row are drained before that row, and same-timestamp reactions are scheduled after the row and any fills it creates.
 
 ### Partial fill handling

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.replay.reader import iter_records
+from lob_sim.record.schema import RecordValidationError
 from lob_sim.sim.fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 
 
@@ -25,6 +27,21 @@ PUBLIC_CONSUMPTION_FIELDS = (
     "queue_consumed_lots",
     "unmatched_lots",
 )
+EVENT_COUNT_FIELDS = (
+    "records_processed",
+    "exchange_info",
+    "snapshot",
+    "depth_update",
+    "agg_trade",
+    "depth_changes_applied",
+    "book_gap_count",
+)
+MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD = {
+    "exchangeInfo": "exchange_info",
+    "snapshot": "snapshot",
+    "depthUpdate": "depth_update",
+    "aggTrade": "agg_trade",
+}
 ORDER_LIFECYCLE_KEYS = (
     "arrival_scheduled",
     "arrived",
@@ -577,6 +594,85 @@ def _audit_markout_exports(
                 )
 
 
+def _audit_replay_event_counts(
+    pack_dir: Path,
+    summary: dict[str, Any],
+    manifest: dict[str, Any],
+    market_record_counts: dict[str, int],
+    book_gap_counts_by_symbol: dict[str, int],
+    issues: list[str],
+) -> None:
+    event_counts = summary.get("event_counts")
+    summary_path = pack_dir / "summary.json"
+    if not isinstance(event_counts, dict):
+        issues.append("summary.json is missing event_counts")
+        return
+    if set(event_counts) != set(EVENT_COUNT_FIELDS):
+        issues.append(f"{_display_path(summary_path)} has unexpected event_counts keys: {sorted(event_counts)}")
+        return
+    for field in EVENT_COUNT_FIELDS:
+        value = event_counts.get(field)
+        if not isinstance(value, int) or value < 0:
+            issues.append(f"{_display_path(summary_path)} event_counts.{field} must be a non-negative integer")
+            return
+
+    market_record_total = sum(market_record_counts.values())
+    if event_counts["records_processed"] != market_record_total:
+        issues.append(
+            f"event_counts.records_processed={event_counts['records_processed']!r} "
+            f"does not match trace market_record count {market_record_total}"
+        )
+    for source, field in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD.items():
+        observed = market_record_counts.get(source, 0)
+        if event_counts[field] != observed:
+            issues.append(f"event_counts.{field}={event_counts[field]!r} does not match trace source {source} count {observed}")
+
+    if event_counts["book_gap_count"] != sum(book_gap_counts_by_symbol.values()):
+        issues.append(
+            f"event_counts.book_gap_count={event_counts['book_gap_count']!r} "
+            f"does not match trace book_gap count {sum(book_gap_counts_by_symbol.values())}"
+        )
+    if summary.get("book_gap_count_by_symbol") != book_gap_counts_by_symbol:
+        issues.append(
+            f"summary.book_gap_count_by_symbol={summary.get('book_gap_count_by_symbol')!r} "
+            f"does not match trace value {book_gap_counts_by_symbol}"
+        )
+
+    manifest_input = manifest.get("input")
+    if not isinstance(manifest_input, dict) or not isinstance(manifest_input.get("path"), str):
+        issues.append(f"{_display_path(pack_dir / 'manifest.json')} is missing input.path")
+        return
+    input_path = _resolve_artifact_path(manifest_input["path"], pack_dir)
+    input_counts = {field: 0 for field in ("exchange_info", "snapshot", "depth_update", "agg_trade")}
+    records_processed = 0
+    try:
+        for record in iter_records(input_path):
+            records_processed += 1
+            if record.type == "exchangeInfo":
+                input_counts["exchange_info"] += 1
+            elif record.type == "snapshot":
+                input_counts["snapshot"] += 1
+            elif record.type == "depthUpdate":
+                input_counts["depth_update"] += 1
+            elif record.type == "aggTrade":
+                input_counts["agg_trade"] += 1
+    except FileNotFoundError:
+        issues.append(f"Missing replay input file: {_display_path(input_path)}")
+        return
+    except (OSError, ValueError, RecordValidationError) as exc:
+        issues.append(f"{_display_path(input_path)} could not be read for event-count audit: {exc}")
+        return
+
+    if event_counts["records_processed"] != records_processed:
+        issues.append(
+            f"event_counts.records_processed={event_counts['records_processed']!r} "
+            f"does not match replay input record count {records_processed}"
+        )
+    for field, observed in input_counts.items():
+        if event_counts[field] != observed:
+            issues.append(f"event_counts.{field}={event_counts[field]!r} does not match replay input count {observed}")
+
+
 def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     pack_dir = pack_dir.resolve()
     issues: list[str] = []
@@ -605,6 +701,8 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     fill_rows: list[dict[str, str]] = []
     fill_source_counts = {source: 0 for source in FILL_SOURCES}
     event_type_counts: Counter[str] = Counter()
+    market_record_counts = {source: 0 for source in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD}
+    book_gap_counts_by_symbol: dict[str, int] = {}
     lifecycle_counts = {key: 0 for key in ORDER_LIFECYCLE_KEYS}
     consumption = {
         source: {field: 0 for field in PUBLIC_CONSUMPTION_FIELDS}
@@ -648,7 +746,21 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         previous_ts = ts_local
 
         details = _parse_details(trace_path, row_number, row.get("details", ""), issues)
-        if event_type == "order_arrival_scheduled":
+        if event_type == "market_record":
+            source = row.get("source", "")
+            if source not in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD:
+                issues.append(f"{_display_path(trace_path)}:{row_number} has invalid market_record source {source!r}")
+            else:
+                market_record_counts[source] += 1
+            if details.get("record_type") != source:
+                issues.append(f"{_display_path(trace_path)}:{row_number} market_record details.record_type does not match source")
+        elif event_type == "book_gap":
+            symbol = row.get("symbol", "")
+            if not symbol:
+                issues.append(f"{_display_path(trace_path)}:{row_number} book_gap row is missing symbol")
+            else:
+                book_gap_counts_by_symbol[symbol] = book_gap_counts_by_symbol.get(symbol, 0) + 1
+        elif event_type == "order_arrival_scheduled":
             lifecycle_counts["arrival_scheduled"] += 1
         elif event_type == "order_arrival":
             lifecycle_counts["arrived"] += 1
@@ -743,6 +855,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_markouts(summary, markouts, markout_row_count, issues)
         _audit_fill_exports(summary, trade_rows, fill_records, trades_path, trace_path, issues)
         _audit_markout_exports(summary, markout_records, trace_path, issues)
+        _audit_replay_event_counts(pack_dir, summary, manifest, market_record_counts, book_gap_counts_by_symbol, issues)
 
     return {
         "schema_version": PACK_AUDIT_SCHEMA_VERSION,

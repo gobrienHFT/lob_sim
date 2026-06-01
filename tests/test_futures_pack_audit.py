@@ -84,6 +84,22 @@ def test_futures_pack_audit_rejects_stale_summary_csv(tmp_path: Path) -> None:
     assert any("output_artifacts[summary_csv].sha256 is stale" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_rejects_stale_replay_event_count(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["event_counts"]["agg_trade"] = 99
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert "event_counts.agg_trade=99 does not match trace source aggTrade count 1" in result["issues"]
+    assert "event_counts.agg_trade=99 does not match replay input count 1" in result["issues"]
+    assert any("output_artifacts[summary].sha256 is stale" in issue for issue in result["issues"])
+
+
 def test_futures_pack_audit_rejects_stale_trade_export(tmp_path: Path) -> None:
     copied_pack = tmp_path / "pack"
     shutil.copytree(SHOWCASE_PACK, copied_pack)
