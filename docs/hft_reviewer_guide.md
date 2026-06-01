@@ -20,7 +20,8 @@ The options material is secondary: a controlled dealer-pricing case study for re
 10. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
 11. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
 12. [Benchmark notes](futures_benchmarks.md)
-13. [Extension points](extension_points.md)
+13. [Determinism checker](../scripts/check_futures_determinism.py)
+14. [Extension points](extension_points.md)
 
 ## Architecture
 
@@ -46,6 +47,7 @@ python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example simulate --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
+python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python scripts/refresh_futures_parameter_sweep_reference.py
@@ -59,12 +61,13 @@ make test
 make verify-artifacts
 make inspect-fixture
 make simulate-fixture
+make determinism-fixture
 make benchmark-fixture
 make sweep-fixture
 make refresh-artifacts
 ```
 
-CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, checks the committed futures fixture determinism, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
 
 ## Observed vs Inferred
 
@@ -144,6 +147,7 @@ Inferred:
 - Risk-control traces that show when configured kill switches halt trading instead of silently suppressing later decisions.
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
+- A CI-covered determinism checker that proves repeated in-memory fixture runs produce identical summary and event-trace hashes.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.
 - Artifact verification rejects committed futures packs whose public-data simulation assumptions are missing, inconsistent, or claim private exchange fills.

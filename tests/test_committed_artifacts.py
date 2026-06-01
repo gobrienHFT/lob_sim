@@ -18,10 +18,13 @@ WALKTHROUGH = REPO_ROOT / "WALKTHROUGH.md"
 MAKEFILE = REPO_ROOT / "Makefile"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
+FUTURES_VALIDATION = REPO_ROOT / "docs" / "futures_validation.md"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
 FUTURES_BENCHMARK_REFERENCE = (
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"
 )
+REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
+HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
@@ -38,6 +41,7 @@ FUTURES_STRATEGY_REFRESH = (
 FUTURES_PARAMETER_SWEEP_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
 )
+FUTURES_DETERMINISM_CHECK = REPO_ROOT / "scripts" / "check_futures_determinism.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
 FUTURES_WALKTHROUGH_README = (
@@ -975,12 +979,16 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python -m pip check" in workflow
     assert "python -m lob_sim.cli --help" in workflow
     assert "python -m pytest -q" in workflow
+    assert "python scripts/check_futures_determinism.py" in workflow
     assert "python scripts/verify_committed_artifacts.py" in workflow
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
     assert "ci: test verify-artifacts check-whitespace" in makefile
     assert "refresh-artifacts:" in makefile
+    assert "determinism-fixture:" in makefile
+    assert "scripts/check_futures_determinism.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
+    assert FUTURES_DETERMINISM_CHECK.exists()
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:
@@ -1076,6 +1084,31 @@ def test_futures_walkthrough_refresh_command_is_documented_consistently() -> Non
     assert "refresh_futures_replay_summary.py" not in futures_notes
     assert "refresh_futures_replay_summary.py" not in recorded_pack
     assert "refresh_futures_replay_summary.py" not in recorded_notes
+
+
+def test_futures_determinism_checker_is_documented() -> None:
+    expected_command = (
+        "python scripts/check_futures_determinism.py --file "
+        "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example"
+    )
+
+    assert FUTURES_DETERMINISM_CHECK.exists()
+    for path in (
+        README,
+        WALKTHROUGH,
+        FUTURES_VALIDATION,
+        REPLAY_CONTRACT,
+        HFT_REVIEWER_GUIDE,
+        FUTURES_BENCHMARKS,
+        SAMPLE_OUTPUTS_README,
+    ):
+        text = path.read_text(encoding="utf-8")
+        assert "scripts/check_futures_determinism.py" in text
+    assert expected_command in README.read_text(encoding="utf-8")
+    assert expected_command in FUTURES_VALIDATION.read_text(encoding="utf-8")
+    assert expected_command in REPLAY_CONTRACT.read_text(encoding="utf-8")
+    assert expected_command in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
+    assert expected_command in SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
 
 
 def test_options_launchers_live_under_scripts_launchers() -> None:

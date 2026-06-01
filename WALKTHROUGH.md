@@ -27,13 +27,14 @@ The options side is a separate controlled dealer-pricing case study. It is there
 6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
 7. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
 8. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
-9. [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for the published reference run and the rerunnable benchmark driver.
+9. [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py), [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for hash-checked fixture determinism plus the rerunnable benchmark driver.
 10. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
 11. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
 
 ## Core Talking Points
 
 - The strongest claim here is deterministic event-time replay with explicit book-sync semantics.
+- The determinism claim is executable: the checker reruns a committed fixture and compares summary/event-trace hashes.
 - Passive fills are queue-aware and rely on explicit FIFO assumptions rather than bar-level heuristics.
 - Gap handling is explicit: the code checks continuity and does not patch over missing updates.
 - The strategy is a baseline quoting/control policy on top of the replay and matching core.

@@ -16,7 +16,7 @@ For a reviewer-focused path through the futures core, start with [docs/hft_revie
 - Event-time replay rather than bar backtest.
 - Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 - Queue-aware passive-fill simulation with FIFO price-time assumptions and queue-ahead tracking.
-- Deterministic artifacts and reproducible runs from recorded NDJSON inputs.
+- Deterministic artifacts, reproducible runs, and a hash-based replay determinism checker for recorded NDJSON inputs.
 - Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
 - Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
 
@@ -58,6 +58,7 @@ python -m lob_sim.cli --env .env.example collect
 python -m lob_sim.cli inspect --file data/raw_....ndjson
 python -m lob_sim.cli --env .env.example replay --file data/raw_....ndjson
 python -m lob_sim.cli --env .env.example simulate --file data/raw_....ndjson
+python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 ```
 
 For feed-specific details, open [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md).
@@ -146,7 +147,7 @@ Tracked metrics include:
 
 PnL, spread capture, markout, fees, and exported fill notional use the instrument `contract_multiplier`; inventory remains reported in normalized quantity units.
 
-Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
+Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). The replay determinism checker lives in [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py) and compares canonical hashes of repeated in-memory summaries and event traces. Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
 Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py).
 
 ## Verification And CI
@@ -155,9 +156,11 @@ Local green gate:
 
 ```bash
 make ci
+make determinism-fixture
 ```
 
-That runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs the same gates on Python 3.11, 3.12, and 3.13 to match the package metadata.
+The `make ci` target runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs those gates plus the committed-fixture determinism check on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 
 To refresh the committed futures reviewer artifacts from a clean source tree, run:
 

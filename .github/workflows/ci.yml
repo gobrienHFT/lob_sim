@@ -41,6 +41,9 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Check deterministic futures fixture
+        run: python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
+
       - name: Verify committed artifacts
         run: python scripts/verify_committed_artifacts.py
 

@@ -26,6 +26,12 @@ Open first:
 5. [`futures_replay_walkthrough/event_trace.csv`](futures_replay_walkthrough/event_trace.csv)
 6. [`futures_replay_walkthrough/walkthrough.md`](futures_replay_walkthrough/walkthrough.md)
 
+Determinism check:
+
+```bash
+python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
+```
+
 ## Recorded Futures Clip Case
 
 - Pack entry: [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)

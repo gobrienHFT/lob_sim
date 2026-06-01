@@ -2,6 +2,8 @@
 
 Benchmark numbers are machine- and dataset-specific. Treat the published run below as a small committed-fixture reference for reproducibility and instrumentation, not as a low-latency claim.
 
+For determinism rather than throughput, run `python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example`; it compares repeated in-memory summary and event-trace hashes instead of timing a single pass.
+
 ## Published Reference Run
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
