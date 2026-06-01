@@ -4,10 +4,16 @@ import argparse
 import csv
 import json
 import math
+import sys
 from collections import Counter
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records

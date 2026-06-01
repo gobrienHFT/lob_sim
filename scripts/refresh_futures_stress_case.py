@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Iterator
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.config import load_config
@@ -18,7 +24,6 @@ from lob_sim.sim.run_manifest import output_artifact_snapshot
 from lob_sim.util import write_summary_csv
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 STRESS_CASE_DIR = REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case"
 INPUT_STRESS_NAME = "input_stress.ndjson"
 
