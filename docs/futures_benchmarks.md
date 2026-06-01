@@ -4,6 +4,8 @@ Benchmark numbers are machine- and dataset-specific. Treat the published run bel
 
 For determinism rather than throughput, run `python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example`; it compares repeated in-memory summary and event-trace hashes instead of timing a single pass.
 
+For modeled latency sensitivity rather than benchmark throughput, use [docs/strategy_results/futures_latency_sweep_reference.md](strategy_results/futures_latency_sweep_reference.md). It varies replay order-arrival and cancel-ack delays and reports queue/fill metrics without treating the numbers as production gateway latency.
+
 ## Published Reference Run
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`

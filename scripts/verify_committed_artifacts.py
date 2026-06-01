@@ -28,6 +28,9 @@ FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_re
 FUTURES_PARAMETER_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.csv"
 FUTURES_PARAMETER_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
+FUTURES_LATENCY_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_latency_sweep_reference.md"
+FUTURES_LATENCY_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_latency_sweep_reference.csv"
+FUTURES_LATENCY_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
@@ -132,11 +135,13 @@ STRATEGY_PROFILE_FRONT_DOOR_LINKS = {
         "docs/futures_strategy_profiles.md",
         "docs/strategy_results/futures_strategy_profile_reference.md",
         "docs/strategy_results/futures_parameter_sweep_reference.md",
+        "docs/strategy_results/futures_latency_sweep_reference.md",
     ],
     REPO_ROOT / "WALKTHROUGH.md": [
         "docs/futures_strategy_profiles.md",
         "docs/strategy_results/futures_strategy_profile_reference.md",
         "docs/strategy_results/futures_parameter_sweep_reference.md",
+        "docs/strategy_results/futures_latency_sweep_reference.md",
     ],
 }
 
@@ -164,6 +169,7 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "futures_strategy_profiles.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md",
+    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
@@ -1715,6 +1721,12 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(f"Missing futures parameter sweep reference CSV: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE_CSV)}")
     if not FUTURES_PARAMETER_SWEEP_REFRESH.exists():
         issues.append(f"Missing futures parameter sweep refresh script: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFRESH)}")
+    if not FUTURES_LATENCY_SWEEP_REFERENCE.exists():
+        issues.append(f"Missing futures latency sweep reference doc: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE)}")
+    if not FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
+        issues.append(f"Missing futures latency sweep reference CSV: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE_CSV)}")
+    if not FUTURES_LATENCY_SWEEP_REFRESH.exists():
+        issues.append(f"Missing futures latency sweep refresh script: {_repo_relative(FUTURES_LATENCY_SWEEP_REFRESH)}")
 
     for path, expected_links in STRATEGY_PROFILE_FRONT_DOOR_LINKS.items():
         text = _read_text(path)
@@ -1820,6 +1832,81 @@ def _verify_strategy_profile_publication() -> list[str]:
             else:
                 if max(fill_counts, default=0) <= 0:
                     issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has no filled sweep run")
+
+    if FUTURES_LATENCY_SWEEP_REFERENCE.exists() and FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
+        latency_doc = _read_text(FUTURES_LATENCY_SWEEP_REFERENCE)
+        if not any(path in latency_doc for path in COMMITTED_STRATEGY_PROFILE_INPUTS):
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md must reference a committed replay input"
+            )
+        if "python scripts/refresh_futures_latency_sweep_reference.py" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md is missing the refresh command"
+            )
+        if "not a latency-arbitrage, alpha, or profitability claim" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md is missing the latency/no-alpha caveat"
+            )
+        if "modeled order-arrival and cancel-ack delays" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md must describe modeled latency scope"
+            )
+        if "Git dirty at run time: `False`" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md must be refreshed from a clean source tree"
+            )
+        if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md is missing feed adapter provenance"
+            )
+
+        with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
+            latency_rows = list(csv.DictReader(handle))
+        required_latency_columns = {
+            "rank",
+            "diagnostic_score",
+            "strategy_profile",
+            "order_latency_ms",
+            "cancel_latency_ms",
+            "fill_count",
+            "adverse_fill_rate_1s",
+            "markout_by_fill_source",
+            "inventory_stdev",
+            "max_drawdown",
+            "avg_fill_wait_ms",
+            "fill_source_counts",
+            "order_lifecycle_counts",
+        }
+        latency_fieldnames = set(latency_rows[0].keys()) if latency_rows else set()
+        missing_latency_columns = sorted(required_latency_columns - latency_fieldnames)
+        if missing_latency_columns:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.csv missing column(s): "
+                + ", ".join(missing_latency_columns)
+            )
+        if len(latency_rows) < 3:
+            issues.append("docs/strategy_results/futures_latency_sweep_reference.csv must include multiple latency rows")
+        else:
+            try:
+                ranks = [int(row["rank"]) for row in latency_rows]
+                order_latencies = {float(row["order_latency_ms"]) for row in latency_rows}
+                cancel_latencies = {float(row["cancel_latency_ms"]) for row in latency_rows}
+                fill_counts = [int(row["fill_count"]) for row in latency_rows]
+            except (KeyError, ValueError):
+                issues.append("docs/strategy_results/futures_latency_sweep_reference.csv has invalid numeric values")
+            else:
+                if ranks != list(range(1, len(latency_rows) + 1)):
+                    issues.append("docs/strategy_results/futures_latency_sweep_reference.csv ranks are not contiguous")
+                if 0.0 not in order_latencies or max(order_latencies, default=0.0) <= 0.0:
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.csv must include zero and positive order latency"
+                    )
+                if 0.0 not in cancel_latencies or max(cancel_latencies, default=0.0) <= 0.0:
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.csv must include zero and positive cancel latency"
+                    )
+                if max(fill_counts, default=0) <= 0:
+                    issues.append("docs/strategy_results/futures_latency_sweep_reference.csv has no filled sweep run")
 
     section_expectations = [
         (

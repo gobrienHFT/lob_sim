@@ -4,8 +4,9 @@ FIXTURE ?= docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 RECORDED_FIXTURE ?= docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson
 BENCHMARK_JSON ?= outputs/futures_benchmark.json
 DETERMINISM_JSON ?= outputs/futures_determinism.json
+LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 
-.PHONY: setup test verify-artifacts check-whitespace ci inspect-fixture replay-fixture simulate-fixture benchmark-fixture determinism-fixture sweep-fixture refresh-artifacts
+.PHONY: setup test verify-artifacts check-whitespace ci inspect-fixture replay-fixture simulate-fixture benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -39,6 +40,9 @@ determinism-fixture:
 
 sweep-fixture:
 	$(PY) experiments/sweep_futures_parameters.py --file $(RECORDED_FIXTURE) --env $(ENV) --out-dir outputs/futures_sweeps
+
+latency-sweep-fixture:
+	$(PY) experiments/sweep_futures_latency.py --file $(RECORDED_FIXTURE) --env $(ENV) --out-dir $(LATENCY_SWEEP_DIR)
 
 refresh-artifacts:
 	$(PY) scripts/refresh_futures_reviewer_artifacts.py

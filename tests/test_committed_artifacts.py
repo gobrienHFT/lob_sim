@@ -35,11 +35,20 @@ FUTURES_PARAMETER_SWEEP_REFERENCE = (
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.csv"
 )
+FUTURES_LATENCY_SWEEP_REFERENCE = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md"
+)
+FUTURES_LATENCY_SWEEP_REFERENCE_CSV = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.csv"
+)
 FUTURES_STRATEGY_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 )
 FUTURES_PARAMETER_SWEEP_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
+)
+FUTURES_LATENCY_SWEEP_REFRESH = (
+    REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
 )
 FUTURES_DETERMINISM_CHECK = REPO_ROOT / "scripts" / "check_futures_determinism.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -986,7 +995,9 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "ci: test verify-artifacts check-whitespace" in makefile
     assert "refresh-artifacts:" in makefile
     assert "determinism-fixture:" in makefile
+    assert "latency-sweep-fixture:" in makefile
     assert "scripts/check_futures_determinism.py" in makefile
+    assert "experiments/sweep_futures_latency.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
     assert FUTURES_DETERMINISM_CHECK.exists()
 
@@ -1161,11 +1172,16 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert FUTURES_PARAMETER_SWEEP_REFERENCE.exists()
     assert FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists()
     assert FUTURES_PARAMETER_SWEEP_REFRESH.exists()
+    assert FUTURES_LATENCY_SWEEP_REFERENCE.exists()
+    assert FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists()
+    assert FUTURES_LATENCY_SWEEP_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
     assert "research_mm" in profiles
     assert "futures_parameter_sweep_reference.md" in profiles
     assert "futures_parameter_sweep_reference.csv" in profiles
+    assert "futures_latency_sweep_reference.md" in profiles
+    assert "futures_latency_sweep_reference.csv" in profiles
     assert COMMITTED_STRATEGY_INPUT in reference
     assert "research_mm" in reference
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
@@ -1177,9 +1193,18 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "not an alpha or profitability claim" in sweep_reference
     assert "Git dirty at run time: `False`" in sweep_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
+    latency_reference = FUTURES_LATENCY_SWEEP_REFERENCE.read_text(encoding="utf-8")
+    assert COMMITTED_STRATEGY_INPUT in latency_reference
+    assert "python scripts/refresh_futures_latency_sweep_reference.py" in latency_reference
+    assert "modeled order-arrival and cancel-ack delays" in latency_reference
+    assert "not a latency-arbitrage, alpha, or profitability claim" in latency_reference
+    assert "Git dirty at run time: `False`" in latency_reference
+    assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in latency_reference
 
     with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
+    with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
+        latency_rows = list(csv.DictReader(handle))
 
     assert len(rows) == 27
     assert [int(row["rank"]) for row in rows] == list(range(1, 28))
@@ -1187,3 +1212,11 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert max(int(row["fill_count"]) for row in rows) > 0
     assert "fill_source_counts" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
+    assert len(latency_rows) == 9
+    assert [int(row["rank"]) for row in latency_rows] == list(range(1, 10))
+    assert {float(row["order_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
+    assert {float(row["cancel_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
+    assert max(int(row["fill_count"]) for row in latency_rows) > 0
+    assert "avg_fill_wait_ms" in latency_rows[0]
+    assert "fill_source_counts" in latency_rows[0]
+    assert "order_lifecycle_counts" in latency_rows[0]

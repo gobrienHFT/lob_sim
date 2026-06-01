@@ -14,6 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from lob_sim.sim.run_manifest import SOURCE_STATE_OVERRIDE_ENV, source_state
 from scripts.refresh_futures_benchmark_reference import refresh_futures_benchmark_reference
+from scripts.refresh_futures_latency_sweep_reference import refresh_futures_latency_sweep_reference
 from scripts.refresh_futures_parameter_sweep_reference import refresh_futures_parameter_sweep_reference
 from scripts.refresh_futures_recorded_case import refresh_futures_recorded_case
 from scripts.refresh_futures_showcase import refresh_futures_showcase
@@ -42,6 +43,7 @@ def _refresh_steps() -> list[tuple[str, RefreshFunc]]:
         ("futures_recorded_case", refresh_futures_recorded_case),
         ("futures_strategy_profile_reference", refresh_reference),
         ("futures_parameter_sweep_reference", refresh_futures_parameter_sweep_reference),
+        ("futures_latency_sweep_reference", refresh_futures_latency_sweep_reference),
         ("futures_benchmark_reference", refresh_futures_benchmark_reference),
     ]
 

@@ -72,6 +72,22 @@ Published deterministic reference:
 
 The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, fill quality, and queue metrics. Its CSV includes fill-source counts and source-split markout diagnostics so reviewers can see whether fill quality comes from depth-inferred, `aggTrade`-inferred, or taker execution. The score is for inspection only; it is not an alpha or profitability claim.
 
+## Latency Sensitivity Tool
+
+Use the latency sweep runner to make the order-arrival and cancel-ack assumptions explicit on a committed fixture:
+
+```bash
+python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
+```
+
+Published deterministic reference:
+
+- Markdown: [docs/strategy_results/futures_latency_sweep_reference.md](strategy_results/futures_latency_sweep_reference.md)
+- CSV: [docs/strategy_results/futures_latency_sweep_reference.csv](strategy_results/futures_latency_sweep_reference.csv)
+- Refresh command: `python scripts/refresh_futures_latency_sweep_reference.py`
+
+The latency sweep varies modeled order-arrival and cancel-ack delays inside deterministic replay. It is a sensitivity check for queue position, fill quality, adverse markout, and cancel races; it is not a latency-arbitrage, alpha, or profitability claim.
+
 ## Why The Layered Profile Is More Realistic
 
 - It can rest inside and outside levels at the same time instead of assuming a single quote per side.
