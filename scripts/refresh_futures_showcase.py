@@ -184,6 +184,12 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
             raise RuntimeError("Showcase fixture did not produce a passive fill.")
         if summary["quote_count"] <= 0:
             raise RuntimeError("Showcase fixture did not produce any strategy quotes.")
+        summary["fixture_provenance"] = {
+            "data_class": "synthetic",
+            "source": "synthetic_walkthrough",
+            "purpose": "tiny deterministic walkthrough for public L2 replay and queue-fill mechanics",
+            "script": "scripts/refresh_futures_showcase.py",
+        }
 
         committed_paths = {
             "event_trace": output_dir / "event_trace.csv",
@@ -196,6 +202,7 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
         manifest = json.loads(generated_paths["manifest"].read_text(encoding="utf-8"))
         manifest["input"]["path"] = _path_for_summary(fixture_path)
         manifest["outputs"] = dict(summary["output_files"])
+        manifest["fixture_provenance"] = dict(summary["fixture_provenance"])
 
         committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})

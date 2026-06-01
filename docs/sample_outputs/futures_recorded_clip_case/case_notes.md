@@ -1,7 +1,7 @@
 # Recorded Futures Clip Notes
 
 - Symbol: `BTCUSDT`
-- Input type: recorded clipped event stream
+- Input type: recorded public-data clip
 - Passive fill present: yes
 - Regenerate: `python scripts/refresh_futures_recorded_case.py`
 

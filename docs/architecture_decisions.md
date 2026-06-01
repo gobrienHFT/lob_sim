@@ -31,3 +31,13 @@ Simulation manifests record input hash, non-secret config, config digest, adapte
 ## Public Data Limits
 
 Public L2 and aggregate-trade feeds cannot prove private queue identity, hidden liquidity, participant priority, cancel-vs-trade attribution inside every level reduction, or private execution reports. The repo makes those limits explicit and treats fills as conservative public-data inferences.
+
+## Gradual Type Checking
+
+The committed type-check target starts with the highest-risk futures core:
+
+```bash
+python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
+```
+
+Options demos, plotting-heavy experiments, artifact refresh scripts, and tests are intentionally outside the first mypy gate because they are more dynamic and less central to replay/fill correctness. They still run under pytest, ruff, artifact verification, and CI. The intent is to widen the typed surface after the core replay/queue path stays green.

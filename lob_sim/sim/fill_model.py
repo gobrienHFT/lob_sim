@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque
+from typing import Deque, Literal, cast
 
 from ..book.types import AggTradeEvent, LevelChange
 from .orders import Fill, FillSource, Order, OrderSide
@@ -63,10 +63,10 @@ class PassiveFillModel:
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
         return self._books.setdefault(symbol, {"bids": {}, "asks": {}})
 
-    def _bucket(self, side: str) -> str:
+    def _bucket(self, side: str) -> Literal["bids", "asks"]:
         return "bids" if side == "bid" else "asks"
 
-    def _reverse_side(self, side: str) -> str:
+    def _reverse_side(self, side: str) -> OrderSide:
         return "ask" if side == "bid" else "bid"
 
     def _credit_key(self, symbol: str, side: str, price_tick: int) -> tuple[str, OrderSide, int]:
@@ -75,7 +75,7 @@ class PassiveFillModel:
     def _ensure_order_type(self, side: str) -> OrderSide:
         if side not in {"bid", "ask"}:
             raise ValueError(f"Invalid side: {side}")
-        return side
+        return cast(OrderSide, side)
 
     def get_order(self, symbol: str, side: str, quote_slot: str = "base") -> Order | None:
         return self._orders.get((symbol, self._ensure_order_type(side), quote_slot))
@@ -100,6 +100,8 @@ class PassiveFillModel:
 
     def queue_ahead_lots(self, symbol: str, order: Order | None) -> int:
         if order is None:
+            return 0
+        if order.price_tick is None:
             return 0
         bucket = self._book(order.symbol)[self._bucket(order.side)]
         queue = bucket.get(order.price_tick)
@@ -152,6 +154,9 @@ class PassiveFillModel:
         self._book(symbol)[self._bucket(side)].setdefault(price_tick, deque()).append(venue_order)
 
     def _remove_order_from_book(self, order: Order) -> None:
+        if order.price_tick is None:
+            order.active = False
+            return
         bucket = self._book(order.symbol)[self._bucket(order.side)]
         queue = bucket.get(order.price_tick)
         if queue is None:
@@ -348,6 +353,10 @@ class PassiveFillModel:
             if not head.active or head.remaining_lots <= 0:
                 queue.popleft()
                 continue
+            if head.price_tick is None:
+                queue.popleft()
+                head.active = False
+                continue
 
             synthetic_ahead = self._synthetic_queue_ahead.get(head.order_id, 0)
             if head.is_strategy and synthetic_ahead > 0:
@@ -396,7 +405,8 @@ class PassiveFillModel:
                 break
 
         if not queue:
-            self._book(symbol)[self._bucket(side)].pop(head.price_tick, None) if "head" in locals() else None
+            if "head" in locals() and head.price_tick is not None:
+                self._book(symbol)[self._bucket(side)].pop(head.price_tick, None)
         return fills, remaining
 
     def _consume_level(

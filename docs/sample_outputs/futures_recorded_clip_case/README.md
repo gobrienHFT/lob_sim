@@ -1,6 +1,6 @@
 # Recorded Futures Clip Case
 
-This pack is a clipped recorded BTCUSDT event stream from an existing local Binance USD-M capture. It is not synthetic: the committed input is a small slice of recorded `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade` rows, replayed through the current queue-aware passive-fill simulator.
+This pack is a clipped recorded BTCUSDT public-data clip from an existing local Binance USD-M capture. It is not synthetic: the committed input is a small slice of recorded `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade` rows, replayed through the current queue-aware passive-fill simulator.
 
 ## Exact Regenerate Command
 

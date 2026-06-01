@@ -8,7 +8,7 @@ jobs:
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +41,9 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Type check core replay and simulation modules
+        run: python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
+
       - name: Run ruff lint
         run: python -m ruff check .
 
@@ -58,3 +61,6 @@ jobs:
 
       - name: Check whitespace
         run: git diff --check
+
+      - name: Run Makefile reviewer gate
+        run: make reviewer-gate

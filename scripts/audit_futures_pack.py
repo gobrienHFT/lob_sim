@@ -307,6 +307,65 @@ def _audit_manifest(pack_dir: Path, summary: dict[str, Any], manifest: dict[str,
             issues.append(f"{_display_path(manifest_path)} output_artifacts[{label}].sha256 is stale")
 
 
+def _audit_fixture_provenance(
+    pack_dir: Path,
+    summary: dict[str, Any],
+    manifest: dict[str, Any],
+    issues: list[str],
+) -> None:
+    summary_path = pack_dir / "summary.json"
+    manifest_path = pack_dir / "manifest.json"
+    relative_dir = _display_path(pack_dir)
+    provenance = summary.get("fixture_provenance")
+    if relative_dir.endswith("futures_recorded_clip_case"):
+        expected_data_class = "recorded_public_data"
+        expected_source = "recorded_public_data_clip"
+        required_doc_tokens = ("recorded", "public-data clip")
+    elif relative_dir.endswith("futures_stress_case") or relative_dir.endswith("futures_replay_walkthrough"):
+        expected_data_class = "synthetic"
+        expected_source = (
+            "synthetic_exchange_shaped" if relative_dir.endswith("futures_stress_case") else "synthetic_walkthrough"
+        )
+        required_doc_tokens = ("synthetic",)
+    elif isinstance(provenance, dict) and provenance.get("data_class") == "recorded_public_data":
+        expected_data_class = "recorded_public_data"
+        expected_source = str(provenance.get("source", ""))
+        required_doc_tokens = ("recorded", "public-data")
+    elif isinstance(provenance, dict) and provenance.get("data_class") == "synthetic":
+        expected_data_class = "synthetic"
+        expected_source = str(provenance.get("source", ""))
+        required_doc_tokens = ("synthetic",)
+    else:
+        expected_data_class = ""
+        expected_source = ""
+        required_doc_tokens = ()
+
+    if not isinstance(provenance, dict):
+        issues.append(f"{_display_path(summary_path)} is missing fixture_provenance")
+        return
+    if manifest.get("fixture_provenance") != provenance:
+        issues.append(f"{_display_path(manifest_path)} fixture_provenance does not match summary.json")
+    if provenance.get("data_class") != expected_data_class:
+        issues.append(f"{_display_path(summary_path)} fixture_provenance.data_class must be {expected_data_class}")
+    if provenance.get("source") != expected_source:
+        issues.append(f"{_display_path(summary_path)} fixture_provenance.source must be {expected_source}")
+    if not isinstance(provenance.get("purpose"), str) or not provenance["purpose"]:
+        issues.append(f"{_display_path(summary_path)} fixture_provenance.purpose is missing")
+
+    doc_names = ("README.md", "case_notes.md") if expected_data_class == "recorded_public_data" else ("README.md",)
+    if relative_dir.endswith("futures_replay_walkthrough"):
+        doc_names = ("README.md", "walkthrough.md")
+    for name in doc_names:
+        doc_path = pack_dir / name
+        if not doc_path.exists():
+            issues.append(f"Missing provenance doc: {_display_path(doc_path)}")
+            continue
+        text = doc_path.read_text(encoding="utf-8").lower()
+        for token in required_doc_tokens:
+            if token not in text:
+                issues.append(f"{_display_path(doc_path)} is missing provenance token: {token}")
+
+
 def _audit_lifecycle(
     summary: dict[str, Any],
     lifecycle_counts: dict[str, int],
@@ -509,6 +568,48 @@ def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str
             issues.append(f"{_display_path(summary_csv_path)} {field} does not match summary.json")
 
 
+def _audit_fill_frequency_metrics(
+    pack_dir: Path,
+    summary: dict[str, Any],
+    trade_rows: list[dict[str, str]],
+    issues: list[str],
+) -> None:
+    summary_path = pack_dir / "summary.json"
+    if "fill_rate" in summary:
+        issues.append(f"{_display_path(summary_path)} uses ambiguous fill_rate; use explicit fill-frequency metrics")
+
+    lifecycle = summary.get("order_lifecycle_counts")
+    if not isinstance(lifecycle, dict):
+        return
+    try:
+        fill_count = int(summary.get("fill_count"))
+        quote_count = int(summary.get("quote_count"))
+        arrived = int(lifecycle.get("arrived"))
+    except (TypeError, ValueError):
+        return
+
+    expected = {
+        "fills_per_quote_request": float(Decimal(fill_count) / Decimal(quote_count)) if quote_count else 0.0,
+        "fills_per_arrived_order": float(Decimal(fill_count) / Decimal(arrived)) if arrived else 0.0,
+        "quote_fill_probability": (
+            float(Decimal(len({row.get("order_id") for row in trade_rows if row.get("order_id")})) / Decimal(arrived))
+            if arrived
+            else 0.0
+        ),
+    }
+    for field, expected_value in expected.items():
+        actual = summary.get(field)
+        if not isinstance(actual, (int, float)):
+            issues.append(f"{_display_path(summary_path)} is missing numeric {field}")
+            continue
+        if field == "quote_fill_probability" and not 0.0 <= float(actual) <= 1.0:
+            issues.append(f"{_display_path(summary_path)} quote_fill_probability must be bounded between 0 and 1")
+        if not math.isclose(float(actual), expected_value, rel_tol=1e-12, abs_tol=1e-12):
+            issues.append(
+                f"{_display_path(summary_path)} {field}={actual!r} does not match expected {expected_value!r}"
+            )
+
+
 def _audit_fill_exports(
     summary: dict[str, Any],
     trade_rows: list[dict[str, str]],
@@ -707,8 +808,10 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
 
     if summary:
         _audit_manifest(pack_dir, summary, manifest, issues)
+        _audit_fixture_provenance(pack_dir, summary, manifest, issues)
         _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
         _audit_summary_csv(pack_dir, summary, issues)
+        _audit_fill_frequency_metrics(pack_dir, summary, trade_rows, issues)
 
     expected_event_trace_count = summary.get("event_trace_count")
     if isinstance(expected_event_trace_count, int) and len(trace_rows) != expected_event_trace_count:

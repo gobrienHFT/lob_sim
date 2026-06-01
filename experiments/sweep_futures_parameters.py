@@ -22,7 +22,9 @@ SWEEP_FIELDS = [
     "half_spread_bps",
     "queue_repost_lots",
     "fill_count",
-    "fill_rate",
+    "quote_fill_probability",
+    "fills_per_quote_request",
+    "fills_per_arrived_order",
     "avg_spread_captured",
     "adverse_fill_rate_1s",
     "avg_markout_1s",
@@ -173,13 +175,14 @@ def write_sweep_outputs(
             writer.writerow({field: _csv_cell(row.get(field, "")) for field in SWEEP_FIELDS})
 
     table = [
-        "| Rank | Profile | Half-spread bps | Queue repost lots | Score | Fills | Fill rate | Avg spread | Adverse 1s | Inventory stdev | Max drawdown |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Rank | Profile | Half-spread bps | Queue repost lots | Score | Fills | Quote-fill probability | Fills / quote request | Avg spread | Adverse 1s | Inventory stdev | Max drawdown |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         table.append(
             "| {rank} | `{strategy_profile}` | {half_spread_bps} | {queue_repost_lots} | "
-            "{diagnostic_score:.6f} | {fill_count} | {fill_rate:.6f} | {avg_spread_captured:.6f} | "
+            "{diagnostic_score:.6f} | {fill_count} | {quote_fill_probability:.6f} | "
+            "{fills_per_quote_request:.6f} | {avg_spread_captured:.6f} | "
             "{adverse_fill_rate_1s:.6f} | {inventory_stdev:.6f} | {max_drawdown:.6f} |".format(**row)
         )
 
@@ -208,6 +211,7 @@ def write_sweep_outputs(
                 *metadata_lines,
                 "",
                 "- Ranking score is diagnostic only; it is not an alpha or profitability claim.",
+                "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
                 "- Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.",
                 "",
                 *table,

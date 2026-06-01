@@ -45,6 +45,19 @@ def build_reviewer_gate_steps(
 ) -> list[GateStep]:
     steps = [
         GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q")),
+        GateStep(
+            "type check core replay and simulation modules",
+            (
+                python_executable,
+                "-m",
+                "mypy",
+                "lob_sim/book",
+                "lob_sim/replay",
+                "lob_sim/sim/fill_model.py",
+                "lob_sim/sim/engine.py",
+                "lob_sim/sim/metrics.py",
+            ),
+        ),
         GateStep("ruff lint", (python_executable, "-m", "ruff", "check", ".")),
         GateStep("ruff format check", (python_executable, "-m", "ruff", "format", "--check", ".")),
         GateStep(

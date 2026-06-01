@@ -11,6 +11,7 @@ python scripts/reviewer_gate.py
 python scripts/audit_futures_pack.py --committed-futures
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
+python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m
 ```
 
 ## Fixture Provenance
@@ -18,6 +19,7 @@ python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_r
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
+- Larger public-data runs should follow `docs/real_data_runbook.md` and publish results using `docs/real_data_results_template.md`; raw files stay local-only unless they are small and redistributable.
 
 ## Stress Pack Event Counts
 

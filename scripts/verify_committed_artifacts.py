@@ -36,6 +36,10 @@ REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 EXTENSION_POINTS = REPO_ROOT / "docs" / "extension_points.md"
 TOKENIZED_ASSETS_ROADMAP = REPO_ROOT / "docs" / "tokenized_assets_roadmap.md"
+REAL_DATA_RUNBOOK = REPO_ROOT / "docs" / "real_data_runbook.md"
+REAL_DATA_RESULTS_TEMPLATE = REPO_ROOT / "docs" / "real_data_results_template.md"
+INTERVIEW_PACKET = REPO_ROOT / "docs" / "interview_packet.md"
+REAL_DATA_REPORT_SCRIPT = REPO_ROOT / "scripts" / "run_real_data_report.py"
 REVIEWER_GATE = REPO_ROOT / "scripts" / "reviewer_gate.py"
 COMMITTED_STRATEGY_PROFILE_INPUTS = (
     "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -185,6 +189,9 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "reviewer_results_memo.md",
     REPO_ROOT / "docs" / "architecture_decisions.md",
+    REAL_DATA_RUNBOOK,
+    REAL_DATA_RESULTS_TEMPLATE,
+    INTERVIEW_PACKET,
     REPO_ROOT / "CONTRIBUTING.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
@@ -552,7 +559,11 @@ def _verify_manifest_output_artifacts() -> list[str]:
 
 def _verify_manifest_source_provenance() -> list[str]:
     issues: list[str] = []
-    for manifest_path in [FUTURES_SHOWCASE_DIR / "manifest.json", RECORDED_CLIP_DIR / "manifest.json"]:
+    for manifest_path in [
+        FUTURES_SHOWCASE_DIR / "manifest.json",
+        RECORDED_CLIP_DIR / "manifest.json",
+        FUTURES_STRESS_DIR / "manifest.json",
+    ]:
         manifest = json.loads(_read_text(manifest_path))
         source = manifest.get("source")
         if not isinstance(source, dict):
@@ -566,6 +577,59 @@ def _verify_manifest_source_provenance() -> list[str]:
             issues.append(f"{_repo_relative(manifest_path)} source.git_branch is missing")
         if source.get("git_dirty") is not False:
             issues.append(f"{_repo_relative(manifest_path)} should be refreshed from a clean source tree")
+    return issues
+
+
+def _verify_futures_fixture_provenance() -> list[str]:
+    issues: list[str] = []
+    expectations = [
+        (
+            FUTURES_SHOWCASE_DIR,
+            "synthetic",
+            {"synthetic"},
+            "synthetic_walkthrough",
+            ["README.md", "walkthrough.md"],
+        ),
+        (
+            RECORDED_CLIP_DIR,
+            "recorded_public_data",
+            {"recorded", "public-data clip"},
+            "recorded_public_data_clip",
+            ["README.md", "case_notes.md"],
+        ),
+        (
+            FUTURES_STRESS_DIR,
+            "synthetic",
+            {"synthetic"},
+            "synthetic_exchange_shaped",
+            ["README.md", "case_notes.md"],
+        ),
+    ]
+    for directory, data_class, required_doc_tokens, source, doc_names in expectations:
+        summary_path = directory / "summary.json"
+        manifest_path = directory / "manifest.json"
+        summary = json.loads(_read_text(summary_path))
+        manifest = json.loads(_read_text(manifest_path))
+        summary_provenance = summary.get("fixture_provenance")
+        manifest_provenance = manifest.get("fixture_provenance")
+        if not isinstance(summary_provenance, dict):
+            issues.append(f"{_repo_relative(summary_path)} is missing fixture_provenance")
+            continue
+        if manifest_provenance != summary_provenance:
+            issues.append(f"{_repo_relative(manifest_path)} fixture_provenance does not match summary.json")
+        if summary_provenance.get("data_class") != data_class:
+            issues.append(f"{_repo_relative(summary_path)} fixture_provenance.data_class must be {data_class}")
+        if summary_provenance.get("source") != source:
+            issues.append(f"{_repo_relative(summary_path)} fixture_provenance.source must be {source}")
+        if not isinstance(summary_provenance.get("purpose"), str) or not summary_provenance["purpose"]:
+            issues.append(f"{_repo_relative(summary_path)} fixture_provenance.purpose is missing")
+
+        for name in doc_names:
+            doc_path = directory / name
+            text = _read_text(doc_path).lower()
+            for token in required_doc_tokens:
+                if token not in text:
+                    issues.append(f"{_repo_relative(doc_path)} is missing provenance token: {token}")
     return issues
 
 
@@ -790,6 +854,74 @@ def _verify_futures_fill_source_counts() -> list[str]:
             continue
         if sum(counts.values()) != summary.get("fill_count"):
             issues.append(f"{_repo_relative(path)} fill_source_counts do not sum to fill_count")
+    return issues
+
+
+def _verify_futures_fill_frequency_metrics() -> list[str]:
+    issues: list[str] = []
+    metric_fields = {
+        "quote_fill_probability",
+        "fills_per_quote_request",
+        "fills_per_arrived_order",
+    }
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        trades_path = directory / "trades.csv"
+        summary = json.loads(_read_text(summary_path))
+        if "fill_rate" in summary:
+            issues.append(f"{_repo_relative(summary_path)} uses ambiguous fill_rate")
+
+        lifecycle = summary.get("order_lifecycle_counts")
+        if not isinstance(lifecycle, dict):
+            issues.append(f"{_repo_relative(summary_path)} is missing order_lifecycle_counts")
+            continue
+        with trades_path.open("r", encoding="utf-8", newline="") as handle:
+            trade_rows = list(csv.DictReader(handle))
+        try:
+            fill_count = int(summary["fill_count"])
+            quote_count = int(summary["quote_count"])
+            arrived = int(lifecycle["arrived"])
+        except (KeyError, TypeError, ValueError):
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill frequency inputs")
+            continue
+        unique_filled_order_ids = {row.get("order_id") for row in trade_rows if row.get("order_id")}
+        expected = {
+            "quote_fill_probability": len(unique_filled_order_ids) / arrived if arrived else 0.0,
+            "fills_per_quote_request": fill_count / quote_count if quote_count else 0.0,
+            "fills_per_arrived_order": fill_count / arrived if arrived else 0.0,
+        }
+        for field in metric_fields:
+            actual = summary.get(field)
+            if not isinstance(actual, (int, float)):
+                issues.append(f"{_repo_relative(summary_path)} is missing numeric {field}")
+                continue
+            if field == "quote_fill_probability" and not 0 <= float(actual) <= 1:
+                issues.append(f"{_repo_relative(summary_path)} quote_fill_probability is out of range")
+            if not math.isclose(float(actual), expected[field], rel_tol=1e-12, abs_tol=1e-12):
+                issues.append(
+                    f"{_repo_relative(summary_path)} {field}={actual!r} does not match expected {expected[field]!r}"
+                )
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows:
+            issues.append(f"{_repo_relative(summary_csv_path)} is empty")
+            continue
+        fieldnames = set(rows[0])
+        if "fill_rate" in fieldnames:
+            issues.append(f"{_repo_relative(summary_csv_path)} uses ambiguous fill_rate")
+        missing = sorted(metric_fields - fieldnames)
+        if missing:
+            issues.append(f"{_repo_relative(summary_csv_path)} missing fill-frequency column(s): {', '.join(missing)}")
+        for field in metric_fields & fieldnames:
+            try:
+                csv_value = float(rows[0][field])
+            except (TypeError, ValueError):
+                issues.append(f"{_repo_relative(summary_csv_path)} {field} is not numeric")
+                continue
+            if not math.isclose(csv_value, float(summary[field]), rel_tol=1e-12, abs_tol=1e-12):
+                issues.append(f"{_repo_relative(summary_csv_path)} {field} does not match summary.json")
     return issues
 
 
@@ -1781,6 +1913,8 @@ def _verify_reviewer_gate_publication() -> list[str]:
     script = _read_text(REVIEWER_GATE)
     required_tokens = [
         "build_reviewer_gate_steps",
+        "type check",
+        "mypy",
         "ruff",
         "format",
         "scripts/verify_committed_artifacts.py",
@@ -1805,6 +1939,74 @@ def _verify_reviewer_gate_publication() -> list[str]:
             issues.append(f"Missing portable reviewer gate command in {_repo_relative(path)}")
         if "make reviewer-gate" not in text:
             issues.append(f"Missing Makefile reviewer gate command in {_repo_relative(path)}")
+    return issues
+
+
+def _verify_real_data_runbook_publication() -> list[str]:
+    issues: list[str] = []
+    for path in [REAL_DATA_RUNBOOK, REAL_DATA_RESULTS_TEMPLATE, REAL_DATA_REPORT_SCRIPT]:
+        if not path.exists():
+            issues.append(f"Missing real-data evidence artifact: {_repo_relative(path)}")
+
+    if REAL_DATA_RUNBOOK.exists():
+        text = _read_text(REAL_DATA_RUNBOOK)
+        required_tokens = [
+            "10-30 minute",
+            "BTCUSDT",
+            "ETHUSDT",
+            "python -m lob_sim.cli --env .env.real-data collect",
+            "python scripts/run_real_data_report.py",
+            "python scripts/audit_futures_pack.py",
+            "python experiments/benchmark_futures_replay.py",
+            "input SHA-256",
+            "local-only raw data",
+        ]
+        for token in required_tokens:
+            if token not in text:
+                issues.append(f"docs/real_data_runbook.md is missing expected token: {token}")
+
+    if REAL_DATA_RESULTS_TEMPLATE.exists():
+        text = _read_text(REAL_DATA_RESULTS_TEMPLATE)
+        for token in [
+            "Event Counts",
+            "Gap Handling",
+            "Fill Source Mix",
+            "Markout By Source",
+            "Inventory And Drawdown",
+            "Latency Sensitivity",
+            "Benchmark Context",
+        ]:
+            if token not in text:
+                issues.append(f"docs/real_data_results_template.md is missing expected section: {token}")
+
+    for path in [REPO_ROOT / "README.md", HFT_REVIEWER_GUIDE, REPO_ROOT / "docs" / "reviewer_results_memo.md"]:
+        text = _read_text(path)
+        if "docs/real_data_runbook.md" not in text:
+            issues.append(f"Missing real-data runbook link in {_repo_relative(path)}")
+        if "docs/real_data_results_template.md" not in text:
+            issues.append(f"Missing real-data results template link in {_repo_relative(path)}")
+    return issues
+
+
+def _verify_interview_packet_publication() -> list[str]:
+    issues: list[str] = []
+    if not INTERVIEW_PACKET.exists():
+        return [f"Missing interview packet: {_repo_relative(INTERVIEW_PACKET)}"]
+    text = _read_text(INTERVIEW_PACKET)
+    for token in [
+        "60-Second Pitch",
+        "Architecture",
+        "python scripts/reviewer_gate.py",
+        "Strongest Files",
+        "Assumptions Tested",
+        "Not Claimed",
+        "Likely Interview Q&A",
+    ]:
+        if token not in text:
+            issues.append(f"docs/interview_packet.md is missing expected token: {token}")
+    for path in [REPO_ROOT / "README.md", REPO_ROOT / "WALKTHROUGH.md", HFT_REVIEWER_GUIDE]:
+        if "docs/interview_packet.md" not in _read_text(path):
+            issues.append(f"Missing interview packet link in {_repo_relative(path)}")
     return issues
 
 
@@ -1935,6 +2137,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md is missing feed adapter provenance"
             )
+        if "quote_fill_probability" not in sweep_doc or "fills_per_quote_request" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md must explain fill-frequency metrics"
+            )
         if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md still depends on a local-only input"
@@ -1949,6 +2155,9 @@ def _verify_strategy_profile_publication() -> list[str]:
             "half_spread_bps",
             "queue_repost_lots",
             "fill_count",
+            "quote_fill_probability",
+            "fills_per_quote_request",
+            "fills_per_arrived_order",
             "adverse_fill_rate_1s",
             "markout_by_fill_source",
             "inventory_stdev",
@@ -1963,6 +2172,8 @@ def _verify_strategy_profile_publication() -> list[str]:
             "order_lifecycle_counts",
         }
         fieldnames = set(rows[0].keys()) if rows else set()
+        if "fill_rate" in fieldnames:
+            issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv uses ambiguous fill_rate")
         missing_columns = sorted(required_columns - fieldnames)
         if missing_columns:
             issues.append(
@@ -2020,6 +2231,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             )
         if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in latency_doc:
             issues.append("docs/strategy_results/futures_latency_sweep_reference.md is missing feed adapter provenance")
+        if "quote_fill_probability" not in latency_doc or "fills_per_quote_request" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md must explain fill-frequency metrics"
+            )
 
         with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
             latency_rows = list(csv.DictReader(handle))
@@ -2030,6 +2245,9 @@ def _verify_strategy_profile_publication() -> list[str]:
             "order_latency_ms",
             "cancel_latency_ms",
             "fill_count",
+            "quote_fill_probability",
+            "fills_per_quote_request",
+            "fills_per_arrived_order",
             "adverse_fill_rate_1s",
             "markout_by_fill_source",
             "inventory_stdev",
@@ -2039,6 +2257,8 @@ def _verify_strategy_profile_publication() -> list[str]:
             "order_lifecycle_counts",
         }
         latency_fieldnames = set(latency_rows[0].keys()) if latency_rows else set()
+        if "fill_rate" in latency_fieldnames:
+            issues.append("docs/strategy_results/futures_latency_sweep_reference.csv uses ambiguous fill_rate")
         missing_latency_columns = sorted(required_latency_columns - latency_fieldnames)
         if missing_latency_columns:
             issues.append(
@@ -2216,12 +2436,14 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_summary_output_files())
     issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_manifest_source_provenance())
+    issues.extend(_verify_futures_fixture_provenance())
     issues.extend(_verify_futures_feed_adapter_metadata())
     issues.extend(_verify_futures_instrument_specs_metadata())
     issues.extend(_verify_futures_simulation_assumptions_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
+    issues.extend(_verify_futures_fill_frequency_metrics())
     issues.extend(_verify_futures_markout_by_source())
     issues.extend(_verify_public_consumption_diagnostics())
     issues.extend(_verify_futures_self_trade_prevention_counts())
@@ -2235,6 +2457,8 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_benchmark_publication())
     issues.extend(_verify_replay_contract_publication())
     issues.extend(_verify_reviewer_gate_publication())
+    issues.extend(_verify_real_data_runbook_publication())
+    issues.extend(_verify_interview_packet_publication())
     issues.extend(_verify_futures_stress_pack_publication())
     issues.extend(_verify_artifact_order())
     return issues

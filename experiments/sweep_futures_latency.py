@@ -21,7 +21,9 @@ LATENCY_SWEEP_FIELDS = [
     "order_latency_ms",
     "cancel_latency_ms",
     "fill_count",
-    "fill_rate",
+    "quote_fill_probability",
+    "fills_per_quote_request",
+    "fills_per_arrived_order",
     "avg_spread_captured",
     "adverse_fill_rate_1s",
     "avg_markout_1s",
@@ -171,13 +173,14 @@ def write_latency_sweep_outputs(
             writer.writerow({field: _csv_cell(row.get(field, "")) for field in LATENCY_SWEEP_FIELDS})
 
     table = [
-        "| Rank | Profile | Order latency ms | Cancel latency ms | Score | Fills | Fill rate | Avg spread | Adverse 1s | Avg wait ms | Inventory stdev | Max drawdown |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Rank | Profile | Order latency ms | Cancel latency ms | Score | Fills | Quote-fill probability | Fills / quote request | Avg spread | Adverse 1s | Avg wait ms | Inventory stdev | Max drawdown |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         table.append(
             "| {rank} | `{strategy_profile}` | {order_latency_ms:g} | {cancel_latency_ms:g} | "
-            "{diagnostic_score:.6f} | {fill_count} | {fill_rate:.6f} | {avg_spread_captured:.6f} | "
+            "{diagnostic_score:.6f} | {fill_count} | {quote_fill_probability:.6f} | "
+            "{fills_per_quote_request:.6f} | {avg_spread_captured:.6f} | "
             "{adverse_fill_rate_1s:.6f} | {avg_fill_wait_ms:.6f} | {inventory_stdev:.6f} | {max_drawdown:.6f} |".format(
                 **row
             )
@@ -213,6 +216,7 @@ def write_latency_sweep_outputs(
                 "",
                 "- Latency values are modeled order-arrival and cancel-ack delays inside the replay simulator, not measured gateway, colocated, or exchange latency.",
                 "- Ranking score is diagnostic only; it is not a latency-arbitrage, alpha, or profitability claim.",
+                "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
                 "- Use this table to inspect how queue position, fill quality, adverse markout, and cancel races respond to explicit latency assumptions on one deterministic fixture.",
                 "",
                 *table,

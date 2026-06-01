@@ -424,53 +424,53 @@ class SimulationEngine:
                 self._request_cancel(ts, symbol, existing, reason="stale_slot")
 
             for slot, target in desired_targets.items():
-                existing = existing_orders.get(slot)
+                current_existing: Order | None = existing_orders.get(slot)
                 slot_key = self._slot_key(symbol, side, slot)
                 replacement_ack_ts: float | None = None
                 replacement_pending = slot_key in self._pending_replacement_slots
-                if existing is None and replacement_pending:
+                if current_existing is None and replacement_pending:
                     continue
                 observed_queue_ahead_lots = 0
-                strategy_existing = existing
-                if existing is not None:
-                    observed_queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, existing)
-                    strategy_existing = replace(existing, queue_ahead_lots=observed_queue_ahead_lots)
-                    pending_cancel_ack_ts = self._pending_cancel_ack_ts.get(existing.order_id)
+                strategy_existing = current_existing
+                if current_existing is not None:
+                    observed_queue_ahead_lots = self.fill_model.queue_ahead_lots(symbol, current_existing)
+                    strategy_existing = replace(current_existing, queue_ahead_lots=observed_queue_ahead_lots)
+                    pending_cancel_ack_ts = self._pending_cancel_ack_ts.get(current_existing.order_id)
                 else:
                     pending_cancel_ack_ts = None
                 refresh = self.strategy.should_refresh(target, strategy_existing)
-                if existing is not None and (
-                    existing.price_tick != target.price_tick
-                    or existing.qty_lots != target.qty_lots
+                if current_existing is not None and (
+                    current_existing.price_tick != target.price_tick
+                    or current_existing.qty_lots != target.qty_lots
                     or refresh
                     or pending_cancel_ack_ts is not None
                 ):
                     replacement_ack_ts = self._request_cancel(
                         ts,
                         symbol,
-                        existing,
+                        current_existing,
                         reason="replace_quote",
                         details={
                             "target_price_tick": target.price_tick,
                             "target_qty_lots": target.qty_lots,
                             "target_refresh_key": target.refresh_key,
-                            "current_refresh_key": existing.refresh_key,
+                            "current_refresh_key": current_existing.refresh_key,
                             "queue_ahead_lots": observed_queue_ahead_lots,
-                            "price_changed": existing.price_tick != target.price_tick,
-                            "qty_changed": existing.qty_lots != target.qty_lots,
+                            "price_changed": current_existing.price_tick != target.price_tick,
+                            "qty_changed": current_existing.qty_lots != target.qty_lots,
                             "refresh_requested": refresh,
                             "pending_cancel": pending_cancel_ack_ts is not None,
                         },
                     )
-                    existing = None
+                    current_existing = None
                     if replacement_pending:
                         continue
                     self._pending_replacement_slots.add(slot_key)
 
                 if (
-                    existing is not None
-                    and existing.price_tick == target.price_tick
-                    and existing.qty_lots == target.qty_lots
+                    current_existing is not None
+                    and current_existing.price_tick == target.price_tick
+                    and current_existing.qty_lots == target.qty_lots
                 ):
                     continue
 

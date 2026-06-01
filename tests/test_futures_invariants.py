@@ -1214,6 +1214,10 @@ def test_simulation_event_trace_exports_order_lifecycle(
         "cancel_acknowledged": 0,
         "self_trade_prevented": 0,
     }
+    assert "fill_rate" not in summary
+    assert summary["quote_fill_probability"] == pytest.approx(1 / 3)
+    assert summary["fills_per_quote_request"] == pytest.approx(1 / 3)
+    assert summary["fills_per_arrived_order"] == pytest.approx(1 / 3)
     assert summary["public_consumption_summary"]["sources"]["agg_trade"]["observed_lots"] == 2
     assert summary["public_consumption_summary"]["sources"]["agg_trade"]["modeled_lots"] == 2
     assert summary["public_consumption_summary"]["sources"]["agg_trade"]["queue_consumed_lots"] == 2

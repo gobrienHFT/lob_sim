@@ -9,7 +9,7 @@ The repo has two artifacts:
 - A futures core that records public Binance USD-M market data, reconstructs the local book from snapshots and depth diffs, and replays that stream through an event-driven queue-aware passive-fill simulation.
 - A controlled options case study that keeps pricing and inventory logic explicit instead of claiming venue-calibrated options microstructure.
 
-For a reviewer-focused path through the futures core, start with [docs/hft_reviewer_guide.md](docs/hft_reviewer_guide.md).
+For a reviewer-focused path through the futures core, start with [docs/hft_reviewer_guide.md](docs/hft_reviewer_guide.md). For a condensed interview script, open [docs/interview_packet.md](docs/interview_packet.md).
 
 Reviewer quickstart:
 
@@ -17,7 +17,7 @@ Reviewer quickstart:
 python scripts/reviewer_gate.py
 ```
 
-For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md). The memo points to the real recorded clip, the synthetic stress pack, benchmark commands, and limitations.
+For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md). The memo points to the real recorded clip, the synthetic stress pack, the larger-tape path in [docs/real_data_runbook.md](docs/real_data_runbook.md), the publication checklist in [docs/real_data_results_template.md](docs/real_data_results_template.md), benchmark commands, and limitations.
 
 ### Why this stands out
 
@@ -137,7 +137,7 @@ Tracked metrics include:
 - event-time trace rows for market records, strategy decisions, scheduled arrivals, cancels, and fills
 - risk-halt trace rows when configured kill-switch limits stop trading and clear live strategy state
 - average spread captured
-- fill rate and fill-from-top rate
+- quote-fill probability, fills per arrived order, fills per quote request, and fill-from-top rate
 - queue-fill count and max queue ahead
 - order lifecycle counts for scheduled arrivals, arrived quotes, resting outcomes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements
 - queue-ahead-at-arrival diagnostics for resting strategy quotes, separate from fill-time residual queue ahead
@@ -178,8 +178,8 @@ make benchmark-fixture
 make latency-sweep-fixture
 ```
 
-`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target runs the same checks as explicit Makefile steps. The checked-in GitHub Actions workflow runs the non-benchmark gates plus the committed-fixture determinism check and committed futures pack audit on Python 3.11, 3.12, and 3.13 to match the package metadata.
-`make ci` runs the test suite, committed-artifact verifier, and whitespace check.
+`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the core replay/simulation modules, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target runs the same checks as explicit Makefile steps. The checked-in GitHub Actions workflow runs the evidence gates, type check, committed-fixture determinism check, committed futures pack audit, and Makefile reviewer gate on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`make ci` runs the test suite, core type check, committed-artifact verifier, and whitespace check.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.
 `make benchmark-fixture` writes `outputs/futures_benchmark.json` with input/config digests, p50/p99 loop timing, events/sec, memory, runtime, and source metadata.
@@ -208,6 +208,9 @@ Committed futures walkthrough artifacts:
 - Latency sensitivity reference: [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md)
 - Stress evidence pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
 - Reviewer results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
+- Interview packet: [docs/interview_packet.md](docs/interview_packet.md)
+- Larger real-data runbook: [docs/real_data_runbook.md](docs/real_data_runbook.md)
+- Larger real-data results template: [docs/real_data_results_template.md](docs/real_data_results_template.md)
 
 ## Limitations
 

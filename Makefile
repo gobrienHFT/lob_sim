@@ -7,7 +7,7 @@ DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
 
-.PHONY: setup test lint format-check verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
+.PHONY: setup test type-check lint format-check verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -15,6 +15,9 @@ setup:
 
 test:
 	$(PY) -m pytest
+
+type-check:
+	$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
 
 lint:
 	$(PY) -m ruff check .
@@ -28,10 +31,11 @@ verify-artifacts:
 check-whitespace:
 	git diff --check
 
-ci: test lint format-check verify-artifacts check-whitespace
+ci: test type-check lint format-check verify-artifacts check-whitespace
 
 reviewer-gate:
 	$(PY) -m pytest -q
+	$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
 	$(PY) -m ruff check .
 	$(PY) -m ruff format --check .
 	$(PY) scripts/verify_committed_artifacts.py

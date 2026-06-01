@@ -46,7 +46,7 @@ python scripts/audit_futures_pack.py --committed-futures
 - Trades: [`futures_recorded_clip_case/trades.csv`](futures_recorded_clip_case/trades.csv)
 - Event trace: [`futures_recorded_clip_case/event_trace.csv`](futures_recorded_clip_case/event_trace.csv)
 - Notes: [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
-- Input type: clipped recorded BTCUSDT event stream from an existing local raw capture
+- Input type: recorded BTCUSDT public-data clip from an existing local raw capture
 - Regenerate with:
 
 ```bash

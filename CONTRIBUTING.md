@@ -19,6 +19,12 @@ If `make` is available, the equivalent target is:
 make reviewer-gate
 ```
 
+For the gradual core type gate alone:
+
+```bash
+python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
+```
+
 ## Artifact Refresh Policy
 
 Committed futures reviewer artifacts must be refreshed from a clean source tree so manifests carry useful provenance. Use:

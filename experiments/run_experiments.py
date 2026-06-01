@@ -46,7 +46,8 @@ def _spread_width_sweep(cfg, file_path: str, out_dir: Path) -> list[dict]:
             {
                 "mm_half_spread_bps": float(half_spread),
                 "total_pnl": summary["total_pnl"],
-                "fill_rate": summary["fill_rate"],
+                "quote_fill_probability": summary["quote_fill_probability"],
+                "fills_per_quote_request": summary["fills_per_quote_request"],
                 "avg_spread_captured": summary["avg_spread_captured"],
                 "fill_count": summary["fill_count"],
                 "queue_fill_count": summary["queue_fill_count"],
@@ -60,9 +61,15 @@ def _spread_width_sweep(cfg, file_path: str, out_dir: Path) -> list[dict]:
     plt.plot(x, [r["total_pnl"] for r in rows], marker="o", label="Total PnL")
     plt.ylabel("Total PnL")
     plt.twinx()
-    plt.plot(x, [r["fill_rate"] for r in rows], marker="x", color="tab:orange", label="Fill rate")
-    plt.ylabel("Fill rate")
-    plt.title("Spread width effect on PnL and fill rate")
+    plt.plot(
+        x,
+        [r["quote_fill_probability"] for r in rows],
+        marker="x",
+        color="tab:orange",
+        label="Quote-fill probability",
+    )
+    plt.ylabel("Quote-fill probability")
+    plt.title("Spread width effect on PnL and quote-fill probability")
     plt.xlabel("Half spread bps")
     plt.tight_layout()
     plt.savefig(out_dir / "spread_width.png")
@@ -111,7 +118,8 @@ def _latency_impact(cfg, file_path: str, out_dir: Path) -> list[dict]:
         rows.append(
             {
                 "sim_order_latency_ms": float(latency_ms),
-                "fill_rate": summary["fill_rate"],
+                "quote_fill_probability": summary["quote_fill_probability"],
+                "fills_per_quote_request": summary["fills_per_quote_request"],
                 "max_queue_ahead_lots": summary["max_queue_ahead_lots"],
                 "fill_from_top_rate": summary["fill_from_top_rate"],
                 "total_pnl": summary["total_pnl"],

@@ -420,6 +420,7 @@ def refresh_futures_stress_case(output_dir: Path = STRESS_CASE_DIR) -> dict[str,
         event_trace = list(engine.event_trace)
         _assert_stress_coverage(summary, event_trace)
         summary["fixture_provenance"] = {
+            "data_class": "synthetic",
             "source": "synthetic_exchange_shaped",
             "purpose": "compact deterministic stress coverage for public L2 replay mechanics",
             "script": "scripts/refresh_futures_stress_case.py",

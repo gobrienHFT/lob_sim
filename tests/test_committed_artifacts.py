@@ -25,6 +25,10 @@ REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
+INTERVIEW_PACKET = REPO_ROOT / "docs" / "interview_packet.md"
+REAL_DATA_RUNBOOK = REPO_ROOT / "docs" / "real_data_runbook.md"
+REAL_DATA_RESULTS_TEMPLATE = REPO_ROOT / "docs" / "real_data_results_template.md"
+REAL_DATA_REPORT_SCRIPT = REPO_ROOT / "scripts" / "run_real_data_report.py"
 FUTURES_PARAMETER_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.csv"
@@ -952,6 +956,10 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python -m pip check" in workflow
     assert "python -m lob_sim.cli --help" in workflow
     assert "python -m pytest -q" in workflow
+    assert (
+        "python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py"
+        in workflow
+    )
     assert "python -m ruff check ." in workflow
     assert "python -m ruff format --check ." in workflow
     assert "python scripts/check_futures_determinism.py" in workflow
@@ -959,9 +967,15 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python scripts/audit_futures_pack.py --committed-futures" in workflow
     assert "python scripts/verify_committed_artifacts.py" in workflow
     assert "git diff --check" in workflow
+    assert "make reviewer-gate" in workflow
     assert "MPLBACKEND: Agg" in workflow
-    assert "ci: test lint format-check verify-artifacts check-whitespace" in makefile
+    assert "ci: test type-check lint format-check verify-artifacts check-whitespace" in makefile
     assert "reviewer-gate:" in makefile
+    assert "type-check:" in makefile
+    assert (
+        "$(PY) -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py"
+        in makefile
+    )
     assert "lint:" in makefile
     assert "format-check:" in makefile
     assert "$(PY) -m ruff check ." in makefile
@@ -978,13 +992,22 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "experiments/sweep_futures_latency.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
     assert "scripts/refresh_futures_stress_case.py" in (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "mypy>=1.10" in pyproject
     assert FUTURES_DETERMINISM_CHECK.exists()
     assert FUTURES_PACK_AUDIT.exists()
     assert REVIEWER_GATE.exists()
+    assert REAL_DATA_REPORT_SCRIPT.exists()
+    assert INTERVIEW_PACKET.exists()
+    assert REAL_DATA_RUNBOOK.exists()
+    assert REAL_DATA_RESULTS_TEMPLATE.exists()
     assert "python scripts/reviewer_gate.py" in README.read_text(encoding="utf-8")
     assert "python scripts/reviewer_gate.py" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
     assert "make reviewer-gate" in README.read_text(encoding="utf-8")
     assert "make reviewer-gate" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
+    assert "docs/interview_packet.md" in README.read_text(encoding="utf-8")
+    assert "docs/interview_packet.md" in WALKTHROUGH.read_text(encoding="utf-8")
+    assert "docs/real_data_runbook.md" in README.read_text(encoding="utf-8")
+    assert "docs/real_data_results_template.md" in README.read_text(encoding="utf-8")
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:

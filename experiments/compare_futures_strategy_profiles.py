@@ -13,6 +13,9 @@ COMPARISON_FIELDS: list[tuple[str, str]] = [
     ("quote_count", "quote_count"),
     ("cancel_count", "cancel_count"),
     ("fill_count", "fill_count"),
+    ("quote_fill_probability", "quote_fill_probability"),
+    ("fills_per_quote_request", "fills_per_quote_request"),
+    ("fills_per_arrived_order", "fills_per_arrived_order"),
     ("fill_from_top_count", "fill_from_top_count"),
     ("avg_queue_ahead_lots", "avg_queue_ahead_lots"),
     ("avg_arrival_queue_ahead_lots", "avg_arrival_queue_ahead_lots"),
@@ -29,7 +32,9 @@ def _extract_comparison_metrics(summary: dict) -> dict:
     return {key: summary[key] for _label, key in COMPARISON_FIELDS} | {
         "strategy_profile": summary["strategy_profile"],
         "total_pnl": summary["total_pnl"],
-        "fill_rate": summary["fill_rate"],
+        "quote_fill_probability": summary["quote_fill_probability"],
+        "fills_per_quote_request": summary["fills_per_quote_request"],
+        "fills_per_arrived_order": summary["fills_per_arrived_order"],
         "adverse_fill_rate_1s": summary["adverse_fill_rate_1s"],
     }
 

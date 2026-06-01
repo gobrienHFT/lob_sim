@@ -6,6 +6,8 @@
 
 The options material is secondary: a controlled dealer-pricing case study for reservation price, signed markout, and hedging logic under synthetic assumptions.
 
+Repository shortcut paths: `docs/interview_packet.md`, `docs/real_data_runbook.md`, and `docs/real_data_results_template.md`.
+
 ## What To Inspect First
 
 1. [Replay contract](replay_contract.md)
@@ -26,6 +28,9 @@ The options material is secondary: a controlled dealer-pricing case study for re
 16. [Synthetic stress evidence pack](sample_outputs/futures_stress_case/README.md)
 17. [Reviewer results memo](reviewer_results_memo.md)
 18. [Architecture decisions](architecture_decisions.md)
+19. [Interview packet](interview_packet.md)
+20. [Larger real-data runbook](real_data_runbook.md)
+21. [Real-data results template](real_data_results_template.md)
 
 ## Architecture
 
@@ -48,6 +53,7 @@ flowchart LR
 
 ```bash
 python scripts/reviewer_gate.py
+python -m mypy lob_sim/book lob_sim/replay lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py
 python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
@@ -58,6 +64,7 @@ python experiments/benchmark_futures_replay.py --file docs/sample_outputs/future
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
 python scripts/refresh_futures_parameter_sweep_reference.py
+python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m
 ```
 
 With `make` available:
@@ -78,7 +85,7 @@ make latency-sweep-fixture
 make refresh-artifacts
 ```
 
-`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` is the Makefile spelling of the same path. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, checks the committed futures fixture determinism, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` is the Makefile spelling of the same path. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13. Each job installs the package with dev dependencies, runs `pytest`, runs mypy over the core replay/simulation modules, checks the committed futures fixture determinism, verifies committed artifacts, and checks whitespace. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
 
 ## Observed vs Inferred
 

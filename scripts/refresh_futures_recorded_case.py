@@ -119,6 +119,12 @@ def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[
             raise RuntimeError("Recorded case clip did not produce any strategy quotes.")
         if summary["fill_count"] <= 0:
             raise RuntimeError("Recorded case clip did not produce a passive fill.")
+        summary["fixture_provenance"] = {
+            "data_class": "recorded_public_data",
+            "source": "recorded_public_data_clip",
+            "purpose": "small committed public-data clip used as a reproducible real-tape proof point",
+            "script": "scripts/refresh_futures_recorded_case.py",
+        }
 
         committed_paths = {
             "event_trace": output_dir / "event_trace.csv",
@@ -131,6 +137,7 @@ def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[
         manifest = json.loads(generated_paths["manifest"].read_text(encoding="utf-8"))
         manifest["input"]["path"] = _path_for_summary(input_path)
         manifest["outputs"] = dict(summary["output_files"])
+        manifest["fixture_provenance"] = dict(summary["fixture_provenance"])
 
         committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
         write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})

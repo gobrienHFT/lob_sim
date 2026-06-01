@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
 from math import sqrt
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from ..book.local_book import LocalOrderBook
 from ..config import Config
@@ -44,6 +44,7 @@ class SimulationMetrics:
         self.fill_count = 0
         self.fill_qty: Decimal = Decimal("0")
         self.fill_source_counts: dict[FillSource, int] = {source: 0 for source in FILL_SOURCES}
+        self._filled_order_ids: set[str] = set()
         self.quote_count = 0
         self.cancel_count = 0
         self.cancel_ack_count = 0
@@ -218,7 +219,8 @@ class SimulationMetrics:
                 continue
 
             side = str(entry["side"])
-            fill_source = str(entry.get("fill_source", "depth_update"))
+            raw_fill_source = str(entry.get("fill_source", "depth_update"))
+            fill_source = cast(FillSource, raw_fill_source if raw_fill_source in FILL_SOURCES else "depth_update")
             price = Decimal(str(entry["price"]))
             qty = Decimal(str(entry["qty"]))
             regime = str(entry["regime"])
@@ -299,7 +301,7 @@ class SimulationMetrics:
         qty = book.spec.lot_to_qty(fill.qty_lots)
         price = book.spec.tick_to_price(fill.price_tick)
         contract_multiplier = book.spec.contract_multiplier
-        side_sign = Decimal("1") if fill.side == "bid" else Decimal("-1")
+        side_sign = 1 if fill.side == "bid" else -1
         signed_qty_lots = side_sign * fill.qty_lots
 
         realized_delta = Decimal("0")
@@ -307,7 +309,7 @@ class SimulationMetrics:
             pos.lot_size = signed_qty_lots
             pos.avg_cost = price
         elif pos.lot_size * signed_qty_lots > 0:
-            total_new_abs = Decimal(abs(pos.lot_size) + abs(signed_qty_lots))
+            total_new_abs = abs(pos.lot_size) + abs(signed_qty_lots)
             old_abs_qty = book.spec.lot_to_qty(abs(pos.lot_size))
             add_qty = book.spec.lot_to_qty(abs(signed_qty_lots))
             pos.avg_cost = (old_abs_qty * (pos.avg_cost or Decimal("0")) + add_qty * price) / book.spec.lot_to_qty(
@@ -337,6 +339,8 @@ class SimulationMetrics:
         self.realized_pnl -= fee.amount
 
         self.fill_count += 1
+        if fill.order_id is not None:
+            self._filled_order_ids.add(fill.order_id)
         self.fill_qty += qty
         self.fill_source_counts[fill.source] = self.fill_source_counts.get(fill.source, 0) + 1
 
@@ -477,9 +481,17 @@ class SimulationMetrics:
         if self.spread_capture_qty > 0:
             avg_spread = self.spread_capture_sum / self.spread_capture_qty
 
-        fill_rate = Decimal("0")
+        fills_per_quote_request = Decimal("0")
         if self.quote_count > 0:
-            fill_rate = Decimal(self.fill_count) / Decimal(self.quote_count)
+            fills_per_quote_request = Decimal(self.fill_count) / Decimal(self.quote_count)
+
+        fills_per_arrived_order = Decimal("0")
+        if self.order_arrival_count > 0:
+            fills_per_arrived_order = Decimal(self.fill_count) / Decimal(self.order_arrival_count)
+
+        quote_fill_probability = Decimal("0")
+        if self.order_arrival_count > 0:
+            quote_fill_probability = Decimal(len(self._filled_order_ids)) / Decimal(self.order_arrival_count)
 
         avg_fill_wait_ms = Decimal("0")
         if self.fill_wait_count > 0:
@@ -587,7 +599,9 @@ class SimulationMetrics:
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
             "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
-            "fill_rate": float(fill_rate),
+            "quote_fill_probability": float(quote_fill_probability),
+            "fills_per_quote_request": float(fills_per_quote_request),
+            "fills_per_arrived_order": float(fills_per_arrived_order),
             "avg_spread_captured": float(avg_spread),
             "avg_inventory": float(self._inv_mean),
             "inventory_stdev": float(inv_stdev),

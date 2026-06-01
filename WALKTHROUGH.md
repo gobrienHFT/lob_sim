@@ -8,7 +8,7 @@ The options side is a separate controlled dealer-pricing case study. It is there
 
 ## 90-Second Walkthrough
 
-1. Open [README.md](README.md) and anchor the discussion on the futures replay, not the options artifact.
+1. Open [README.md](README.md) and [docs/interview_packet.md](docs/interview_packet.md) and anchor the discussion on the futures replay, not the options artifact.
 2. Point to [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for snapshot seeding, `U/u/pu` continuity, and gap handling.
 3. Point to [lob_sim/sim/fill_model.py](lob_sim/sim/fill_model.py) and [tests/test_fill_model.py](tests/test_fill_model.py) for FIFO queue consumption, queue-ahead tracking, and passive fill attribution.
 4. Open [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures artifact path.
