@@ -11,6 +11,14 @@ The repo has two artifacts:
 
 For a reviewer-focused path through the futures core, start with [docs/hft_reviewer_guide.md](docs/hft_reviewer_guide.md).
 
+Reviewer quickstart:
+
+```bash
+python scripts/reviewer_gate.py
+```
+
+For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md). The memo points to the real recorded clip, the synthetic stress pack, benchmark commands, and limitations.
+
 ### Why this stands out
 
 - Event-time replay rather than bar backtest.
@@ -198,6 +206,8 @@ Committed futures walkthrough artifacts:
 - Strategy profile reference: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
 - Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
 - Latency sensitivity reference: [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md)
+- Stress evidence pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
+- Reviewer results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
 
 ## Limitations
 

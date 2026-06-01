@@ -15,6 +15,7 @@ from scripts.audit_futures_pack import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHOWCASE_PACK = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough"
 RECORDED_PACK = REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case"
+STRESS_PACK = REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case"
 
 
 def test_committed_futures_showcase_pack_audit_passes() -> None:
@@ -34,18 +35,21 @@ def test_committed_futures_showcase_pack_audit_passes() -> None:
 
 
 def test_committed_futures_pack_collection_audit_passes() -> None:
-    result = audit_futures_packs([SHOWCASE_PACK, RECORDED_PACK])
+    result = audit_futures_packs([SHOWCASE_PACK, RECORDED_PACK, STRESS_PACK])
 
     assert result["schema_version"] == PACK_AUDIT_SCHEMA_VERSION
     assert result["ok"] is True
     assert result["issues"] == []
-    assert result["pack_count"] == 2
+    assert result["pack_count"] == 3
     assert [pack["pack_dir"] for pack in result["packs"]] == [
         "docs/sample_outputs/futures_replay_walkthrough",
         "docs/sample_outputs/futures_recorded_clip_case",
+        "docs/sample_outputs/futures_stress_case",
     ]
-    assert [pack["counts"]["fill_rows"] for pack in result["packs"]] == [1, 1]
+    assert [pack["counts"]["fill_rows"] for pack in result["packs"]] == [1, 1, 5]
     assert result["packs"][1]["counts"]["queue_consumption_rows"] > 1000
+    assert result["packs"][2]["counts"]["event_type_counts"]["cancel_ack"] == 2
+    assert result["packs"][2]["counts"]["event_type_counts"]["markout"] == 5
 
 
 def test_futures_pack_collection_audit_rejects_empty_input() -> None:
@@ -77,10 +81,7 @@ def test_futures_pack_audit_rejects_stale_summary_csv(tmp_path: Path) -> None:
     result = audit_futures_pack(copied_pack)
 
     assert result["ok"] is False
-    assert any(
-        "summary.csv fill_count='99' does not match summary value 1" in issue
-        for issue in result["issues"]
-    )
+    assert any("summary.csv fill_count='99' does not match summary value 1" in issue for issue in result["issues"])
     assert any("output_artifacts[summary_csv].sha256 is stale" in issue for issue in result["issues"])
 
 
@@ -118,8 +119,7 @@ def test_futures_pack_audit_rejects_stale_trade_export(tmp_path: Path) -> None:
 
     assert result["ok"] is False
     assert any(
-        "trades.csv:2 fee='999' does not match summary.fills[0].fee='0.0000'" in issue
-        for issue in result["issues"]
+        "trades.csv:2 fee='999' does not match summary.fills[0].fee='0.0000'" in issue for issue in result["issues"]
     )
     assert any("output_artifacts[trades].sha256 is stale" in issue for issue in result["issues"])
 
@@ -243,6 +243,5 @@ def test_futures_pack_audit_rejects_queue_consumption_mismatch(tmp_path: Path) -
 
     assert result["ok"] is False
     assert (
-        "public_consumption_summary.agg_trade.queue_consumed_lots=99 does not match trace value 2"
-        in result["issues"]
+        "public_consumption_summary.agg_trade.queue_consumed_lots=99 does not match trace value 2" in result["issues"]
     )

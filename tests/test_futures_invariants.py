@@ -168,9 +168,7 @@ def test_observed_queue_ahead_does_not_mutate_fifo_consumption_state() -> None:
         AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=1.2),
         1.2,
     )
-    assert [(fill.order_id, fill.qty_lots, fill.source) for fill in fills] == [
-        ("strategy-bid", 1, "agg_trade")
-    ]
+    assert [(fill.order_id, fill.qty_lots, fill.source) for fill in fills] == [("strategy-bid", 1, "agg_trade")]
     assert model.get_order("BTCUSDT", "bid") is None
 
 
@@ -443,12 +441,8 @@ class _ScriptedReplaceStrategy:
         _ = inventory_qty
         self.decisions += 1
         if self.decisions == 1:
-            return StrategyDecision(
-                quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="old")]
-            )
-        return StrategyDecision(
-            quotes=[QuoteTarget("bid", "base", price_tick=998, qty_lots=1, refresh_key="new")]
-        )
+            return StrategyDecision(quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="old")])
+        return StrategyDecision(quotes=[QuoteTarget("bid", "base", price_tick=998, qty_lots=1, refresh_key="new")])
 
 
 class _StaticBidStrategy:
@@ -462,9 +456,7 @@ class _StaticBidStrategy:
 
     def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
         _ = inventory_qty
-        return StrategyDecision(
-            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
-        )
+        return StrategyDecision(quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")])
 
 
 class _CancelAfterFirstQuoteStrategy:
@@ -505,9 +497,7 @@ class _QueueRefreshSpyStrategy:
 
     def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
         _ = inventory_qty
-        return StrategyDecision(
-            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
-        )
+        return StrategyDecision(quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")])
 
 
 class _QueueObserveHoldStrategy:
@@ -525,9 +515,7 @@ class _QueueObserveHoldStrategy:
 
     def propose(self, _book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
         _ = inventory_qty
-        return StrategyDecision(
-            quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")]
-        )
+        return StrategyDecision(quotes=[QuoteTarget("bid", "base", price_tick=1000, qty_lots=1, refresh_key="static")])
 
 
 class _SelfTradePreventionStrategy:
@@ -1018,9 +1006,7 @@ def test_public_trade_before_cancel_ack_can_still_fill_old_quote(
     assert cancel_ack_ts == [2.2]
 
     pull_decision = [
-        row
-        for row in engine.event_trace
-        if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
+        row for row in engine.event_trace if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
     ]
     assert pull_decision[0]["ts_local"] == 2.1
     assert {row["details"]["reason"] for row in pull_decision} == {"pull_quotes"}
@@ -1052,9 +1038,7 @@ def test_cancel_ack_at_same_timestamp_precedes_public_trade_fill(
     assert same_ts_rows[1]["source"] == "aggTrade"
 
     pull_decision = [
-        row
-        for row in engine.event_trace
-        if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
+        row for row in engine.event_trace if row["event_type"] == "decision" and row["details"]["quote_count"] == 0
     ]
     assert pull_decision[0]["ts_local"] == 2.1
     assert {row["details"]["reason"] for row in pull_decision} == {"pull_quotes"}

@@ -63,7 +63,9 @@ def _print_markdown_table(result: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Compare baseline and opt-in futures strategy profiles on one replay input")
+    parser = argparse.ArgumentParser(
+        description="Compare baseline and opt-in futures strategy profiles on one replay input"
+    )
     parser.add_argument("--file", required=True, help="Path to NDJSON or NDJSON.GZ replay file")
     parser.add_argument("--env", default=".env.example", help="Config source for replay parameters")
     parser.add_argument(

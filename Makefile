@@ -7,7 +7,7 @@ DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
 
-.PHONY: setup test verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
+.PHONY: setup test lint format-check verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -16,21 +16,29 @@ setup:
 test:
 	$(PY) -m pytest
 
+lint:
+	$(PY) -m ruff check .
+
+format-check:
+	$(PY) -m ruff format --check .
+
 verify-artifacts:
 	$(PY) scripts/verify_committed_artifacts.py
 
 check-whitespace:
 	git diff --check
 
-ci: test verify-artifacts check-whitespace
+ci: test lint format-check verify-artifacts check-whitespace
 
 reviewer-gate:
 	$(PY) -m pytest -q
+	$(PY) -m ruff check .
+	$(PY) -m ruff format --check .
 	$(PY) scripts/verify_committed_artifacts.py
 	git diff --check
 	$(PY) scripts/check_futures_determinism.py --file $(FIXTURE) --env $(ENV) --json-out $(DETERMINISM_JSON)
 	$(PY) scripts/audit_futures_pack.py --committed-futures
-	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --json-out $(BENCHMARK_JSON)
+	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --mode all --pack docs/sample_outputs/futures_stress_case --json-out $(BENCHMARK_JSON)
 
 inspect-fixture:
 	$(PY) -m lob_sim.cli inspect --file $(FIXTURE)
@@ -48,7 +56,7 @@ audit-futures-packs:
 	$(PY) scripts/audit_futures_pack.py --committed-futures
 
 benchmark-fixture:
-	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --json-out $(BENCHMARK_JSON)
+	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --mode all --pack docs/sample_outputs/futures_stress_case --json-out $(BENCHMARK_JSON)
 
 determinism-fixture:
 	$(PY) scripts/check_futures_determinism.py --file $(FIXTURE) --env $(ENV) --json-out $(DETERMINISM_JSON)

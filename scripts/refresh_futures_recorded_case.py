@@ -117,10 +117,7 @@ def refresh_futures_recorded_case(output_dir: Path = RECORDED_CASE_DIR) -> dict[
             "trades": output_dir / "trades.csv",
             "manifest": output_dir / "manifest.json",
         }
-        summary["output_files"] = {
-            name: _path_for_summary(path)
-            for name, path in committed_paths.items()
-        }
+        summary["output_files"] = {name: _path_for_summary(path) for name, path in committed_paths.items()}
         manifest = json.loads(generated_paths["manifest"].read_text(encoding="utf-8"))
         manifest["input"]["path"] = _path_for_summary(input_path)
         manifest["outputs"] = dict(summary["output_files"])

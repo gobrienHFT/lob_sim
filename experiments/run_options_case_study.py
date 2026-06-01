@@ -4,7 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-from lob_sim.options.demo import DEFAULT_OPTIONS_SCENARIO, OptionsMarketMakerDemo, build_options_config, options_scenarios
+from lob_sim.options.demo import (
+    DEFAULT_OPTIONS_SCENARIO,
+    OptionsMarketMakerDemo,
+    build_options_config,
+    options_scenarios,
+)
 
 
 def main() -> None:

@@ -1,0 +1,154 @@
+{
+  "run_id": "90cbfdb109438aa5",
+  "schema_version": "lob_sim.simulation_run.v2",
+  "created_at_utc": "2026-06-01T15:11:33.554981Z",
+  "lob_sim_version": "0.1.0",
+  "input": {
+    "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
+    "size_bytes": 1870,
+    "sha256": "50828b4aa66e097df2eca19c47a622cab6b9aa18db10e570228f523d283bc112",
+    "modified_at_utc": "2026-06-01T15:11:33.527515Z"
+  },
+  "config": {
+    "symbols": [
+      "BTCUSDT"
+    ],
+    "book_top_n": 20,
+    "snapshot_limit": 1000,
+    "resync_on_gap": true,
+    "sim_seed": 1,
+    "sim_order_latency_ms": 0.0,
+    "sim_cancel_latency_ms": 100.0,
+    "sim_adverse_markout_seconds": 1.0,
+    "sim_kill_switch_enabled": false,
+    "sim_kill_max_drawdown": "0",
+    "sim_kill_max_consecutive_losses": 0,
+    "mm_enabled": true,
+    "mm_strategy_profile": "baseline",
+    "mm_requote_ms": 1000.0,
+    "mm_order_qty": "0.001",
+    "mm_max_position": "0.05",
+    "mm_half_spread_bps": "0.05",
+    "mm_layered_inner_spread_bps": "0.05",
+    "mm_layered_outer_spread_bps": "0.15",
+    "mm_volatility_window": 30,
+    "mm_volatility_spread_factor": "0",
+    "mm_skew_bps_per_unit": "0",
+    "mm_queue_repost_lots": 99,
+    "mm_trade_imbalance_window": 12,
+    "mm_microstructure_gate_threshold": "0.20",
+    "mm_microstructure_gate_bps": "0.10",
+    "mm_fee_floor_buffer_bps": "0.02",
+    "mm_toxicity_spread_factor": "0",
+    "fees_maker_bps": "0",
+    "fees_taker_bps": "0"
+  },
+  "feed_adapter": {
+    "name": "binance_usdm",
+    "venue_label": "BINANCE_USDM",
+    "supported_record_types": [
+      "aggTrade",
+      "depthUpdate",
+      "exchangeInfo",
+      "snapshot"
+    ]
+  },
+  "instrument_specs": {
+    "BTCUSDT": {
+      "symbol": "BTCUSDT",
+      "venue": "BINANCE_USDM",
+      "price_currency": "USDT",
+      "quantity_unit": "BTC",
+      "tick_size": "0.1",
+      "step_size": "0.001",
+      "contract_multiplier": "1"
+    }
+  },
+  "simulation_assumptions": {
+    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "data_scope": "public_l2_order_book_and_agg_trade_records",
+    "private_exchange_execution_reports": false,
+    "queue_priority_model": "visible_price_time_fifo",
+    "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
+    "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
+    "depth_decrease": "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
+    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side as an additional queue-consumption signal.",
+    "overlap_netting": {
+      "enabled": true,
+      "window_seconds": 0.125,
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+    },
+    "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
+    "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
+    "marketable_limits": "Marketable strategy limits execute as taker orders against visible depth and post only any non-crossing remainder.",
+    "self_trade_prevention": "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead of self-trading.",
+    "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
+    "limitations": [
+      "no_private_queue_ids",
+      "no_hidden_liquidity",
+      "not_private_exchange_fill_truth",
+      "public_l2_cannot_distinguish_all_cancels_from_trades"
+    ]
+  },
+  "runtime": {
+    "python_version": "3.13.1",
+    "platform": "Windows-11-10.0.26200-SP0"
+  },
+  "source": {
+    "git_commit": "261f279a53f0ea490e46b8bc34fb43377c2ead5a",
+    "git_branch": "master",
+    "git_dirty": true
+  },
+  "outputs": {
+    "event_trace": "docs/sample_outputs/futures_stress_case/event_trace.csv",
+    "summary": "docs/sample_outputs/futures_stress_case/summary.json",
+    "summary_csv": "docs/sample_outputs/futures_stress_case/summary.csv",
+    "trades": "docs/sample_outputs/futures_stress_case/trades.csv",
+    "manifest": "docs/sample_outputs/futures_stress_case/manifest.json"
+  },
+  "output_artifacts": {
+    "event_trace": {
+      "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
+      "size_bytes": 15324,
+      "sha256": "c60f10d01f0011162852eaecf28259fb5ab9a8e50802f779a084f9fb1139ffd3",
+      "modified_at_utc": "2026-06-01T15:11:33.993791Z"
+    },
+    "manifest": {
+      "path": "docs/sample_outputs/futures_stress_case/manifest.json"
+    },
+    "summary": {
+      "path": "docs/sample_outputs/futures_stress_case/summary.json",
+      "size_bytes": 12952,
+      "sha256": "48b52bdcbc9dd686ddc2a62bb2a05f0bb5a9aa7836b10e76e67d2143d6cfcf6d",
+      "modified_at_utc": "2026-06-01T15:11:33.988650Z"
+    },
+    "summary_csv": {
+      "path": "docs/sample_outputs/futures_stress_case/summary.csv",
+      "size_bytes": 5948,
+      "sha256": "ffac4974a826c4e966d1bc447e39bc2efc8c759c9e34ad1853be2bda3828c112",
+      "modified_at_utc": "2026-06-01T15:11:33.991797Z"
+    },
+    "trades": {
+      "path": "docs/sample_outputs/futures_stress_case/trades.csv",
+      "size_bytes": 989,
+      "sha256": "5a7cc28d37e6bc54de1b1dadea45677393c35dc31d02f7eea9dddcbbd491abd0",
+      "modified_at_utc": "2026-06-01T15:11:33.992796Z"
+    }
+  },
+  "fixture_provenance": {
+    "source": "synthetic_exchange_shaped",
+    "purpose": "compact deterministic stress coverage for public L2 replay mechanics",
+    "script": "scripts/refresh_futures_stress_case.py"
+  },
+  "stress_coverage": {
+    "queue_ahead": true,
+    "partial_fills": true,
+    "depth_agg_trade_overlap_netting": true,
+    "adverse_and_non_adverse_markouts": true,
+    "cancel_latency": true,
+    "same_timestamp_cancel_before_trade": true,
+    "marketable_taker_fill": true,
+    "self_trade_prevention": true,
+    "book_gap_count": 0
+  }
+}

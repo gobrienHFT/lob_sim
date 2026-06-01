@@ -187,10 +187,7 @@ def refresh_futures_showcase(output_dir: Path = SHOWCASE_DIR) -> dict[str, Path]
             "trades": output_dir / "trades.csv",
             "manifest": output_dir / "manifest.json",
         }
-        summary["output_files"] = {
-            name: _path_for_summary(path)
-            for name, path in committed_paths.items()
-        }
+        summary["output_files"] = {name: _path_for_summary(path) for name, path in committed_paths.items()}
         manifest = json.loads(generated_paths["manifest"].read_text(encoding="utf-8"))
         manifest["input"]["path"] = _path_for_summary(fixture_path)
         manifest["outputs"] = dict(summary["output_files"])

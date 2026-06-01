@@ -41,6 +41,12 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Run ruff lint
+        run: python -m ruff check .
+
+      - name: Check ruff formatting
+        run: python -m ruff format --check .
+
       - name: Check deterministic futures fixture
         run: python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 

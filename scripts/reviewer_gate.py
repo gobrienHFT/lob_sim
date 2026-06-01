@@ -45,6 +45,8 @@ def build_reviewer_gate_steps(
 ) -> list[GateStep]:
     steps = [
         GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q")),
+        GateStep("ruff lint", (python_executable, "-m", "ruff", "check", ".")),
+        GateStep("ruff format check", (python_executable, "-m", "ruff", "format", "--check", ".")),
         GateStep(
             "committed artifact verification",
             (python_executable, "scripts/verify_committed_artifacts.py"),
@@ -79,6 +81,10 @@ def build_reviewer_gate_steps(
                     _path_arg(recorded_fixture),
                     "--env",
                     _path_arg(env_path),
+                    "--mode",
+                    "all",
+                    "--pack",
+                    "docs/sample_outputs/futures_stress_case",
                     "--json-out",
                     _path_arg(benchmark_json),
                 ),

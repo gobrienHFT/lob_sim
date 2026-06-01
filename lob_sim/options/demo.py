@@ -19,9 +19,7 @@ from .surface import SimpleVolSurface
 
 DEFAULT_OPTIONS_SCENARIO = "calm_market"
 SAMPLE_SCENARIO_MATRIX_ARTIFACT = "docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md"
-SAMPLE_SENSITIVITY_ARTIFACT = (
-    "docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md"
-)
+SAMPLE_SENSITIVITY_ARTIFACT = "docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md"
 OPTIONS_SCENARIOS: dict[str, dict[str, Any]] = {
     "calm_market": {
         "description": "Lower-volatility quoting with modest toxic flow and lighter hedge pressure.",
@@ -432,8 +430,10 @@ def _worked_fill_rules() -> dict[str, str]:
 
 def _example_short_interpretation(fill: dict[str, Any]) -> str:
     reservation = float(fill["reservation_price"])
-    half_spread = float(fill["base_half_spread"]) + float(fill["vol_half_spread_component"]) + float(
-        fill["gamma_half_spread_component"]
+    half_spread = (
+        float(fill["base_half_spread"])
+        + float(fill["vol_half_spread_component"])
+        + float(fill["gamma_half_spread_component"])
     )
     premium_value = float(fill["fill_price"]) * int(fill["qty_contracts"]) * int(fill["contract_size"])
     if abs(reservation) > abs(float(fill["fair_value"])):
@@ -496,23 +496,11 @@ def _format_worked_fill_example(
             f"| spot_before | {float(fill['spot_before']):.2f} spot units |",
             f"| fair_value | {float(fill['fair_value']):.3f} premium per option |",
             f"| base_half_spread | {float(fill['base_half_spread']):.3f} premium per option |",
-            (
-                f"| vol_half_spread_component | {float(fill['vol_half_spread_component']):.3f} "
-                "premium per option |"
-            ),
-            (
-                f"| gamma_half_spread_component | {float(fill['gamma_half_spread_component']):.3f} "
-                "premium per option |"
-            ),
+            (f"| vol_half_spread_component | {float(fill['vol_half_spread_component']):.3f} premium per option |"),
+            (f"| gamma_half_spread_component | {float(fill['gamma_half_spread_component']):.3f} premium per option |"),
             f"| reservation_price | {float(fill['reservation_price']):+.3f} premium per option |",
-            (
-                f"| delta_reservation_component | {float(fill['delta_reservation_component']):+.3f} "
-                "premium per option |"
-            ),
-            (
-                f"| vega_reservation_component | {float(fill['vega_reservation_component']):+.3f} "
-                "premium per option |"
-            ),
+            (f"| delta_reservation_component | {float(fill['delta_reservation_component']):+.3f} premium per option |"),
+            (f"| vega_reservation_component | {float(fill['vega_reservation_component']):+.3f} premium per option |"),
             f"| final bid | {float(fill['bid']):.3f} premium per option |",
             f"| final ask | {float(fill['ask']):.3f} premium per option |",
             f"| fill_price | {float(fill['fill_price']):.3f} premium per option |",
@@ -538,7 +526,9 @@ def _economics_notes(summary: dict[str, Any]) -> list[str]:
         "Signed markout is a diagnostic in contract dollars, not a separate PnL line item that is added mechanically into ending PnL in this toy accounting.",
     ]
     if summary["ending_pnl"] > 0.0 and summary["total_signed_markout"] < 0.0:
-        notes.append("That combination means the strategy earned enough spread and inventory carry to survive adverse selection, but the fill quality still deserves skepticism.")
+        notes.append(
+            "That combination means the strategy earned enough spread and inventory carry to survive adverse selection, but the fill quality still deserves skepticism."
+        )
     return notes
 
 
@@ -799,53 +789,53 @@ def format_demo_report(
     lines.extend(
         [
             "",
-        "## Warehoused risk across the surface",
-        *(f"- {note}" for note in _surface_risk_notes(summary)),
-        "",
-        "## Pricing surface used by the demo",
-        *(f"- {note}" for note in _pricing_surface_notes(summary)),
-        "",
-        "## Economics of the run",
-        *_markdown_metric_rows(
-            [
-                ("Gross spread captured", f"{summary['gross_spread_captured']:.2f} contract dollars"),
-                ("Hedge costs", f"{summary['hedge_costs']:.2f} contract dollars"),
-                ("Total signed markout", f"{summary['total_signed_markout']:.2f} contract dollars"),
-                ("Ending PnL", f"{summary['ending_pnl']:.2f} contract dollars"),
-                ("Realized PnL", f"{summary['realized_pnl']:.2f} contract dollars"),
-                ("Unrealized PnL", f"{summary['unrealized_pnl']:.2f} contract dollars"),
-            ]
-        ),
-        "",
-        "Signed markout is a contract-dollar diagnostic of fill quality. It is not used here as a separate additive PnL line item.",
-        *(f"- {note}" for note in _economics_notes(summary)),
-        "",
-        "## Worked fill examples",
-        "Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.",
-        "",
-        *(
-            _format_worked_fill_example(
-                "Representative Fill",
-                _worked_fill_rules()["representative"],
-                worked_examples.get("representative"),
-            )
-        ),
-        "",
-        *(
-            _format_worked_fill_example(
-                "Stress-case toxic fill",
-                _worked_fill_rules()["stress"],
-                worked_examples.get("stress"),
-                _stress_fill_follow_up(worked_examples.get("stress"))
-                if worked_examples.get("stress") is not None
-                else None,
-            )
-        ),
-        "",
-        "## Most traded contracts",
-        *_format_top_contracts(summary),
-        "",
-        "## Suggested artifact reading order",
+            "## Warehoused risk across the surface",
+            *(f"- {note}" for note in _surface_risk_notes(summary)),
+            "",
+            "## Pricing surface used by the demo",
+            *(f"- {note}" for note in _pricing_surface_notes(summary)),
+            "",
+            "## Economics of the run",
+            *_markdown_metric_rows(
+                [
+                    ("Gross spread captured", f"{summary['gross_spread_captured']:.2f} contract dollars"),
+                    ("Hedge costs", f"{summary['hedge_costs']:.2f} contract dollars"),
+                    ("Total signed markout", f"{summary['total_signed_markout']:.2f} contract dollars"),
+                    ("Ending PnL", f"{summary['ending_pnl']:.2f} contract dollars"),
+                    ("Realized PnL", f"{summary['realized_pnl']:.2f} contract dollars"),
+                    ("Unrealized PnL", f"{summary['unrealized_pnl']:.2f} contract dollars"),
+                ]
+            ),
+            "",
+            "Signed markout is a contract-dollar diagnostic of fill quality. It is not used here as a separate additive PnL line item.",
+            *(f"- {note}" for note in _economics_notes(summary)),
+            "",
+            "## Worked fill examples",
+            "Quoted prices below are per-option premium. `signed_markout`, `gross_spread_captured`, and `hedge_costs` are shown in contract dollars after multiplying by `qty_contracts * contract_size`.",
+            "",
+            *(
+                _format_worked_fill_example(
+                    "Representative Fill",
+                    _worked_fill_rules()["representative"],
+                    worked_examples.get("representative"),
+                )
+            ),
+            "",
+            *(
+                _format_worked_fill_example(
+                    "Stress-case toxic fill",
+                    _worked_fill_rules()["stress"],
+                    worked_examples.get("stress"),
+                    _stress_fill_follow_up(worked_examples.get("stress"))
+                    if worked_examples.get("stress") is not None
+                    else None,
+                )
+            ),
+            "",
+            "## Most traded contracts",
+            *_format_top_contracts(summary),
+            "",
+            "## Suggested artifact reading order",
             *(
                 [f"- `case_brief.md`: {summary['output_files']['case_brief']}"]
                 if "case_brief" in summary["output_files"]

@@ -20,56 +20,32 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 SAMPLE_OUTPUTS_README = REPO_ROOT / "docs" / "sample_outputs" / "README.md"
 FUTURES_VALIDATION = REPO_ROOT / "docs" / "futures_validation.md"
 FUTURES_BENCHMARKS = REPO_ROOT / "docs" / "futures_benchmarks.md"
-FUTURES_BENCHMARK_REFERENCE = (
-    REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"
-)
+FUTURES_BENCHMARK_REFERENCE = REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
-FUTURES_STRATEGY_REFERENCE = (
-    REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
-)
-FUTURES_PARAMETER_SWEEP_REFERENCE = (
-    REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md"
-)
+FUTURES_STRATEGY_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
+FUTURES_PARAMETER_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.csv"
 )
-FUTURES_LATENCY_SWEEP_REFERENCE = (
-    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md"
-)
-FUTURES_LATENCY_SWEEP_REFERENCE_CSV = (
-    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.csv"
-)
-FUTURES_STRATEGY_REFRESH = (
-    REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
-)
-FUTURES_PARAMETER_SWEEP_REFRESH = (
-    REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
-)
-FUTURES_LATENCY_SWEEP_REFRESH = (
-    REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
-)
+FUTURES_LATENCY_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md"
+FUTURES_LATENCY_SWEEP_REFERENCE_CSV = REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.csv"
+FUTURES_STRESS_DIR = REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case"
+FUTURES_STRESS_SUMMARY = FUTURES_STRESS_DIR / "summary.json"
+FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
+FUTURES_PARAMETER_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
+FUTURES_LATENCY_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
 FUTURES_DETERMINISM_CHECK = REPO_ROOT / "scripts" / "check_futures_determinism.py"
 FUTURES_PACK_AUDIT = REPO_ROOT / "scripts" / "audit_futures_pack.py"
 REVIEWER_GATE = REPO_ROOT / "scripts" / "reviewer_gate.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
-FUTURES_WALKTHROUGH_README = (
-    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
-)
-FUTURES_WALKTHROUGH_NOTES = (
-    REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md"
-)
-RECORDED_CASE_README = (
-    REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "README.md"
-)
-RECORDED_CASE_NOTES = (
-    REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md"
-)
-COMMITTED_CASE_BRIEF = (
-    REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md"
-)
+FUTURES_WALKTHROUGH_README = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md"
+FUTURES_WALKTHROUGH_NOTES = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md"
+RECORDED_CASE_README = REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "README.md"
+RECORDED_CASE_NOTES = REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md"
+COMMITTED_CASE_BRIEF = REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md"
 COMMITTED_DEMO_REPORT = REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md"
 ROOT_OPTIONS_LAUNCHERS = [
     REPO_ROOT / "run_options_case_study.bat",
@@ -393,9 +369,7 @@ def test_public_consumption_verifier_rejects_inconsistent_totals(tmp_path, monke
 
     issues = verifier._verify_public_consumption_diagnostics()
 
-    assert issues == [
-        f"{showcase / 'summary.json'} public_consumption_summary.total_observed_lots is inconsistent"
-    ]
+    assert issues == [f"{showcase / 'summary.json'} public_consumption_summary.total_observed_lots is inconsistent"]
 
 
 def test_public_consumption_verifier_rejects_inconsistent_unmatched_lots(tmp_path, monkeypatch) -> None:
@@ -551,9 +525,7 @@ def _write_event_trace_case(
             if queue_ahead > 0:
                 arrival_with_queue_ahead_count += 1
             max_arrival_queue_ahead_lots = max(max_arrival_queue_ahead_lots, queue_ahead)
-    avg_arrival_queue_ahead_lots = (
-        arrival_queue_ahead_sum / arrival_queue_samples if arrival_queue_samples else 0.0
-    )
+    avg_arrival_queue_ahead_lots = arrival_queue_ahead_sum / arrival_queue_samples if arrival_queue_samples else 0.0
     counts = lifecycle_counts or _lifecycle_counts()
     (directory / "summary.json").write_text(
         json.dumps(
@@ -701,10 +673,7 @@ def test_futures_event_trace_verifier_rejects_lifecycle_summary_mismatch(tmp_pat
 
     issues = verifier._verify_futures_event_trace_contract()
 
-    assert (
-        f"{showcase / 'event_trace.csv'} lifecycle arrival_scheduled=1 does not match summary value 0"
-        in issues
-    )
+    assert f"{showcase / 'event_trace.csv'} lifecycle arrival_scheduled=1 does not match summary value 0" in issues
 
 
 def test_futures_event_trace_verifier_rejects_arrival_queue_mismatch(tmp_path, monkeypatch) -> None:
@@ -734,10 +703,7 @@ def test_futures_event_trace_verifier_rejects_arrival_queue_mismatch(tmp_path, m
 
     issues = verifier._verify_futures_event_trace_contract()
 
-    assert (
-        f"{showcase / 'event_trace.csv'} max_arrival_queue_ahead_lots=3 does not match summary value 0"
-        in issues
-    )
+    assert f"{showcase / 'event_trace.csv'} max_arrival_queue_ahead_lots=3 does not match summary value 0" in issues
 
 
 def test_futures_event_trace_verifier_rejects_unstructured_risk_halt(tmp_path, monkeypatch) -> None:
@@ -853,8 +819,7 @@ def test_futures_event_trace_verifier_rejects_queue_consumption_summary_mismatch
     issues = verifier._verify_futures_event_trace_contract()
 
     assert (
-        f"{showcase / 'event_trace.csv'} queue_consumption depth_update.observed_lots=2 "
-        "does not match summary value 0"
+        f"{showcase / 'event_trace.csv'} queue_consumption depth_update.observed_lots=2 does not match summary value 0"
     ) in issues
 
 
@@ -946,10 +911,7 @@ def test_futures_event_trace_verifier_rejects_markout_summary_mismatch(tmp_path,
 
     issues = verifier._verify_futures_event_trace_contract()
 
-    assert (
-        f"{showcase / 'event_trace.csv'} markout agg_trade.samples=1 "
-        "does not match summary value 0"
-    ) in issues
+    assert (f"{showcase / 'event_trace.csv'} markout agg_trade.samples=1 does not match summary value 0") in issues
 
 
 def test_futures_event_trace_verifier_rejects_missing_decision_diagnostics(tmp_path, monkeypatch) -> None:
@@ -990,14 +952,20 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python -m pip check" in workflow
     assert "python -m lob_sim.cli --help" in workflow
     assert "python -m pytest -q" in workflow
+    assert "python -m ruff check ." in workflow
+    assert "python -m ruff format --check ." in workflow
     assert "python scripts/check_futures_determinism.py" in workflow
     assert "python scripts/audit_futures_pack.py" in workflow
     assert "python scripts/audit_futures_pack.py --committed-futures" in workflow
     assert "python scripts/verify_committed_artifacts.py" in workflow
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
-    assert "ci: test verify-artifacts check-whitespace" in makefile
+    assert "ci: test lint format-check verify-artifacts check-whitespace" in makefile
     assert "reviewer-gate:" in makefile
+    assert "lint:" in makefile
+    assert "format-check:" in makefile
+    assert "$(PY) -m ruff check ." in makefile
+    assert "$(PY) -m ruff format --check ." in makefile
     assert "refresh-artifacts:" in makefile
     assert "determinism-fixture:" in makefile
     assert "audit-fixture:" in makefile
@@ -1006,8 +974,10 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "scripts/check_futures_determinism.py" in makefile
     assert "scripts/audit_futures_pack.py" in makefile
     assert "experiments/benchmark_futures_replay.py" in makefile
+    assert "--mode all --pack docs/sample_outputs/futures_stress_case" in makefile
     assert "experiments/sweep_futures_latency.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
+    assert "scripts/refresh_futures_stress_case.py" in (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert FUTURES_DETERMINISM_CHECK.exists()
     assert FUTURES_PACK_AUDIT.exists()
     assert REVIEWER_GATE.exists()
@@ -1025,6 +995,30 @@ def test_committed_stress_fill_includes_units_explanation() -> None:
     assert "This is not a units mismatch" in demo_report
 
 
+def test_futures_stress_pack_covers_reviewer_edge_cases() -> None:
+    summary = json.loads(FUTURES_STRESS_SUMMARY.read_text(encoding="utf-8"))
+    coverage = summary["stress_coverage"]
+
+    assert summary["fixture_provenance"]["source"] == "synthetic_exchange_shaped"
+    assert all(
+        coverage[key] is True
+        for key in [
+            "queue_ahead",
+            "partial_fills",
+            "depth_agg_trade_overlap_netting",
+            "adverse_and_non_adverse_markouts",
+            "cancel_latency",
+            "same_timestamp_cancel_before_trade",
+            "marketable_taker_fill",
+            "self_trade_prevention",
+        ]
+    )
+    assert coverage["book_gap_count"] == 0
+    assert summary["fill_source_counts"] == {"depth_update": 1, "agg_trade": 2, "taker_order": 2}
+    assert summary["public_consumption_summary"]["total_overlap_netted_lots"] > 0
+    assert summary["order_lifecycle_counts"]["self_trade_prevented"] == 1
+
+
 def test_sample_output_commands_match_refresh_source_of_truth() -> None:
     readme = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
 
@@ -1038,9 +1032,7 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     walkthrough = WALKTHROUGH.read_text(encoding="utf-8")
     sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
     readme_walkthrough = readme.split("## Walkthrough Path", 1)[1]
-    walkthrough_five_minute = walkthrough.split("## 5-Minute Walkthrough", 1)[1].split(
-        "## Core Talking Points", 1
-    )[0]
+    walkthrough_five_minute = walkthrough.split("## 5-Minute Walkthrough", 1)[1].split("## Core Talking Points", 1)[0]
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in readme
@@ -1048,13 +1040,15 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in readme
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in readme
+    assert "docs/sample_outputs/futures_stress_case/README.md" in readme
+    assert "docs/reviewer_results_memo.md" in readme
     assert "docs/futures_strategy_profiles.md" in readme
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in readme
     assert "docs/strategy_results/futures_parameter_sweep_reference.md" in readme
     assert "docs/benchmark_results/futures_replay_reference.md" in readme
-    assert readme_walkthrough.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < readme_walkthrough.index(
-        "docs/futures_strategy_profiles.md"
-    )
+    assert readme_walkthrough.index(
+        "docs/sample_outputs/futures_recorded_clip_case/README.md"
+    ) < readme_walkthrough.index("docs/futures_strategy_profiles.md")
     assert readme_walkthrough.index("docs/futures_strategy_profiles.md") < readme_walkthrough.index(
         "docs/strategy_results/futures_strategy_profile_reference.md"
     )
@@ -1066,13 +1060,17 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md" in walkthrough
     assert "docs/sample_outputs/futures_recorded_clip_case/README.md" in walkthrough
     assert "docs/sample_outputs/futures_recorded_clip_case/case_notes.md" in walkthrough
+    assert "futures_stress_case/README.md" in sample_outputs
+    assert "futures_stress_case/summary.json" in sample_outputs
+    assert "futures_stress_case/trades.csv" in sample_outputs
+    assert "futures_stress_case/event_trace.csv" in sample_outputs
     assert "docs/futures_strategy_profiles.md" in walkthrough
     assert "docs/strategy_results/futures_strategy_profile_reference.md" in walkthrough
     assert "docs/strategy_results/futures_parameter_sweep_reference.md" in walkthrough
     assert "docs/benchmark_results/futures_replay_reference.md" in walkthrough
-    assert walkthrough_five_minute.index("docs/sample_outputs/futures_recorded_clip_case/README.md") < walkthrough_five_minute.index(
-        "docs/futures_strategy_profiles.md"
-    )
+    assert walkthrough_five_minute.index(
+        "docs/sample_outputs/futures_recorded_clip_case/README.md"
+    ) < walkthrough_five_minute.index("docs/futures_strategy_profiles.md")
     assert walkthrough_five_minute.index("docs/futures_strategy_profiles.md") < walkthrough_five_minute.index(
         "docs/strategy_results/futures_strategy_profile_reference.md"
     )

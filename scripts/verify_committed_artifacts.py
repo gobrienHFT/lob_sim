@@ -17,6 +17,7 @@ STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
 FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
+FUTURES_STRESS_DIR = SAMPLE_ROOT / "futures_stress_case"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
@@ -42,6 +43,7 @@ COMMITTED_STRATEGY_PROFILE_INPUTS = (
 )
 FUTURES_SHOWCASE_SUMMARY = FUTURES_SHOWCASE_DIR / "summary.json"
 RECORDED_CLIP_SUMMARY = RECORDED_CLIP_DIR / "summary.json"
+FUTURES_STRESS_SUMMARY = FUTURES_STRESS_DIR / "summary.json"
 CASE_STUDY_SUMMARY = CASE_STUDY_DIR / "summary.json"
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 MALFORMED_OUT_DIR_PATTERN = re.compile(r"--out-dir(?:\s+|\s*=\s*)(?:--|\r?\n|$)")
@@ -54,6 +56,8 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
+        "docs/sample_outputs/futures_stress_case/README.md",
+        "docs/reviewer_results_memo.md",
     ],
     REPO_ROOT / "WALKTHROUGH.md": [
         "docs/sample_outputs/futures_replay_walkthrough/README.md",
@@ -77,6 +81,12 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "futures_recorded_clip_case/trades.csv",
         "futures_recorded_clip_case/event_trace.csv",
         "futures_recorded_clip_case/case_notes.md",
+        "futures_stress_case/README.md",
+        "futures_stress_case/summary.json",
+        "futures_stress_case/manifest.json",
+        "futures_stress_case/trades.csv",
+        "futures_stress_case/event_trace.csv",
+        "futures_stress_case/case_notes.md",
     ],
 }
 
@@ -173,12 +183,17 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
+    REPO_ROOT / "docs" / "reviewer_results_memo.md",
+    REPO_ROOT / "docs" / "architecture_decisions.md",
+    REPO_ROOT / "CONTRIBUTING.md",
     REPO_ROOT / "docs" / "options_mm_demo_guide.md",
     REPO_ROOT / "docs" / "sample_outputs" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "walkthrough.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "README.md",
+    REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "case_notes.md",
     REPO_ROOT / "docs" / "options_case_study_notes.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
@@ -201,6 +216,17 @@ RECORDED_CLIP_CORE_FILES = [
     "README.md",
     "case_notes.md",
     "input_clip.ndjson",
+    "summary.json",
+    "summary.csv",
+    "manifest.json",
+    "trades.csv",
+    "event_trace.csv",
+]
+
+FUTURES_STRESS_CORE_FILES = [
+    "README.md",
+    "case_notes.md",
+    "input_stress.ndjson",
     "summary.json",
     "summary.csv",
     "manifest.json",
@@ -362,7 +388,11 @@ PROFILE_DECISION_DIAGNOSTIC_KEYS = {
         "reservation_ticks",
         "reservation_tick",
         "gate_label",
+        "gate_reason",
         "gate_ticks",
+        "threshold",
+        "book_imbalance",
+        "trade_imbalance",
         "bid_extra_ticks",
         "ask_extra_ticks",
         "outer_spread_ticks",
@@ -448,16 +478,12 @@ def _verify_markdown_links() -> list[str]:
         for link in _iter_repo_relative_links(path):
             target = _resolve_repo_relative_link(path, link)
             if not target.exists():
-                issues.append(
-                    f"Broken markdown link in {_repo_relative(path)}: {link}"
-                )
+                issues.append(f"Broken markdown link in {_repo_relative(path)}: {link}")
                 continue
             try:
                 target.relative_to(REPO_ROOT.resolve())
             except ValueError:
-                issues.append(
-                    f"Markdown link escapes repository in {_repo_relative(path)}: {link}"
-                )
+                issues.append(f"Markdown link escapes repository in {_repo_relative(path)}: {link}")
     return issues
 
 
@@ -468,9 +494,7 @@ def _verify_summary_output_files() -> list[str]:
         for label, relative_path in summary["output_files"].items():
             target = REPO_ROOT / relative_path
             if not target.exists():
-                issues.append(
-                    f"{_repo_relative(summary_path)} output_files[{label}] is missing: {relative_path}"
-                )
+                issues.append(f"{_repo_relative(summary_path)} output_files[{label}] is missing: {relative_path}")
     return issues
 
 
@@ -479,6 +503,7 @@ def _verify_core_files() -> list[str]:
     for directory, expected_names in [
         (FUTURES_SHOWCASE_DIR, FUTURES_SHOWCASE_CORE_FILES),
         (RECORDED_CLIP_DIR, RECORDED_CLIP_CORE_FILES),
+        (FUTURES_STRESS_DIR, FUTURES_STRESS_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),
         (SENSITIVITY_DIR, SENSITIVITY_CORE_FILES),
@@ -510,7 +535,9 @@ def _verify_manifest_output_artifacts() -> list[str]:
                 continue
             target = REPO_ROOT / relative_path
             if not target.exists():
-                issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}] target is missing: {relative_path}")
+                issues.append(
+                    f"{_repo_relative(manifest_path)} output_artifacts[{label}] target is missing: {relative_path}"
+                )
                 continue
             if metadata.get("size_bytes") != target.stat().st_size:
                 issues.append(f"{_repo_relative(manifest_path)} output_artifacts[{label}].size_bytes is stale")
@@ -676,7 +703,9 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
     if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected data_scope")
     if assumptions.get("private_exchange_execution_reports") is not False:
-        issues.append(f"{_repo_relative(path)} simulation_assumptions must not claim private exchange execution reports")
+        issues.append(
+            f"{_repo_relative(path)} simulation_assumptions must not claim private exchange execution reports"
+        )
     if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected queue priority model")
 
@@ -741,9 +770,7 @@ def _verify_futures_trade_audit_fields() -> list[str]:
             for row_index, row in enumerate(reader, start=2):
                 for field in FUTURES_TRADE_AUDIT_FIELDS:
                     if row.get(field) in {None, ""}:
-                        issues.append(
-                            f"{_repo_relative(path)}:{row_index} has empty trade audit field: {field}"
-                        )
+                        issues.append(f"{_repo_relative(path)}:{row_index} has empty trade audit field: {field}")
     return issues
 
 
@@ -821,23 +848,28 @@ def _verify_futures_markout_by_source() -> list[str]:
                 issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].samples is invalid")
                 continue
             if not isinstance(adverse_samples, int) or adverse_samples < 0 or adverse_samples > samples:
-                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_samples is invalid")
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_samples is invalid"
+                )
                 continue
             for field in ["qty", "avg_markout_1s", "adverse_fill_rate_1s"]:
                 value = stats.get(field)
                 if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
                     issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].{field} is invalid")
-            if not isinstance(stats.get("adverse_fill_rate_1s"), (int, float)) or not 0 <= float(stats["adverse_fill_rate_1s"]) <= 1:
-                issues.append(f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_fill_rate_1s is out of range")
+            if (
+                not isinstance(stats.get("adverse_fill_rate_1s"), (int, float))
+                or not 0 <= float(stats["adverse_fill_rate_1s"]) <= 1
+            ):
+                issues.append(
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_fill_rate_1s is out of range"
+                )
 
             expected_stats = expected[source]
             expected_samples = int(expected_stats["samples"])
             expected_adverse = int(expected_stats["adverse_samples"])
             expected_qty = float(expected_stats["qty"])
             expected_avg = (
-                float(expected_stats["markout_sum"] / expected_stats["qty"])
-                if expected_stats["qty"] > 0
-                else 0.0
+                float(expected_stats["markout_sum"] / expected_stats["qty"]) if expected_stats["qty"] > 0 else 0.0
             )
             expected_rate = float(Decimal(expected_adverse) / Decimal(expected_samples)) if expected_samples else 0.0
             if samples != expected_samples:
@@ -852,15 +884,16 @@ def _verify_futures_markout_by_source() -> list[str]:
                 )
             if not math.isclose(float(stats.get("qty", 0)), expected_qty, rel_tol=1e-12, abs_tol=1e-12):
                 issues.append(
-                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].qty "
-                    f"does not match markout_events"
+                    f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].qty does not match markout_events"
                 )
             if not math.isclose(float(stats.get("avg_markout_1s", 0)), expected_avg, rel_tol=1e-12, abs_tol=1e-12):
                 issues.append(
                     f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].avg_markout_1s "
                     f"does not match markout_events"
                 )
-            if not math.isclose(float(stats.get("adverse_fill_rate_1s", 0)), expected_rate, rel_tol=1e-12, abs_tol=1e-12):
+            if not math.isclose(
+                float(stats.get("adverse_fill_rate_1s", 0)), expected_rate, rel_tol=1e-12, abs_tol=1e-12
+            ):
                 issues.append(
                     f"{_repo_relative(summary_path)} markout_by_fill_source[{source}].adverse_fill_rate_1s "
                     f"does not match markout_events"
@@ -909,22 +942,34 @@ def _verify_public_consumption_diagnostics() -> list[str]:
         }
         for source, stats in sources.items():
             if not isinstance(stats, dict) or set(stats) != EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
-                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has unexpected fields")
+                issues.append(
+                    f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has unexpected fields"
+                )
                 continue
             for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
                 value = stats.get(field)
                 if not isinstance(value, int) or value < 0:
-                    issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}].{field} is invalid")
+                    issues.append(
+                        f"{_repo_relative(summary_path)} public_consumption_summary[{source}].{field} is invalid"
+                    )
                     continue
                 source_totals[field] += value
             if stats.get("observed_lots", 0) < stats.get("modeled_lots", 0):
-                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] models more lots than observed")
+                issues.append(
+                    f"{_repo_relative(summary_path)} public_consumption_summary[{source}] models more lots than observed"
+                )
             if stats.get("overlap_netted_lots") != stats.get("observed_lots", 0) - stats.get("modeled_lots", 0):
-                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent netted lots")
+                issues.append(
+                    f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent netted lots"
+                )
             if stats.get("queue_consumed_lots", 0) > stats.get("modeled_lots", 0):
-                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] consumes more queue than modeled")
+                issues.append(
+                    f"{_repo_relative(summary_path)} public_consumption_summary[{source}] consumes more queue than modeled"
+                )
             if stats.get("unmatched_lots") != stats.get("modeled_lots", 0) - stats.get("queue_consumed_lots", 0):
-                issues.append(f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent unmatched lots")
+                issues.append(
+                    f"{_repo_relative(summary_path)} public_consumption_summary[{source}] has inconsistent unmatched lots"
+                )
 
         expected_totals = {
             "total_observed_lots": source_totals["observed_lots"],
@@ -948,7 +993,9 @@ def _verify_public_consumption_diagnostics() -> list[str]:
             issues.append(f"{_repo_relative(summary_csv_path)} public_consumption_summary is not valid JSON: {exc}")
         else:
             if csv_diagnostics != diagnostics:
-                issues.append(f"{_repo_relative(summary_csv_path)} public_consumption_summary does not match summary.json")
+                issues.append(
+                    f"{_repo_relative(summary_csv_path)} public_consumption_summary does not match summary.json"
+                )
     return issues
 
 
@@ -977,7 +1024,9 @@ def _verify_decision_trace_details(path: Path, row_index: int, details: dict[str
         issues.append(f"{_repo_relative(path)}:{row_index} decision diagnostics has invalid profile: {profile!r}")
         return issues
     if details.get("strategy_profile") != profile:
-        issues.append(f"{_repo_relative(path)}:{row_index} decision diagnostics profile does not match strategy_profile")
+        issues.append(
+            f"{_repo_relative(path)}:{row_index} decision diagnostics profile does not match strategy_profile"
+        )
 
     required_keys = REQUIRED_DECISION_DIAGNOSTIC_KEYS | PROFILE_DECISION_DIAGNOSTIC_KEYS[str(profile)]
     missing_keys = sorted(required_keys - set(diagnostics))
@@ -1008,7 +1057,11 @@ def _verify_risk_halt_trace_details(path: Path, row_index: int, details: dict[st
     canceled_by_symbol = details.get("canceled_orders_by_symbol")
     if not isinstance(canceled_by_symbol, dict):
         issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid canceled_orders_by_symbol")
-    for field in ["cleared_pending_cancel_ack_count", "cleared_pending_replacement_slot_count", "max_consecutive_loss_count"]:
+    for field in [
+        "cleared_pending_cancel_ack_count",
+        "cleared_pending_replacement_slot_count",
+        "max_consecutive_loss_count",
+    ]:
         value = details.get(field)
         if not isinstance(value, int) or value < 0:
             issues.append(f"{_repo_relative(path)}:{row_index} risk_halt row has invalid {field}")
@@ -1277,7 +1330,9 @@ def _verify_futures_event_trace_contract() -> list[str]:
         elif lifecycle_counts["arrived"] != summary.get("quote_count"):
             issues.append(f"{_repo_relative(summary_path)} order_lifecycle_counts.arrived does not match quote_count")
         elif lifecycle_counts["cancel_requested"] != summary.get("cancel_count"):
-            issues.append(f"{_repo_relative(summary_path)} order_lifecycle_counts.cancel_requested does not match cancel_count")
+            issues.append(
+                f"{_repo_relative(summary_path)} order_lifecycle_counts.cancel_requested does not match cancel_count"
+            )
         elif lifecycle_counts["self_trade_prevented"] != summary.get("self_trade_prevention_count"):
             issues.append(
                 f"{_repo_relative(summary_path)} order_lifecycle_counts.self_trade_prevented does not match self_trade_prevention_count"
@@ -1288,9 +1343,7 @@ def _verify_futures_event_trace_contract() -> list[str]:
             fieldnames = list(reader.fieldnames or [])
             missing = [field for field in FUTURES_EVENT_TRACE_FIELDS if field not in fieldnames]
             if missing:
-                issues.append(
-                    f"{_repo_relative(trace_path)} is missing event trace column(s): {', '.join(missing)}"
-                )
+                issues.append(f"{_repo_relative(trace_path)} is missing event trace column(s): {', '.join(missing)}")
                 continue
             rows = list(reader)
 
@@ -1496,11 +1549,11 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 expected_adverse = int(expected_stats["adverse_samples"])
                 expected_qty = float(expected_stats["qty"])
                 expected_avg = (
-                    float(expected_stats["markout_sum"] / expected_stats["qty"])
-                    if expected_stats["qty"] > 0
-                    else 0.0
+                    float(expected_stats["markout_sum"] / expected_stats["qty"]) if expected_stats["qty"] > 0 else 0.0
                 )
-                expected_rate = float(Decimal(expected_adverse) / Decimal(expected_samples)) if expected_samples else 0.0
+                expected_rate = (
+                    float(Decimal(expected_adverse) / Decimal(expected_samples)) if expected_samples else 0.0
+                )
                 expected_values = {
                     "samples": expected_samples,
                     "adverse_samples": expected_adverse,
@@ -1556,6 +1609,11 @@ def _verify_no_temp_paths() -> list[str]:
         RECORDED_CLIP_DIR / "summary.json",
         RECORDED_CLIP_DIR / "summary.csv",
         RECORDED_CLIP_DIR / "manifest.json",
+        FUTURES_STRESS_DIR / "README.md",
+        FUTURES_STRESS_DIR / "case_notes.md",
+        FUTURES_STRESS_DIR / "summary.json",
+        FUTURES_STRESS_DIR / "summary.csv",
+        FUTURES_STRESS_DIR / "manifest.json",
         FUTURES_BENCHMARKS,
         FUTURES_BENCHMARK_REFERENCE,
         FUTURES_STRATEGY_PROFILES,
@@ -1615,13 +1673,9 @@ def _verify_launcher_layout() -> list[str]:
 def _verify_benchmark_publication() -> list[str]:
     issues: list[str] = []
     if not FUTURES_BENCHMARK_REFERENCE.exists():
-        issues.append(
-            f"Missing published benchmark artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE)}"
-        )
+        issues.append(f"Missing published benchmark artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE)}")
     if not FUTURES_BENCHMARK_REFERENCE_JSON.exists():
-        issues.append(
-            f"Missing published benchmark JSON artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE_JSON)}"
-        )
+        issues.append(f"Missing published benchmark JSON artifact: {_repo_relative(FUTURES_BENCHMARK_REFERENCE_JSON)}")
     else:
         try:
             result = json.loads(_read_text(FUTURES_BENCHMARK_REFERENCE_JSON))
@@ -1669,7 +1723,9 @@ def _verify_benchmark_publication() -> list[str]:
             if "TBD" in published:
                 issues.append("docs/futures_benchmarks.md published benchmark section still contains TBD")
             if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in published:
-                issues.append("docs/futures_benchmarks.md published benchmark section is missing feed adapter provenance")
+                issues.append(
+                    "docs/futures_benchmarks.md published benchmark section is missing feed adapter provenance"
+                )
 
     for path, expected_links in BENCHMARK_FRONT_DOOR_LINKS.items():
         path_text = _read_text(path)
@@ -1717,6 +1773,8 @@ def _verify_reviewer_gate_publication() -> list[str]:
     script = _read_text(REVIEWER_GATE)
     required_tokens = [
         "build_reviewer_gate_steps",
+        "ruff",
+        "format",
         "scripts/verify_committed_artifacts.py",
         "git",
         "diff",
@@ -1725,6 +1783,9 @@ def _verify_reviewer_gate_publication() -> list[str]:
         "scripts/audit_futures_pack.py",
         "--committed-futures",
         "experiments/benchmark_futures_replay.py",
+        "--mode",
+        "all",
+        "docs/sample_outputs/futures_stress_case",
     ]
     for token in required_tokens:
         if token not in script:
@@ -1739,6 +1800,60 @@ def _verify_reviewer_gate_publication() -> list[str]:
     return issues
 
 
+def _verify_futures_stress_pack_publication() -> list[str]:
+    issues: list[str] = []
+    if not FUTURES_STRESS_DIR.exists():
+        issues.append(f"Missing futures stress pack: {_repo_relative(FUTURES_STRESS_DIR)}")
+        return issues
+    summary = json.loads(_read_text(FUTURES_STRESS_SUMMARY))
+    provenance = summary.get("fixture_provenance")
+    if not isinstance(provenance, dict) or provenance.get("source") != "synthetic_exchange_shaped":
+        issues.append("futures_stress_case summary must label the fixture as synthetic_exchange_shaped")
+    coverage = summary.get("stress_coverage")
+    required_coverage = {
+        "queue_ahead",
+        "partial_fills",
+        "depth_agg_trade_overlap_netting",
+        "adverse_and_non_adverse_markouts",
+        "cancel_latency",
+        "same_timestamp_cancel_before_trade",
+        "marketable_taker_fill",
+        "self_trade_prevention",
+    }
+    if not isinstance(coverage, dict):
+        issues.append("futures_stress_case summary is missing stress_coverage")
+    else:
+        missing = sorted(key for key in required_coverage if coverage.get(key) is not True)
+        if missing:
+            issues.append("futures_stress_case stress_coverage missing true flag(s): " + ", ".join(missing))
+        if coverage.get("book_gap_count") != 0:
+            issues.append("futures_stress_case should be a no-gap stress fixture")
+    fill_sources = summary.get("fill_source_counts")
+    if not isinstance(fill_sources, dict) or not all(
+        fill_sources.get(source, 0) > 0 for source in FUTURES_FILL_SOURCES
+    ):
+        issues.append("futures_stress_case must include depth_update, agg_trade, and taker_order fills")
+    public = summary.get("public_consumption_summary", {})
+    if not isinstance(public, dict) or public.get("total_overlap_netted_lots", 0) <= 0:
+        issues.append("futures_stress_case must include overlap-netted public consumption")
+    markout_by_source = summary.get("markout_by_fill_source", {})
+    if not isinstance(markout_by_source, dict):
+        issues.append("futures_stress_case is missing markout_by_fill_source")
+    else:
+        adverse = sum(int(data.get("adverse_samples", 0)) for data in markout_by_source.values())
+        non_adverse = sum(
+            int(data.get("samples", 0)) - int(data.get("adverse_samples", 0)) for data in markout_by_source.values()
+        )
+        if adverse <= 0 or non_adverse <= 0:
+            issues.append("futures_stress_case must include both adverse and non-adverse markouts")
+
+    text = _read_text(FUTURES_STRESS_DIR / "README.md")
+    for token in ["synthetic-but-exchange-shaped", "self-trade prevention", "Same-timestamp"]:
+        if token not in text:
+            issues.append(f"futures_stress_case README is missing token: {token}")
+    return issues
+
+
 def _verify_strategy_profile_publication() -> list[str]:
     issues: list[str] = []
     if not FUTURES_STRATEGY_PROFILES.exists():
@@ -1748,15 +1863,23 @@ def _verify_strategy_profile_publication() -> list[str]:
     if not FUTURES_STRATEGY_REFRESH.exists():
         issues.append(f"Missing futures strategy refresh script: {_repo_relative(FUTURES_STRATEGY_REFRESH)}")
     if not FUTURES_PARAMETER_SWEEP_REFERENCE.exists():
-        issues.append(f"Missing futures parameter sweep reference doc: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE)}")
+        issues.append(
+            f"Missing futures parameter sweep reference doc: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE)}"
+        )
     if not FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists():
-        issues.append(f"Missing futures parameter sweep reference CSV: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE_CSV)}")
+        issues.append(
+            f"Missing futures parameter sweep reference CSV: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE_CSV)}"
+        )
     if not FUTURES_PARAMETER_SWEEP_REFRESH.exists():
-        issues.append(f"Missing futures parameter sweep refresh script: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFRESH)}")
+        issues.append(
+            f"Missing futures parameter sweep refresh script: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFRESH)}"
+        )
     if not FUTURES_LATENCY_SWEEP_REFERENCE.exists():
         issues.append(f"Missing futures latency sweep reference doc: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE)}")
     if not FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
-        issues.append(f"Missing futures latency sweep reference CSV: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE_CSV)}")
+        issues.append(
+            f"Missing futures latency sweep reference CSV: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE_CSV)}"
+        )
     if not FUTURES_LATENCY_SWEEP_REFRESH.exists():
         issues.append(f"Missing futures latency sweep refresh script: {_repo_relative(FUTURES_LATENCY_SWEEP_REFRESH)}")
 
@@ -1780,9 +1903,7 @@ def _verify_strategy_profile_publication() -> list[str]:
             "docs/strategy_results/futures_strategy_profile_reference.md still depends on the old local raw file path"
         )
     if "python scripts/refresh_futures_strategy_profile_reference.py" not in reference:
-        issues.append(
-            "docs/strategy_results/futures_strategy_profile_reference.md is missing the refresh command"
-        )
+        issues.append("docs/strategy_results/futures_strategy_profile_reference.md is missing the refresh command")
     if "research_mm" not in reference:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md must include the research_mm profile"
@@ -1795,13 +1916,9 @@ def _verify_strategy_profile_publication() -> list[str]:
                 "docs/strategy_results/futures_parameter_sweep_reference.md must reference a committed replay input"
             )
         if "python scripts/refresh_futures_parameter_sweep_reference.py" not in sweep_doc:
-            issues.append(
-                "docs/strategy_results/futures_parameter_sweep_reference.md is missing the refresh command"
-            )
+            issues.append("docs/strategy_results/futures_parameter_sweep_reference.md is missing the refresh command")
         if "not an alpha or profitability claim" not in sweep_doc:
-            issues.append(
-                "docs/strategy_results/futures_parameter_sweep_reference.md is missing the no-alpha caveat"
-            )
+            issues.append("docs/strategy_results/futures_parameter_sweep_reference.md is missing the no-alpha caveat")
         if "Git dirty at run time: `False`" not in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md must be refreshed from a clean source tree"
@@ -1845,7 +1962,9 @@ def _verify_strategy_profile_publication() -> list[str]:
                 + ", ".join(missing_columns)
             )
         if len(rows) < 3:
-            issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv must include multiple sweep rows")
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.csv must include multiple sweep rows"
+            )
         else:
             try:
                 ranks = [int(row["rank"]) for row in rows]
@@ -1853,14 +1972,20 @@ def _verify_strategy_profile_publication() -> list[str]:
                 issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has invalid ranks")
             else:
                 if ranks != list(range(1, len(rows) + 1)):
-                    issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv ranks are not contiguous")
+                    issues.append(
+                        "docs/strategy_results/futures_parameter_sweep_reference.csv ranks are not contiguous"
+                    )
             profiles = {row.get("strategy_profile") for row in rows}
             if not {"baseline", "layered_mm", "research_mm"} <= profiles:
-                issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv is missing a strategy profile")
+                issues.append(
+                    "docs/strategy_results/futures_parameter_sweep_reference.csv is missing a strategy profile"
+                )
             try:
                 fill_counts = [int(row["fill_count"]) for row in rows]
             except (KeyError, ValueError):
-                issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has invalid fill_count values")
+                issues.append(
+                    "docs/strategy_results/futures_parameter_sweep_reference.csv has invalid fill_count values"
+                )
             else:
                 if max(fill_counts, default=0) <= 0:
                     issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has no filled sweep run")
@@ -1872,9 +1997,7 @@ def _verify_strategy_profile_publication() -> list[str]:
                 "docs/strategy_results/futures_latency_sweep_reference.md must reference a committed replay input"
             )
         if "python scripts/refresh_futures_latency_sweep_reference.py" not in latency_doc:
-            issues.append(
-                "docs/strategy_results/futures_latency_sweep_reference.md is missing the refresh command"
-            )
+            issues.append("docs/strategy_results/futures_latency_sweep_reference.md is missing the refresh command")
         if "not a latency-arbitrage, alpha, or profitability claim" not in latency_doc:
             issues.append(
                 "docs/strategy_results/futures_latency_sweep_reference.md is missing the latency/no-alpha caveat"
@@ -1888,9 +2011,7 @@ def _verify_strategy_profile_publication() -> list[str]:
                 "docs/strategy_results/futures_latency_sweep_reference.md must be refreshed from a clean source tree"
             )
         if "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" not in latency_doc:
-            issues.append(
-                "docs/strategy_results/futures_latency_sweep_reference.md is missing feed adapter provenance"
-            )
+            issues.append("docs/strategy_results/futures_latency_sweep_reference.md is missing feed adapter provenance")
 
         with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
             latency_rows = list(csv.DictReader(handle))
@@ -1917,7 +2038,9 @@ def _verify_strategy_profile_publication() -> list[str]:
                 + ", ".join(missing_latency_columns)
             )
         if len(latency_rows) < 3:
-            issues.append("docs/strategy_results/futures_latency_sweep_reference.csv must include multiple latency rows")
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.csv must include multiple latency rows"
+            )
         else:
             try:
                 ranks = [int(row["rank"]) for row in latency_rows]
@@ -1971,9 +2094,7 @@ def _verify_strategy_profile_publication() -> list[str]:
                 issues.append(f"Missing strategy-profile walkthrough item in {_repo_relative(path)}: {token}")
                 continue
             if index <= last_index:
-                issues.append(
-                    f"Strategy-profile walkthrough order is incorrect in {_repo_relative(path)}: {token}"
-                )
+                issues.append(f"Strategy-profile walkthrough order is incorrect in {_repo_relative(path)}: {token}")
             last_index = index
     return issues
 
@@ -2106,6 +2227,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_benchmark_publication())
     issues.extend(_verify_replay_contract_publication())
     issues.extend(_verify_reviewer_gate_publication())
+    issues.extend(_verify_futures_stress_pack_publication())
     issues.extend(_verify_artifact_order())
     return issues
 

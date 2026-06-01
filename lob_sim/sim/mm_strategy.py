@@ -91,18 +91,47 @@ class MarketMakingStrategy:
         return Decimal(signed) / Decimal(total)
 
     def _microstructure_gate(self, book: LocalOrderBook) -> tuple[str, int]:
+        details = self._microstructure_gate_details(book)
+        return str(details["gate_label"]), int(details["gate_ticks"])
+
+    def _microstructure_gate_details(self, book: LocalOrderBook) -> dict[str, Any]:
         threshold = self.cfg.mm_microstructure_gate_threshold
         book_imbalance = self._top_of_book_imbalance(book)
         trade_imbalance = self._recent_trade_imbalance(book.symbol)
+        combined_imbalance = (book_imbalance + trade_imbalance) / Decimal("2")
         gate_ticks = self._tick_round(self._bps_to_ticks(book, self.cfg.mm_microstructure_gate_bps))
 
         if gate_ticks <= 0:
-            return "neutral", 0
-        if book_imbalance >= threshold and trade_imbalance >= threshold:
-            return "bullish", gate_ticks
-        if book_imbalance <= -threshold and trade_imbalance <= -threshold:
-            return "bearish", gate_ticks
-        return "neutral", 0
+            gate_label = "neutral"
+            gate_reason = "gate_size_zero"
+            active_gate_ticks = 0
+        elif book_imbalance >= threshold and trade_imbalance >= threshold:
+            gate_label = "bullish"
+            gate_reason = "book_and_trade_buy_pressure_agree"
+            active_gate_ticks = gate_ticks
+        elif book_imbalance <= -threshold and trade_imbalance <= -threshold:
+            gate_label = "bearish"
+            gate_reason = "book_and_trade_sell_pressure_agree"
+            active_gate_ticks = gate_ticks
+        elif abs(book_imbalance) >= threshold or abs(trade_imbalance) >= threshold:
+            gate_label = "neutral"
+            gate_reason = "only_one_signal_strong_or_signals_disagree"
+            active_gate_ticks = 0
+        else:
+            gate_label = "neutral"
+            gate_reason = "below_threshold"
+            active_gate_ticks = 0
+
+        return {
+            "book_imbalance": book_imbalance,
+            "trade_imbalance": trade_imbalance,
+            "combined_imbalance": combined_imbalance,
+            "threshold": threshold,
+            "gate_label": gate_label,
+            "gate_reason": gate_reason,
+            "gate_ticks": active_gate_ticks,
+            "configured_gate_ticks": gate_ticks,
+        }
 
     def _combined_imbalance(self, book: LocalOrderBook) -> Decimal:
         return (self._top_of_book_imbalance(book) + self._recent_trade_imbalance(book.symbol)) / Decimal("2")
@@ -153,6 +182,8 @@ class MarketMakingStrategy:
             "skew_ticks": self._format_decimal(skew_ticks),
             "top_of_book_imbalance": self._format_decimal(self._top_of_book_imbalance(book)),
             "recent_trade_imbalance": self._format_decimal(self._recent_trade_imbalance(book.symbol)),
+            "book_imbalance": self._format_decimal(self._top_of_book_imbalance(book)),
+            "trade_imbalance": self._format_decimal(self._recent_trade_imbalance(book.symbol)),
         }
 
     def _baseline_quotes(
@@ -258,12 +289,13 @@ class MarketMakingStrategy:
         half_spread_ticks = max(Decimal("1"), self._bps_to_ticks(book, half_spread_bps))
 
         threshold = self.cfg.mm_microstructure_gate_threshold
-        gate_ticks = self._tick_round(self._bps_to_ticks(book, self.cfg.mm_microstructure_gate_bps))
-        if combined_imbalance >= threshold:
+        gate_details = self._microstructure_gate_details(book)
+        gate_ticks = int(gate_details["gate_ticks"])
+        if gate_details["gate_label"] == "bullish":
             gate_label = "bullish_toxic"
             bid_extra = Decimal("0")
             ask_extra = Decimal(gate_ticks)
-        elif combined_imbalance <= -threshold:
+        elif gate_details["gate_label"] == "bearish":
             gate_label = "bearish_toxic"
             bid_extra = Decimal(gate_ticks)
             ask_extra = Decimal("0")
@@ -278,6 +310,8 @@ class MarketMakingStrategy:
             {
                 "spread_scale": self._format_decimal(spread_scale),
                 "combined_imbalance": self._format_decimal(combined_imbalance),
+                "book_imbalance": self._format_decimal(Decimal(str(gate_details["book_imbalance"]))),
+                "trade_imbalance": self._format_decimal(Decimal(str(gate_details["trade_imbalance"]))),
                 "toxicity_bps": self._format_decimal(toxicity_bps),
                 "base_half_spread_bps": self._format_decimal(base_half_spread_bps),
                 "fee_floor_bps": self._format_decimal(fee_floor_bps),
@@ -287,6 +321,8 @@ class MarketMakingStrategy:
                 "reservation_tick": self._tick_round(reservation_ticks),
                 "gate_label": gate_label,
                 "gate_ticks": gate_ticks,
+                "gate_reason": gate_details["gate_reason"],
+                "threshold": self._format_decimal(threshold),
                 "bid_extra_ticks": self._format_decimal(bid_extra),
                 "ask_extra_ticks": self._format_decimal(ask_extra),
             }

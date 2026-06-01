@@ -68,7 +68,9 @@ class SimulationEngine:
         self._symbol_time_watermark: Dict[str, float] = {}
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
-        heappush(self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload))
+        heappush(
+            self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload)
+        )
 
     def _trace(
         self,
@@ -388,9 +390,7 @@ class SimulationEngine:
 
         for side in ("bid", "ask"):
             desired_targets = desired_by_side[side]
-            existing_orders = {
-                order.quote_slot: order for order in self.fill_model.get_orders(symbol, side)
-            }
+            existing_orders = {order.quote_slot: order for order in self.fill_model.get_orders(symbol, side)}
             if side == "bid" and inventory > self.cfg.mm_max_position:
                 for existing in existing_orders.values():
                     self._request_cancel(
@@ -467,7 +467,11 @@ class SimulationEngine:
                         continue
                     self._pending_replacement_slots.add(slot_key)
 
-                if existing is not None and existing.price_tick == target.price_tick and existing.qty_lots == target.qty_lots:
+                if (
+                    existing is not None
+                    and existing.price_tick == target.price_tick
+                    and existing.qty_lots == target.qty_lots
+                ):
                     continue
 
                 arrival_ts = ts + self.cfg.sim_order_latency_ms / 1000.0

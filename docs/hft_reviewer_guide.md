@@ -23,6 +23,9 @@ The options material is secondary: a controlled dealer-pricing case study for re
 13. [Benchmark notes](futures_benchmarks.md)
 14. [Determinism checker](../scripts/check_futures_determinism.py)
 15. [Extension points](extension_points.md)
+16. [Synthetic stress evidence pack](sample_outputs/futures_stress_case/README.md)
+17. [Reviewer results memo](reviewer_results_memo.md)
+18. [Architecture decisions](architecture_decisions.md)
 
 ## Architecture
 
@@ -51,7 +54,7 @@ python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futur
 python -m lob_sim.cli --env .env.example simulate --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 python scripts/audit_futures_pack.py --committed-futures
-python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
 python scripts/refresh_futures_parameter_sweep_reference.py
@@ -157,6 +160,7 @@ Inferred:
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - A CI-covered determinism checker that proves repeated in-memory fixture runs produce identical summary and event-trace hashes.
 - A futures pack auditor that checks replay input, summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
+- A synthetic-but-exchange-shaped stress pack that intentionally covers queue ahead, partial fills, overlap netting, adverse/non-adverse markouts, cancel latency, same-timestamp cancel/trade ordering, marketable taker fills, self-trade prevention, and no-gap continuity.
 - A deterministic latency sensitivity sweep that shows how modeled order-arrival and cancel-ack delays affect queue/fill outcomes without claiming a production latency edge.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.

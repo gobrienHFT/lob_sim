@@ -66,7 +66,7 @@ class BinanceRESTClient:
                     await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise RuntimeError(f"REST request failed: {exc}") from exc
-            except Exception as exc:
+            except Exception:
                 raise
         if last_error:
             raise RuntimeError(f"REST request failed after retries: {last_error}")

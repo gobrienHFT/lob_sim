@@ -25,7 +25,7 @@ class SimpleVolSurface:
         vol = (
             self.params.atm_vol
             + self.params.skew * log_moneyness
-            + self.params.convexity * (log_moneyness ** 2)
+            + self.params.convexity * (log_moneyness**2)
             + self.params.term_slope * sqrt(remaining)
         )
         return max(self.params.min_vol, vol)

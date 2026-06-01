@@ -61,17 +61,11 @@ def option_metrics(
     if option_type == "call":
         price = spot * _norm_cdf(d1) - strike * discount * _norm_cdf(d2)
         delta = _norm_cdf(d1)
-        theta = (
-            -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt_t)
-            - rate * strike * discount * _norm_cdf(d2)
-        )
+        theta = -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt_t) - rate * strike * discount * _norm_cdf(d2)
     else:
         price = strike * discount * _norm_cdf(-d2) - spot * _norm_cdf(-d1)
         delta = _norm_cdf(d1) - 1.0
-        theta = (
-            -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt_t)
-            + rate * strike * discount * _norm_cdf(-d2)
-        )
+        theta = -(spot * _norm_pdf(d1) * vol) / (2.0 * sqrt_t) + rate * strike * discount * _norm_cdf(-d2)
 
     gamma = _norm_pdf(d1) / (spot * vol * sqrt_t)
     vega = spot * _norm_pdf(d1) * sqrt_t

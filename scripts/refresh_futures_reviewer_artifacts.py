@@ -18,6 +18,7 @@ from scripts.refresh_futures_latency_sweep_reference import refresh_futures_late
 from scripts.refresh_futures_parameter_sweep_reference import refresh_futures_parameter_sweep_reference
 from scripts.refresh_futures_recorded_case import refresh_futures_recorded_case
 from scripts.refresh_futures_showcase import refresh_futures_showcase
+from scripts.refresh_futures_stress_case import refresh_futures_stress_case
 from scripts.refresh_futures_strategy_profile_reference import refresh_reference
 
 
@@ -41,6 +42,7 @@ def _refresh_steps() -> list[tuple[str, RefreshFunc]]:
     return [
         ("futures_showcase", refresh_futures_showcase),
         ("futures_recorded_case", refresh_futures_recorded_case),
+        ("futures_stress_case", refresh_futures_stress_case),
         ("futures_strategy_profile_reference", refresh_reference),
         ("futures_parameter_sweep_reference", refresh_futures_parameter_sweep_reference),
         ("futures_latency_sweep_reference", refresh_futures_latency_sweep_reference),

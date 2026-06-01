@@ -34,7 +34,7 @@ The replay and matching core is the main artifact. The strategy layer stays deli
 
 This profile is intended for research inspection. It is still not a production market maker and does not claim hidden alpha.
 
-Every strategy decision emitted by `SimulationEngine` includes a structured diagnostics object in `event_trace.csv`. For `research_mm`, that object records the best ticks, mid, inventory, volatility, top-of-book imbalance, recent trade imbalance, combined imbalance, reservation tick, spread components, fee floor, toxicity spread, and microstructure gate label. This is audit metadata: it explains why a quote was placed without presenting the profile as a predictive alpha model.
+Every strategy decision emitted by `SimulationEngine` includes a structured diagnostics object in `event_trace.csv`. For `research_mm`, that object records the best ticks, mid, inventory, volatility, `book_imbalance`, `trade_imbalance`, `combined_imbalance`, reservation tick, spread components, fee floor, toxicity spread, `gate_label`, `gate_reason`, `threshold`, `bid_extra_ticks`, and `ask_extra_ticks`. This is audit metadata: it explains why a quote was placed without presenting the profile as a predictive alpha model.
 
 ## Signals Used
 
@@ -46,6 +46,7 @@ The microstructure gate is intentionally simple:
 
 - Bullish pressure = bid-side book imbalance and aggressive-buy trade imbalance both exceed `MM_MICROSTRUCTURE_GATE_THRESHOLD`
 - Bearish pressure = ask-side book imbalance and aggressive-sell trade imbalance both exceed the same threshold
+- If only one signal is strong, or the signs disagree, the gate remains neutral even if the combined imbalance is large.
 - The gate widens the vulnerable side by `MM_MICROSTRUCTURE_GATE_BPS`
 
 ## Reference Comparison

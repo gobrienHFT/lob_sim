@@ -142,10 +142,7 @@ def _matrix(rows: list[dict[str, float | int]], metric: str) -> list[list[float]
     values: dict[tuple[float, float], float] = {
         (float(row["toxic_flow_prob"]), float(row["base_half_spread"])): float(row[metric]) for row in rows
     }
-    return [
-        [values[(toxic_prob, spread)] for spread in BASE_HALF_SPREADS]
-        for toxic_prob in TOXIC_FLOW_PROBS
-    ]
+    return [[values[(toxic_prob, spread)] for spread in BASE_HALF_SPREADS] for toxic_prob in TOXIC_FLOW_PROBS]
 
 
 def _draw_metric_heatmap(ax: plt.Axes, rows: list[dict[str, float | int]], metric: str, title: str) -> None:

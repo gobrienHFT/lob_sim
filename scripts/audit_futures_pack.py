@@ -111,6 +111,7 @@ MARKOUT_TRACE_DETAIL_FIELDS = (
 COMMITTED_FUTURES_PACKS = (
     Path("docs/sample_outputs/futures_replay_walkthrough"),
     Path("docs/sample_outputs/futures_recorded_clip_case"),
+    Path("docs/sample_outputs/futures_stress_case"),
 )
 EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
     "schema_version",
@@ -246,6 +247,7 @@ def _decimal(value: Any) -> Decimal | None:
 
 def _scalar_matches(left: Any, right: Any) -> bool:
     if isinstance(left, bool) or isinstance(right, bool):
+
         def _bool_value(value: Any) -> bool | None:
             if isinstance(value, bool):
                 return value
@@ -314,7 +316,9 @@ def _audit_lifecycle(
         return
     for key in ORDER_LIFECYCLE_KEYS:
         if expected.get(key) != lifecycle_counts[key]:
-            issues.append(f"order_lifecycle_counts.{key}={expected.get(key)!r} does not match trace value {lifecycle_counts[key]}")
+            issues.append(
+                f"order_lifecycle_counts.{key}={expected.get(key)!r} does not match trace value {lifecycle_counts[key]}"
+            )
     if expected.get("arrived") != summary.get("quote_count"):
         issues.append("order_lifecycle_counts.arrived does not match quote_count")
     if expected.get("cancel_requested") != summary.get("cancel_count"):
@@ -373,7 +377,9 @@ def _audit_public_consumption(
     }
     for field, total_field in total_mapping.items():
         if public_summary.get(total_field) != totals[field]:
-            issues.append(f"public_consumption_summary.{total_field}={public_summary.get(total_field)!r} does not match trace value {totals[field]}")
+            issues.append(
+                f"public_consumption_summary.{total_field}={public_summary.get(total_field)!r} does not match trace value {totals[field]}"
+            )
 
 
 def _audit_markouts(
@@ -412,7 +418,9 @@ def _audit_markouts(
             actual = observed.get(field)
             if isinstance(value, float):
                 if not _is_close(actual, value):
-                    issues.append(f"markout_by_fill_source.{source}.{field}={actual!r} does not match trace value {value}")
+                    issues.append(
+                        f"markout_by_fill_source.{source}.{field}={actual!r} does not match trace value {value}"
+                    )
             elif actual != value:
                 issues.append(f"markout_by_fill_source.{source}.{field}={actual!r} does not match trace value {value}")
 
@@ -463,7 +471,9 @@ def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str
         actual = row.get(field)
         expected = summary.get(field)
         if actual != str(expected):
-            issues.append(f"{_display_path(summary_csv_path)} {field}={actual!r} does not match summary value {expected!r}")
+            issues.append(
+                f"{_display_path(summary_csv_path)} {field}={actual!r} does not match summary value {expected!r}"
+            )
 
     for field in SUMMARY_CSV_INT_FIELDS:
         raw_value = row.get(field)
@@ -474,7 +484,9 @@ def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str
             continue
         expected = summary.get(field)
         if actual_int != expected:
-            issues.append(f"{_display_path(summary_csv_path)} {field}={raw_value!r} does not match summary value {expected!r}")
+            issues.append(
+                f"{_display_path(summary_csv_path)} {field}={raw_value!r} does not match summary value {expected!r}"
+            )
 
     for field in SUMMARY_CSV_JSON_FIELDS:
         raw_value = row.get(field)
@@ -625,7 +637,9 @@ def _audit_replay_event_counts(
     for source, field in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD.items():
         observed = market_record_counts.get(source, 0)
         if event_counts[field] != observed:
-            issues.append(f"event_counts.{field}={event_counts[field]!r} does not match trace source {source} count {observed}")
+            issues.append(
+                f"event_counts.{field}={event_counts[field]!r} does not match trace source {source} count {observed}"
+            )
 
     if event_counts["book_gap_count"] != sum(book_gap_counts_by_symbol.values()):
         issues.append(
@@ -704,10 +718,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     market_record_counts = {source: 0 for source in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD}
     book_gap_counts_by_symbol: dict[str, int] = {}
     lifecycle_counts = {key: 0 for key in ORDER_LIFECYCLE_KEYS}
-    consumption = {
-        source: {field: 0 for field in PUBLIC_CONSUMPTION_FIELDS}
-        for source in PUBLIC_CONSUMPTION_SOURCES
-    }
+    consumption = {source: {field: 0 for field in PUBLIC_CONSUMPTION_FIELDS} for source in PUBLIC_CONSUMPTION_SOURCES}
     markouts = {
         source: {
             "samples": 0,
@@ -753,7 +764,9 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
             else:
                 market_record_counts[source] += 1
             if details.get("record_type") != source:
-                issues.append(f"{_display_path(trace_path)}:{row_number} market_record details.record_type does not match source")
+                issues.append(
+                    f"{_display_path(trace_path)}:{row_number} market_record details.record_type does not match source"
+                )
         elif event_type == "book_gap":
             symbol = row.get("symbol", "")
             if not symbol:
@@ -774,10 +787,16 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
                     if queue_ahead > 0:
                         arrival_with_queue += 1
                 else:
-                    issues.append(f"{_display_path(trace_path)}:{row_number} has invalid queue_ahead_lots_after_arrival")
+                    issues.append(
+                        f"{_display_path(trace_path)}:{row_number} has invalid queue_ahead_lots_after_arrival"
+                    )
             if isinstance(details.get("immediate_fills"), int) and details["immediate_fills"] > 0:
                 lifecycle_counts["immediate_fill_arrivals"] += 1
-            if details.get("resting_after_arrival") is False and isinstance(details.get("remaining_lots_after_arrival"), int) and details["remaining_lots_after_arrival"] > 0:
+            if (
+                details.get("resting_after_arrival") is False
+                and isinstance(details.get("remaining_lots_after_arrival"), int)
+                and details["remaining_lots_after_arrival"] > 0
+            ):
                 lifecycle_counts["expired_unfilled_arrivals"] += 1
             if details.get("self_trade_prevented") is True:
                 lifecycle_counts["self_trade_prevented"] += 1
@@ -799,7 +818,9 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         elif event_type == "queue_consumption":
             source = row.get("source", "")
             if source not in PUBLIC_CONSUMPTION_SOURCES:
-                issues.append(f"{_display_path(trace_path)}:{row_number} has invalid queue_consumption source {source!r}")
+                issues.append(
+                    f"{_display_path(trace_path)}:{row_number} has invalid queue_consumption source {source!r}"
+                )
                 continue
             parsed: dict[str, int] = {}
             for field in PUBLIC_CONSUMPTION_FIELDS:
@@ -811,19 +832,29 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
                     consumption[source][field] += value
             if len(parsed) == len(PUBLIC_CONSUMPTION_FIELDS):
                 if parsed["observed_lots"] < parsed["modeled_lots"]:
-                    issues.append(f"{_display_path(trace_path)}:{row_number} queue_consumption models more lots than observed")
+                    issues.append(
+                        f"{_display_path(trace_path)}:{row_number} queue_consumption models more lots than observed"
+                    )
                 if parsed["overlap_netted_lots"] != parsed["observed_lots"] - parsed["modeled_lots"]:
-                    issues.append(f"{_display_path(trace_path)}:{row_number} queue_consumption netted lots are inconsistent")
+                    issues.append(
+                        f"{_display_path(trace_path)}:{row_number} queue_consumption netted lots are inconsistent"
+                    )
                 if parsed["queue_consumed_lots"] > parsed["modeled_lots"]:
-                    issues.append(f"{_display_path(trace_path)}:{row_number} queue_consumption consumes more queue than modeled")
+                    issues.append(
+                        f"{_display_path(trace_path)}:{row_number} queue_consumption consumes more queue than modeled"
+                    )
                 if parsed["unmatched_lots"] != parsed["modeled_lots"] - parsed["queue_consumed_lots"]:
-                    issues.append(f"{_display_path(trace_path)}:{row_number} queue_consumption unmatched lots are inconsistent")
+                    issues.append(
+                        f"{_display_path(trace_path)}:{row_number} queue_consumption unmatched lots are inconsistent"
+                    )
         elif event_type == "markout":
             source = row.get("fill_source", "")
             qty = _decimal(details.get("qty"))
             markout = _decimal(details.get("markout"))
             if source not in FILL_SOURCES or qty is None or markout is None:
-                issues.append(f"{_display_path(trace_path)}:{row_number} markout row has invalid source, qty, or markout")
+                issues.append(
+                    f"{_display_path(trace_path)}:{row_number} markout row has invalid source, qty, or markout"
+                )
                 continue
             markouts[source]["samples"] = int(markouts[source]["samples"]) + 1
             markouts[source]["qty"] = markouts[source]["qty"] + qty
@@ -836,7 +867,9 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     if isinstance(expected_fill_count, int) and len(fill_rows) != expected_fill_count:
         issues.append(f"event_trace.csv has {len(fill_rows)} fill row(s), summary expected {expected_fill_count}")
     if summary.get("fill_source_counts") != fill_source_counts:
-        issues.append(f"summary.fill_source_counts={summary.get('fill_source_counts')!r} does not match trace value {fill_source_counts}")
+        issues.append(
+            f"summary.fill_source_counts={summary.get('fill_source_counts')!r} does not match trace value {fill_source_counts}"
+        )
 
     trade_order_ids = {row.get("order_id") for row in trade_rows if row.get("order_id")}
     trace_order_ids = {row.get("order_id") for row in fill_rows if row.get("order_id")}
@@ -895,11 +928,7 @@ def audit_futures_packs(pack_dirs: list[Path]) -> dict[str, Any]:
         "ok": all(result["ok"] for result in pack_results),
         "pack_count": len(pack_results),
         "packs": pack_results,
-        "issues": [
-            f"{result['pack_dir']}: {issue}"
-            for result in pack_results
-            for issue in result["issues"]
-        ],
+        "issues": [f"{result['pack_dir']}: {issue}" for result in pack_results for issue in result["issues"]],
     }
 
 

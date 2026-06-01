@@ -228,7 +228,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run a deterministic futures latency sensitivity sweep")
     parser.add_argument("--file", required=True, help="Path to NDJSON or NDJSON.GZ replay file")
     parser.add_argument("--env", default=".env.example", help="Config source for replay parameters")
-    parser.add_argument("--out-dir", default="outputs/futures_latency_sweeps", help="Directory for CSV/Markdown outputs")
+    parser.add_argument(
+        "--out-dir", default="outputs/futures_latency_sweeps", help="Directory for CSV/Markdown outputs"
+    )
     parser.add_argument("--profile", default="baseline", help="Strategy profile to sweep")
     parser.add_argument("--order-latencies-ms", default="0,10,50", help="Comma-separated order latency values in ms")
     parser.add_argument("--cancel-latencies-ms", default="0,10,50", help="Comma-separated cancel latency values in ms")

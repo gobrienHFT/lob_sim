@@ -219,6 +219,107 @@ def test_research_profile_toxicity_widens_vulnerable_side(
     assert gated_ask > neutral_ask
 
 
+def test_research_profile_bullish_gate_requires_book_and_trade_agreement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+    )
+    book = _book()
+    book.reset_from_snapshot(101, bids={1000: 10}, asks={1002: 1})
+    strategy = MarketMakingStrategy(cfg)
+    strategy.observe_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=1002, qty_lots=1, buyer_is_maker=False, ts_local=1.0)
+    )
+
+    diagnostics = strategy.propose(book, inventory_qty=Decimal("0")).diagnostics
+
+    assert diagnostics["gate_label"] == "bullish_toxic"
+    assert diagnostics["gate_reason"] == "book_and_trade_buy_pressure_agree"
+    assert Decimal(str(diagnostics["book_imbalance"])) >= Decimal(str(diagnostics["threshold"]))
+    assert Decimal(str(diagnostics["trade_imbalance"])) >= Decimal(str(diagnostics["threshold"]))
+    assert Decimal(str(diagnostics["ask_extra_ticks"])) > 0
+    assert Decimal(str(diagnostics["bid_extra_ticks"])) == 0
+
+
+def test_research_profile_bearish_gate_requires_book_and_trade_agreement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+    )
+    book = _book()
+    book.reset_from_snapshot(101, bids={1000: 1}, asks={1002: 10})
+    strategy = MarketMakingStrategy(cfg)
+    strategy.observe_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=1000, qty_lots=1, buyer_is_maker=True, ts_local=1.0)
+    )
+
+    diagnostics = strategy.propose(book, inventory_qty=Decimal("0")).diagnostics
+
+    assert diagnostics["gate_label"] == "bearish_toxic"
+    assert diagnostics["gate_reason"] == "book_and_trade_sell_pressure_agree"
+    assert Decimal(str(diagnostics["book_imbalance"])) <= -Decimal(str(diagnostics["threshold"]))
+    assert Decimal(str(diagnostics["trade_imbalance"])) <= -Decimal(str(diagnostics["threshold"]))
+    assert Decimal(str(diagnostics["bid_extra_ticks"])) > 0
+    assert Decimal(str(diagnostics["ask_extra_ticks"])) == 0
+
+
+def test_research_profile_neutral_gate_when_signals_are_below_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+    )
+    book = _book()
+    book.reset_from_snapshot(101, bids={1000: 5}, asks={1002: 5})
+    diagnostics = MarketMakingStrategy(cfg).propose(book, inventory_qty=Decimal("0")).diagnostics
+
+    assert diagnostics["gate_label"] == "neutral"
+    assert diagnostics["gate_reason"] == "below_threshold"
+    assert Decimal(str(diagnostics["bid_extra_ticks"])) == 0
+    assert Decimal(str(diagnostics["ask_extra_ticks"])) == 0
+
+
+def test_research_profile_does_not_gate_when_only_one_signal_is_strong(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_STRATEGY_PROFILE="research_mm",
+        MM_HALF_SPREAD_BPS="1.0",
+        MM_MICROSTRUCTURE_GATE_BPS="10.0",
+    )
+    book = _book()
+    book.reset_from_snapshot(101, bids={1000: 10}, asks={1002: 1})
+
+    diagnostics = MarketMakingStrategy(cfg).propose(book, inventory_qty=Decimal("0")).diagnostics
+
+    assert Decimal(str(diagnostics["book_imbalance"])) >= Decimal(str(diagnostics["threshold"]))
+    assert Decimal(str(diagnostics["trade_imbalance"])) == 0
+    assert diagnostics["gate_label"] == "neutral"
+    assert diagnostics["gate_reason"] == "only_one_signal_strong_or_signals_disagree"
+    assert Decimal(str(diagnostics["bid_extra_ticks"])) == 0
+    assert Decimal(str(diagnostics["ask_extra_ticks"])) == 0
+
+
 def test_research_profile_diagnostics_explain_quote_components(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -249,7 +350,17 @@ def test_research_profile_diagnostics_explain_quote_components(
     assert diagnostics["best_bid_tick"] == 1000
     assert diagnostics["best_ask_tick"] == 1002
     assert diagnostics["gate_label"] == "bullish_toxic"
+    assert diagnostics["gate_reason"] == "book_and_trade_buy_pressure_agree"
     assert Decimal(str(diagnostics["toxicity_bps"])) > 0
     assert Decimal(str(diagnostics["half_spread_bps"])) >= Decimal(str(diagnostics["fee_floor_bps"]))
     assert Decimal(str(diagnostics["reservation_ticks"])) < Decimal(str(diagnostics["mid_ticks"]))
-    assert {"top_of_book_imbalance", "recent_trade_imbalance", "combined_imbalance"} <= set(diagnostics)
+    assert {
+        "top_of_book_imbalance",
+        "recent_trade_imbalance",
+        "book_imbalance",
+        "trade_imbalance",
+        "combined_imbalance",
+        "threshold",
+        "bid_extra_ticks",
+        "ask_extra_ticks",
+    } <= set(diagnostics)

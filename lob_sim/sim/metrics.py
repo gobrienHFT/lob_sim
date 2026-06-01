@@ -280,12 +280,14 @@ class SimulationMetrics:
         if self.cfg.sim_kill_max_drawdown > 0 and self.max_drawdown >= self.cfg.sim_kill_max_drawdown:
             self.kill_switch_triggered = True
             self.kill_switch_reason = (
-                f"max_drawdown_exceeded: {float(self.max_drawdown):.6f} >= "
-                f"{float(self.cfg.sim_kill_max_drawdown):.6f}"
+                f"max_drawdown_exceeded: {float(self.max_drawdown):.6f} >= {float(self.cfg.sim_kill_max_drawdown):.6f}"
             )
             return
 
-        if self.cfg.sim_kill_max_consecutive_losses > 0 and self.max_consecutive_loss_count >= self.cfg.sim_kill_max_consecutive_losses:
+        if (
+            self.cfg.sim_kill_max_consecutive_losses > 0
+            and self.max_consecutive_loss_count >= self.cfg.sim_kill_max_consecutive_losses
+        ):
             self.kill_switch_triggered = True
             self.kill_switch_reason = (
                 f"consecutive_losses_exceeded: {self.max_consecutive_loss_count} >= "
@@ -308,7 +310,9 @@ class SimulationMetrics:
             total_new_abs = Decimal(abs(pos.lot_size) + abs(signed_qty_lots))
             old_abs_qty = book.spec.lot_to_qty(abs(pos.lot_size))
             add_qty = book.spec.lot_to_qty(abs(signed_qty_lots))
-            pos.avg_cost = (old_abs_qty * (pos.avg_cost or Decimal("0")) + add_qty * price) / book.spec.lot_to_qty(total_new_abs)
+            pos.avg_cost = (old_abs_qty * (pos.avg_cost or Decimal("0")) + add_qty * price) / book.spec.lot_to_qty(
+                total_new_abs
+            )
             pos.lot_size += signed_qty_lots
         else:
             close_qty_lots = min(abs(pos.lot_size), abs(signed_qty_lots))
@@ -417,7 +421,12 @@ class SimulationMetrics:
 
         return fill_audit
 
-    def update_unrealized(self, books: Dict[str, LocalOrderBook], now_ts: float | None = None, mid_override: Dict[str, Decimal] | None = None) -> None:
+    def update_unrealized(
+        self,
+        books: Dict[str, LocalOrderBook],
+        now_ts: float | None = None,
+        mid_override: Dict[str, Decimal] | None = None,
+    ) -> None:
         unreal = Decimal("0")
         total_inventory = Decimal("0")
         mids = dict(mid_override or {})
@@ -506,7 +515,7 @@ class SimulationMetrics:
 
         inv_stdev = Decimal("0")
         if self._inv_n > 1:
-            inv_stdev = Decimal(str(sqrt(float(self._inv_m2 / Decimal(self._inv_n - 1)))) )
+            inv_stdev = Decimal(str(sqrt(float(self._inv_m2 / Decimal(self._inv_n - 1)))))
 
         total_inventory = Decimal("0")
         inventory_by_symbol: dict[str, float] = {}
@@ -528,8 +537,8 @@ class SimulationMetrics:
 
         avg_arrival_queue_ahead_lots = Decimal("0")
         if self.resting_arrival_queue_samples > 0:
-            avg_arrival_queue_ahead_lots = (
-                Decimal(self.arrival_queue_ahead_sum) / Decimal(self.resting_arrival_queue_samples)
+            avg_arrival_queue_ahead_lots = Decimal(self.arrival_queue_ahead_sum) / Decimal(
+                self.resting_arrival_queue_samples
             )
 
         regime_performance: dict[str, dict[str, float]] = {}
@@ -577,10 +586,7 @@ class SimulationMetrics:
             "unrealized_pnl": float(self.unrealized_pnl),
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
-            "fill_source_counts": {
-                source: self.fill_source_counts.get(source, 0)
-                for source in FILL_SOURCES
-            },
+            "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
             "fill_rate": float(fill_rate),
             "avg_spread_captured": float(avg_spread),
             "avg_inventory": float(self._inv_mean),
@@ -590,10 +596,7 @@ class SimulationMetrics:
             "quote_count": self.quote_count,
             "cancel_count": self.cancel_count,
             "self_trade_prevention_count": self.self_trade_prevention_count,
-            "order_lifecycle_counts": {
-                key: lifecycle_counts[key]
-                for key in ORDER_LIFECYCLE_COUNT_KEYS
-            },
+            "order_lifecycle_counts": {key: lifecycle_counts[key] for key in ORDER_LIFECYCLE_COUNT_KEYS},
             "avg_fill_wait_ms": float(avg_fill_wait_ms),
             "fill_from_top_count": self.fill_from_top_count,
             "fill_from_top_rate": float(fill_from_top_rate),

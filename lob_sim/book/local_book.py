@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Deque, Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List
 
 from .types import LevelChange, SymbolSpec
 

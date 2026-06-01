@@ -62,6 +62,30 @@ Open first:
 5. [`futures_recorded_clip_case/event_trace.csv`](futures_recorded_clip_case/event_trace.csv)
 6. [`futures_recorded_clip_case/case_notes.md`](futures_recorded_clip_case/case_notes.md)
 
+## Futures Stress Case
+
+- Pack entry: [`futures_stress_case/README.md`](futures_stress_case/README.md)
+- Summary: [`futures_stress_case/summary.json`](futures_stress_case/summary.json)
+- Manifest: [`futures_stress_case/manifest.json`](futures_stress_case/manifest.json)
+- Trades: [`futures_stress_case/trades.csv`](futures_stress_case/trades.csv)
+- Event trace: [`futures_stress_case/event_trace.csv`](futures_stress_case/event_trace.csv)
+- Notes: [`futures_stress_case/case_notes.md`](futures_stress_case/case_notes.md)
+- Input type: synthetic-but-exchange-shaped BTCUSDT stress fixture
+- Regenerate with:
+
+```bash
+python scripts/refresh_futures_stress_case.py
+```
+
+Open first:
+
+1. [`futures_stress_case/README.md`](futures_stress_case/README.md)
+2. [`futures_stress_case/summary.json`](futures_stress_case/summary.json)
+3. [`futures_stress_case/manifest.json`](futures_stress_case/manifest.json)
+4. [`futures_stress_case/trades.csv`](futures_stress_case/trades.csv)
+5. [`futures_stress_case/event_trace.csv`](futures_stress_case/event_trace.csv)
+6. [`futures_stress_case/case_notes.md`](futures_stress_case/case_notes.md)
+
 ## Controlled Options Case Study
 
 - Pack: [`toxic_flow_seed7/`](toxic_flow_seed7/)
@@ -137,18 +161,28 @@ From the repo root:
 python scripts/refresh_sample_outputs.py
 ```
 
+### All Futures Reviewer Artifacts
+
+From a clean source tree:
+
+```bash
+python scripts/refresh_futures_reviewer_artifacts.py
+```
+
 Exact deterministic commands behind each pack:
 
 ```bash
 python -m lob_sim.cli options-demo --scenario toxic_flow --steps 180 --seed 7 --out-dir outputs --progress-every 30 --log-mode compact --walkthrough-mode
 python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir outputs
 python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
+python scripts/refresh_futures_stress_case.py
 ```
 
 That regenerates:
 
 - the futures walkthrough pack under [`docs/sample_outputs/futures_replay_walkthrough/`](futures_replay_walkthrough/)
 - the recorded futures clip case under [`docs/sample_outputs/futures_recorded_clip_case/`](futures_recorded_clip_case/)
+- the synthetic futures stress case under [`docs/sample_outputs/futures_stress_case/`](futures_stress_case/)
 - the fixed case-study pack under [`docs/sample_outputs/toxic_flow_seed7/`](toxic_flow_seed7/)
 - the same-seed comparison pack under [`docs/sample_outputs/scenario_matrix_seed7/`](scenario_matrix_seed7/)
 - the toxicity-versus-spread sweep under [`docs/sample_outputs/toxicity_spread_sensitivity_seed7/`](toxicity_spread_sensitivity_seed7/)

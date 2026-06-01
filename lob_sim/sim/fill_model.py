@@ -292,10 +292,7 @@ class PassiveFillModel:
         return events
 
     def public_consumption_summary(self) -> dict[str, object]:
-        sources = {
-            source: dict(self._public_consumption_stats[source])
-            for source in PUBLIC_CONSUMPTION_SOURCES
-        }
+        sources = {source: dict(self._public_consumption_stats[source]) for source in PUBLIC_CONSUMPTION_SOURCES}
         return {
             "overlap_window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
             "sources": sources,
@@ -507,7 +504,6 @@ class PassiveFillModel:
     def _can_market(self, order: Order) -> bool:
         if order.price_tick is None:
             return True
-        bucket = self._book(order.symbol)
         if order.side == "bid":
             best_ask = self.best_ask_tick(order.symbol)
             return best_ask is not None and order.price_tick >= best_ask
@@ -537,9 +533,7 @@ class PassiveFillModel:
         self.cancel_all_for_symbol_side(symbol, "ask")
         self._books[symbol] = {"bids": {}, "asks": {}}
         self._public_consumption_credits = {
-            key: credits
-            for key, credits in self._public_consumption_credits.items()
-            if key[0] != symbol
+            key: credits for key, credits in self._public_consumption_credits.items() if key[0] != symbol
         }
 
         for price, qty in bids:

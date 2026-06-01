@@ -52,6 +52,12 @@ Use the lightweight replay benchmark runner:
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 ```
 
+Use the reviewer benchmark mode to time replay-only, simulation without export, simulation with event-trace export, and pack audit:
+
+```bash
+python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
+```
+
 The script prints:
 
 - input SHA-256
@@ -67,10 +73,10 @@ The script prints:
 - gap count
 - wall time
 - events per second
-- p50 / p99 loop timing
+- p50 / p99 loop timing for replay and p50 / p99 wall timing for reviewer benchmark phases
 - peak traced memory
 
-With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. Metadata includes the full non-secret config snapshot and normalized instrument specs so repeated runs can be audited without guessing units or environment settings. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
+With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. Metadata includes the full non-secret config snapshot and normalized instrument specs so repeated runs can be audited without guessing units or environment settings. In reviewer mode, the JSON includes per-mode timing for replay-only, simulation without export, simulation plus export, and pack audit. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
 
 ## Caveats
 

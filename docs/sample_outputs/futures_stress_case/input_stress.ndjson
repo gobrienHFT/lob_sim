@@ -1,0 +1,14 @@
+{"ts_local":0.5,"symbol":"BTCUSDT","type":"exchangeInfo","data":{"symbol":"BTCUSDT","tickSize":"0.1","stepSize":"0.001","baseAsset":"BTC","quoteAsset":"USDT","venue":"BINANCE_USDM"}}
+{"ts_local":1.0,"symbol":"BTCUSDT","type":"snapshot","data":{"lastUpdateId":100,"bids":[["100.0","0.002"],["99.9","0.005"]],"asks":[["100.2","0.002"],["100.3","0.001"]]}}
+{"ts_local":2.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":95,"u":100,"pu":94,"b":[["100.0","0.002"],["99.9","0.005"]],"a":[["100.2","0.002"],["100.3","0.001"]]}}
+{"ts_local":2.2,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":101,"u":101,"pu":100,"b":[["100.0","0.000"]],"a":[]}}
+{"ts_local":2.35,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.0","q":"0.001","m":true}}
+{"ts_local":2.5,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":102,"u":102,"pu":101,"b":[],"a":[["100.2","0.001"]]}}
+{"ts_local":2.55,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.2","q":"0.001","m":false}}
+{"ts_local":3.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":103,"u":103,"pu":102,"b":[["99.9","0.004"]],"a":[]}}
+{"ts_local":3.05,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.0","q":"0.002","m":true}}
+{"ts_local":3.4,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":104,"u":104,"pu":103,"b":[["99.9","0.000"],["99.8","0.003"]],"a":[["100.2","0.000"],["100.3","0.000"],["100.0","0.003"]]}}
+{"ts_local":4.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":105,"u":105,"pu":104,"b":[["100.0","0.003"]],"a":[["100.0","0.000"],["100.4","0.003"]]}}
+{"ts_local":4.05,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":106,"u":106,"pu":105,"b":[],"a":[["100.4","0.002"]]}}
+{"ts_local":5.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":107,"u":107,"pu":106,"b":[],"a":[]}}
+{"ts_local":5.1,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.4","q":"0.001","m":false}}

@@ -50,6 +50,8 @@ def _find_committed_input() -> Path:
             return candidate
     expected = ", ".join(_repo_relative(path) for path in INPUT_CANDIDATES)
     raise FileNotFoundError(f"Missing committed strategy-profile input. Expected one of: {expected}")
+
+
 def _format_value(value: object) -> str:
     if isinstance(value, bool):
         return "True" if value else "False"

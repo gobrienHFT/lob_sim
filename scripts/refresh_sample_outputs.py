@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -83,8 +82,7 @@ def render_documented_command(command: list[str]) -> str:
 
 
 DOCUMENTED_SAMPLE_COMMANDS = {
-    name: render_documented_command(command)
-    for name, command in sample_pack_commands(DEFAULT_DOC_OUT_DIR).items()
+    name: render_documented_command(command) for name, command in sample_pack_commands(DEFAULT_DOC_OUT_DIR).items()
 }
 
 

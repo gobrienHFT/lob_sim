@@ -7,7 +7,9 @@ import pytest
 
 from experiments.benchmark_futures_replay import (
     BENCHMARK_SCHEMA_VERSION,
+    REVIEWER_BENCHMARK_SCHEMA_VERSION,
     benchmark_replay,
+    benchmark_reviewer_modes,
     write_benchmark_json,
 )
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
@@ -115,3 +117,40 @@ def test_write_benchmark_json_creates_parseable_artifact(tmp_path: Path) -> None
     write_benchmark_json(result, out_path)
 
     assert json.loads(out_path.read_text(encoding="utf-8")) == result
+
+
+def test_reviewer_benchmark_modes_time_simulation_export_and_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECORD_DIR", str(tmp_path))
+    input_path = _write_benchmark_fixture(tmp_path / "benchmark_fixture.ndjson")
+
+    result = benchmark_reviewer_modes(
+        input_path,
+        str(REPO_ROOT / ".env.example"),
+        runs=1,
+        pack_dir=REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough",
+    )
+
+    assert result["schema_version"] == REVIEWER_BENCHMARK_SCHEMA_VERSION
+    assert result["metadata"]["input_sha256"] == file_sha256(input_path)
+    assert set(result["modes"]) == {
+        "replay_only",
+        "simulation_no_export",
+        "simulation_with_event_trace_export",
+        "pack_audit",
+    }
+    assert result["modes"]["replay_only"]["event_counts"]["total_events"] == 4
+    assert result["modes"]["simulation_no_export"]["event_counts"]["records_processed"] == 4
+    assert result["modes"]["simulation_with_event_trace_export"]["artifact_labels"] == [
+        "event_trace",
+        "manifest",
+        "summary",
+        "summary_csv",
+        "trades",
+    ]
+    assert result["modes"]["pack_audit"]["audit_ok"] is True
+    for mode in result["modes"].values():
+        assert mode["timing"]["wall_time_seconds"] >= 0
+        assert mode["memory"]["peak_traced_bytes"] >= 0
