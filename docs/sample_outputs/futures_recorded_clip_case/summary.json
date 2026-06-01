@@ -132,6 +132,8 @@
       "fee_currency": "USDT",
       "order_id": "BTCUSDT-ask-1772633474227860-4",
       "mid_at_fill": "71586.55",
+      "spread_capture": "13.55",
+      "spread_capture_value": "0.01355",
       "regime": "tight_sell",
       "queue_ahead_lots": 0,
       "time_in_book_ms": 113.13986778259277,

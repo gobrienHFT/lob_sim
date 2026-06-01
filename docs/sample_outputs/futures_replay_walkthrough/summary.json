@@ -132,6 +132,8 @@
       "fee_currency": "USDT",
       "order_id": "BTCUSDT-bid-2000000-3",
       "mid_at_fill": "100.05",
+      "spread_capture": "0.05",
+      "spread_capture_value": "0.00005",
       "regime": "tight_sell",
       "queue_ahead_lots": 0,
       "time_in_book_ms": 399.9999999999999,

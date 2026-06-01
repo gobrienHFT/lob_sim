@@ -1,7 +1,7 @@
 {
   "run_id": "eaf2e309ed31d75c",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-05-31T23:53:09.112959Z",
+  "created_at_utc": "2026-06-01T00:07:53.784325Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "3902077d8cdb36616fc6f50877c79938c8cbc6f8",
+    "git_commit": "42f7692e6e1457e3defce82005462e7032ee7ce6",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -109,30 +109,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
-      "size_bytes": 260981,
-      "sha256": "21cb29eb19a116a23fadb293f27c6eb4515b4fecce99b6b335e1cc60f1ffd38f",
-      "modified_at_utc": "2026-05-31T23:53:09.346987Z"
+      "size_bytes": 261406,
+      "sha256": "40fff20e12f1616f1ea424ac0c0d72bfd3ae4c96920feeb328478a8ac3060619",
+      "modified_at_utc": "2026-06-01T00:07:54.220507Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 7454,
-      "sha256": "bab37a66104a56386c9b6edc0536a6c65973c24fbdb639a4c9b000ee59d22d37",
-      "modified_at_utc": "2026-05-31T23:53:09.339578Z"
+      "size_bytes": 7530,
+      "sha256": "3931d244643377e1a822ad72449637c50982692c900cc30829ea3dd519c891fd",
+      "modified_at_utc": "2026-06-01T00:07:54.202905Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 5338,
       "sha256": "02c6321c52772fbd88cb4c4eaefe294dfd60d5fdecd16743db1a2108a4c38603",
-      "modified_at_utc": "2026-05-31T23:53:09.341573Z"
+      "modified_at_utc": "2026-06-01T00:07:54.208936Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
-      "size_bytes": 386,
-      "sha256": "ee6cd021b33124483a514bfaaafcb93745fd836c5ebee5b773f1b588dd938340",
-      "modified_at_utc": "2026-05-31T23:53:09.344718Z"
+      "size_bytes": 436,
+      "sha256": "192fcfa03ce5883ee2a35516f43345020b5ff51ca1a942355e8114f6a5ae3414",
+      "modified_at_utc": "2026-06-01T00:07:54.212957Z"
     }
   }
 }
