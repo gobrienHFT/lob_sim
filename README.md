@@ -156,15 +156,24 @@ Parameter sweeps over committed fixtures live in [experiments/sweep_futures_para
 Local green gate:
 
 ```bash
+make reviewer-gate
+```
+
+Equivalent narrower checks:
+
+```bash
 make ci
 make determinism-fixture
 make audit-futures-packs
+make benchmark-fixture
 make latency-sweep-fixture
 ```
 
-The `make ci` target runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs those gates plus the committed-fixture determinism check and committed futures pack audit on Python 3.11, 3.12, and 3.13 to match the package metadata.
+The `make reviewer-gate` target runs the local reviewer evidence path: tests, committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The checked-in GitHub Actions workflow runs the non-benchmark gates plus the committed-fixture determinism check and committed futures pack audit on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`make ci` runs the test suite, committed-artifact verifier, and whitespace check.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.
+`make benchmark-fixture` writes `outputs/futures_benchmark.json` with input/config digests, p50/p99 loop timing, events/sec, memory, runtime, and source metadata.
 `make latency-sweep-fixture` writes a local latency sensitivity table for the recorded futures clip.
 
 To refresh the committed futures reviewer artifacts from a clean source tree, run:

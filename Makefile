@@ -7,7 +7,7 @@ DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
 
-.PHONY: setup test verify-artifacts check-whitespace ci inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
+.PHONY: setup test verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -23,6 +23,14 @@ check-whitespace:
 	git diff --check
 
 ci: test verify-artifacts check-whitespace
+
+reviewer-gate:
+	$(PY) -m pytest -q
+	$(PY) scripts/verify_committed_artifacts.py
+	git diff --check
+	$(PY) scripts/check_futures_determinism.py --file $(FIXTURE) --env $(ENV) --json-out $(DETERMINISM_JSON)
+	$(PY) scripts/audit_futures_pack.py --committed-futures
+	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --json-out $(BENCHMARK_JSON)
 
 inspect-fixture:
 	$(PY) -m lob_sim.cli inspect --file $(FIXTURE)

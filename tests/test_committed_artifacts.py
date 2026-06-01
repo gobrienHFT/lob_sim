@@ -996,6 +996,7 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
     assert "ci: test verify-artifacts check-whitespace" in makefile
+    assert "reviewer-gate:" in makefile
     assert "refresh-artifacts:" in makefile
     assert "determinism-fixture:" in makefile
     assert "audit-fixture:" in makefile
@@ -1003,10 +1004,13 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "latency-sweep-fixture:" in makefile
     assert "scripts/check_futures_determinism.py" in makefile
     assert "scripts/audit_futures_pack.py" in makefile
+    assert "experiments/benchmark_futures_replay.py" in makefile
     assert "experiments/sweep_futures_latency.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
     assert FUTURES_DETERMINISM_CHECK.exists()
     assert FUTURES_PACK_AUDIT.exists()
+    assert "make reviewer-gate" in README.read_text(encoding="utf-8")
+    assert "make reviewer-gate" in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:

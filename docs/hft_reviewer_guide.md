@@ -59,6 +59,7 @@ python scripts/refresh_futures_parameter_sweep_reference.py
 With `make` available:
 
 ```bash
+make reviewer-gate
 make ci
 make test
 make verify-artifacts
