@@ -84,6 +84,57 @@ def test_futures_pack_audit_rejects_stale_summary_csv(tmp_path: Path) -> None:
     assert any("output_artifacts[summary_csv].sha256 is stale" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_rejects_stale_trade_export(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    trades_path = copied_pack / "trades.csv"
+    with trades_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    rows[0]["fee"] = "999"
+    with trades_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "trades.csv:2 fee='999' does not match summary.fills[0].fee='0.0000'" in issue
+        for issue in result["issues"]
+    )
+    assert any("output_artifacts[trades].sha256 is stale" in issue for issue in result["issues"])
+
+
+def test_futures_pack_audit_rejects_stale_fill_trace_economics(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    trace_path = copied_pack / "event_trace.csv"
+    with trace_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    fill_row = next(row for row in rows if row["event_type"] == "fill")
+    details = json.loads(fill_row["details"])
+    details["spread_capture"] = "999"
+    fill_row["details"] = json.dumps(details, sort_keys=True)
+    with trace_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "details.spread_capture='999' does not match summary.fills[0].spread_capture='0.05'" in issue
+        for issue in result["issues"]
+    )
+    assert any("output_artifacts[event_trace].sha256 is stale" in issue for issue in result["issues"])
+
+
 def test_futures_pack_audit_rejects_private_execution_assumption(tmp_path: Path) -> None:
     copied_pack = tmp_path / "pack"
     shutil.copytree(SHOWCASE_PACK, copied_pack)

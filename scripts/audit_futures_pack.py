@@ -49,6 +49,34 @@ EVENT_TRACE_FIELDS = (
     "fill_source",
     "details",
 )
+TRADE_CSV_FIELDS = (
+    "ts_local",
+    "symbol",
+    "side",
+    "price",
+    "qty",
+    "notional",
+    "contract_multiplier",
+    "maker",
+    "fill_source",
+    "fee_bps",
+    "fee",
+    "fee_currency",
+    "order_id",
+    "mid_at_fill",
+    "spread_capture",
+    "spread_capture_value",
+    "regime",
+    "queue_ahead_lots",
+    "time_in_book_ms",
+    "markout_horizon",
+    "book_bid_tick",
+    "book_ask_tick",
+)
+FILL_TRACE_ROW_FIELDS = ("ts_local", "symbol", "side", "order_id", "fill_source")
+FILL_TRACE_DETAIL_FIELDS = tuple(
+    field for field in TRADE_CSV_FIELDS if field not in {"ts_local", "symbol", "side", "fill_source", "order_id"}
+)
 COMMITTED_FUTURES_PACKS = (
     Path("docs/sample_outputs/futures_replay_walkthrough"),
     Path("docs/sample_outputs/futures_recorded_clip_case"),
@@ -183,6 +211,25 @@ def _decimal(value: Any) -> Decimal | None:
     if not decoded.is_finite():
         return None
     return decoded
+
+
+def _scalar_matches(left: Any, right: Any) -> bool:
+    if isinstance(left, bool) or isinstance(right, bool):
+        def _bool_value(value: Any) -> bool | None:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str) and value in {"True", "False"}:
+                return value == "True"
+            return None
+
+        left_bool = _bool_value(left)
+        right_bool = _bool_value(right)
+        return left_bool is not None and right_bool is not None and left_bool == right_bool
+    left_decimal = _decimal(left)
+    right_decimal = _decimal(right)
+    if left_decimal is not None and right_decimal is not None:
+        return left_decimal == right_decimal
+    return str(left) == str(right)
 
 
 def _audit_manifest(pack_dir: Path, summary: dict[str, Any], manifest: dict[str, Any], issues: list[str]) -> None:
@@ -413,6 +460,62 @@ def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str
             issues.append(f"{_display_path(summary_csv_path)} {field} does not match summary.json")
 
 
+def _audit_fill_exports(
+    summary: dict[str, Any],
+    trade_rows: list[dict[str, str]],
+    fill_records: list[tuple[int, dict[str, str], dict[str, Any]]],
+    trades_path: Path,
+    trace_path: Path,
+    issues: list[str],
+) -> None:
+    summary_fills = summary.get("fills")
+    if not isinstance(summary_fills, list):
+        issues.append("summary.json is missing fills")
+        return
+    if len(summary_fills) != len(trade_rows):
+        issues.append(f"summary.fills has {len(summary_fills)} row(s), trades.csv has {len(trade_rows)}")
+    if len(summary_fills) != len(fill_records):
+        issues.append(f"summary.fills has {len(summary_fills)} row(s), event_trace fill rows has {len(fill_records)}")
+
+    for index, summary_fill in enumerate(summary_fills):
+        if not isinstance(summary_fill, dict):
+            issues.append(f"summary.fills[{index}] must be a JSON object")
+            continue
+        trade_row = trade_rows[index] if index < len(trade_rows) else None
+        fill_record = fill_records[index] if index < len(fill_records) else None
+
+        if trade_row is not None:
+            trade_row_number = index + 2
+            for field in TRADE_CSV_FIELDS:
+                actual = trade_row.get(field)
+                expected = summary_fill.get(field)
+                if not _scalar_matches(actual, expected):
+                    issues.append(
+                        f"{_display_path(trades_path)}:{trade_row_number} {field}={actual!r} "
+                        f"does not match summary.fills[{index}].{field}={expected!r}"
+                    )
+
+        if fill_record is None:
+            continue
+        trace_row_number, trace_row, details = fill_record
+        for field in FILL_TRACE_ROW_FIELDS:
+            actual = trace_row.get(field)
+            expected = summary_fill.get(field)
+            if not _scalar_matches(actual, expected):
+                issues.append(
+                    f"{_display_path(trace_path)}:{trace_row_number} {field}={actual!r} "
+                    f"does not match summary.fills[{index}].{field}={expected!r}"
+                )
+        for field in FILL_TRACE_DETAIL_FIELDS:
+            actual = details.get(field)
+            expected = summary_fill.get(field)
+            if not _scalar_matches(actual, expected):
+                issues.append(
+                    f"{_display_path(trace_path)}:{trace_row_number} details.{field}={actual!r} "
+                    f"does not match summary.fills[{index}].{field}={expected!r}"
+                )
+
+
 def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     pack_dir = pack_dir.resolve()
     issues: list[str] = []
@@ -423,7 +526,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     summary = _load_json_object(summary_path, issues)
     manifest = _load_json_object(manifest_path, issues)
     trace_rows = _read_csv_rows(trace_path, EVENT_TRACE_FIELDS, issues)
-    trade_rows = _read_csv_rows(trades_path, (), issues)
+    trade_rows = _read_csv_rows(trades_path, TRADE_CSV_FIELDS, issues)
 
     if summary:
         _audit_manifest(pack_dir, summary, manifest, issues)
@@ -460,6 +563,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     arrival_with_queue = 0
     arrival_queue_sum = 0
     max_arrival_queue = 0
+    fill_records: list[tuple[int, dict[str, str], dict[str, Any]]] = []
 
     for row_number, row in enumerate(trace_rows, start=2):
         event_type = row.get("event_type", "")
@@ -517,6 +621,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
                 if not row.get(field):
                     issues.append(f"{_display_path(trace_path)}:{row_number} fill row is missing {field}")
             fill_rows.append(row)
+            fill_records.append((row_number, row, details))
         elif event_type == "queue_consumption":
             source = row.get("source", "")
             if source not in PUBLIC_CONSUMPTION_SOURCES:
@@ -573,6 +678,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_lifecycle(summary, lifecycle_counts, arrival_queue, issues)
         _audit_public_consumption(summary, consumption, issues)
         _audit_markouts(summary, markouts, markout_row_count, issues)
+        _audit_fill_exports(summary, trade_rows, fill_records, trades_path, trace_path, issues)
 
     return {
         "schema_version": PACK_AUDIT_SCHEMA_VERSION,
