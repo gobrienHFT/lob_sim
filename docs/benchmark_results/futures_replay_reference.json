@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6704607009887695
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-06-01T15:34:20.196513Z",
+    "benchmark_created_at_utc": "2026-06-01T15:36:46.659418Z",
     "config": {
       "book_top_n": 20,
       "fees_maker_bps": "-0.2",
@@ -75,15 +75,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "6cff6eee8f1af1da90ba37bab81b1b291d9fe655",
+      "git_commit": "4e49253744ed827dd72749e3c85f10b40cbfe874",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 121.7428462362763,
-    "loop_latency_p50_us": 153.3,
-    "loop_latency_p99_us": 92213.67799999952,
-    "wall_time_seconds": 0.6571228000102565
+    "events_per_second": 103.2592891125204,
+    "loop_latency_p50_us": 181.95,
+    "loop_latency_p99_us": 112229.33899999925,
+    "wall_time_seconds": 0.774748699972406
   }
 }
