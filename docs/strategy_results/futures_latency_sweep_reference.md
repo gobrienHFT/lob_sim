@@ -1,13 +1,13 @@
 # Futures Latency Sensitivity Sweep
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
-- Input SHA-256: `729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4`
+- Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
 - Base config digest: `b7cc4431f0c85321260b1751767c35baafe00fe86de609cc4d97ac57227ef658`
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Strategy profile: `baseline`
 - Order latency grid ms: `0, 10, 50`
 - Cancel latency grid ms: `0, 10, 50`
-- Git commit at run time: `4e49253744ed827dd72749e3c85f10b40cbfe874`
+- Git commit at run time: `dd873c6eb9e901259df0364697aec3b2d03d6a3b`
 - Git dirty at run time: `False`
 
 Exact command:

@@ -8,11 +8,11 @@
     "total_events": 80
   },
   "memory": {
-    "peak_traced_bytes": 703029,
-    "peak_traced_mib": 0.6704607009887695
+    "peak_traced_bytes": 703038,
+    "peak_traced_mib": 0.6704692840576172
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-06-01T15:36:46.659418Z",
+    "benchmark_created_at_utc": "2026-06-01T15:51:31.615329Z",
     "config": {
       "book_top_n": 20,
       "fees_maker_bps": "-0.2",
@@ -59,7 +59,7 @@
       "venue_label": "BINANCE_USDM"
     },
     "input_file": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
-    "input_sha256": "729d4ed0bd5afc0ea7d8594fbefe64cc055be2d2b16c3d992babed6cf814c3f4",
+    "input_sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
     "instrument_specs": {
       "BTCUSDT": {
         "contract_multiplier": "1",
@@ -75,15 +75,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "4e49253744ed827dd72749e3c85f10b40cbfe874",
+      "git_commit": "dd873c6eb9e901259df0364697aec3b2d03d6a3b",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 103.2592891125204,
-    "loop_latency_p50_us": 181.95,
-    "loop_latency_p99_us": 112229.33899999925,
-    "wall_time_seconds": 0.774748699972406
+    "events_per_second": 107.68219591382888,
+    "loop_latency_p50_us": 180.65,
+    "loop_latency_p99_us": 109519.89899999964,
+    "wall_time_seconds": 0.742926900042221
   }
 }

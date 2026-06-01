@@ -349,8 +349,8 @@
     "total_queue_consumed_lots": 16,
     "total_unmatched_lots": 2
   },
-  "run_id": "90cbfdb109438aa5",
-  "input_sha256": "50828b4aa66e097df2eca19c47a622cab6b9aa18db10e570228f523d283bc112",
+  "run_id": "c85931a5c190978e",
+  "input_sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
   "feed_adapter": {
     "name": "binance_usdm",
     "venue_label": "BINANCE_USDM",

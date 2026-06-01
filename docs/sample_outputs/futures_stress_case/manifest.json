@@ -1,13 +1,13 @@
 {
-  "run_id": "90cbfdb109438aa5",
+  "run_id": "c85931a5c190978e",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:36:36.728554Z",
+  "created_at_utc": "2026-06-01T15:51:22.178746Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
-    "size_bytes": 1870,
-    "sha256": "50828b4aa66e097df2eca19c47a622cab6b9aa18db10e570228f523d283bc112",
-    "modified_at_utc": "2026-06-01T15:36:36.706610Z"
+    "size_bytes": 1856,
+    "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
+    "modified_at_utc": "2026-06-01T15:51:22.096281Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "4e49253744ed827dd72749e3c85f10b40cbfe874",
+    "git_commit": "dd873c6eb9e901259df0364697aec3b2d03d6a3b",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,28 +111,28 @@
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
       "size_bytes": 15324,
       "sha256": "c60f10d01f0011162852eaecf28259fb5ab9a8e50802f779a084f9fb1139ffd3",
-      "modified_at_utc": "2026-06-01T15:36:36.891776Z"
+      "modified_at_utc": "2026-06-01T15:51:22.413266Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
-      "size_bytes": 12952,
-      "sha256": "48b52bdcbc9dd686ddc2a62bb2a05f0bb5a9aa7836b10e76e67d2143d6cfcf6d",
-      "modified_at_utc": "2026-06-01T15:36:36.884778Z"
+      "size_bytes": 12527,
+      "sha256": "95916ac058cd4584906eb0a5d66fe8b653360d667c5b573ddc94b628b191c140",
+      "modified_at_utc": "2026-06-01T15:51:22.399622Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
       "size_bytes": 5948,
-      "sha256": "ffac4974a826c4e966d1bc447e39bc2efc8c759c9e34ad1853be2bda3828c112",
-      "modified_at_utc": "2026-06-01T15:36:36.887793Z"
+      "sha256": "8871a5eb0852e344f0ebe10a98f2faf4af3f5ce2d4f6781a79d13aecad96d468",
+      "modified_at_utc": "2026-06-01T15:51:22.405127Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 989,
       "sha256": "5a7cc28d37e6bc54de1b1dadea45677393c35dc31d02f7eea9dddcbbd491abd0",
-      "modified_at_utc": "2026-06-01T15:36:36.889784Z"
+      "modified_at_utc": "2026-06-01T15:51:22.408146Z"
     }
   },
   "fixture_provenance": {
