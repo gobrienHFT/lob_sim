@@ -148,6 +148,7 @@ Tracked metrics include:
 PnL, spread capture, markout, fees, and exported fill notional use the instrument `contract_multiplier`; inventory remains reported in normalized quantity units.
 
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). The replay determinism checker lives in [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py) and compares canonical hashes of repeated in-memory summaries and event traces. Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
+The pack auditor in [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py) checks that a futures pack's summary, trades CSV, event trace, and manifest agree on fills, lifecycle counts, public queue-consumption totals, markouts, and artifact hashes.
 Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py). Latency sensitivity sweeps live in [experiments/sweep_futures_latency.py](experiments/sweep_futures_latency.py) and vary modeled order-arrival and cancel-ack delays without claiming latency-arbitrage or production gateway behavior.
 
 ## Verification And CI
@@ -157,11 +158,13 @@ Local green gate:
 ```bash
 make ci
 make determinism-fixture
+make audit-fixture
 make latency-sweep-fixture
 ```
 
 The `make ci` target runs the test suite, committed-artifact verifier, and whitespace check. The checked-in GitHub Actions workflow runs those gates plus the committed-fixture determinism check on Python 3.11, 3.12, and 3.13 to match the package metadata.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
+`make audit-fixture` audits the committed walkthrough pack's summary, trades, event trace, and manifest consistency.
 `make latency-sweep-fixture` writes a local latency sensitivity table for the recorded futures clip.
 
 To refresh the committed futures reviewer artifacts from a clean source tree, run:

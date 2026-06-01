@@ -32,6 +32,12 @@ Determinism check:
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 ```
 
+Pack audit:
+
+```bash
+python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough
+```
+
 ## Recorded Futures Clip Case
 
 - Pack entry: [`futures_recorded_clip_case/README.md`](futures_recorded_clip_case/README.md)

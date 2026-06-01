@@ -51,6 +51,7 @@ FUTURES_LATENCY_SWEEP_REFRESH = (
     REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
 )
 FUTURES_DETERMINISM_CHECK = REPO_ROOT / "scripts" / "check_futures_determinism.py"
+FUTURES_PACK_AUDIT = REPO_ROOT / "scripts" / "audit_futures_pack.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 COMMITTED_STRATEGY_INPUT = "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
 FUTURES_WALKTHROUGH_README = (
@@ -989,17 +990,21 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python -m lob_sim.cli --help" in workflow
     assert "python -m pytest -q" in workflow
     assert "python scripts/check_futures_determinism.py" in workflow
+    assert "python scripts/audit_futures_pack.py" in workflow
     assert "python scripts/verify_committed_artifacts.py" in workflow
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
     assert "ci: test verify-artifacts check-whitespace" in makefile
     assert "refresh-artifacts:" in makefile
     assert "determinism-fixture:" in makefile
+    assert "audit-fixture:" in makefile
     assert "latency-sweep-fixture:" in makefile
     assert "scripts/check_futures_determinism.py" in makefile
+    assert "scripts/audit_futures_pack.py" in makefile
     assert "experiments/sweep_futures_latency.py" in makefile
     assert "scripts/refresh_futures_reviewer_artifacts.py" in makefile
     assert FUTURES_DETERMINISM_CHECK.exists()
+    assert FUTURES_PACK_AUDIT.exists()
 
 
 def test_committed_stress_fill_includes_units_explanation() -> None:
@@ -1117,6 +1122,25 @@ def test_futures_determinism_checker_is_documented() -> None:
         assert "scripts/check_futures_determinism.py" in text
     assert expected_command in README.read_text(encoding="utf-8")
     assert expected_command in FUTURES_VALIDATION.read_text(encoding="utf-8")
+    assert expected_command in REPLAY_CONTRACT.read_text(encoding="utf-8")
+    assert expected_command in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
+    assert expected_command in SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
+
+
+def test_futures_pack_auditor_is_documented() -> None:
+    expected_command = "python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough"
+
+    assert FUTURES_PACK_AUDIT.exists()
+    for path in (
+        README,
+        WALKTHROUGH,
+        FUTURES_VALIDATION,
+        REPLAY_CONTRACT,
+        HFT_REVIEWER_GUIDE,
+        SAMPLE_OUTPUTS_README,
+    ):
+        text = path.read_text(encoding="utf-8")
+        assert "scripts/audit_futures_pack.py" in text
     assert expected_command in REPLAY_CONTRACT.read_text(encoding="utf-8")
     assert expected_command in HFT_REVIEWER_GUIDE.read_text(encoding="utf-8")
     assert expected_command in SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")

@@ -5,8 +5,9 @@ RECORDED_FIXTURE ?= docs/sample_outputs/futures_recorded_clip_case/input_clip.nd
 BENCHMARK_JSON ?= outputs/futures_benchmark.json
 DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
+AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
 
-.PHONY: setup test verify-artifacts check-whitespace ci inspect-fixture replay-fixture simulate-fixture benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
+.PHONY: setup test verify-artifacts check-whitespace ci inspect-fixture replay-fixture simulate-fixture audit-fixture benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -31,6 +32,9 @@ replay-fixture:
 
 simulate-fixture:
 	$(PY) -m lob_sim.cli --env $(ENV) simulate --file $(FIXTURE)
+
+audit-fixture:
+	$(PY) scripts/audit_futures_pack.py --pack $(AUDIT_PACK)
 
 benchmark-fixture:
 	$(PY) experiments/benchmark_futures_replay.py --file $(RECORDED_FIXTURE) --env $(ENV) --json-out $(BENCHMARK_JSON)

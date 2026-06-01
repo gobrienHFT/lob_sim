@@ -49,6 +49,7 @@ python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthro
 python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example simulate --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
+python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
@@ -63,6 +64,7 @@ make test
 make verify-artifacts
 make inspect-fixture
 make simulate-fixture
+make audit-fixture
 make determinism-fixture
 make benchmark-fixture
 make sweep-fixture
@@ -151,6 +153,7 @@ Inferred:
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - A CI-covered determinism checker that proves repeated in-memory fixture runs produce identical summary and event-trace hashes.
+- A futures pack auditor that checks summary, trades, event trace, and manifest agreement on fills, lifecycle counts, public queue-consumption totals, markouts, and output artifact hashes.
 - A deterministic latency sensitivity sweep that shows how modeled order-arrival and cancel-ack delays affect queue/fill outcomes without claiming a production latency edge.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.

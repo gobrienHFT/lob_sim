@@ -44,6 +44,9 @@ jobs:
       - name: Check deterministic futures fixture
         run: python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 
+      - name: Audit committed futures pack
+        run: python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough
+
       - name: Verify committed artifacts
         run: python scripts/verify_committed_artifacts.py
 

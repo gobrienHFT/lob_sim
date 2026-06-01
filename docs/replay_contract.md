@@ -40,6 +40,16 @@ python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_r
 
 The checker runs the same input and config multiple times in memory, computes canonical SHA-256 hashes for the metrics summary and event trace, and exits non-zero if any repeated run differs. Its JSON report includes the input digest, config digest, feed-adapter metadata, normalized instrument specs, runtime/source metadata, per-run hashes, event-trace counts, fill counts, and mismatch details.
 
+## Pack Audit
+
+Use the pack auditor when you want to check a generated futures pack without reading each CSV by hand:
+
+```bash
+python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough
+```
+
+It verifies that `summary.json`, `trades.csv`, `event_trace.csv`, and `manifest.json` agree on row counts, fill-source counts, order lifecycle counters, queue-ahead-at-arrival metrics, public queue-consumption totals, source-split markouts, and output artifact hashes.
+
 ## Simulation Manifests
 
 Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.csv`, `trades_*.csv`, and `event_trace_*.csv`.
