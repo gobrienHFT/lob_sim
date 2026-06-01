@@ -1726,6 +1726,14 @@ def _verify_benchmark_publication() -> list[str]:
                 issues.append(
                     "docs/futures_benchmarks.md published benchmark section is missing feed adapter provenance"
                 )
+    for token in [
+        "--mode all",
+        "simulation without writing artifacts",
+        "simulation plus event-trace export",
+        "docs/sample_outputs/futures_stress_case",
+    ]:
+        if token not in text:
+            issues.append(f"docs/futures_benchmarks.md is missing reviewer benchmark token: {token}")
 
     for path, expected_links in BENCHMARK_FRONT_DOOR_LINKS.items():
         path_text = _read_text(path)

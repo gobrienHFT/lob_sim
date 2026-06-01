@@ -1187,6 +1187,10 @@ def test_futures_benchmark_reference_is_published() -> None:
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in published_section
     assert "benchmark_results/futures_replay_reference.md" in benchmarks
     assert "Instrument specs: `BTCUSDT`" in benchmarks
+    assert "--mode all" in benchmarks
+    assert "simulation without writing artifacts" in benchmarks
+    assert "simulation plus event-trace export" in benchmarks
+    assert "docs/sample_outputs/futures_stress_case" in benchmarks
     assert benchmark_json["schema_version"] == verifier.EXPECTED_BENCHMARK_SCHEMA_VERSION
     assert "config" in benchmark_json["metadata"]
     assert "instrument_specs" in benchmark_json["metadata"]

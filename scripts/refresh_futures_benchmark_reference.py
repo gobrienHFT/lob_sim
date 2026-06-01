@@ -23,6 +23,14 @@ COMMAND = (
     "--env .env.example "
     "--json-out docs/benchmark_results/futures_replay_reference.json"
 )
+REVIEWER_COMMAND = (
+    "python experiments/benchmark_futures_replay.py "
+    "--file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson "
+    "--env .env.example "
+    "--mode all "
+    "--pack docs/sample_outputs/futures_stress_case "
+    "--json-out outputs/futures_benchmark.json"
+)
 
 
 def _created_at(metadata: dict[str, Any]) -> str:
@@ -106,6 +114,10 @@ def _render_benchmark_doc(result: dict[str, Any]) -> str:
 
 Benchmark numbers are machine- and dataset-specific. Treat the published run below as a small committed-fixture reference for reproducibility and instrumentation, not as a low-latency claim.
 
+For determinism rather than throughput, run `python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example`; it compares repeated in-memory summary and event-trace hashes instead of timing a single pass.
+
+For modeled latency sensitivity rather than benchmark throughput, use [docs/strategy_results/futures_latency_sweep_reference.md](strategy_results/futures_latency_sweep_reference.md). It varies replay order-arrival and cancel-ack delays and reports queue/fill metrics without treating the numbers as production gateway latency.
+
 ## Published Reference Run
 
 - Input file: `{metadata["input_file"]}`
@@ -152,6 +164,12 @@ Use the lightweight replay benchmark runner:
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --json-out outputs/futures_benchmark.json
 ```
 
+Use the reviewer benchmark mode to time replay-only, simulation without writing artifacts, simulation plus event-trace export, and futures-pack audit:
+
+```bash
+{REVIEWER_COMMAND}
+```
+
 The script prints:
 
 - input SHA-256
@@ -167,10 +185,10 @@ The script prints:
 - gap count
 - wall time
 - events per second
-- p50 / p99 loop timing
+- p50 / p99 loop timing for replay and p50 / p99 wall timing for reviewer benchmark phases
 - peak traced memory
 
-With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. Metadata includes the full non-secret config snapshot and normalized instrument specs so repeated runs can be audited without guessing units or environment settings. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
+With `--json-out`, the same evidence is written as a machine-readable artifact with schema version, metadata, event counts, timing, and memory sections. Metadata includes the full non-secret config snapshot and normalized instrument specs so repeated runs can be audited without guessing units or environment settings. In reviewer mode, the JSON includes per-mode timing for replay-only, simulation without export, simulation plus export, and pack audit. This is the preferred format for comparing repeated local runs or attaching benchmark evidence to a review.
 
 ## Caveats
 
