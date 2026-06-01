@@ -35,7 +35,7 @@ python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_r
 Pack audit:
 
 ```bash
-python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough
+python scripts/audit_futures_pack.py --committed-futures
 ```
 
 ## Recorded Futures Clip Case

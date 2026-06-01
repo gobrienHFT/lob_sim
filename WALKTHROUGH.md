@@ -35,7 +35,7 @@ The options side is a separate controlled dealer-pricing case study. It is there
 
 - The strongest claim here is deterministic event-time replay with explicit book-sync semantics.
 - The determinism claim is executable: the checker reruns a committed fixture and compares summary/event-trace hashes.
-- The audit claim is executable: the pack auditor checks summary, trades, event trace, and manifest consistency.
+- The audit claim is executable: the pack auditor checks summary, trades, event trace, and manifest consistency across the committed futures packs.
 - The latency limitation is executable too: the sweep varies modeled order/cancel delay and reports fill-quality/queue metrics without claiming a production latency edge.
 - Passive fills are queue-aware and rely on explicit FIFO assumptions rather than bar-level heuristics.
 - Gap handling is explicit: the code checks continuity and does not patch over missing updates.

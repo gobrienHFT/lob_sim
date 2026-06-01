@@ -47,6 +47,10 @@ EVENT_TRACE_FIELDS = (
     "fill_source",
     "details",
 )
+COMMITTED_FUTURES_PACKS = (
+    Path("docs/sample_outputs/futures_replay_walkthrough"),
+    Path("docs/sample_outputs/futures_recorded_clip_case"),
+)
 
 
 def _repo_root() -> Path:
@@ -469,13 +473,58 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     }
 
 
+def audit_futures_packs(pack_dirs: list[Path]) -> dict[str, Any]:
+    if not pack_dirs:
+        return {
+            "schema_version": PACK_AUDIT_SCHEMA_VERSION,
+            "ok": False,
+            "pack_count": 0,
+            "packs": [],
+            "issues": ["No futures packs supplied"],
+        }
+    pack_results = [audit_futures_pack(pack_dir) for pack_dir in pack_dirs]
+    return {
+        "schema_version": PACK_AUDIT_SCHEMA_VERSION,
+        "ok": all(result["ok"] for result in pack_results),
+        "pack_count": len(pack_results),
+        "packs": pack_results,
+        "issues": [
+            f"{result['pack_dir']}: {issue}"
+            for result in pack_results
+            for issue in result["issues"]
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit a generated futures simulation pack")
-    parser.add_argument("--pack", required=True, help="Directory containing summary.json, trades.csv, event_trace.csv, and manifest.json")
+    parser.add_argument(
+        "--pack",
+        action="append",
+        default=[],
+        help=(
+            "Directory containing summary.json, trades.csv, event_trace.csv, "
+            "and manifest.json. May be passed more than once."
+        ),
+    )
+    parser.add_argument(
+        "--committed-futures",
+        action="store_true",
+        help="Audit the committed futures walkthrough and recorded-clip packs.",
+    )
     parser.add_argument("--json-out", help="Optional path for the machine-readable audit report")
     args = parser.parse_args()
 
-    result = audit_futures_pack(Path(args.pack))
+    pack_dirs = [Path(pack) for pack in args.pack]
+    if args.committed_futures:
+        pack_dirs = [_repo_root() / pack for pack in COMMITTED_FUTURES_PACKS] + pack_dirs
+    if not pack_dirs:
+        parser.error("at least one --pack or --committed-futures is required")
+
+    if len(pack_dirs) == 1 and not args.committed_futures:
+        result = audit_futures_pack(pack_dirs[0])
+    else:
+        result = audit_futures_packs(pack_dirs)
     print(json.dumps(result, indent=2, sort_keys=True, default=str))
     if args.json_out:
         output_path = Path(args.json_out)

@@ -991,6 +991,7 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "python -m pytest -q" in workflow
     assert "python scripts/check_futures_determinism.py" in workflow
     assert "python scripts/audit_futures_pack.py" in workflow
+    assert "python scripts/audit_futures_pack.py --committed-futures" in workflow
     assert "python scripts/verify_committed_artifacts.py" in workflow
     assert "git diff --check" in workflow
     assert "MPLBACKEND: Agg" in workflow
@@ -998,6 +999,7 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "refresh-artifacts:" in makefile
     assert "determinism-fixture:" in makefile
     assert "audit-fixture:" in makefile
+    assert "audit-futures-packs:" in makefile
     assert "latency-sweep-fixture:" in makefile
     assert "scripts/check_futures_determinism.py" in makefile
     assert "scripts/audit_futures_pack.py" in makefile
@@ -1128,7 +1130,7 @@ def test_futures_determinism_checker_is_documented() -> None:
 
 
 def test_futures_pack_auditor_is_documented() -> None:
-    expected_command = "python scripts/audit_futures_pack.py --pack docs/sample_outputs/futures_replay_walkthrough"
+    expected_command = "python scripts/audit_futures_pack.py --committed-futures"
 
     assert FUTURES_PACK_AUDIT.exists()
     for path in (
