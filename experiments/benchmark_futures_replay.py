@@ -12,6 +12,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict
 
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
 from lob_sim.book.types import SymbolSpec
