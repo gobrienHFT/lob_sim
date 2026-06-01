@@ -22,39 +22,39 @@
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
       "peak_traced_mib": 37.48209857940674,
-      "wall_time_p50_seconds": 22.590970399905927,
-      "wall_time_p99_seconds": 22.590970399905927,
-      "wall_time_seconds": 22.590970399905927
+      "wall_time_p50_seconds": 29.608160400064662,
+      "wall_time_p99_seconds": 29.608160400064662,
+      "wall_time_seconds": 29.608160400064662
     },
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "replay_only": {
-      "events_per_second": 119.61143306554811,
-      "loop_latency_p50_us": 201.8,
-      "loop_latency_p99_us": 83567.48,
+      "events_per_second": 187.53635101562554,
+      "loop_latency_p50_us": 175.6,
+      "loop_latency_p99_us": 73403.01999999999,
       "peak_traced_mib": 1.169489860534668,
       "wall_time_p50_seconds": null,
       "wall_time_p99_seconds": null,
-      "wall_time_seconds": 16.695728400023654
+      "wall_time_seconds": 10.648602199973539
     },
     "schema_version": "lob_sim.reviewer_benchmark.v1",
     "simulation_no_export": {
-      "events_per_second": 38.73698782484194,
+      "events_per_second": 61.56448818016717,
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
-      "peak_traced_mib": 43.25300979614258,
-      "wall_time_p50_seconds": 51.552795200026594,
-      "wall_time_p99_seconds": 51.552795200026594,
-      "wall_time_seconds": 51.552795200026594
+      "peak_traced_mib": 43.252920150756836,
+      "wall_time_p50_seconds": 32.43753110000398,
+      "wall_time_p99_seconds": 32.43753110000398,
+      "wall_time_seconds": 32.43753110000398
     },
     "simulation_with_event_trace_export": {
-      "events_per_second": 35.533020412386726,
+      "events_per_second": 29.89063036312676,
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
-      "peak_traced_mib": 45.47316074371338,
-      "wall_time_p50_seconds": 56.20124540000688,
-      "wall_time_p99_seconds": 56.20124540000688,
-      "wall_time_seconds": 56.20124540000688
+      "peak_traced_mib": 45.473636627197266,
+      "wall_time_p50_seconds": 66.81023369997274,
+      "wall_time_p99_seconds": 66.81023369997274,
+      "wall_time_seconds": 66.81023369997274
     }
   },
   "event_counts": {
@@ -85,7 +85,7 @@
     "quote_count": 467,
     "quote_fill_probability": 0.042826552462526764
   },
-  "generated_at_utc": "2026-06-01T20:18:01.566285Z",
+  "generated_at_utc": "2026-06-01T20:28:08.334666Z",
   "input": {
     "duration_seconds": 30.0871000289917,
     "file_size_bytes": 2054090,
@@ -153,14 +153,20 @@
   "schema_version": "lob_sim.real_data_report.v1",
   "source": {
     "git_branch": "master",
-    "git_commit": "51ed4aadd8130415d9460b8937bdf23fb27c2784",
-    "git_dirty": true
+    "git_commit": "04b2ff7a25890dbf52a12f8c5fd6d05a12f48680",
+    "git_dirty": false
   },
   "target_window": {
+    "env_overrides": {
+      "COLLECT_SECONDS": "1800",
+      "RECORD_DIR": "data",
+      "RECORD_GZIP": "1",
+      "RESYNC_ON_GAP": "1",
+      "SYMBOLS": "BTCUSDT"
+    },
     "label": "short local public tape",
     "longer_run_commands": [
       "copy .env.example .env.real-data",
-      "Set SYMBOLS=BTCUSDT, COLLECT_SECONDS=1800, RECORD_DIR=data, RECORD_GZIP=1, RESYNC_ON_GAP=1 in .env.real-data",
       "python -m lob_sim.cli --env .env.real-data collect",
       "python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs"
     ],
