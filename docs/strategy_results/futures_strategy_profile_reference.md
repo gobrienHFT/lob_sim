@@ -22,7 +22,9 @@ python experiments/compare_futures_strategy_profiles.py --file docs/sample_outpu
 | quote_count | 6 | 50 |
 | cancel_count | 4 | 46 |
 | fill_count | 0 | 0 |
-| fill_rate | 0.0 | 0.0 |
+| quote_fill_probability | 0.0 | 0.0 |
+| fills_per_quote_request | 0.0 | 0.0 |
+| fills_per_arrived_order | 0.0 | 0.0 |
 | fill_from_top_count | 0 | 0 |
 | avg_queue_ahead_lots | 0.0 | 0.0 |
 | avg_arrival_queue_ahead_lots | 0.5 | 250.08 |

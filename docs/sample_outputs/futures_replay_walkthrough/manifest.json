@@ -1,13 +1,13 @@
 {
   "run_id": "57f79f15b358450b",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:56:49.431328Z",
+  "created_at_utc": "2026-06-01T17:01:10.529139Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-    "modified_at_utc": "2026-06-01T15:56:49.404428Z"
+    "modified_at_utc": "2026-06-01T17:01:10.518238Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "d7607bdc601400193c061d4999da62e77874653c",
+    "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,28 +111,34 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 5450,
       "sha256": "f8654c29d1cdb1f49da75bfe8922ae7caf43ce27d28aefe385bafce9b9281395",
-      "modified_at_utc": "2026-06-01T15:56:49.780101Z"
+      "modified_at_utc": "2026-06-01T17:01:10.683315Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 7187,
-      "sha256": "2433f35a08ff3ffb84fd64e6c55af0497cdaa1c605909157c7bbe4b61a5af961",
-      "modified_at_utc": "2026-06-01T15:56:49.772869Z"
+      "size_bytes": 7546,
+      "sha256": "7b25994dd0d06468562a00f26e3387fdc0f390b4e9f64dc6e122a39129465281",
+      "modified_at_utc": "2026-06-01T17:01:10.680895Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 5313,
-      "sha256": "cac345c0531b0da78e0521c0f2358e1421842639d9f4519bb00acc698a2afc57",
-      "modified_at_utc": "2026-06-01T15:56:49.775379Z"
+      "size_bytes": 5652,
+      "sha256": "9e1514f3efe7a68ef914740728652793801c8f362e296a3822a855fcabc3e85b",
+      "modified_at_utc": "2026-06-01T17:01:10.681922Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 399,
       "sha256": "fec9a6140683c2e4008c14c1eb5192e30d03ffdcb665eb7f4bd07e3381262d7b",
-      "modified_at_utc": "2026-06-01T15:56:49.777499Z"
+      "modified_at_utc": "2026-06-01T17:01:10.681922Z"
     }
+  },
+  "fixture_provenance": {
+    "data_class": "synthetic",
+    "source": "synthetic_walkthrough",
+    "purpose": "tiny deterministic walkthrough for public L2 replay and queue-fill mechanics",
+    "script": "scripts/refresh_futures_showcase.py"
   }
 }

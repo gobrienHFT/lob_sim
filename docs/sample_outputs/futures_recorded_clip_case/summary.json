@@ -20,7 +20,9 @@
     "agg_trade": 0,
     "taker_order": 0
   },
-  "fill_rate": 0.5,
+  "quote_fill_probability": 0.5,
+  "fills_per_quote_request": 0.5,
+  "fills_per_arrived_order": 0.5,
   "avg_spread_captured": 13.55,
   "avg_inventory": -0.000175,
   "inventory_stdev": 0.00038236439641468927,
@@ -222,5 +224,11 @@
     "trades": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
     "manifest": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
   },
-  "event_trace_count": 1114
+  "event_trace_count": 1114,
+  "fixture_provenance": {
+    "data_class": "recorded_public_data",
+    "source": "recorded_public_data_clip",
+    "purpose": "small committed public-data clip used as a reproducible real-tape proof point",
+    "script": "scripts/refresh_futures_recorded_case.py"
+  }
 }

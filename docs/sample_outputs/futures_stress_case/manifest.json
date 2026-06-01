@@ -1,13 +1,13 @@
 {
   "run_id": "c85931a5c190978e",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:56:50.265921Z",
+  "created_at_utc": "2026-06-01T17:01:10.986086Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-06-01T15:56:50.242819Z"
+    "modified_at_utc": "2026-06-01T17:01:10.969526Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "d7607bdc601400193c061d4999da62e77874653c",
+    "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,31 +111,32 @@
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
       "size_bytes": 15324,
       "sha256": "c60f10d01f0011162852eaecf28259fb5ab9a8e50802f779a084f9fb1139ffd3",
-      "modified_at_utc": "2026-06-01T15:56:50.420904Z"
+      "modified_at_utc": "2026-06-01T17:01:11.062397Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
-      "size_bytes": 12527,
-      "sha256": "95916ac058cd4584906eb0a5d66fe8b653360d667c5b573ddc94b628b191c140",
-      "modified_at_utc": "2026-06-01T15:56:50.414933Z"
+      "size_bytes": 12641,
+      "sha256": "afa5b348e9e56cef4e30908ea47fa0dcff02021e11def10a4accc1074449bd33",
+      "modified_at_utc": "2026-06-01T17:01:11.057884Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
-      "size_bytes": 5948,
-      "sha256": "8871a5eb0852e344f0ebe10a98f2faf4af3f5ce2d4f6781a79d13aecad96d468",
-      "modified_at_utc": "2026-06-01T15:56:50.416829Z"
+      "size_bytes": 6050,
+      "sha256": "dc8055dece3fa025910543acfcfd5cd004736a2644d1a08354e453d348e38039",
+      "modified_at_utc": "2026-06-01T17:01:11.058907Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 989,
       "sha256": "5a7cc28d37e6bc54de1b1dadea45677393c35dc31d02f7eea9dddcbbd491abd0",
-      "modified_at_utc": "2026-06-01T15:56:50.418910Z"
+      "modified_at_utc": "2026-06-01T17:01:11.060920Z"
     }
   },
   "fixture_provenance": {
+    "data_class": "synthetic",
     "source": "synthetic_exchange_shaped",
     "purpose": "compact deterministic stress coverage for public L2 replay mechanics",
     "script": "scripts/refresh_futures_stress_case.py"

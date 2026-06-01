@@ -1,13 +1,13 @@
 {
   "run_id": "eb2fcd6dafb1924e",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T15:56:49.980971Z",
+  "created_at_utc": "2026-06-01T17:01:10.781300Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "size_bytes": 121067,
     "sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
-    "modified_at_utc": "2026-06-01T15:56:49.815383Z"
+    "modified_at_utc": "2026-06-01T17:01:10.714161Z"
   },
   "config": {
     "symbols": [
@@ -95,7 +95,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "d7607bdc601400193c061d4999da62e77874653c",
+    "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -111,28 +111,34 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
       "size_bytes": 261492,
       "sha256": "ff03138e348bedd50e1b6012e10b4471d154dc6b623086183eb87aedf185727e",
-      "modified_at_utc": "2026-06-01T15:56:50.181757Z"
+      "modified_at_utc": "2026-06-01T17:01:10.900143Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 7304,
-      "sha256": "1a01f263519ec50479b529f4aa894e58dfcbb7b19cf2a70dafdde33f9007ce59",
-      "modified_at_utc": "2026-06-01T15:56:50.173493Z"
+      "size_bytes": 7654,
+      "sha256": "95dc6c2241523ddf0ad759493b8dcc0a7768cac78c864f323e516e3b79dd7c7e",
+      "modified_at_utc": "2026-06-01T17:01:10.896741Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
-      "size_bytes": 5338,
-      "sha256": "8fa2410399c294e2132849291c400793c62f9a57eb80da08e40e13a72fd8410a",
-      "modified_at_utc": "2026-06-01T15:56:50.177050Z"
+      "size_bytes": 5668,
+      "sha256": "a49830a5d87387462d0d8459a039c7d2f256fc7daf33cd0899dc1dc2bc98678a",
+      "modified_at_utc": "2026-06-01T17:01:10.897743Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 436,
       "sha256": "192fcfa03ce5883ee2a35516f43345020b5ff51ca1a942355e8114f6a5ae3414",
-      "modified_at_utc": "2026-06-01T15:56:50.179762Z"
+      "modified_at_utc": "2026-06-01T17:01:10.898758Z"
     }
+  },
+  "fixture_provenance": {
+    "data_class": "recorded_public_data",
+    "source": "recorded_public_data_clip",
+    "purpose": "small committed public-data clip used as a reproducible real-tape proof point",
+    "script": "scripts/refresh_futures_recorded_case.py"
   }
 }
