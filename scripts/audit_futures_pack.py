@@ -10,10 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.sim.fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 
 
 PACK_AUDIT_SCHEMA_VERSION = "lob_sim.futures_pack_audit.v1"
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
+SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
 FILL_SOURCES = ("depth_update", "agg_trade", "taker_order")
 PUBLIC_CONSUMPTION_SOURCES = ("depth_update", "agg_trade")
 PUBLIC_CONSUMPTION_FIELDS = (
@@ -50,6 +52,52 @@ EVENT_TRACE_FIELDS = (
 COMMITTED_FUTURES_PACKS = (
     Path("docs/sample_outputs/futures_replay_walkthrough"),
     Path("docs/sample_outputs/futures_recorded_clip_case"),
+)
+EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
+    "schema_version",
+    "data_scope",
+    "private_exchange_execution_reports",
+    "queue_priority_model",
+    "snapshot_seed",
+    "depth_increase",
+    "depth_decrease",
+    "agg_trade_consumption",
+    "overlap_netting",
+    "cancel_model",
+    "same_timestamp_ordering",
+    "marketable_limits",
+    "self_trade_prevention",
+    "markout",
+    "limitations",
+}
+EXPECTED_SIMULATION_LIMITATIONS = {
+    "no_private_queue_ids",
+    "no_hidden_liquidity",
+    "not_private_exchange_fill_truth",
+    "public_l2_cannot_distinguish_all_cancels_from_trades",
+}
+SUMMARY_CSV_EXACT_FIELDS = ("strategy_profile", "run_id", "input_sha256")
+SUMMARY_CSV_INT_FIELDS = (
+    "fill_count",
+    "quote_count",
+    "cancel_count",
+    "self_trade_prevention_count",
+    "event_trace_count",
+)
+SUMMARY_CSV_JSON_FIELDS = (
+    "event_counts",
+    "book_gap_count_by_symbol",
+    "fill_source_counts",
+    "order_lifecycle_counts",
+    "adverse_fill_rate_1s_by_side",
+    "markout_by_fill_source",
+    "inventory_by_symbol",
+    "regime_performance",
+    "public_consumption_summary",
+    "feed_adapter",
+    "instrument_specs",
+    "simulation_assumptions",
+    "output_files",
 )
 
 
@@ -291,6 +339,80 @@ def _audit_markouts(
                 issues.append(f"markout_by_fill_source.{source}.{field}={actual!r} does not match trace value {value}")
 
 
+def _audit_simulation_assumptions(path: Path, assumptions: object, issues: list[str]) -> None:
+    if not isinstance(assumptions, dict):
+        issues.append(f"{_display_path(path)} is missing simulation_assumptions")
+        return
+    if set(assumptions) != EXPECTED_SIMULATION_ASSUMPTION_FIELDS:
+        issues.append(f"{_display_path(path)} simulation_assumptions has unexpected fields")
+        return
+    if assumptions.get("schema_version") != SIMULATION_ASSUMPTIONS_SCHEMA_VERSION:
+        issues.append(f"{_display_path(path)} simulation_assumptions has unexpected schema_version")
+    if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
+        issues.append(f"{_display_path(path)} simulation_assumptions has unexpected data_scope")
+    if assumptions.get("private_exchange_execution_reports") is not False:
+        issues.append(f"{_display_path(path)} simulation_assumptions must not claim private exchange execution reports")
+    if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
+        issues.append(f"{_display_path(path)} simulation_assumptions has unexpected queue priority model")
+
+    overlap = assumptions.get("overlap_netting")
+    if not isinstance(overlap, dict):
+        issues.append(f"{_display_path(path)} simulation_assumptions.overlap_netting must be an object")
+    else:
+        if overlap.get("enabled") is not True:
+            issues.append(f"{_display_path(path)} simulation_assumptions overlap netting must be enabled")
+        if overlap.get("window_seconds") != TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+            issues.append(f"{_display_path(path)} simulation_assumptions has unexpected overlap window")
+
+    limitations = assumptions.get("limitations")
+    if not isinstance(limitations, list):
+        issues.append(f"{_display_path(path)} simulation_assumptions.limitations must be a list")
+    elif not EXPECTED_SIMULATION_LIMITATIONS <= set(limitations):
+        issues.append(f"{_display_path(path)} simulation_assumptions is missing required limitation token(s)")
+
+
+def _audit_summary_csv(pack_dir: Path, summary: dict[str, Any], issues: list[str]) -> None:
+    summary_csv_path = pack_dir / "summary.csv"
+    rows = _read_csv_rows(summary_csv_path, (), issues)
+    if not rows:
+        return
+    if len(rows) != 1:
+        issues.append(f"{_display_path(summary_csv_path)} must contain exactly one summary row")
+        return
+    row = rows[0]
+
+    for field in SUMMARY_CSV_EXACT_FIELDS:
+        actual = row.get(field)
+        expected = summary.get(field)
+        if actual != str(expected):
+            issues.append(f"{_display_path(summary_csv_path)} {field}={actual!r} does not match summary value {expected!r}")
+
+    for field in SUMMARY_CSV_INT_FIELDS:
+        raw_value = row.get(field)
+        try:
+            actual_int = int(str(raw_value))
+        except (TypeError, ValueError):
+            issues.append(f"{_display_path(summary_csv_path)} {field}={raw_value!r} is not an integer")
+            continue
+        expected = summary.get(field)
+        if actual_int != expected:
+            issues.append(f"{_display_path(summary_csv_path)} {field}={raw_value!r} does not match summary value {expected!r}")
+
+    for field in SUMMARY_CSV_JSON_FIELDS:
+        raw_value = row.get(field)
+        if raw_value in {None, ""}:
+            issues.append(f"{_display_path(summary_csv_path)} is missing {field}")
+            continue
+        try:
+            decoded = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_display_path(summary_csv_path)} {field} is invalid JSON: {exc.msg}")
+            continue
+        expected = summary.get(field)
+        if decoded != expected:
+            issues.append(f"{_display_path(summary_csv_path)} {field} does not match summary.json")
+
+
 def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     pack_dir = pack_dir.resolve()
     issues: list[str] = []
@@ -305,6 +427,8 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
 
     if summary:
         _audit_manifest(pack_dir, summary, manifest, issues)
+        _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
+        _audit_summary_csv(pack_dir, summary, issues)
 
     expected_event_trace_count = summary.get("event_trace_count")
     if isinstance(expected_event_trace_count, int) and len(trace_rows) != expected_event_trace_count:

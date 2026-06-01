@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -57,6 +58,49 @@ def test_futures_pack_collection_audit_rejects_empty_input() -> None:
         "packs": [],
         "issues": ["No futures packs supplied"],
     }
+
+
+def test_futures_pack_audit_rejects_stale_summary_csv(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_csv_path = copied_pack / "summary.csv"
+    with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    rows[0]["fill_count"] = "99"
+    with summary_csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "summary.csv fill_count='99' does not match summary value 1" in issue
+        for issue in result["issues"]
+    )
+    assert any("output_artifacts[summary_csv].sha256 is stale" in issue for issue in result["issues"])
+
+
+def test_futures_pack_audit_rejects_private_execution_assumption(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    for filename in ("summary.json", "manifest.json"):
+        path = copied_pack / filename
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["simulation_assumptions"]["private_exchange_execution_reports"] = True
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "simulation_assumptions must not claim private exchange execution reports" in issue
+        for issue in result["issues"]
+    )
+    assert any("summary.csv simulation_assumptions does not match summary.json" in issue for issue in result["issues"])
 
 
 def test_futures_pack_audit_rejects_stale_summary_count(tmp_path: Path) -> None:
