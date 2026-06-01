@@ -219,6 +219,8 @@ FUTURES_TRADE_AUDIT_FIELDS = {
     "fee_bps",
     "fee",
     "fee_currency",
+    "spread_capture",
+    "spread_capture_value",
 }
 FUTURES_EVENT_TRACE_FIELDS = [
     "ts_local",
@@ -303,6 +305,26 @@ EXPECTED_MARKOUT_TRACE_FIELDS = {
     "contract_multiplier",
     "adverse",
     "regime",
+}
+EXPECTED_FILL_TRACE_FIELDS = {
+    "maker",
+    "queue_ahead_lots",
+    "created_ts",
+    "price",
+    "qty",
+    "notional",
+    "contract_multiplier",
+    "fee_bps",
+    "fee",
+    "fee_currency",
+    "mid_at_fill",
+    "spread_capture",
+    "spread_capture_value",
+    "time_in_book_ms",
+    "markout_horizon",
+    "regime",
+    "book_bid_tick",
+    "book_ask_tick",
 }
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
@@ -1059,6 +1081,94 @@ def _verify_queue_consumption_trace_details(
     return issues
 
 
+def _verify_fill_trace_details(
+    path: Path,
+    row_index: int,
+    row: dict[str, str],
+    details: dict[str, object] | None,
+) -> list[str]:
+    issues: list[str] = []
+    if details is None:
+        return [f"{_repo_relative(path)}:{row_index} fill row is missing details"]
+
+    if set(details) != EXPECTED_FILL_TRACE_FIELDS:
+        issues.append(f"{_repo_relative(path)}:{row_index} fill details have unexpected fields")
+        return issues
+
+    if row.get("fill_source") not in FUTURES_FILL_SOURCES:
+        issues.append(f"{_repo_relative(path)}:{row_index} has invalid fill_source: {row.get('fill_source')!r}")
+    if row.get("side") not in {"bid", "ask"}:
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid side")
+    for field in ["price_tick", "qty_lots"]:
+        try:
+            value = int(row.get(field, ""))
+        except (TypeError, ValueError):
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+            continue
+        if value <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+    if not row.get("order_id"):
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row is missing order_id")
+
+    if not isinstance(details.get("maker"), bool):
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid maker")
+    queue_ahead_lots = details.get("queue_ahead_lots")
+    if not isinstance(queue_ahead_lots, int) or queue_ahead_lots < 0:
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid queue_ahead_lots")
+
+    for field in ["created_ts", "time_in_book_ms", "markout_horizon"]:
+        value = details.get(field)
+        if value is None and field == "created_ts":
+            continue
+        if not isinstance(value, (int, float)) or not math.isfinite(float(value)) or float(value) < 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+
+    for field in [
+        "price",
+        "qty",
+        "notional",
+        "contract_multiplier",
+        "fee_bps",
+        "fee",
+        "spread_capture",
+        "spread_capture_value",
+    ]:
+        value = details.get(field)
+        if value is None and field in {"spread_capture", "spread_capture_value"}:
+            continue
+        try:
+            parsed = Decimal(str(value))
+        except (InvalidOperation, TypeError):
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+            continue
+        if not parsed.is_finite():
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+        if field in {"price", "qty", "contract_multiplier"} and parsed <= 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+        if field == "notional" and parsed < 0:
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+
+    mid_at_fill = details.get("mid_at_fill")
+    if mid_at_fill is not None:
+        try:
+            value = Decimal(str(mid_at_fill))
+        except (InvalidOperation, TypeError):
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid mid_at_fill")
+        else:
+            if not value.is_finite() or value <= 0:
+                issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid mid_at_fill")
+    fee_currency = details.get("fee_currency")
+    if not isinstance(fee_currency, str):
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid fee_currency")
+    if not isinstance(details.get("regime"), str) or not details.get("regime"):
+        issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid regime")
+    for field in ["book_bid_tick", "book_ask_tick"]:
+        value = details.get(field)
+        if value is not None and (not isinstance(value, int) or value <= 0):
+            issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+    return issues
+
+
 def _verify_markout_trace_details(
     path: Path,
     row_index: int,
@@ -1303,6 +1413,7 @@ def _verify_futures_event_trace_contract() -> list[str]:
                     markout_row_count += 1
 
             if event_type == "fill":
+                issues.extend(_verify_fill_trace_details(trace_path, row_index, row, details))
                 fill_rows.append((row_index, row))
 
         if len(fill_rows) != expected_fill_count:

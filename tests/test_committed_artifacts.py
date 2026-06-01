@@ -309,6 +309,8 @@ def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path,
                 "fee_bps": "0",
                 "fee": "0",
                 "fee_currency": "USDT",
+                "spread_capture": "0.1",
+                "spread_capture_value": "0.0001",
             }
         )
     monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
@@ -318,7 +320,10 @@ def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path,
     issues = verifier._verify_futures_trade_audit_fields()
 
     assert issues == [
-        f"{showcase / 'trades.csv'} is missing trade audit column(s): contract_multiplier, notional"
+        (
+            f"{showcase / 'trades.csv'} is missing trade audit column(s): "
+            "contract_multiplier, notional, spread_capture, spread_capture_value"
+        )
     ]
 
 
@@ -617,6 +622,45 @@ def test_futures_event_trace_verifier_rejects_unstructured_fill_rows(tmp_path, m
 
     assert f"{showcase / 'event_trace.csv'}:2 details must be a JSON object" in issues
     assert f"{showcase / 'event_trace.csv'}:2 has invalid fill_source: 'mystery'" in issues
+
+
+def test_futures_event_trace_verifier_rejects_malformed_fill_economics(tmp_path, monkeypatch) -> None:
+    showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
+    _write_event_trace_case(
+        showcase,
+        event_trace_count=1,
+        fill_count=1,
+        rows=[
+            _event_trace_row(
+                event_type="fill",
+                source="fill_model",
+                side="bid",
+                price_tick="1000",
+                qty_lots="1",
+                order_id="order-1",
+                fill_source="depth_update",
+                details=(
+                    '{"maker":true,"queue_ahead_lots":0,"created_ts":1.0,'
+                    '"price":"100","qty":"0.001","notional":"oops",'
+                    '"contract_multiplier":"1","fee_bps":"0","fee":"0",'
+                    '"fee_currency":"USDT","mid_at_fill":"100.05",'
+                    '"spread_capture":"0.05","spread_capture_value":"0.00005",'
+                    '"time_in_book_ms":1000.0,"markout_horizon":1.0,'
+                    '"regime":"tight","book_bid_tick":1000,"book_ask_tick":1001}'
+                ),
+            )
+        ],
+    )
+    _write_event_trace_case(
+        recorded,
+        event_trace_count=1,
+        fill_count=0,
+        rows=[_event_trace_row()],
+    )
+
+    issues = verifier._verify_futures_event_trace_contract()
+
+    assert f"{showcase / 'event_trace.csv'}:2 fill row has invalid notional" in issues
 
 
 def test_futures_event_trace_verifier_rejects_lifecycle_summary_mismatch(tmp_path, monkeypatch) -> None:

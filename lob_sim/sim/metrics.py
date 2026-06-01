@@ -292,7 +292,7 @@ class SimulationMetrics:
                 f"{self.cfg.sim_kill_max_consecutive_losses}"
             )
 
-    def on_fill(self, fill: Fill, book: LocalOrderBook, mid: Decimal | None) -> None:
+    def on_fill(self, fill: Fill, book: LocalOrderBook, mid: Decimal | None) -> dict[str, Any]:
         pos = self.position.setdefault(fill.symbol, PositionState())
         qty = book.spec.lot_to_qty(fill.qty_lots)
         price = book.spec.tick_to_price(fill.price_tick)
@@ -361,30 +361,32 @@ class SimulationMetrics:
         regime = self._regime(book)
         self._record_fill_regime(regime, qty, spread_capture_value)
 
-        self.fills_log.append(
-            {
-                "ts_local": fill.ts_local,
-                "symbol": fill.symbol,
-                "side": fill.side,
-                "price": str(price),
-                "qty": str(qty),
-                "notional": str(fee.notional),
-                "contract_multiplier": str(contract_multiplier),
-                "maker": fill.maker,
-                "fill_source": fill.source,
-                "fee_bps": str(fee.rate_bps),
-                "fee": str(fee.amount),
-                "fee_currency": fee.currency,
-                "order_id": fill.order_id,
-                "mid_at_fill": str(mid) if mid is not None else None,
-                "regime": regime,
-                "queue_ahead_lots": fill.queue_ahead_lots,
-                "time_in_book_ms": float(wait_ms),
-                "markout_horizon": self.cfg.sim_adverse_markout_seconds,
-                "book_bid_tick": book.best_ticks()[0] if book.best_ticks() else None,
-                "book_ask_tick": book.best_ticks()[1] if book.best_ticks() else None,
-            }
-        )
+        best_ticks = book.best_ticks()
+        fill_audit = {
+            "ts_local": fill.ts_local,
+            "symbol": fill.symbol,
+            "side": fill.side,
+            "price": str(price),
+            "qty": str(qty),
+            "notional": str(fee.notional),
+            "contract_multiplier": str(contract_multiplier),
+            "maker": fill.maker,
+            "fill_source": fill.source,
+            "fee_bps": str(fee.rate_bps),
+            "fee": str(fee.amount),
+            "fee_currency": fee.currency,
+            "order_id": fill.order_id,
+            "mid_at_fill": str(mid) if mid is not None else None,
+            "spread_capture": str(spread_capture) if mid is not None else None,
+            "spread_capture_value": str(spread_capture_value) if mid is not None else None,
+            "regime": regime,
+            "queue_ahead_lots": fill.queue_ahead_lots,
+            "time_in_book_ms": float(wait_ms),
+            "markout_horizon": self.cfg.sim_adverse_markout_seconds,
+            "book_bid_tick": best_ticks[0] if best_ticks else None,
+            "book_ask_tick": best_ticks[1] if best_ticks else None,
+        }
+        self.fills_log.append(fill_audit)
 
         if self.cfg.sim_adverse_markout_seconds > 0:
             self._pending_markouts.append(
@@ -412,6 +414,8 @@ class SimulationMetrics:
 
         if self.consecutive_loss_count > self.max_consecutive_loss_count:
             self.max_consecutive_loss_count = self.consecutive_loss_count
+
+        return fill_audit
 
     def update_unrealized(self, books: Dict[str, LocalOrderBook], now_ts: float | None = None, mid_override: Dict[str, Decimal] | None = None) -> None:
         unreal = Decimal("0")

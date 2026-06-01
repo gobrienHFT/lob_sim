@@ -579,7 +579,7 @@ class SimulationEngine:
             book = self._books.get(fill.symbol)
             if book is None:
                 continue
-            self.metrics.on_fill(fill, book, book.mid_price())
+            fill_audit = self.metrics.on_fill(fill, book, book.mid_price())
             self._trace(
                 fill.ts_local,
                 fill.symbol,
@@ -594,6 +594,21 @@ class SimulationEngine:
                     "maker": fill.maker,
                     "queue_ahead_lots": fill.queue_ahead_lots,
                     "created_ts": fill.created_ts,
+                    "price": fill_audit["price"],
+                    "qty": fill_audit["qty"],
+                    "notional": fill_audit["notional"],
+                    "contract_multiplier": fill_audit["contract_multiplier"],
+                    "fee_bps": fill_audit["fee_bps"],
+                    "fee": fill_audit["fee"],
+                    "fee_currency": fill_audit["fee_currency"],
+                    "mid_at_fill": fill_audit["mid_at_fill"],
+                    "spread_capture": fill_audit["spread_capture"],
+                    "spread_capture_value": fill_audit["spread_capture_value"],
+                    "time_in_book_ms": fill_audit["time_in_book_ms"],
+                    "markout_horizon": fill_audit["markout_horizon"],
+                    "regime": fill_audit["regime"],
+                    "book_bid_tick": fill_audit["book_bid_tick"],
+                    "book_ask_tick": fill_audit["book_ask_tick"],
                 },
             )
 
@@ -799,6 +814,8 @@ class SimulationEngine:
                     "fee_currency",
                     "order_id",
                     "mid_at_fill",
+                    "spread_capture",
+                    "spread_capture_value",
                     "regime",
                     "queue_ahead_lots",
                     "time_in_book_ms",

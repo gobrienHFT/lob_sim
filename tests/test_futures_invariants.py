@@ -1262,6 +1262,20 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert fill_row["price_tick"] == "1000"
     assert fill_row["qty_lots"] == "1"
     assert fill_row["fill_source"] == "agg_trade"
+    fill_details = json.loads(fill_row["details"])
+    assert fill_details["maker"] is True
+    assert fill_details["price"] == "100.0"
+    assert fill_details["qty"] == "0.001"
+    assert fill_details["notional"] == "0.1000"
+    assert fill_details["contract_multiplier"] == "1"
+    assert fill_details["fee_bps"] == "0"
+    assert fill_details["fee"] == "0.0000"
+    assert fill_details["mid_at_fill"] == "100.05"
+    assert fill_details["spread_capture"] == "0.05"
+    assert fill_details["spread_capture_value"] == "0.00005"
+    assert fill_details["time_in_book_ms"] == pytest.approx(1000.0)
+    assert fill_details["markout_horizon"] == 1.0
+    assert fill_details["regime"] == "tight_sell"
 
     markout_row = next(row for row in rows if row["event_type"] == "markout")
     markout_details = json.loads(markout_row["details"])
