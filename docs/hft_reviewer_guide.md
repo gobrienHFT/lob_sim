@@ -154,7 +154,7 @@ Inferred:
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
 - A CI-covered determinism checker that proves repeated in-memory fixture runs produce identical summary and event-trace hashes.
-- A futures pack auditor that checks summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on fills, per-fill economics, lifecycle counts, public queue-consumption totals, markouts, and output artifact hashes.
+- A futures pack auditor that checks summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
 - A deterministic latency sensitivity sweep that shows how modeled order-arrival and cancel-ack delays affect queue/fill outcomes without claiming a production latency edge.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.

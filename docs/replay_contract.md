@@ -48,7 +48,7 @@ Use the pack auditor when you want to check a generated futures pack without rea
 python scripts/audit_futures_pack.py --committed-futures
 ```
 
-It verifies that each pack's `summary.json`, `summary.csv`, `trades.csv`, `event_trace.csv`, and `manifest.json` agree on row counts, per-fill economics, fill-source counts, order lifecycle counters, queue-ahead-at-arrival metrics, public queue-consumption totals, source-split markouts, public-data assumptions, and output artifact hashes.
+It verifies that each pack's `summary.json`, `summary.csv`, `trades.csv`, `event_trace.csv`, and `manifest.json` agree on row counts, per-fill economics, fill-source counts, order lifecycle counters, queue-ahead-at-arrival metrics, public queue-consumption totals, source-split markouts, markout event details, public-data assumptions, and output artifact hashes.
 
 ## Simulation Manifests
 

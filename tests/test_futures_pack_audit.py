@@ -135,6 +135,51 @@ def test_futures_pack_audit_rejects_stale_fill_trace_economics(tmp_path: Path) -
     assert any("output_artifacts[event_trace].sha256 is stale" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_rejects_stale_summary_markout_event(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["markout_events"][0]["mid_after"] = "999"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "details.mid_after='100.05' does not match summary.markout_events[0].mid_after='999'" in issue
+        for issue in result["issues"]
+    )
+    assert any("output_artifacts[summary].sha256 is stale" in issue for issue in result["issues"])
+
+
+def test_futures_pack_audit_rejects_stale_markout_trace_event(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    trace_path = copied_pack / "event_trace.csv"
+    with trace_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    markout_row = next(row for row in rows if row["event_type"] == "markout")
+    details = json.loads(markout_row["details"])
+    details["markout"] = "999"
+    markout_row["details"] = json.dumps(details, sort_keys=True)
+    with trace_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "details.markout='999' does not match summary.markout_events[0].markout='0.05'" in issue
+        for issue in result["issues"]
+    )
+    assert any("output_artifacts[event_trace].sha256 is stale" in issue for issue in result["issues"])
+
+
 def test_futures_pack_audit_rejects_private_execution_assumption(tmp_path: Path) -> None:
     copied_pack = tmp_path / "pack"
     shutil.copytree(SHOWCASE_PACK, copied_pack)

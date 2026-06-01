@@ -77,6 +77,20 @@ FILL_TRACE_ROW_FIELDS = ("ts_local", "symbol", "side", "order_id", "fill_source"
 FILL_TRACE_DETAIL_FIELDS = tuple(
     field for field in TRADE_CSV_FIELDS if field not in {"ts_local", "symbol", "side", "fill_source", "order_id"}
 )
+MARKOUT_TRACE_ROW_FIELDS = ("symbol", "side", "price_tick", "qty_lots", "order_id", "fill_source")
+MARKOUT_TRACE_DETAIL_FIELDS = (
+    ("fill_ts_local", "ts_local"),
+    ("deadline_ts", "deadline_ts"),
+    ("horizon", "horizon"),
+    ("fill_price", "fill_price"),
+    ("qty", "qty"),
+    ("fill_mid", "fill_mid"),
+    ("mid_after", "mid_after"),
+    ("markout", "markout"),
+    ("contract_multiplier", "contract_multiplier"),
+    ("adverse", "adverse"),
+    ("regime", "regime"),
+)
 COMMITTED_FUTURES_PACKS = (
     Path("docs/sample_outputs/futures_replay_walkthrough"),
     Path("docs/sample_outputs/futures_recorded_clip_case"),
@@ -516,6 +530,53 @@ def _audit_fill_exports(
                 )
 
 
+def _audit_markout_exports(
+    summary: dict[str, Any],
+    markout_records: list[tuple[int, dict[str, str], dict[str, Any]]],
+    trace_path: Path,
+    issues: list[str],
+) -> None:
+    summary_markouts = summary.get("markout_events")
+    if not isinstance(summary_markouts, list):
+        issues.append("summary.json is missing markout_events")
+        return
+    if len(summary_markouts) != len(markout_records):
+        issues.append(
+            f"summary.markout_events has {len(summary_markouts)} row(s), "
+            f"event_trace markout rows has {len(markout_records)}"
+        )
+
+    for index, summary_markout in enumerate(summary_markouts):
+        if not isinstance(summary_markout, dict):
+            issues.append(f"summary.markout_events[{index}] must be a JSON object")
+            continue
+        if index >= len(markout_records):
+            continue
+        trace_row_number, trace_row, details = markout_records[index]
+        if not _scalar_matches(trace_row.get("ts_local"), summary_markout.get("markout_ts_local")):
+            issues.append(
+                f"{_display_path(trace_path)}:{trace_row_number} ts_local={trace_row.get('ts_local')!r} "
+                f"does not match summary.markout_events[{index}].markout_ts_local="
+                f"{summary_markout.get('markout_ts_local')!r}"
+            )
+        for field in MARKOUT_TRACE_ROW_FIELDS:
+            actual = trace_row.get(field)
+            expected = summary_markout.get(field)
+            if not _scalar_matches(actual, expected):
+                issues.append(
+                    f"{_display_path(trace_path)}:{trace_row_number} {field}={actual!r} "
+                    f"does not match summary.markout_events[{index}].{field}={expected!r}"
+                )
+        for detail_field, summary_field in MARKOUT_TRACE_DETAIL_FIELDS:
+            actual = details.get(detail_field)
+            expected = summary_markout.get(summary_field)
+            if not _scalar_matches(actual, expected):
+                issues.append(
+                    f"{_display_path(trace_path)}:{trace_row_number} details.{detail_field}={actual!r} "
+                    f"does not match summary.markout_events[{index}].{summary_field}={expected!r}"
+                )
+
+
 def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     pack_dir = pack_dir.resolve()
     issues: list[str] = []
@@ -564,6 +625,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     arrival_queue_sum = 0
     max_arrival_queue = 0
     fill_records: list[tuple[int, dict[str, str], dict[str, Any]]] = []
+    markout_records: list[tuple[int, dict[str, str], dict[str, Any]]] = []
 
     for row_number, row in enumerate(trace_rows, start=2):
         event_type = row.get("event_type", "")
@@ -657,6 +719,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
             if details.get("adverse") is True:
                 markouts[source]["adverse_samples"] = int(markouts[source]["adverse_samples"]) + 1
             markout_row_count += 1
+            markout_records.append((row_number, row, details))
 
     if isinstance(expected_fill_count, int) and len(fill_rows) != expected_fill_count:
         issues.append(f"event_trace.csv has {len(fill_rows)} fill row(s), summary expected {expected_fill_count}")
@@ -679,6 +742,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_public_consumption(summary, consumption, issues)
         _audit_markouts(summary, markouts, markout_row_count, issues)
         _audit_fill_exports(summary, trade_rows, fill_records, trades_path, trace_path, issues)
+        _audit_markout_exports(summary, markout_records, trace_path, issues)
 
     return {
         "schema_version": PACK_AUDIT_SCHEMA_VERSION,
