@@ -277,7 +277,9 @@ def cmd_options_demo(
 
 def main() -> None:
     if os.name == "nt":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        windows_policy_factory = getattr(asyncio, "WindowsSelectorEventLoopPolicy", None)
+        if windows_policy_factory is not None:
+            asyncio.set_event_loop_policy(windows_policy_factory())
 
     parser = argparse.ArgumentParser(prog="lob_sim")
     parser.add_argument("--env", default=".env", help="Path to .env file (falls back to .env.example)")
