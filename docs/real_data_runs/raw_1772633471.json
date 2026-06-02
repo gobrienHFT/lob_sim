@@ -22,39 +22,39 @@
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
       "peak_traced_mib": 37.48209857940674,
-      "wall_time_p50_seconds": 29.608160400064662,
-      "wall_time_p99_seconds": 29.608160400064662,
-      "wall_time_seconds": 29.608160400064662
+      "wall_time_p50_seconds": 14.847615799983032,
+      "wall_time_p99_seconds": 14.847615799983032,
+      "wall_time_seconds": 14.847615799983032
     },
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "replay_only": {
-      "events_per_second": 187.53635101562554,
-      "loop_latency_p50_us": 175.6,
-      "loop_latency_p99_us": 73403.01999999999,
+      "events_per_second": 228.81674290536063,
+      "loop_latency_p50_us": 127.4,
+      "loop_latency_p99_us": 48540.507999999965,
       "peak_traced_mib": 1.169489860534668,
       "wall_time_p50_seconds": null,
       "wall_time_p99_seconds": null,
-      "wall_time_seconds": 10.648602199973539
+      "wall_time_seconds": 8.727508199983276
     },
     "schema_version": "lob_sim.reviewer_benchmark.v1",
     "simulation_no_export": {
-      "events_per_second": 61.56448818016717,
+      "events_per_second": 67.80423107429401,
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
-      "peak_traced_mib": 43.252920150756836,
-      "wall_time_p50_seconds": 32.43753110000398,
-      "wall_time_p99_seconds": 32.43753110000398,
-      "wall_time_seconds": 32.43753110000398
+      "peak_traced_mib": 43.25278568267822,
+      "wall_time_p50_seconds": 29.45243930001743,
+      "wall_time_p99_seconds": 29.45243930001743,
+      "wall_time_seconds": 29.45243930001743
     },
     "simulation_with_event_trace_export": {
-      "events_per_second": 29.89063036312676,
+      "events_per_second": 50.82432253768675,
       "loop_latency_p50_us": null,
       "loop_latency_p99_us": null,
-      "peak_traced_mib": 45.473636627197266,
-      "wall_time_p50_seconds": 66.81023369997274,
-      "wall_time_p99_seconds": 66.81023369997274,
-      "wall_time_seconds": 66.81023369997274
+      "peak_traced_mib": 45.47321319580078,
+      "wall_time_p50_seconds": 39.292210899991915,
+      "wall_time_p99_seconds": 39.292210899991915,
+      "wall_time_seconds": 39.292210899991915
     }
   },
   "event_counts": {
@@ -85,7 +85,7 @@
     "quote_count": 467,
     "quote_fill_probability": 0.042826552462526764
   },
-  "generated_at_utc": "2026-06-01T20:28:08.334666Z",
+  "generated_at_utc": "2026-06-02T18:17:57.717213Z",
   "input": {
     "duration_seconds": 30.0871000289917,
     "file_size_bytes": 2054090,
@@ -153,7 +153,7 @@
   "schema_version": "lob_sim.real_data_report.v1",
   "source": {
     "git_branch": "master",
-    "git_commit": "04b2ff7a25890dbf52a12f8c5fd6d05a12f48680",
+    "git_commit": "344cd6a60bcdd37f3548686138762aeb7e496eb5",
     "git_dirty": false
   },
   "target_window": {
