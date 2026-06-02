@@ -22,10 +22,10 @@ make reviewer-gate
 For the gradual core type gate alone:
 
 ```bash
-python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
+python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py lob_sim/config.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
 ```
 
-The current mypy gate covers book sync, replay normalization/inspection, record schema/writing, passive-fill mechanics, simulation engine/metrics, run manifests, and the market-making strategy layer. Options demos, plotting-heavy experiments, artifact refresh scripts, and tests remain outside the gradual type gate because they are more dynamic and less central to replay/fill correctness; they still run under pytest, ruff, artifact verification, and CI.
+The current mypy gate covers book sync, replay normalization/inspection, record schema/writing, core CLI/config/util helpers, passive-fill mechanics, simulation engine/metrics, run manifests, and the market-making strategy layer. Options demos, plotting-heavy experiments, artifact refresh scripts, and tests remain outside the gradual type gate because they are more dynamic and less central to replay/fill correctness; they still run under pytest, ruff, artifact verification, and CI.
 
 ## Artifact Refresh Policy
 

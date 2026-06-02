@@ -1943,6 +1943,9 @@ def _verify_reviewer_gate_publication() -> list[str]:
         "type check",
         "mypy",
         "lob_sim/record",
+        "lob_sim/cli.py",
+        "lob_sim/config.py",
+        "lob_sim/util.py",
         "lob_sim/sim/run_manifest.py",
         "lob_sim/sim/mm_strategy.py",
         "ruff",
@@ -1969,7 +1972,7 @@ def _verify_reviewer_gate_publication() -> list[str]:
         issues.append("Makefile ci target should delegate to reviewer-gate")
     if "$(PY) scripts/reviewer_gate.py --python $(PY)" not in makefile:
         issues.append("Makefile reviewer-gate should delegate to scripts/reviewer_gate.py")
-    if "MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record" not in makefile:
+    if "MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py" not in makefile:
         issues.append("Makefile is missing expanded MYPY_TARGETS")
     if "run: make reviewer-gate" not in workflow:
         issues.append("CI should use make reviewer-gate as the single evidence authority")

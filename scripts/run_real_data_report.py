@@ -33,6 +33,7 @@ LOCAL_ONLY_NOTE = (
 )
 TARGET_MIN_DURATION_SECONDS = 10 * 60
 TARGET_MAX_DURATION_SECONDS = 30 * 60
+SUPPORTED_INPUT_SUFFIXES = (".ndjson", ".ndjson.gz")
 
 
 @contextmanager
@@ -80,6 +81,8 @@ def _validate_input_path(input_path: Path) -> Path:
         raise FileNotFoundError(f"Real-data input does not exist: {resolved}")
     if not resolved.is_file():
         raise ValueError(f"Real-data input must be a file, got: {resolved}")
+    if not any(resolved.name.endswith(suffix) for suffix in SUPPORTED_INPUT_SUFFIXES):
+        raise ValueError("Real-data input must be an NDJSON or NDJSON.GZ file")
     return resolved
 
 

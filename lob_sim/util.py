@@ -66,6 +66,7 @@ class TokenBucket:
             while True:
                 now = asyncio.get_event_loop().time()
                 elapsed = now - self._updated
+                assert self.capacity is not None
                 self._tokens = min(self.capacity, self._tokens + elapsed * self.rate_per_second)
                 self._updated = now
                 if self._tokens >= n:

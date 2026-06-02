@@ -23,6 +23,9 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert steps[0].command == ("python", "-m", "pytest", "-q")
     assert steps[1].command[:3] == ("python", "-m", "mypy")
     assert "lob_sim/record" in steps[1].command
+    assert "lob_sim/cli.py" in steps[1].command
+    assert "lob_sim/config.py" in steps[1].command
+    assert "lob_sim/util.py" in steps[1].command
     assert "lob_sim/sim/engine.py" in steps[1].command
     assert "lob_sim/sim/run_manifest.py" in steps[1].command
     assert "lob_sim/sim/mm_strategy.py" in steps[1].command
@@ -39,6 +42,14 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert "--pack" in steps[8].command
     assert "docs/sample_outputs/futures_stress_case" in steps[8].command
     assert "--json-out" in steps[8].command
+
+
+def test_reviewer_gate_mypy_targets_match_makefile() -> None:
+    makefile = (reviewer_gate.REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    target_line = next(line for line in makefile.splitlines() if line.startswith("MYPY_TARGETS ?="))
+    makefile_targets = tuple(target_line.split("?=", 1)[1].strip().split())
+
+    assert makefile_targets == reviewer_gate.MYPY_TARGETS
 
 
 def test_reviewer_gate_can_skip_benchmark_for_narrower_local_checks() -> None:

@@ -70,6 +70,17 @@ def test_real_data_report_validates_input_and_keeps_local_packs_out_of_docs(tmp_
             runs=1,
         )
 
+    wrong_suffix = tmp_path / "raw.txt"
+    wrong_suffix.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="NDJSON or NDJSON.GZ"):
+        run_report(
+            input_path=wrong_suffix,
+            env_path=".env.example",
+            out_dir=tmp_path / "outputs",
+            label="wrong_suffix",
+            runs=1,
+        )
+
     with pytest.raises(ValueError, match="--out-dir writes local audit packs"):
         run_report(
             input_path=FIXTURE,

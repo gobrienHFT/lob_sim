@@ -953,7 +953,8 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     makefile = MAKEFILE.read_text(encoding="utf-8")
     pyproject = PYPROJECT.read_text(encoding="utf-8")
     mypy_targets = (
-        "lob_sim/book lob_sim/replay lob_sim/record lob_sim/sim/fill_model.py "
+        "lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py lob_sim/config.py lob_sim/util.py "
+        "lob_sim/sim/fill_model.py "
         "lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py"
     )
     for version in ("3.11", "3.12", "3.13"):
