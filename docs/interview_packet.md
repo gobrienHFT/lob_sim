@@ -46,20 +46,21 @@ make reviewer-gate
 - `docs/sample_outputs/futures_recorded_clip_case/README.md`: small recorded public-data proof point.
 - `docs/sample_outputs/futures_stress_case/README.md`: synthetic stress pack for rare mechanics.
 - `scripts/run_real_data_report.py`: local real-tape inspect/simulate/audit/benchmark/report pipeline with report-only docs publishing.
-- `docs/real_data_runs/raw_1772633471.md`: available local BTCUSDT public-data report; clearly labeled as short of the 10-30 minute target.
+- `docs/real_data_runs/raw_1780500354_10m.md`: target-window BTCUSDT public-data report; raw tape kept local-only.
+- `docs/real_data_runs/raw_1772633471.md`: earlier short local BTCUSDT public-data report retained as historical evidence.
 - `docs/real_data_runbook.md`: 10-30 minute real-tape run path.
 
 ## Published Real-Data Report
 
-`docs/real_data_runs/raw_1772633471.md` is a report-only artifact generated from local BTCUSDT public data. The raw NDJSON is not committed. The run is useful evidence but is honestly labeled as a short local tape: duration `30.0871000289917` seconds, not the requested 10-30 minute target window.
+`docs/real_data_runs/raw_1780500354_10m.md` is a report-only artifact generated from a target-window local BTCUSDT public-data tape. The raw NDJSON.GZ is not committed. The run meets the requested 10-30 minute window: duration `609.9587485790253` seconds.
 
 Three numbers to cite:
 
-- Input evidence: `2,054,090` bytes, `1,997` records, SHA-256 `520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8`.
-- Fill evidence: `20` fills from `467` arrived quote orders, quote-fill probability `0.042826552462526764`, source mix `depth_update=4`, `agg_trade=5`, `taker_order=11`.
-- Audit evidence: clean local pack audit, `35,561` event-trace rows and `30,986` queue-consumption rows checked.
+- Input evidence: `7,098,878` bytes, `75,803` records, SHA-256 `54e37b0b7aad68daece82e2f9c02d1c0c01e9345ff75e3d7d748fc8fab068177`.
+- Replay evidence: `5,954` depth updates, `69,846` public trade-print records, `1,332,621` depth changes applied, one visible book gap.
+- Audit/fill evidence: `7,796` fills from `13,440` arrived quote orders, quote-fill probability `0.5800595238095239`, clean audit over `881,829` event-trace rows and `737,092` queue-consumption rows.
 
-The PnL sign is not the claim. The value is that the same deterministic replay, queue-fill attribution, markout, inventory/drawdown, audit, and benchmark path runs on public tape and publishes reproducible hashes.
+The PnL sign is not the claim. Positive or negative PnL is not evidence of edge here; the value is that the same deterministic replay, queue-fill attribution, source-split markout, inventory/drawdown, gap visibility, audit, and benchmark path runs on public tape and publishes reproducible hashes.
 
 ## Assumptions Tested
 

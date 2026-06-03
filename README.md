@@ -7,7 +7,8 @@ Fast reviewer links:
 - [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
-- [Published Real-Data Report](docs/real_data_runs/raw_1772633471.md): committed report-only artifact from an available local BTCUSDT public-data tape, with raw data kept out of git.
+- [Published Real-Data Report](docs/real_data_runs/raw_1780500354_10m.md): committed report-only artifact from a target-window BTCUSDT public-data tape, with raw data kept out of git.
+- [Short Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): earlier 30s BTCUSDT report retained as a compact historical comparison.
 
 ## Overview
 

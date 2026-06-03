@@ -80,11 +80,11 @@ async def run_symbol_stream(
                     data = payload.get("data", payload)
                     event_type = data.get("e")
                     if event_type == "depthUpdate":
-                        evt = parse_depth_update(symbol, spec, data)
-                        await on_depth(evt, data)
-                    elif event_type == "aggTrade":
-                        evt = parse_agg_trade(symbol, spec, data)
-                        await on_trade(evt, data)
+                        depth_event = parse_depth_update(symbol, spec, data)
+                        await on_depth(depth_event, data)
+                    elif event_type in {"aggTrade", "trade"}:
+                        trade_event = parse_agg_trade(symbol, spec, data)
+                        await on_trade(trade_event, data)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

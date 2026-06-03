@@ -18,6 +18,7 @@ COLLECT_SECONDS=1800
 RECORD_DIR=data
 RECORD_GZIP=1
 RESYNC_ON_GAP=1
+TRADE_STREAM_SUFFIX=@trade
 LOG_LEVEL=INFO
 ```
 
@@ -27,7 +28,9 @@ Then collect:
 python -m lob_sim.cli --env .env.real-data collect
 ```
 
-For ETH, set `SYMBOLS=ETHUSDT`. For a smaller dry run, use `COLLECT_SECONDS=600`.
+For ETH, set `SYMBOLS=ETHUSDT`. For a smaller target-window run, use `COLLECT_SECONDS=600`.
+
+The replay schema consumes public trade prints through its `aggTrade`-compatible record type. If Binance USD-M `@aggTrade` is available in your environment, you may set `TRADE_STREAM_SUFFIX=@aggTrade`; if that stream produces no trade prints, use the more granular public `@trade` stream. The report records the raw event type counts inside replay trade records so reviewers can see whether the source was `trade` or `aggTrade`.
 
 ## Inspect
 

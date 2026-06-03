@@ -39,6 +39,7 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert payload["input"]["file_size_bytes"] == FIXTURE.stat().st_size
     assert payload["input"]["symbol"] == "BTCUSDT"
     assert payload["event_counts"]["records_processed"] == 6
+    assert payload["public_trade_source_counts"] == {"unknown": 1}
     assert payload["fills"]["fill_count"] == 1
     assert set(payload["fills"]["fill_source_counts"]) == {"depth_update", "agg_trade", "taker_order"}
     assert "quote_fill_probability" in payload["fills"]
@@ -54,6 +55,7 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     markdown = paths["published_report_md"].read_text(encoding="utf-8")
     assert "Plain Interpretation" in markdown
     assert "Negative or positive PnL is not the point" in markdown
+    assert "Raw public trade event types inside `aggTrade` records" in markdown
     assert "raw NDJSON tape is not committed" in markdown
     assert "Meets 10-30 minute target: `false`" in markdown
     assert "python scripts/run_real_data_report.py" in markdown

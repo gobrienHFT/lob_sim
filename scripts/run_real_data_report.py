@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import sys
+from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 from experiments.benchmark_futures_replay import benchmark_reviewer_modes, write_benchmark_json
 from lob_sim.config import load_config
 from lob_sim.replay.inspection import inspect_stream
+from lob_sim.replay.reader import iter_records
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import output_artifact_snapshot
 from lob_sim.util import write_summary_csv
@@ -38,17 +40,17 @@ SUPPORTED_INPUT_SUFFIXES = (".ndjson", ".ndjson.gz")
 
 @contextmanager
 def _temporary_env(overrides: dict[str, str]) -> Iterator[None]:
-    previous = {key: os.environ.get(key) for key in overrides}
+    previous: dict[str, str | None] = {key: os.environ.get(key) for key in overrides}
     try:
         for key, value in overrides.items():
             os.environ[key] = value
         yield
     finally:
-        for key, value in previous.items():
-            if value is None:
+        for key, previous_value in previous.items():
+            if previous_value is None:
                 os.environ.pop(key, None)
             else:
-                os.environ[key] = value
+                os.environ[key] = previous_value
 
 
 def _safe_label(raw: str) -> str:
@@ -222,8 +224,17 @@ def _longer_run_env(symbol: str) -> dict[str, str]:
         "COLLECT_SECONDS": "1800",
         "RECORD_DIR": "data",
         "RECORD_GZIP": "1",
+        "TRADE_STREAM_SUFFIX": "@trade",
         "RESYNC_ON_GAP": "1",
     }
+
+
+def _public_trade_source_counts(input_path: Path) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for record in iter_records(input_path):
+        if record.type == "aggTrade":
+            counts[str(record.data.get("e") or "unknown")] += 1
+    return dict(sorted(counts.items()))
 
 
 def _build_report_payload(
@@ -242,6 +253,7 @@ def _build_report_payload(
         lifecycle = {}
     event_counts = dict(summary.get("event_counts", {}))
     event_counts["book_gap_count_by_symbol"] = summary.get("book_gap_count_by_symbol", {})
+    trade_source_counts = _public_trade_source_counts(input_path)
     symbols = inspection.get("symbols") or sorted(summary.get("instrument_specs", {}))
     symbol = symbols[0] if len(symbols) == 1 else ",".join(symbols)
     duration_seconds = inspection.get("duration_seconds")
@@ -290,6 +302,7 @@ def _build_report_payload(
             "longer_run_commands": [] if meets_target else _longer_run_commands(str(symbol or "BTCUSDT")),
         },
         "event_counts": event_counts,
+        "public_trade_source_counts": trade_source_counts,
         "fills": {
             "fill_count": summary.get("fill_count"),
             "quote_count": summary.get("quote_count"),
@@ -339,6 +352,10 @@ def _build_report_payload(
                 "and benchmark context."
             ),
             "Passive fills are public-data queue inferences, not private exchange execution reports.",
+            (
+                "Replay public trade-print records use the simulator's aggTrade-compatible schema; "
+                f"raw Binance event types observed inside those records are {_json_line(trade_source_counts)}."
+            ),
         ],
         "limits": [
             "public_l2_not_private_execution_reports",
@@ -358,6 +375,7 @@ def _render_report(payload: dict[str, Any]) -> str:
     audit = payload["audit"]
     benchmark = payload["benchmark"]
     event_counts = payload["event_counts"]
+    trade_source_counts = payload.get("public_trade_source_counts", {})
     markouts = payload["markout_by_fill_source"]
     markout_rows = [
         "| Source | Samples | Adverse Samples | Average Markout 1s | Adverse Rate |",
@@ -411,6 +429,7 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- `snapshot`: `{event_counts.get('snapshot')}`",
             f"- `depthUpdate`: `{event_counts.get('depth_update')}`",
             f"- `aggTrade`: `{event_counts.get('agg_trade')}`",
+            f"- Raw public trade event types inside `aggTrade` records: `{_json_line(trade_source_counts)}`",
             f"- Depth changes applied: `{event_counts.get('depth_changes_applied')}`",
             f"- Book gaps: `{event_counts.get('book_gap_count')}`",
             f"- Gap count by symbol: `{_json_line(event_counts.get('book_gap_count_by_symbol', {}))}`",

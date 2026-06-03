@@ -11,7 +11,7 @@ python scripts/reviewer_gate.py
 python scripts/audit_futures_pack.py --committed-futures
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
-python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
+python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_10m --publish-dir docs/real_data_runs
 ```
 
 ## Fixture Provenance
@@ -19,17 +19,20 @@ python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
+- `docs/real_data_runs/raw_1780500354_10m.md` is the larger local real-data report from a target-window BTCUSDT public tape. It publishes only report artifacts; raw files and the large local audit pack stay local-only.
 - Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
 
-## Published Local Real-Data Report
+## Published Local Real-Data Reports
 
-`docs/real_data_runs/raw_1772633471.md` is generated from an available local BTCUSDT public-data tape. It is explicitly labeled as a short local tape: `30.0871000289917` seconds, not the requested 10-30 minute target. The JSON includes exact commands for generating a longer report-only artifact.
+The current target-window report is `docs/real_data_runs/raw_1780500354_10m.md`. It is generated from a local BTCUSDT public-data tape and meets the requested 10-30 minute window: `609.9587485790253` seconds. The raw NDJSON.GZ is not committed; the report publishes the input label, SHA-256, file size, source state, audit result, benchmark context, and exact replay metrics.
 
 Key evidence:
 
-- Input: `2,054,090` bytes, `1,997` records, SHA-256 `520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8`.
-- Fill-source mix: `20` fills from `467` arrived quote orders, quote-fill probability `0.042826552462526764`, with `depth_update=4`, `agg_trade=5`, and `taker_order=11`.
-- Audit/queue evidence: clean local audit, `35,561` event-trace rows, `30,986` queue-consumption rows, one documented book gap.
+- Input: `7,098,878` bytes, `75,803` records, SHA-256 `54e37b0b7aad68daece82e2f9c02d1c0c01e9345ff75e3d7d748fc8fab068177`.
+- Market-data coverage: `5,954` depth updates, `69,846` replay-compatible public trade-print records, `1,332,621` depth changes applied, one documented book gap. Raw public trade event types inside those records are `{"trade": 69846}`.
+- Fill/audit evidence: `7,796` fills from `13,440` arrived quote orders, quote-fill probability `0.5800595238095239`, clean audit over `881,829` event-trace rows and `737,092` queue-consumption rows.
+
+The earlier `docs/real_data_runs/raw_1772633471.md` remains as a short historical local tape: `30.0871000289917` seconds, `1,997` records, and clean audit over `35,561` event-trace rows. The committed recorded clip, the synthetic stress pack, and the target-window local report serve different jobs: small reproducible real clip, compact rare-mechanics stress coverage, and larger local public-tape scale evidence.
 
 Interpretation: negative or positive PnL is not the point. The report demonstrates replay/audit/fill-source/queue evidence on public tape while preserving the limits: no private fill truth, no alpha claim, no profitability claim, no production latency claim, and no gateway-readiness claim.
 
