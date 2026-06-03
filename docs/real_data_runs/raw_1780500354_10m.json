@@ -1,0 +1,173 @@
+{
+  "audit": {
+    "event_trace_rows": 881829,
+    "issue_count": 0,
+    "ok": true,
+    "queue_consumption_rows": 737092
+  },
+  "benchmark": {
+    "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+    "feed_adapter": {
+      "name": "binance_usdm",
+      "supported_record_types": [
+        "aggTrade",
+        "depthUpdate",
+        "exchangeInfo",
+        "snapshot"
+      ],
+      "venue_label": "BINANCE_USDM"
+    },
+    "pack_audit": {
+      "events_per_second": null,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 942.2060966491699,
+      "wall_time_p50_seconds": 149.6871257999992,
+      "wall_time_p99_seconds": 149.6871257999992,
+      "wall_time_seconds": 149.6871257999992
+    },
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.1",
+    "replay_only": {
+      "events_per_second": 1023.8088342869302,
+      "loop_latency_p50_us": 50.4,
+      "loop_latency_p99_us": 13653.717999999983,
+      "peak_traced_mib": 5.019067764282227,
+      "wall_time_p50_seconds": null,
+      "wall_time_p99_seconds": null,
+      "wall_time_seconds": 74.04018940000242
+    },
+    "schema_version": "lob_sim.reviewer_benchmark.v1",
+    "simulation_no_export": {
+      "events_per_second": 154.27504152693905,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 788.409460067749,
+      "wall_time_p50_seconds": 491.3497299999981,
+      "wall_time_p99_seconds": 491.3497299999981,
+      "wall_time_seconds": 491.3497299999981
+    },
+    "simulation_with_event_trace_export": {
+      "events_per_second": 118.51031797076723,
+      "loop_latency_p50_us": null,
+      "loop_latency_p99_us": null,
+      "peak_traced_mib": 848.721791267395,
+      "wall_time_p50_seconds": 639.6320699999997,
+      "wall_time_p99_seconds": 639.6320699999997,
+      "wall_time_seconds": 639.6320699999997
+    }
+  },
+  "event_counts": {
+    "agg_trade": 69846,
+    "book_gap_count": 1,
+    "book_gap_count_by_symbol": {
+      "BTCUSDT": 1
+    },
+    "depth_changes_applied": 1332621,
+    "depth_update": 5954,
+    "exchange_info": 1,
+    "records_processed": 75803,
+    "snapshot": 2
+  },
+  "fills": {
+    "arrived_orders": 13440,
+    "avg_fill_wait_ms": 2.83741565653457,
+    "cancel_count": 5644,
+    "fill_count": 7796,
+    "fill_from_top_rate": 1.0,
+    "fill_source_counts": {
+      "agg_trade": 8,
+      "depth_update": 14,
+      "taker_order": 7774
+    },
+    "fills_per_arrived_order": 0.5800595238095239,
+    "fills_per_quote_request": 0.5800595238095239,
+    "quote_count": 13440,
+    "quote_fill_probability": 0.5800595238095239
+  },
+  "generated_at_utc": "2026-06-03T18:19:12.335550Z",
+  "input": {
+    "duration_seconds": 609.9587485790253,
+    "file_size_bytes": 7098878,
+    "first_ts_local": 1780500355.3822515,
+    "label": "data/raw_1780500354_10m.ndjson.gz",
+    "last_ts_local": 1780500965.341,
+    "sha256": "54e37b0b7aad68daece82e2f9c02d1c0c01e9345ff75e3d7d748fc8fab068177",
+    "symbol": "BTCUSDT",
+    "symbols": [
+      "BTCUSDT"
+    ]
+  },
+  "interpretation": [
+    "Negative or positive PnL is not the point of this artifact; the value is deterministic public-L2 replay, queue-aware fill evidence, fill-source attribution, event-time auditability, and benchmark context.",
+    "Passive fills are public-data queue inferences, not private exchange execution reports.",
+    "Replay public trade-print records use the simulator's aggTrade-compatible schema; raw Binance event types observed inside those records are {\"trade\": 69846}."
+  ],
+  "limits": [
+    "public_l2_not_private_execution_reports",
+    "passive_fills_are_public_data_queue_inferences",
+    "not_alpha_or_profitability_claim",
+    "not_production_latency_claim",
+    "not_gateway_readiness_claim"
+  ],
+  "local_artifacts": {
+    "output_dir": "outputs/real_data_runs/raw_1780500354_10m",
+    "pack_dir": "outputs/real_data_runs/raw_1780500354_10m/pack",
+    "report_only_docs_safe": true
+  },
+  "markout_by_fill_source": {
+    "agg_trade": {
+      "adverse_fill_rate_1s": 0.625,
+      "adverse_samples": 5,
+      "avg_markout_1s": -1.5125,
+      "qty": 0.008,
+      "samples": 8
+    },
+    "depth_update": {
+      "adverse_fill_rate_1s": 0.35714285714285715,
+      "adverse_samples": 5,
+      "avg_markout_1s": 1.9928571428571429,
+      "qty": 0.014,
+      "samples": 14
+    },
+    "taker_order": {
+      "adverse_fill_rate_1s": 0.026241317211216877,
+      "adverse_samples": 204,
+      "avg_markout_1s": 62.89953691793157,
+      "qty": 7.774,
+      "samples": 7774
+    }
+  },
+  "public_trade_source_counts": {
+    "trade": 69846
+  },
+  "raw_data_policy": "local-only raw data; raw NDJSON is not committed",
+  "risk": {
+    "avg_inventory": 0.05063042703922112,
+    "inventory_by_symbol": {
+      "BTCUSDT": 0.051
+    },
+    "inventory_stdev": 0.004161151503464575,
+    "max_drawdown": 1.2706405850980391,
+    "realized_pnl": 1361.8968786920784,
+    "self_trade_prevention_count": 0,
+    "total_pnl": 1366.4964286920783,
+    "unrealized_pnl": 4.59955
+  },
+  "schema_version": "lob_sim.real_data_report.v1",
+  "source": {
+    "git_branch": "master",
+    "git_commit": "c45c9660c3f2f4730f64826d7ba8c4b044f5d44d",
+    "git_dirty": false
+  },
+  "target_window": {
+    "env_overrides": {},
+    "label": "target-window public tape",
+    "longer_run_commands": [],
+    "max_duration_seconds": 1800,
+    "meets_target": true,
+    "min_duration_seconds": 600,
+    "observed_duration_seconds": 609.9587485790253,
+    "requested": "10-30 minutes"
+  }
+}
