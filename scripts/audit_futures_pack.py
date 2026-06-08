@@ -25,6 +25,7 @@ PACK_AUDIT_SCHEMA_VERSION = "lob_sim.futures_pack_audit.v1"
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
 FILL_SOURCES = ("depth_update", "agg_trade", "taker_order")
+FILL_ASSUMPTION_PROFILES = ("conservative", "base", "aggressive")
 PUBLIC_CONSUMPTION_SOURCES = ("depth_update", "agg_trade")
 PUBLIC_CONSUMPTION_FIELDS = (
     "observed_lots",
@@ -121,6 +122,8 @@ COMMITTED_FUTURES_PACKS = (
 )
 EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
     "schema_version",
+    "fill_assumption_profile",
+    "fill_assumption",
     "data_scope",
     "private_exchange_execution_reports",
     "queue_priority_model",
@@ -142,7 +145,7 @@ EXPECTED_SIMULATION_LIMITATIONS = {
     "not_private_exchange_fill_truth",
     "public_l2_cannot_distinguish_all_cancels_from_trades",
 }
-SUMMARY_CSV_EXACT_FIELDS = ("strategy_profile", "run_id", "input_sha256")
+SUMMARY_CSV_EXACT_FIELDS = ("strategy_profile", "fill_assumption_profile", "run_id", "input_sha256")
 SUMMARY_CSV_INT_FIELDS = (
     "fill_count",
     "quote_count",
@@ -160,6 +163,8 @@ SUMMARY_CSV_JSON_FIELDS = (
     "inventory_by_symbol",
     "regime_performance",
     "public_consumption_summary",
+    "fill_assumption",
+    "fill_assumption_diagnostics",
     "feed_adapter",
     "instrument_specs",
     "simulation_assumptions",
@@ -303,6 +308,12 @@ def _audit_manifest(pack_dir: Path, summary: dict[str, Any], manifest: dict[str,
     manifest_input = manifest.get("input")
     if isinstance(manifest_input, dict) and manifest_input.get("sha256") != summary.get("input_sha256"):
         issues.append(f"{_display_path(manifest_path)} input.sha256 does not match summary input_sha256")
+    manifest_config = manifest.get("config")
+    if isinstance(manifest_config, dict):
+        if manifest_config.get("fill_assumption_profile") != summary.get("fill_assumption_profile"):
+            issues.append(f"{_display_path(manifest_path)} fill_assumption_profile does not match summary.json")
+        if manifest_config.get("fill_assumption") != summary.get("fill_assumption"):
+            issues.append(f"{_display_path(manifest_path)} fill_assumption does not match summary.json")
 
     artifacts = manifest.get("output_artifacts")
     if not isinstance(artifacts, dict):
@@ -384,6 +395,34 @@ def _audit_fixture_provenance(
         for token in required_doc_tokens:
             if token not in text:
                 issues.append(f"{_display_path(doc_path)} is missing provenance token: {token}")
+
+
+def _audit_fill_assumption_metadata(
+    pack_dir: Path,
+    summary: dict[str, Any],
+    manifest: dict[str, Any],
+    issues: list[str],
+) -> None:
+    summary_path = pack_dir / "summary.json"
+    manifest_path = pack_dir / "manifest.json"
+    profile = summary.get("fill_assumption_profile")
+    fill_assumption = summary.get("fill_assumption")
+    diagnostics = summary.get("fill_assumption_diagnostics")
+    if profile not in FILL_ASSUMPTION_PROFILES:
+        issues.append(f"{_display_path(summary_path)} is missing fill_assumption_profile")
+    if not isinstance(fill_assumption, dict) or fill_assumption.get("profile") != profile:
+        issues.append(f"{_display_path(summary_path)} has invalid fill_assumption")
+    if not isinstance(diagnostics, dict) or diagnostics.get("profile") != profile:
+        issues.append(f"{_display_path(summary_path)} has invalid fill_assumption_diagnostics")
+
+    manifest_config = manifest.get("config")
+    if not isinstance(manifest_config, dict):
+        issues.append(f"{_display_path(manifest_path)} is missing config")
+        return
+    if manifest_config.get("fill_assumption_profile") != profile:
+        issues.append(f"{_display_path(manifest_path)} is missing matching fill_assumption_profile")
+    if manifest_config.get("fill_assumption") != fill_assumption:
+        issues.append(f"{_display_path(manifest_path)} is missing matching fill_assumption")
 
 
 def _audit_lifecycle(
@@ -519,6 +558,14 @@ def _audit_simulation_assumptions(path: Path, assumptions: object, issues: list[
         return
     if assumptions.get("schema_version") != SIMULATION_ASSUMPTIONS_SCHEMA_VERSION:
         issues.append(f"{_display_path(path)} simulation_assumptions has unexpected schema_version")
+    profile = assumptions.get("fill_assumption_profile")
+    fill_assumption = assumptions.get("fill_assumption")
+    if profile not in FILL_ASSUMPTION_PROFILES:
+        issues.append(f"{_display_path(path)} simulation_assumptions has invalid fill_assumption_profile")
+    if not isinstance(fill_assumption, dict):
+        issues.append(f"{_display_path(path)} simulation_assumptions is missing fill_assumption")
+    elif fill_assumption.get("profile") != profile:
+        issues.append(f"{_display_path(path)} simulation_assumptions fill_assumption profile mismatch")
     if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
         issues.append(f"{_display_path(path)} simulation_assumptions has unexpected data_scope")
     if assumptions.get("private_exchange_execution_reports") is not False:
@@ -530,9 +577,16 @@ def _audit_simulation_assumptions(path: Path, assumptions: object, issues: list[
     if not isinstance(overlap, dict):
         issues.append(f"{_display_path(path)} simulation_assumptions.overlap_netting must be an object")
     else:
-        if overlap.get("enabled") is not True:
-            issues.append(f"{_display_path(path)} simulation_assumptions overlap netting must be enabled")
-        if overlap.get("window_seconds") != TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+        expected_enabled = True
+        expected_window = TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
+        if isinstance(fill_assumption, dict):
+            raw_window = fill_assumption.get("overlap_window_seconds")
+            if isinstance(raw_window, (int, float)):
+                expected_window = float(raw_window)
+            expected_enabled = bool(fill_assumption.get("overlap_netting_enabled") is True and expected_window > 0)
+        if overlap.get("enabled") is not expected_enabled:
+            issues.append(f"{_display_path(path)} simulation_assumptions overlap netting flag is inconsistent")
+        if overlap.get("window_seconds") != expected_window:
             issues.append(f"{_display_path(path)} simulation_assumptions has unexpected overlap window")
 
     limitations = assumptions.get("limitations")
@@ -836,6 +890,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     if summary:
         _audit_manifest(pack_dir, summary, manifest, issues)
         _audit_fixture_provenance(pack_dir, summary, manifest, issues)
+        _audit_fill_assumption_metadata(pack_dir, summary, manifest, issues)
         _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
         _audit_summary_csv(pack_dir, summary, issues)
         _audit_fill_frequency_metrics(pack_dir, summary, trade_rows, issues)
@@ -958,6 +1013,11 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
                     f"{_display_path(trace_path)}:{row_number} has invalid queue_consumption source {source!r}"
                 )
                 continue
+            profile = details.get("fill_assumption_profile")
+            if profile not in FILL_ASSUMPTION_PROFILES:
+                issues.append(
+                    f"{_display_path(trace_path)}:{row_number} queue_consumption is missing fill_assumption_profile"
+                )
             parsed: dict[str, int] = {}
             for field in PUBLIC_CONSUMPTION_FIELDS:
                 value = details.get(field)
@@ -1042,6 +1102,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         "summary": {
             "run_id": summary.get("run_id"),
             "input_sha256": summary.get("input_sha256"),
+            "fill_assumption_profile": summary.get("fill_assumption_profile"),
             "fill_count": summary.get("fill_count"),
             "event_trace_count": summary.get("event_trace_count"),
             "feed_adapter": summary.get("feed_adapter"),

@@ -25,3 +25,19 @@ def test_cli_doctor_reports_redacted_config() -> None:
     assert payload["symbols"]
     assert "binance_api_key" not in payload["config"]
     assert "binance_api_secret" not in payload["config"]
+    assert payload["config"]["fill_assumption_profile"] == "base"
+
+
+def test_cli_simulate_exposes_fill_profile_flag() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "lob_sim.cli", "simulate", "--help"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--fill-profile" in result.stdout
+    assert "conservative" in result.stdout
+    assert "aggressive" in result.stdout

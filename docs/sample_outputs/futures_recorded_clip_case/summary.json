@@ -1,5 +1,14 @@
 {
   "strategy_profile": "baseline",
+  "fill_assumption_profile": "base",
+  "fill_assumption": {
+    "profile": "base",
+    "depth_reductions_consume_queue": true,
+    "agg_trades_consume_queue": true,
+    "overlap_netting_enabled": true,
+    "overlap_window_seconds": 0.125,
+    "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+  },
   "event_counts": {
     "records_processed": 80,
     "exchange_info": 1,
@@ -28,6 +37,7 @@
   "inventory_stdev": 0.00038236439641468927,
   "total_fees": 0.0,
   "total_inventory": -0.001,
+  "max_inventory": 0.001,
   "quote_count": 2,
   "cancel_count": 0,
   "self_trade_prevention_count": 0,
@@ -168,7 +178,7 @@
     "total_queue_consumed_lots": 162041,
     "total_unmatched_lots": 226
   },
-  "run_id": "eb2fcd6dafb1924e",
+  "run_id": "1c6a47c869750813",
   "input_sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
   "feed_adapter": {
     "name": "binance_usdm",
@@ -193,6 +203,15 @@
   },
   "simulation_assumptions": {
     "schema_version": "lob_sim.simulation_assumptions.v1",
+    "fill_assumption_profile": "base",
+    "fill_assumption": {
+      "profile": "base",
+      "depth_reductions_consume_queue": true,
+      "agg_trades_consume_queue": true,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
     "queue_priority_model": "visible_price_time_fifo",
@@ -203,7 +222,7 @@
     "overlap_netting": {
       "enabled": true,
       "window_seconds": 0.125,
-      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting when the selected fill profile enables overlap netting."
     },
     "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
     "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
@@ -216,6 +235,16 @@
       "not_private_exchange_fill_truth",
       "public_l2_cannot_distinguish_all_cancels_from_trades"
     ]
+  },
+  "fill_assumption_diagnostics": {
+    "profile": "base",
+    "depth_reductions_consume_queue": true,
+    "agg_trades_consume_queue": true,
+    "overlap_netting_enabled": true,
+    "overlap_window_seconds": 0.125,
+    "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
+    "corroborated_depth_reduction_lots": 0,
+    "uncorroborated_depth_reduction_lots": 0
   },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",

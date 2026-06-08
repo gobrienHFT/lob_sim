@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from .binance.rest import BinanceRESTClient
@@ -15,7 +16,7 @@ from .binance.ws import run_symbol_stream
 from .book.local_book import LocalOrderBook
 from .book.sync import BookSyncGapError, BookSynchronizer
 from .book.types import SnapshotEvent, SymbolSpec
-from .config import Config, load_config
+from .config import Config, FILL_ASSUMPTION_PROFILES, fill_assumption_config_for_profile, load_config
 from .options.demo import (
     DEFAULT_OPTIONS_SCENARIO,
     OptionsMarketMakerDemo,
@@ -304,6 +305,11 @@ def main() -> None:
 
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
+    s.add_argument(
+        "--fill-profile",
+        choices=FILL_ASSUMPTION_PROFILES,
+        help="Passive-fill assumption profile (default: FILL_PROFILE from env, otherwise base)",
+    )
     s.add_argument("--verbose", action="store_true")
     s.add_argument("--progress-every", type=int, default=5000)
     s.set_defaults(func=cmd_simulate)
@@ -348,6 +354,8 @@ def main() -> None:
     elif args.command == "replay":
         args.func(cfg, args.file, args.verbose, args.progress_every)
     elif args.command == "simulate":
+        if args.fill_profile is not None:
+            cfg = replace(cfg, fill_assumption=fill_assumption_config_for_profile(args.fill_profile))
         args.func(cfg, args.file, args.verbose, args.progress_every)
     else:
         args.func(cfg, args.file)

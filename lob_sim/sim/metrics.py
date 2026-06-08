@@ -61,6 +61,7 @@ class SimulationMetrics:
         self.book_gap_count_by_symbol: dict[str, int] = defaultdict(int)
         self.spread_capture_sum = Decimal("0")
         self.spread_capture_qty = Decimal("0")
+        self.max_abs_inventory = Decimal("0")
         self.max_drawdown = Decimal("0")
         self.equity_peak = Decimal("0")
 
@@ -456,6 +457,8 @@ class SimulationMetrics:
             total_inventory += sign * qty
 
         self.unrealized_pnl = unreal
+        if abs(total_inventory) > self.max_abs_inventory:
+            self.max_abs_inventory = abs(total_inventory)
         equity = self.realized_pnl + self.unrealized_pnl
 
         if equity > self.equity_peak:
@@ -591,6 +594,8 @@ class SimulationMetrics:
 
         summary = {
             "strategy_profile": self.cfg.mm_strategy_profile,
+            "fill_assumption_profile": self.cfg.fill_assumption.profile,
+            "fill_assumption": self.cfg.fill_assumption.as_dict(),
             "event_counts": event_counts,
             "book_gap_count_by_symbol": dict(sorted(self.book_gap_count_by_symbol.items())),
             "total_pnl": float(self.realized_pnl + self.unrealized_pnl),
@@ -607,6 +612,7 @@ class SimulationMetrics:
             "inventory_stdev": float(inv_stdev),
             "total_fees": float(self.total_fees),
             "total_inventory": float(total_inventory),
+            "max_inventory": float(self.max_abs_inventory),
             "quote_count": self.quote_count,
             "cancel_count": self.cancel_count,
             "self_trade_prevention_count": self.self_trade_prevention_count,

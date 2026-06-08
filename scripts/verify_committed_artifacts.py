@@ -18,6 +18,8 @@ FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_pro
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 FUTURES_STRESS_DIR = SAMPLE_ROOT / "futures_stress_case"
+FILL_ASSUMPTION_ENVELOPE_DOC = REPO_ROOT / "docs" / "fill_assumption_envelope.md"
+FILL_ASSUMPTION_ENVELOPE_DIR = SAMPLE_ROOT / "futures_fill_assumption_envelope"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
@@ -189,6 +191,7 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.md",
     REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md",
     REPO_ROOT / "docs" / "futures_benchmarks.md",
+    FILL_ASSUMPTION_ENVELOPE_DOC,
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "reviewer_results_memo.md",
     REPO_ROOT / "docs" / "architecture_decisions.md",
@@ -206,6 +209,8 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "case_notes.md",
+    FILL_ASSUMPTION_ENVELOPE_DIR / "README.md",
+    FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_report.md",
     REPO_ROOT / "docs" / "options_case_study_notes.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
@@ -246,7 +251,16 @@ FUTURES_STRESS_CORE_FILES = [
     "event_trace.csv",
 ]
 
+FILL_ASSUMPTION_ENVELOPE_CORE_FILES = [
+    "README.md",
+    "fill_envelope_summary.json",
+    "fill_envelope_summary.csv",
+    "fill_envelope_report.md",
+]
+
 FUTURES_FILL_SOURCES = {"depth_update", "agg_trade", "taker_order"}
+FILL_ASSUMPTION_PROFILES = {"conservative", "base", "aggressive"}
+FILL_ASSUMPTION_PROFILE_ORDER = ["conservative", "base", "aggressive"]
 FUTURES_ORDER_LIFECYCLE_KEYS = {
     "arrival_scheduled",
     "arrived",
@@ -299,6 +313,8 @@ EXPECTED_INSTRUMENT_SPEC_FIELDS = {
 }
 EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
     "schema_version",
+    "fill_assumption_profile",
+    "fill_assumption",
     "data_scope",
     "private_exchange_execution_reports",
     "queue_priority_model",
@@ -330,6 +346,7 @@ EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
 }
 EXPECTED_QUEUE_CONSUMPTION_TRACE_FIELDS = EXPECTED_PUBLIC_CONSUMPTION_FIELDS | {
     "overlap_window_seconds",
+    "fill_assumption_profile",
 }
 EXPECTED_MARKOUT_BY_SOURCE_FIELDS = {
     "samples",
@@ -536,6 +553,7 @@ def _verify_core_files() -> list[str]:
         (FUTURES_SHOWCASE_DIR, FUTURES_SHOWCASE_CORE_FILES),
         (RECORDED_CLIP_DIR, RECORDED_CLIP_CORE_FILES),
         (FUTURES_STRESS_DIR, FUTURES_STRESS_CORE_FILES),
+        (FILL_ASSUMPTION_ENVELOPE_DIR, FILL_ASSUMPTION_ENVELOPE_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),
         (SENSITIVITY_DIR, SENSITIVITY_CORE_FILES),
@@ -660,7 +678,7 @@ def _verify_futures_fixture_provenance() -> list[str]:
 
 def _verify_futures_feed_adapter_metadata() -> list[str]:
     issues: list[str] = []
-    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
         manifest_path = directory / "manifest.json"
         summary_path = directory / "summary.json"
         manifest = json.loads(_read_text(manifest_path))
@@ -789,6 +807,14 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
         return issues
     if assumptions.get("schema_version") != EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION:
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected schema_version")
+    profile = assumptions.get("fill_assumption_profile")
+    fill_assumption = assumptions.get("fill_assumption")
+    if profile not in FILL_ASSUMPTION_PROFILES:
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has invalid fill_assumption_profile")
+    if not isinstance(fill_assumption, dict):
+        issues.append(f"{_repo_relative(path)} simulation_assumptions is missing fill_assumption")
+    elif fill_assumption.get("profile") != profile:
+        issues.append(f"{_repo_relative(path)} simulation_assumptions fill_assumption profile mismatch")
     if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected data_scope")
     if assumptions.get("private_exchange_execution_reports") is not False:
@@ -802,9 +828,16 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
     if not isinstance(overlap, dict):
         issues.append(f"{_repo_relative(path)} simulation_assumptions.overlap_netting must be an object")
     else:
-        if overlap.get("enabled") is not True:
-            issues.append(f"{_repo_relative(path)} simulation_assumptions overlap netting must be enabled")
-        if overlap.get("window_seconds") != EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS:
+        expected_window = EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS
+        expected_enabled = True
+        if isinstance(fill_assumption, dict):
+            raw_window = fill_assumption.get("overlap_window_seconds")
+            if isinstance(raw_window, (int, float)):
+                expected_window = float(raw_window)
+            expected_enabled = bool(fill_assumption.get("overlap_netting_enabled") is True and expected_window > 0)
+        if overlap.get("enabled") is not expected_enabled:
+            issues.append(f"{_repo_relative(path)} simulation_assumptions overlap netting flag is inconsistent")
+        if overlap.get("window_seconds") != expected_window:
             issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected overlap window")
 
     limitations = assumptions.get("limitations")
@@ -817,7 +850,7 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
 
 def _verify_futures_simulation_assumptions_metadata() -> list[str]:
     issues: list[str] = []
-    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR]:
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
         manifest_path = directory / "manifest.json"
         summary_path = directory / "summary.json"
         summary_csv_path = directory / "summary.csv"
@@ -843,6 +876,68 @@ def _verify_futures_simulation_assumptions_metadata() -> list[str]:
         else:
             if csv_assumptions != summary_assumptions:
                 issues.append(f"{_repo_relative(summary_csv_path)} simulation_assumptions does not match summary.json")
+    return issues
+
+
+def _verify_futures_fill_assumption_metadata() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
+        summary_path = directory / "summary.json"
+        manifest_path = directory / "manifest.json"
+        summary_csv_path = directory / "summary.csv"
+        summary = json.loads(_read_text(summary_path))
+        manifest = json.loads(_read_text(manifest_path))
+
+        profile = summary.get("fill_assumption_profile")
+        fill_assumption = summary.get("fill_assumption")
+        diagnostics = summary.get("fill_assumption_diagnostics")
+        if profile not in FILL_ASSUMPTION_PROFILES:
+            issues.append(f"{_repo_relative(summary_path)} is missing fill_assumption_profile")
+        if not isinstance(fill_assumption, dict) or fill_assumption.get("profile") != profile:
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill_assumption")
+        if not isinstance(diagnostics, dict) or diagnostics.get("profile") != profile:
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill_assumption_diagnostics")
+
+        assumptions = summary.get("simulation_assumptions")
+        if isinstance(assumptions, dict):
+            if assumptions.get("fill_assumption_profile") != profile:
+                issues.append(f"{_repo_relative(summary_path)} simulation_assumptions profile does not match summary")
+            if assumptions.get("fill_assumption") != fill_assumption:
+                issues.append(
+                    f"{_repo_relative(summary_path)} simulation_assumptions fill_assumption does not match summary"
+                )
+
+        manifest_config = manifest.get("config")
+        if not isinstance(manifest_config, dict):
+            issues.append(f"{_repo_relative(manifest_path)} is missing config")
+        else:
+            if manifest_config.get("fill_assumption_profile") != profile:
+                issues.append(f"{_repo_relative(manifest_path)} fill_assumption_profile does not match summary.json")
+            if manifest_config.get("fill_assumption") != fill_assumption:
+                issues.append(f"{_repo_relative(manifest_path)} fill_assumption does not match summary.json")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows:
+            issues.append(f"{_repo_relative(summary_csv_path)} is empty")
+            continue
+        row = rows[0]
+        if row.get("fill_assumption_profile") != str(profile):
+            issues.append(f"{_repo_relative(summary_csv_path)} fill_assumption_profile does not match summary.json")
+        for field, expected in [
+            ("fill_assumption", fill_assumption),
+            ("fill_assumption_diagnostics", diagnostics),
+        ]:
+            if field not in row:
+                issues.append(f"{_repo_relative(summary_csv_path)} is missing {field}")
+                continue
+            try:
+                decoded = json.loads(row[field])
+            except json.JSONDecodeError as exc:
+                issues.append(f"{_repo_relative(summary_csv_path)} {field} is not valid JSON: {exc}")
+            else:
+                if decoded != expected:
+                    issues.append(f"{_repo_relative(summary_csv_path)} {field} does not match summary.json")
     return issues
 
 
@@ -1157,6 +1252,96 @@ def _verify_public_consumption_diagnostics() -> list[str]:
     return issues
 
 
+def _verify_fill_assumption_envelope_publication() -> list[str]:
+    issues: list[str] = []
+    summary_path = FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_summary.json"
+    csv_path = FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_summary.csv"
+    report_path = FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_report.md"
+    readme_path = FILL_ASSUMPTION_ENVELOPE_DIR / "README.md"
+
+    try:
+        payload = json.loads(_read_text(summary_path))
+    except FileNotFoundError:
+        return [f"Missing fill-assumption envelope summary: {_repo_relative(summary_path)}"]
+    except json.JSONDecodeError as exc:
+        return [f"{_repo_relative(summary_path)} is invalid JSON: {exc}"]
+
+    if payload.get("schema_version") != "lob_sim.fill_assumption_envelope.v1":
+        issues.append(f"{_repo_relative(summary_path)} has unexpected schema_version")
+    runs = payload.get("runs")
+    if not isinstance(runs, list) or len(runs) != 3:
+        issues.append(f"{_repo_relative(summary_path)} must contain exactly three profile runs")
+        runs = []
+    profiles = [run.get("profile") for run in runs if isinstance(run, dict)]
+    if profiles != FILL_ASSUMPTION_PROFILE_ORDER:
+        issues.append(f"{_repo_relative(summary_path)} profiles must be conservative, base, aggressive")
+
+    audit = payload.get("audit")
+    if not isinstance(audit, dict) or audit.get("ok") is not True:
+        issues.append(f"{_repo_relative(summary_path)} audit.ok must be true")
+
+    input_digests = {run.get("input_digest") for run in runs if isinstance(run, dict)}
+    normalized_config_digests = {run.get("normalized_config_digest") for run in runs if isinstance(run, dict)}
+    if len(input_digests) != 1:
+        issues.append(f"{_repo_relative(summary_path)} has mixed input digests")
+    if len(normalized_config_digests) != 1:
+        issues.append(f"{_repo_relative(summary_path)} has mixed normalized config digests")
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        profile = run.get("profile")
+        fill_assumption = run.get("fill_assumption")
+        if profile not in FILL_ASSUMPTION_PROFILES:
+            issues.append(f"{_repo_relative(summary_path)} contains invalid profile {profile!r}")
+        if not isinstance(fill_assumption, dict) or fill_assumption.get("profile") != profile:
+            issues.append(f"{_repo_relative(summary_path)} run {profile!r} has invalid fill_assumption")
+        for field in [
+            "fill_count",
+            "realized_pnl",
+            "unrealized_pnl",
+            "total_fees",
+            "avg_spread_captured",
+            "adverse_fill_rate_1s",
+            "max_inventory",
+        ]:
+            if not isinstance(run.get(field), (int, float)):
+                issues.append(f"{_repo_relative(summary_path)} run {profile!r} has invalid {field}")
+        if not isinstance(run.get("fill_source_counts"), dict):
+            issues.append(f"{_repo_relative(summary_path)} run {profile!r} is missing fill_source_counts")
+        if not isinstance(run.get("public_consumption_totals"), dict):
+            issues.append(f"{_repo_relative(summary_path)} run {profile!r} is missing public_consumption_totals")
+
+    try:
+        with csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except FileNotFoundError:
+        issues.append(f"Missing fill-assumption envelope CSV: {_repo_relative(csv_path)}")
+        rows = []
+    if len(rows) != 3:
+        issues.append(f"{_repo_relative(csv_path)} must contain exactly three rows")
+    elif [row.get("profile") for row in rows] != FILL_ASSUMPTION_PROFILE_ORDER:
+        issues.append(f"{_repo_relative(csv_path)} profiles must be conservative, base, aggressive")
+
+    required_caveats = [
+        "public l2 cannot prove private fills",
+        "profiles are assumption bounds",
+        "robust conclusions should survive conservative/base/aggressive",
+        "conclusions that only work under aggressive assumptions are weak",
+    ]
+    for path in [FILL_ASSUMPTION_ENVELOPE_DOC, readme_path, report_path]:
+        text = _read_text(path).lower()
+        for caveat in required_caveats:
+            if caveat not in text:
+                issues.append(f"{_repo_relative(path)} is missing caveat: {caveat}")
+        if re.search(r"\bpublic l2 proves private fills\b", text):
+            issues.append(f"{_repo_relative(path)} implies public L2 proves private fills")
+        if re.search(r"(?<!not )(?<!no )\bprivate execution truth\b", text):
+            issues.append(f"{_repo_relative(path)} implies private execution truth")
+        if "production gateway" in text or "ready for live trading" in text:
+            issues.append(f"{_repo_relative(path)} contains prohibited production/live-trading language")
+    return issues
+
+
 def _verify_futures_self_trade_prevention_counts() -> list[str]:
     issues: list[str] = []
     for path in [FUTURES_SHOWCASE_SUMMARY, RECORDED_CLIP_SUMMARY]:
@@ -1269,6 +1454,8 @@ def _verify_queue_consumption_trace_details(
     if set(details) != EXPECTED_QUEUE_CONSUMPTION_TRACE_FIELDS:
         issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption details have unexpected fields")
         return issues
+    if details.get("fill_assumption_profile") not in FILL_ASSUMPTION_PROFILES:
+        issues.append(f"{_repo_relative(path)}:{row_index} queue_consumption has invalid fill_assumption_profile")
 
     parsed: dict[str, int] = {}
     for field in EXPECTED_PUBLIC_CONSUMPTION_FIELDS:
@@ -2596,12 +2783,14 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_futures_feed_adapter_metadata())
     issues.extend(_verify_futures_instrument_specs_metadata())
     issues.extend(_verify_futures_simulation_assumptions_metadata())
+    issues.extend(_verify_futures_fill_assumption_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_source_counts())
     issues.extend(_verify_futures_fill_frequency_metrics())
     issues.extend(_verify_futures_markout_by_source())
     issues.extend(_verify_public_consumption_diagnostics())
+    issues.extend(_verify_fill_assumption_envelope_publication())
     issues.extend(_verify_futures_self_trade_prevention_counts())
     issues.extend(_verify_futures_event_trace_contract())
     issues.extend(_verify_implied_vol_snapshot_references())

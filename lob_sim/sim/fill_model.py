@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from typing import Deque, Literal, cast
 
 from ..book.types import AggTradeEvent, LevelChange
+from ..config import (
+    DEFAULT_FILL_OVERLAP_WINDOW_SECONDS,
+    FillAssumptionConfig,
+    fill_assumption_config_for_profile,
+)
 from .orders import Fill, FillSource, Order, OrderSide
 
 # One Binance 100 ms diff bucket plus a small local timestamp tolerance.
-TRADE_DEPTH_OVERLAP_WINDOW_SECONDS = 0.125
+TRADE_DEPTH_OVERLAP_WINDOW_SECONDS = DEFAULT_FILL_OVERLAP_WINDOW_SECONDS
 PUBLIC_CONSUMPTION_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade")
 
 
@@ -37,10 +42,12 @@ class PublicConsumptionEvent:
     overlap_netted_lots: int
     queue_consumed_lots: int
     unmatched_lots: int
+    fill_assumption_profile: str
 
 
 class PassiveFillModel:
-    def __init__(self) -> None:
+    def __init__(self, fill_assumption: FillAssumptionConfig | None = None) -> None:
+        self.fill_assumption = fill_assumption or fill_assumption_config_for_profile("base")
         self._books: dict[str, dict[str, dict[int, Deque[Order]]]] = {}
         self._orders: dict[tuple[str, OrderSide, str], Order] = {}
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
@@ -55,6 +62,10 @@ class PassiveFillModel:
                 "unmatched_lots": 0,
             }
             for source in PUBLIC_CONSUMPTION_SOURCES
+        }
+        self._fill_assumption_stats = {
+            "corroborated_depth_reduction_lots": 0,
+            "uncorroborated_depth_reduction_lots": 0,
         }
         self.last_self_trade_prevented = False
         self._public_consumption_events: list[PublicConsumptionEvent] = []
@@ -196,7 +207,12 @@ class PassiveFillModel:
         source: FillSource,
     ) -> int:
         opposite_source = self._opposite_public_source(source)
-        if opposite_source is None or lots <= 0:
+        if (
+            opposite_source is None
+            or lots <= 0
+            or not self.fill_assumption.overlap_netting_enabled
+            or self.fill_assumption.overlap_window_seconds <= 0
+        ):
             return lots
 
         key = self._credit_key(symbol, side, price_tick)
@@ -204,11 +220,12 @@ class PassiveFillModel:
         if not credits:
             return lots
 
+        overlap_window_seconds = self.fill_assumption.overlap_window_seconds
         remaining = lots
         kept: Deque[_ConsumptionCredit] = deque()
         for credit in credits:
             age = ts_local - credit.ts_local
-            if age > TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+            if age > overlap_window_seconds:
                 continue
             if age < 0:
                 kept.append(credit)
@@ -235,11 +252,17 @@ class PassiveFillModel:
         ts_local: float,
         source: FillSource,
     ) -> None:
-        if self._opposite_public_source(source) is None or lots <= 0:
+        if (
+            self._opposite_public_source(source) is None
+            or lots <= 0
+            or not self.fill_assumption.overlap_netting_enabled
+            or self.fill_assumption.overlap_window_seconds <= 0
+        ):
             return
         key = self._credit_key(symbol, side, price_tick)
         credits = self._public_consumption_credits.setdefault(key, deque())
-        while credits and ts_local - credits[0].ts_local > TRADE_DEPTH_OVERLAP_WINDOW_SECONDS:
+        overlap_window_seconds = self.fill_assumption.overlap_window_seconds
+        while credits and ts_local - credits[0].ts_local > overlap_window_seconds:
             credits.popleft()
         credits.append(_ConsumptionCredit(ts_local=ts_local, lots=lots, source=source))
 
@@ -288,6 +311,7 @@ class PassiveFillModel:
                 overlap_netted_lots=max(0, observed - modeled),
                 queue_consumed_lots=queue_consumed,
                 unmatched_lots=max(0, modeled - queue_consumed),
+                fill_assumption_profile=self.fill_assumption.profile,
             )
         )
 
@@ -299,13 +323,19 @@ class PassiveFillModel:
     def public_consumption_summary(self) -> dict[str, object]:
         sources = {source: dict(self._public_consumption_stats[source]) for source in PUBLIC_CONSUMPTION_SOURCES}
         return {
-            "overlap_window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
+            "overlap_window_seconds": self.fill_assumption.overlap_window_seconds,
             "sources": sources,
             "total_observed_lots": sum(source["observed_lots"] for source in sources.values()),
             "total_modeled_lots": sum(source["modeled_lots"] for source in sources.values()),
             "total_overlap_netted_lots": sum(source["overlap_netted_lots"] for source in sources.values()),
             "total_queue_consumed_lots": sum(source["queue_consumed_lots"] for source in sources.values()),
             "total_unmatched_lots": sum(source["unmatched_lots"] for source in sources.values()),
+        }
+
+    def fill_assumption_diagnostics(self) -> dict[str, object]:
+        return {
+            **self.fill_assumption.as_dict(),
+            **self._fill_assumption_stats,
         }
 
     def queue_position(self, order: Order) -> int:
@@ -595,6 +625,27 @@ class PassiveFillModel:
                     ts_local=ts_local,
                     source="depth_update",
                 )
+                if not self.fill_assumption.depth_reductions_consume_queue:
+                    self._fill_assumption_stats["corroborated_depth_reduction_lots"] += max(
+                        0,
+                        dec - lots_to_consume,
+                    )
+                    self._fill_assumption_stats["uncorroborated_depth_reduction_lots"] += max(
+                        0,
+                        lots_to_consume,
+                    )
+                    self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
+                    self._record_public_consumption_event(
+                        symbol=symbol,
+                        side=side,
+                        price_tick=change.price_tick,
+                        ts_local=ts_local,
+                        source="depth_update",
+                        observed_lots=dec,
+                        modeled_lots=lots_to_consume,
+                        queue_consumed_lots=0,
+                    )
+                    continue
                 self._record_public_consumption_credit(
                     symbol=symbol,
                     side=side,
@@ -654,6 +705,19 @@ class PassiveFillModel:
 
     def apply_agg_trade(self, trade: AggTradeEvent, ts_local: float) -> list[Fill]:
         side = "bid" if trade.buyer_is_maker else "ask"
+        if not self.fill_assumption.agg_trades_consume_queue:
+            self._record_public_consumption_stats("agg_trade", trade.qty_lots, 0, 0)
+            self._record_public_consumption_event(
+                symbol=trade.symbol,
+                side=side,
+                price_tick=trade.price_tick,
+                ts_local=ts_local,
+                source="agg_trade",
+                observed_lots=trade.qty_lots,
+                modeled_lots=0,
+                queue_consumed_lots=0,
+            )
+            return []
         lots_to_consume = self._net_recent_public_consumption(
             symbol=trade.symbol,
             side=side,

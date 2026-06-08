@@ -1,13 +1,13 @@
 {
-  "run_id": "57f79f15b358450b",
+  "run_id": "c90b7868bc4f028c",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T17:01:10.529139Z",
+  "created_at_utc": "2026-06-08T12:26:52.940085Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-    "modified_at_utc": "2026-06-01T17:01:10.518238Z"
+    "modified_at_utc": "2026-06-08T12:26:52.822816Z"
   },
   "config": {
     "symbols": [
@@ -40,6 +40,15 @@
     "mm_microstructure_gate_bps": "0.10",
     "mm_fee_floor_buffer_bps": "0.02",
     "mm_toxicity_spread_factor": "2.0",
+    "fill_assumption_profile": "base",
+    "fill_assumption": {
+      "profile": "base",
+      "depth_reductions_consume_queue": true,
+      "agg_trades_consume_queue": true,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    },
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
   },
@@ -66,6 +75,15 @@
   },
   "simulation_assumptions": {
     "schema_version": "lob_sim.simulation_assumptions.v1",
+    "fill_assumption_profile": "base",
+    "fill_assumption": {
+      "profile": "base",
+      "depth_reductions_consume_queue": true,
+      "agg_trades_consume_queue": true,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
     "queue_priority_model": "visible_price_time_fifo",
@@ -76,7 +94,7 @@
     "overlap_netting": {
       "enabled": true,
       "window_seconds": 0.125,
-      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting when the selected fill profile enables overlap netting."
     },
     "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
     "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
@@ -95,7 +113,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
+    "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -109,30 +127,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
-      "size_bytes": 5450,
-      "sha256": "f8654c29d1cdb1f49da75bfe8922ae7caf43ce27d28aefe385bafce9b9281395",
-      "modified_at_utc": "2026-06-01T17:01:10.683315Z"
+      "size_bytes": 5528,
+      "sha256": "cfe8d345904ffaf463b6457bc27be4a00452d4029e250150ebc9d6f22d82d148",
+      "modified_at_utc": "2026-06-08T12:26:53.542912Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 7546,
-      "sha256": "7b25994dd0d06468562a00f26e3387fdc0f390b4e9f64dc6e122a39129465281",
-      "modified_at_utc": "2026-06-01T17:01:10.680895Z"
+      "size_bytes": 8634,
+      "sha256": "8a633f81602ac5a377e18028e0c648e3f093bbca39f55deda896bad43eb17ecf",
+      "modified_at_utc": "2026-06-08T12:26:53.538195Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 5652,
-      "sha256": "9e1514f3efe7a68ef914740728652793801c8f362e296a3822a855fcabc3e85b",
-      "modified_at_utc": "2026-06-01T17:01:10.681922Z"
+      "size_bytes": 6662,
+      "sha256": "81cfc98f26ee5e76cf666c3e098a50951d644e99b1c9a26f9fd21a9d3fa7c792",
+      "modified_at_utc": "2026-06-08T12:26:53.541104Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 399,
       "sha256": "fec9a6140683c2e4008c14c1eb5192e30d03ffdcb665eb7f4bd07e3381262d7b",
-      "modified_at_utc": "2026-06-01T17:01:10.681922Z"
+      "modified_at_utc": "2026-06-08T12:26:53.542168Z"
     }
   },
   "fixture_provenance": {

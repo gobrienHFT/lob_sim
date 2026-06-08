@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Tuple
+from typing import Literal, Tuple, cast
 from dotenv import load_dotenv
 import logging
 import os
@@ -71,6 +71,62 @@ def _parse_symbols(value: str | None) -> Tuple[str, ...]:
     return symbols
 
 
+DEFAULT_FILL_OVERLAP_WINDOW_SECONDS = 0.125
+FillAssumptionProfile = Literal["conservative", "base", "aggressive"]
+DepthReductionMode = Literal["record_unknown_cancel_like", "consume_fifo_queue"]
+FILL_ASSUMPTION_PROFILES: tuple[FillAssumptionProfile, ...] = ("conservative", "base", "aggressive")
+
+
+@dataclass(frozen=True)
+class FillAssumptionConfig:
+    profile: FillAssumptionProfile = "base"
+    depth_reductions_consume_queue: bool = True
+    agg_trades_consume_queue: bool = True
+    overlap_netting_enabled: bool = True
+    overlap_window_seconds: float = DEFAULT_FILL_OVERLAP_WINDOW_SECONDS
+    uncorroborated_depth_reduction_mode: DepthReductionMode = "consume_fifo_queue"
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "profile": self.profile,
+            "depth_reductions_consume_queue": self.depth_reductions_consume_queue,
+            "agg_trades_consume_queue": self.agg_trades_consume_queue,
+            "overlap_netting_enabled": self.overlap_netting_enabled,
+            "overlap_window_seconds": self.overlap_window_seconds,
+            "uncorroborated_depth_reduction_mode": self.uncorroborated_depth_reduction_mode,
+        }
+
+
+def parse_fill_assumption_profile(value: str | None) -> FillAssumptionProfile:
+    normalized = (value or "base").strip().lower()
+    if normalized not in FILL_ASSUMPTION_PROFILES:
+        raise ConfigError("FILL_PROFILE must be one of: " + ", ".join(FILL_ASSUMPTION_PROFILES))
+    return cast(FillAssumptionProfile, normalized)
+
+
+def fill_assumption_config_for_profile(profile: FillAssumptionProfile | str) -> FillAssumptionConfig:
+    normalized = parse_fill_assumption_profile(str(profile))
+    if normalized == "conservative":
+        return FillAssumptionConfig(
+            profile="conservative",
+            depth_reductions_consume_queue=False,
+            agg_trades_consume_queue=True,
+            overlap_netting_enabled=True,
+            overlap_window_seconds=DEFAULT_FILL_OVERLAP_WINDOW_SECONDS,
+            uncorroborated_depth_reduction_mode="record_unknown_cancel_like",
+        )
+    if normalized == "aggressive":
+        return FillAssumptionConfig(
+            profile="aggressive",
+            depth_reductions_consume_queue=True,
+            agg_trades_consume_queue=True,
+            overlap_netting_enabled=False,
+            overlap_window_seconds=0.0,
+            uncorroborated_depth_reduction_mode="consume_fifo_queue",
+        )
+    return FillAssumptionConfig()
+
+
 @dataclass(frozen=True)
 class Config:
     binance_api_key: str
@@ -118,6 +174,7 @@ class Config:
     mm_microstructure_gate_bps: Decimal
     mm_fee_floor_buffer_bps: Decimal
     mm_toxicity_spread_factor: Decimal
+    fill_assumption: FillAssumptionConfig
     fees_maker_bps: Decimal
     fees_taker_bps: Decimal
     log_level: str
@@ -185,6 +242,15 @@ class Config:
             errs.append("MM_FEE_FLOOR_BUFFER_BPS must be >= 0")
         if self.mm_toxicity_spread_factor < 0:
             errs.append("MM_TOXICITY_SPREAD_FACTOR must be >= 0")
+        if self.fill_assumption.profile not in FILL_ASSUMPTION_PROFILES:
+            errs.append("FILL_PROFILE must be conservative, base, or aggressive")
+        if self.fill_assumption.overlap_window_seconds < 0:
+            errs.append("Fill-assumption overlap window must be >= 0")
+        if self.fill_assumption.uncorroborated_depth_reduction_mode not in {
+            "record_unknown_cancel_like",
+            "consume_fifo_queue",
+        }:
+            errs.append("Fill-assumption depth reduction mode is invalid")
         if self.sim_adverse_markout_seconds < 0:
             errs.append("SIM_ADVERSE_MARKOUT_SECONDS must be >= 0")
         if self.sim_kill_max_drawdown < 0:
@@ -288,6 +354,7 @@ def load_config(env_path: str = ".env") -> Config:
             "MM_TOXICITY_SPREAD_FACTOR",
             _get_optional("MM_TOXICITY_SPREAD_FACTOR", "2.0"),
         ),
+        fill_assumption=fill_assumption_config_for_profile(_get_optional("FILL_PROFILE", "base")),
         fees_maker_bps=_parse_decimal("FEES_MAKER_BPS", _get_optional("FEES_MAKER_BPS", "-0.2")),
         fees_taker_bps=_parse_decimal("FEES_TAKER_BPS", _get_optional("FEES_TAKER_BPS", "4.0")),
         log_level=_get_optional("LOG_LEVEL", "INFO").upper(),

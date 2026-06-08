@@ -7,6 +7,7 @@ Fast reviewer links:
 - [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
+- [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
 - [Published Real-Data Report](docs/real_data_runs/raw_1780500354_10m.md): committed report-only artifact from a target-window BTCUSDT public-data tape, with raw data kept out of git.
 - [Short Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): earlier 30s BTCUSDT report retained as a compact historical comparison.
 
@@ -102,6 +103,7 @@ flowchart LR
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
+- `--fill-profile conservative|base|aggressive` makes the public-L2 passive-fill assumption explicit; the `base` profile is the default current behavior.
 - Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots for both public sources.
 - Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.
 - Fill trace rows carry notional, fee, spread-capture, mid-at-fill, queue, and regime fields so a fill can be audited without leaving the event timeline.
@@ -154,6 +156,7 @@ Tracked metrics include:
 - public-consumption diagnostics that show how much depth/print consumption was modeled versus netted away
 - summary and manifest instrument specs for venue, tick size, lot size, units, and contract multiplier
 - summary and manifest simulation assumptions that state public-data limits and no private-fill truth claim
+- fill-assumption profile/config labels for every futures simulation run
 - self-trade prevention count for marketable strategy orders stopped before own resting liquidity
 - per-fill fee rate, amount, and currency
 - 1-second adverse markout statistics
@@ -165,6 +168,7 @@ PnL, spread capture, markout, fees, and exported fill notional use the instrumen
 
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). The replay determinism checker lives in [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py) and compares canonical hashes of repeated in-memory summaries and event traces. Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
 The pack auditor in [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py) checks that futures packs' summary JSON/CSV, trades CSVs, event traces, manifests, and public-data assumption contracts agree on replay event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout events, and artifact hashes.
+The fill-assumption envelope runner in [experiments/run_fill_assumption_envelope.py](experiments/run_fill_assumption_envelope.py) runs conservative/base/aggressive assumptions on identical input/config except the fill profile and publishes a sensitivity report.
 Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py). Latency sensitivity sweeps live in [experiments/sweep_futures_latency.py](experiments/sweep_futures_latency.py) and vary modeled order-arrival and cancel-ack delays without claiming latency-arbitrage or production gateway behavior.
 
 ## Verification And CI
@@ -214,6 +218,7 @@ Committed futures walkthrough artifacts:
 - Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
 - Latency sensitivity reference: [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md)
 - Stress evidence pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
+- Fill assumption envelope: [docs/sample_outputs/futures_fill_assumption_envelope/README.md](docs/sample_outputs/futures_fill_assumption_envelope/README.md)
 - Reviewer results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
 - Interview packet: [docs/interview_packet.md](docs/interview_packet.md)
 - Larger real-data runbook: [docs/real_data_runbook.md](docs/real_data_runbook.md)

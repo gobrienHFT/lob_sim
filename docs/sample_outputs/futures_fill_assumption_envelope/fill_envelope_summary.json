@@ -1,0 +1,226 @@
+{
+  "schema_version": "lob_sim.fill_assumption_envelope.v1",
+  "input_file": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
+  "env_path": ".env.example",
+  "profiles": [
+    "conservative",
+    "base",
+    "aggressive"
+  ],
+  "audit": {
+    "ok": true,
+    "issues": [],
+    "profiles": [
+      "conservative",
+      "base",
+      "aggressive"
+    ],
+    "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
+    "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4"
+  },
+  "runs": [
+    {
+      "profile": "conservative",
+      "run_id": "f459f88cdf476308",
+      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
+      "config_digest": "f6a45fc22c68244c2a09a17ec4dd9579ae69c14d8418be3cb7847b6f9f919884",
+      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+      "wall_time_seconds": 0.31117660000018077,
+      "fill_count": 0,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_fees": 0.0,
+      "avg_spread_captured": 0.0,
+      "adverse_fill_rate_1s": 0.0,
+      "fill_source_counts": {
+        "depth_update": 0,
+        "agg_trade": 0,
+        "taker_order": 0
+      },
+      "public_consumption_totals": {
+        "total_observed_lots": 3,
+        "total_modeled_lots": 3,
+        "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 2,
+        "total_unmatched_lots": 1,
+        "sources": {
+          "depth_update": {
+            "observed_lots": 1,
+            "modeled_lots": 1,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 1
+          },
+          "agg_trade": {
+            "observed_lots": 2,
+            "modeled_lots": 2,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 2,
+            "unmatched_lots": 0
+          }
+        }
+      },
+      "max_inventory": 0.0,
+      "kill_switch_triggered": false,
+      "kill_switch_reason": null,
+      "summary_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\summary_input_fixture.json",
+      "trades_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\trades_input_fixture.csv",
+      "event_trace_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\event_trace_input_fixture.csv",
+      "manifest_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\manifest_input_fixture.json",
+      "runtime": {
+        "python_version": "3.13.1",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "source": {
+        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
+        "git_branch": "master",
+        "git_dirty": false
+      },
+      "fill_assumption": {
+        "profile": "conservative",
+        "depth_reductions_consume_queue": false,
+        "agg_trades_consume_queue": true,
+        "overlap_netting_enabled": true,
+        "overlap_window_seconds": 0.125,
+        "uncorroborated_depth_reduction_mode": "record_unknown_cancel_like"
+      }
+    },
+    {
+      "profile": "base",
+      "run_id": "1a03c0c84f253ea0",
+      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
+      "config_digest": "abe054016f6e77e13f503089805dbb3882593608ef926b870713ce494bb7bf79",
+      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+      "wall_time_seconds": 0.1629417000003741,
+      "fill_count": 1,
+      "realized_pnl": 2e-06,
+      "unrealized_pnl": 5e-05,
+      "total_fees": -2e-06,
+      "avg_spread_captured": 0.05,
+      "adverse_fill_rate_1s": 0.0,
+      "fill_source_counts": {
+        "depth_update": 0,
+        "agg_trade": 1,
+        "taker_order": 0
+      },
+      "public_consumption_totals": {
+        "total_observed_lots": 3,
+        "total_modeled_lots": 3,
+        "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 3,
+        "total_unmatched_lots": 0,
+        "sources": {
+          "depth_update": {
+            "observed_lots": 1,
+            "modeled_lots": 1,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 1,
+            "unmatched_lots": 0
+          },
+          "agg_trade": {
+            "observed_lots": 2,
+            "modeled_lots": 2,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 2,
+            "unmatched_lots": 0
+          }
+        }
+      },
+      "max_inventory": 0.001,
+      "kill_switch_triggered": false,
+      "kill_switch_reason": null,
+      "summary_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\base\\outputs\\summary_input_fixture.json",
+      "trades_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\base\\outputs\\trades_input_fixture.csv",
+      "event_trace_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\base\\outputs\\event_trace_input_fixture.csv",
+      "manifest_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\base\\outputs\\manifest_input_fixture.json",
+      "runtime": {
+        "python_version": "3.13.1",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "source": {
+        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
+        "git_branch": "master",
+        "git_dirty": false
+      },
+      "fill_assumption": {
+        "profile": "base",
+        "depth_reductions_consume_queue": true,
+        "agg_trades_consume_queue": true,
+        "overlap_netting_enabled": true,
+        "overlap_window_seconds": 0.125,
+        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      }
+    },
+    {
+      "profile": "aggressive",
+      "run_id": "d2f97ed280d4121b",
+      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
+      "config_digest": "3b6439f0af39ee52287517c0d5440a348c92e3c0b2dadc21d2b793729ac5ec61",
+      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+      "wall_time_seconds": 0.1425894000003609,
+      "fill_count": 1,
+      "realized_pnl": 2e-06,
+      "unrealized_pnl": 5e-05,
+      "total_fees": -2e-06,
+      "avg_spread_captured": 0.05,
+      "adverse_fill_rate_1s": 0.0,
+      "fill_source_counts": {
+        "depth_update": 0,
+        "agg_trade": 1,
+        "taker_order": 0
+      },
+      "public_consumption_totals": {
+        "total_observed_lots": 3,
+        "total_modeled_lots": 3,
+        "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 3,
+        "total_unmatched_lots": 0,
+        "sources": {
+          "depth_update": {
+            "observed_lots": 1,
+            "modeled_lots": 1,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 1,
+            "unmatched_lots": 0
+          },
+          "agg_trade": {
+            "observed_lots": 2,
+            "modeled_lots": 2,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 2,
+            "unmatched_lots": 0
+          }
+        }
+      },
+      "max_inventory": 0.001,
+      "kill_switch_triggered": false,
+      "kill_switch_reason": null,
+      "summary_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\aggressive\\outputs\\summary_input_fixture.json",
+      "trades_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\aggressive\\outputs\\trades_input_fixture.csv",
+      "event_trace_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\aggressive\\outputs\\event_trace_input_fixture.csv",
+      "manifest_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\aggressive\\outputs\\manifest_input_fixture.json",
+      "runtime": {
+        "python_version": "3.13.1",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "source": {
+        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
+        "git_branch": "master",
+        "git_dirty": false
+      },
+      "fill_assumption": {
+        "profile": "aggressive",
+        "depth_reductions_consume_queue": true,
+        "agg_trades_consume_queue": true,
+        "overlap_netting_enabled": false,
+        "overlap_window_seconds": 0.0,
+        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      }
+    }
+  ],
+  "output_files": {
+    "summary_json": "docs/sample_outputs/futures_fill_assumption_envelope/fill_envelope_summary.json",
+    "summary_csv": "docs/sample_outputs/futures_fill_assumption_envelope/fill_envelope_summary.csv",
+    "report": "docs/sample_outputs/futures_fill_assumption_envelope/fill_envelope_report.md"
+  }
+}

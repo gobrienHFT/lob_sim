@@ -13,10 +13,9 @@ from typing import Any, Callable, Mapping
 
 from .. import __version__
 from ..book.types import InstrumentSpec
-from ..config import Config
+from ..config import Config, FillAssumptionConfig, fill_assumption_config_for_profile
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from ..replay.inspection import file_sha256
-from .fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
@@ -128,6 +127,8 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "mm_microstructure_gate_bps": str(cfg.mm_microstructure_gate_bps),
         "mm_fee_floor_buffer_bps": str(cfg.mm_fee_floor_buffer_bps),
         "mm_toxicity_spread_factor": str(cfg.mm_toxicity_spread_factor),
+        "fill_assumption_profile": cfg.fill_assumption.profile,
+        "fill_assumption": cfg.fill_assumption.as_dict(),
         "fees_maker_bps": str(cfg.fees_maker_bps),
         "fees_taker_bps": str(cfg.fees_taker_bps),
     }
@@ -150,11 +151,15 @@ def instrument_specs_snapshot(specs: Mapping[str, InstrumentSpec]) -> dict[str, 
     return snapshot
 
 
-def simulation_assumptions_snapshot() -> dict[str, Any]:
+def simulation_assumptions_snapshot(fill_assumption: FillAssumptionConfig | None = None) -> dict[str, Any]:
     """Return the public-data and queue-fill assumptions attached to run artifacts."""
 
+    assumption = fill_assumption or fill_assumption_config_for_profile("base")
+    overlap_enabled = assumption.overlap_netting_enabled and assumption.overlap_window_seconds > 0
     return {
         "schema_version": SIMULATION_ASSUMPTIONS_SCHEMA_VERSION,
+        "fill_assumption_profile": assumption.profile,
+        "fill_assumption": assumption.as_dict(),
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,
         "queue_priority_model": "visible_price_time_fifo",
@@ -169,9 +174,12 @@ def simulation_assumptions_snapshot() -> dict[str, Any]:
             "queue-consumption signal."
         ),
         "overlap_netting": {
-            "enabled": True,
-            "window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
-            "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting.",
+            "enabled": overlap_enabled,
+            "window_seconds": assumption.overlap_window_seconds,
+            "purpose": (
+                "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double "
+                "counting when the selected fill profile enables overlap netting."
+            ),
         },
         "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
         "same_timestamp_ordering": (
@@ -272,7 +280,7 @@ def build_run_manifest(
         config=config_snapshot(cfg),
         feed_adapter=feed_adapter,
         instrument_specs=instrument_specs_snapshot(instrument_specs or {}),
-        simulation_assumptions=simulation_assumptions_snapshot(),
+        simulation_assumptions=simulation_assumptions_snapshot(cfg.fill_assumption),
         runtime={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

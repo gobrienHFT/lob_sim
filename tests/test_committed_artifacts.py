@@ -216,6 +216,15 @@ def test_futures_instrument_spec_verifier_rejects_stale_metadata(tmp_path, monke
 def _valid_simulation_assumptions() -> dict:
     return {
         "schema_version": verifier.EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION,
+        "fill_assumption_profile": "base",
+        "fill_assumption": {
+            "profile": "base",
+            "depth_reductions_consume_queue": True,
+            "agg_trades_consume_queue": True,
+            "overlap_netting_enabled": True,
+            "overlap_window_seconds": verifier.EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS,
+            "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
+        },
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,
         "queue_priority_model": "visible_price_time_fifo",
@@ -756,7 +765,8 @@ def test_futures_event_trace_verifier_rejects_malformed_queue_consumption(tmp_pa
                 qty_lots="5",
                 details=(
                     '{"observed_lots":4,"modeled_lots":5,"overlap_netted_lots":0,'
-                    '"queue_consumed_lots":6,"unmatched_lots":0,"overlap_window_seconds":999}'
+                    '"queue_consumed_lots":6,"unmatched_lots":0,"overlap_window_seconds":999,'
+                    '"fill_assumption_profile":"base"}'
                 ),
             )
         ],
@@ -791,7 +801,8 @@ def test_futures_event_trace_verifier_rejects_queue_consumption_summary_mismatch
                 qty_lots="2",
                 details=(
                     '{"observed_lots":2,"modeled_lots":1,"overlap_netted_lots":1,'
-                    '"queue_consumed_lots":1,"unmatched_lots":0,"overlap_window_seconds":0.125}'
+                    '"queue_consumed_lots":1,"unmatched_lots":0,"overlap_window_seconds":0.125,'
+                    '"fill_assumption_profile":"base"}'
                 ),
             )
         ],

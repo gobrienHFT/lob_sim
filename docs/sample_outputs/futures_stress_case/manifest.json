@@ -1,13 +1,13 @@
 {
-  "run_id": "c85931a5c190978e",
+  "run_id": "91de23c78745821b",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-01T17:01:10.986086Z",
+  "created_at_utc": "2026-06-08T12:26:54.525672Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-06-01T17:01:10.969526Z"
+    "modified_at_utc": "2026-06-08T12:26:54.480971Z"
   },
   "config": {
     "symbols": [
@@ -40,6 +40,15 @@
     "mm_microstructure_gate_bps": "0.10",
     "mm_fee_floor_buffer_bps": "0.02",
     "mm_toxicity_spread_factor": "0",
+    "fill_assumption_profile": "base",
+    "fill_assumption": {
+      "profile": "base",
+      "depth_reductions_consume_queue": true,
+      "agg_trades_consume_queue": true,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    },
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
   },
@@ -66,6 +75,15 @@
   },
   "simulation_assumptions": {
     "schema_version": "lob_sim.simulation_assumptions.v1",
+    "fill_assumption_profile": "base",
+    "fill_assumption": {
+      "profile": "base",
+      "depth_reductions_consume_queue": true,
+      "agg_trades_consume_queue": true,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
     "queue_priority_model": "visible_price_time_fifo",
@@ -76,7 +94,7 @@
     "overlap_netting": {
       "enabled": true,
       "window_seconds": 0.125,
-      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting."
+      "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting when the selected fill profile enables overlap netting."
     },
     "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
     "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
@@ -95,7 +113,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
+    "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
     "git_branch": "master",
     "git_dirty": false
   },
@@ -109,30 +127,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
-      "size_bytes": 15324,
-      "sha256": "c60f10d01f0011162852eaecf28259fb5ab9a8e50802f779a084f9fb1139ffd3",
-      "modified_at_utc": "2026-06-01T17:01:11.062397Z"
+      "size_bytes": 15792,
+      "sha256": "473fdce3f461a9494bdea46cc7b61b71165d876aa372db96b7747eda59ba5a6b",
+      "modified_at_utc": "2026-06-08T12:26:54.698635Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
-      "size_bytes": 12641,
-      "sha256": "afa5b348e9e56cef4e30908ea47fa0dcff02021e11def10a4accc1074449bd33",
-      "modified_at_utc": "2026-06-01T17:01:11.057884Z"
+      "size_bytes": 13729,
+      "sha256": "629a8e3a520896a0f0f8cad78c9f754ff1960df7d973a5d01ce68aff51296cf0",
+      "modified_at_utc": "2026-06-08T12:26:54.688825Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
-      "size_bytes": 6050,
-      "sha256": "dc8055dece3fa025910543acfcfd5cd004736a2644d1a08354e453d348e38039",
-      "modified_at_utc": "2026-06-01T17:01:11.058907Z"
+      "size_bytes": 7060,
+      "sha256": "daa0339ba9d630613ab087d023c55455f3ecb01af85b1027843207ac2f798c56",
+      "modified_at_utc": "2026-06-08T12:26:54.693583Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 989,
       "sha256": "5a7cc28d37e6bc54de1b1dadea45677393c35dc31d02f7eea9dddcbbd491abd0",
-      "modified_at_utc": "2026-06-01T17:01:11.060920Z"
+      "modified_at_utc": "2026-06-08T12:26:54.694599Z"
     }
   },
   "fixture_provenance": {

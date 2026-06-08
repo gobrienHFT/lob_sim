@@ -16,7 +16,7 @@ from ..config import Config
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
-from .fill_model import PassiveFillModel, PublicConsumptionEvent, TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
+from .fill_model import PassiveFillModel, PublicConsumptionEvent
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
@@ -52,7 +52,7 @@ class SimulationEngine:
         self.cfg = cfg
         self.adapter = adapter
         self.metrics = SimulationMetrics(cfg)
-        self.fill_model = PassiveFillModel()
+        self.fill_model = PassiveFillModel(cfg.fill_assumption)
         self.strategy = MarketMakingStrategy(cfg)
         self._specs: Dict[str, SymbolSpec] = {}
         self._books: Dict[str, LocalOrderBook] = {}
@@ -173,7 +173,8 @@ class SimulationEngine:
                     "overlap_netted_lots": event.overlap_netted_lots,
                     "queue_consumed_lots": event.queue_consumed_lots,
                     "unmatched_lots": event.unmatched_lots,
-                    "overlap_window_seconds": TRADE_DEPTH_OVERLAP_WINDOW_SECONDS,
+                    "overlap_window_seconds": self.cfg.fill_assumption.overlap_window_seconds,
+                    "fill_assumption_profile": event.fill_assumption_profile,
                 },
             )
 
@@ -791,7 +792,10 @@ class SimulationEngine:
         summary["input_sha256"] = manifest_seed.input["sha256"]
         summary["feed_adapter"] = manifest_seed.feed_adapter
         summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
-        summary["simulation_assumptions"] = simulation_assumptions_snapshot()
+        summary["simulation_assumptions"] = simulation_assumptions_snapshot(self.cfg.fill_assumption)
+        summary["fill_assumption_profile"] = self.cfg.fill_assumption.profile
+        summary["fill_assumption"] = self.cfg.fill_assumption.as_dict()
+        summary["fill_assumption_diagnostics"] = self.fill_model.fill_assumption_diagnostics()
         summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
         summary["output_files"] = {name: str(path) for name, path in output_files.items()}
         summary["event_trace_count"] = len(self.event_trace)

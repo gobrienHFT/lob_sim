@@ -86,6 +86,22 @@ Open first:
 5. [`futures_stress_case/event_trace.csv`](futures_stress_case/event_trace.csv)
 6. [`futures_stress_case/case_notes.md`](futures_stress_case/case_notes.md)
 
+## Futures Fill Assumption Envelope
+
+- Envelope guide: [`../fill_assumption_envelope.md`](../fill_assumption_envelope.md)
+- Pack entry: [`futures_fill_assumption_envelope/README.md`](futures_fill_assumption_envelope/README.md)
+- Summary: [`futures_fill_assumption_envelope/fill_envelope_summary.json`](futures_fill_assumption_envelope/fill_envelope_summary.json)
+- CSV: [`futures_fill_assumption_envelope/fill_envelope_summary.csv`](futures_fill_assumption_envelope/fill_envelope_summary.csv)
+- Report: [`futures_fill_assumption_envelope/fill_envelope_report.md`](futures_fill_assumption_envelope/fill_envelope_report.md)
+
+Public L2 cannot prove private fills. The profiles are assumption bounds, not private execution truth. Robust conclusions should survive conservative/base/aggressive. Conclusions that only work under aggressive assumptions are weak.
+
+Regenerate with:
+
+```bash
+python experiments/run_fill_assumption_envelope.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example --out-dir docs/sample_outputs/futures_fill_assumption_envelope
+```
+
 ## Controlled Options Case Study
 
 - Pack: [`toxic_flow_seed7/`](toxic_flow_seed7/)

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import os
 from decimal import Decimal
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.types import AggTradeEvent, LevelChange, SymbolSpec
+from lob_sim.config import Config, fill_assumption_config_for_profile, load_config
 from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import SimulationMetrics
-from lob_sim.config import Config, load_config
 from lob_sim.sim.orders import Order
-import os
 
 
 def _build_config() -> Config:
@@ -188,3 +188,148 @@ def test_public_consumption_summary_exposes_unmatched_queue_consumption():
         "queue_consumed_lots": 0,
         "unmatched_lots": 3,
     }
+
+
+def test_conservative_depth_only_reduction_records_unknown_without_fill():
+    model = PassiveFillModel(fill_assumption_config_for_profile("conservative"))
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+    model.place_order(
+        Order(
+            order_id="strategy-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=10000,
+            qty_lots=1,
+            remaining_lots=1,
+            created_ts=0.0,
+        )
+    )
+
+    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.0)
+
+    assert fills == []
+    assert model.get_order("BTCUSDT", "bid") is not None
+    events = model.drain_public_consumption_events()
+    assert len(events) == 1
+    assert events[0].source == "depth_update"
+    assert events[0].modeled_lots == 1
+    assert events[0].queue_consumed_lots == 0
+    assert events[0].unmatched_lots == 1
+    assert events[0].fill_assumption_profile == "conservative"
+    assert model.fill_assumption_diagnostics()["uncorroborated_depth_reduction_lots"] == 1
+
+
+def test_conservative_agg_trade_only_print_consumes_queue():
+    model = PassiveFillModel(fill_assumption_config_for_profile("conservative"))
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+    model.place_order(
+        Order(
+            order_id="strategy-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=10000,
+            qty_lots=1,
+            remaining_lots=1,
+            created_ts=0.0,
+        )
+    )
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+    )
+
+    assert [(fill.order_id, fill.qty_lots, fill.source) for fill in fills] == [("strategy-bid", 1, "agg_trade")]
+    assert model.public_consumption_summary()["sources"]["agg_trade"]["unmatched_lots"] == 0
+
+
+def test_conservative_recent_trade_corroborates_depth_without_double_fill():
+    model = PassiveFillModel(fill_assumption_config_for_profile("conservative"))
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+    model.place_order(
+        Order(
+            order_id="strategy-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=10000,
+            qty_lots=2,
+            remaining_lots=2,
+            created_ts=0.0,
+        )
+    )
+
+    trade_fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+    )
+    depth_fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.05)
+
+    assert [(fill.qty_lots, fill.source) for fill in trade_fills] == [(1, "agg_trade")]
+    assert depth_fills == []
+    assert model.get_order("BTCUSDT", "bid") is not None
+    assert model.fill_assumption_diagnostics()["corroborated_depth_reduction_lots"] == 1
+
+
+def test_aggressive_disables_overlap_netting_as_upper_bound():
+    base = PassiveFillModel(fill_assumption_config_for_profile("base"))
+    aggressive = PassiveFillModel(fill_assumption_config_for_profile("aggressive"))
+    for model in (base, aggressive):
+        model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+        model.place_order(
+            Order(
+                order_id=f"{model.fill_assumption.profile}-bid",
+                symbol="BTCUSDT",
+                side="bid",
+                price_tick=10000,
+                qty_lots=2,
+                remaining_lots=2,
+                created_ts=0.0,
+            )
+        )
+
+    base.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.0)
+    base_fills = base.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=1.05),
+        1.05,
+    )
+    aggressive.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.0)
+    aggressive_fills = aggressive.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=1.05),
+        1.05,
+    )
+
+    assert base_fills == []
+    assert [(fill.qty_lots, fill.source) for fill in aggressive_fills] == [(1, "agg_trade")]
+    assert aggressive.public_consumption_summary()["overlap_window_seconds"] == 0.0
+
+
+def test_base_profile_matches_default_fill_model_behavior():
+    default_model = PassiveFillModel()
+    base_model = PassiveFillModel(fill_assumption_config_for_profile("base"))
+    for model in (default_model, base_model):
+        model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+        model.place_order(
+            Order(
+                order_id=f"{model.fill_assumption.profile}-bid",
+                symbol="BTCUSDT",
+                side="bid",
+                price_tick=10000,
+                qty_lots=2,
+                remaining_lots=2,
+                created_ts=0.0,
+            )
+        )
+        model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 1, 0)], 1.0)
+
+    default_fills = default_model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.05),
+        1.05,
+    )
+    base_fills = base_model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=1.05),
+        1.05,
+    )
+
+    assert [(fill.qty_lots, fill.source) for fill in default_fills] == [(1, "agg_trade")]
+    assert [(fill.qty_lots, fill.source) for fill in base_fills] == [(1, "agg_trade")]
+    assert default_model.public_consumption_summary() == base_model.public_consumption_summary()

@@ -121,6 +121,7 @@ Inferred:
 - Depth reductions consume FIFO from the front of a level.
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
 - Recent depth/trade overlap at the same symbol, side, and price is netted before queue consumption to reduce public-feed double counting.
+- `conservative`, `base`, and `aggressive` fill profiles make the passive-fill assumption explicit; the committed envelope sample is in [sample_outputs/futures_fill_assumption_envelope/README.md](sample_outputs/futures_fill_assumption_envelope/README.md).
 - Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
@@ -169,7 +170,8 @@ Inferred:
 - A futures pack auditor that checks replay input, summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
 - A synthetic-but-exchange-shaped stress pack that intentionally covers queue ahead, partial fills, overlap netting, adverse/non-adverse markouts, cancel latency, same-timestamp cancel/trade ordering, marketable taker fills, self-trade prevention, and no-gap continuity.
 - A deterministic latency sensitivity sweep that shows how modeled order-arrival and cancel-ack delays affect queue/fill outcomes without claiming a production latency edge.
+- A fill-assumption envelope runner that compares fills, PnL, markouts, inventory, fill-source counts, and queue-consumption totals across conservative/base/aggressive public-L2 assumptions.
 - Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
 - Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.
-- Artifact verification rejects committed futures packs whose public-data simulation assumptions are missing, inconsistent, or claim private exchange fills.
+- Artifact verification rejects committed futures packs whose fill-assumption labels or public-data simulation assumptions are missing, inconsistent, or claim private exchange fills.
 - Extensible boundaries for future venue adapters and asset metadata.

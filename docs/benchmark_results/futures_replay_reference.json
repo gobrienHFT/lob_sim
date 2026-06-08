@@ -12,11 +12,20 @@
     "peak_traced_mib": 0.6704692840576172
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-06-01T17:01:13.796757Z",
+    "benchmark_created_at_utc": "2026-06-08T12:27:04.829982Z",
     "config": {
       "book_top_n": 20,
       "fees_maker_bps": "-0.2",
       "fees_taker_bps": "4.0",
+      "fill_assumption": {
+        "agg_trades_consume_queue": true,
+        "depth_reductions_consume_queue": true,
+        "overlap_netting_enabled": true,
+        "overlap_window_seconds": 0.125,
+        "profile": "base",
+        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      },
+      "fill_assumption_profile": "base",
       "mm_enabled": true,
       "mm_fee_floor_buffer_bps": "0.02",
       "mm_half_spread_bps": "0.05",
@@ -47,7 +56,7 @@
         "BTCUSDT"
       ]
     },
-    "config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
+    "config_digest": "abe054016f6e77e13f503089805dbb3882593608ef926b870713ce494bb7bf79",
     "feed_adapter": {
       "name": "binance_usdm",
       "supported_record_types": [
@@ -75,15 +84,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "master",
-      "git_commit": "05dc7cad39834e8c2cd734f5539b55bec7f00c3b",
+      "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 285.6432829800288,
-    "loop_latency_p50_us": 69.30000000000001,
-    "loop_latency_p99_us": 45104.20999999992,
-    "wall_time_seconds": 0.2800695999758318
+    "events_per_second": 91.6675986205923,
+    "loop_latency_p50_us": 206.7,
+    "loop_latency_p99_us": 126180.64999999947,
+    "wall_time_seconds": 0.8727183999999397
   }
 }

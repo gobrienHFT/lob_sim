@@ -40,6 +40,8 @@ def test_simulation_assumptions_snapshot_documents_public_data_limits() -> None:
     assumptions = run_manifest.simulation_assumptions_snapshot()
 
     assert assumptions["schema_version"] == run_manifest.SIMULATION_ASSUMPTIONS_SCHEMA_VERSION
+    assert assumptions["fill_assumption_profile"] == "base"
+    assert assumptions["fill_assumption"]["profile"] == "base"
     assert assumptions["private_exchange_execution_reports"] is False
     assert assumptions["queue_priority_model"] == "visible_price_time_fifo"
     assert assumptions["overlap_netting"]["window_seconds"] == 0.125

@@ -1236,6 +1236,7 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert queue_row["price_tick"] == "1000"
     assert queue_row["qty_lots"] == "2"
     assert queue_details == {
+        "fill_assumption_profile": "base",
         "modeled_lots": 2,
         "observed_lots": 2,
         "overlap_netted_lots": 0,
