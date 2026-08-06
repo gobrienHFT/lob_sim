@@ -1,0 +1,222 @@
+{
+  "code": {
+    "fingerprint_algorithm": "sha256(sorted relative path + NUL + file sha256 + newline)",
+    "fingerprint_sha256": "f74154544bca8b678265c03e5af580b0955d4720a28d3d6a8bf6c02636bd4921",
+    "python_file_count": 26,
+    "root": "C:\\bitbucket\\kibert\\lob_simulator\\lob_sim\\lob_sim"
+  },
+  "comparator": {
+    "baseline": {
+      "duration_seconds": 0.1842558,
+      "events_per_second": 1910.3876241616274,
+      "record_count": 352,
+      "run": 1,
+      "type": "first_measured_run"
+    },
+    "comparison_scope": {
+      "code_fingerprint_sha256": "f74154544bca8b678265c03e5af580b0955d4720a28d3d6a8bf6c02636bd4921",
+      "configuration_fingerprint_sha256": "4ed7f3713a7b49e95beda375f415ca1534c84f8fb844b902035cc98d93bd7d16",
+      "fixture_sha256": "9acc7378147e7e36d4a327e7c4ad7948bf52e90bcb8234d993c0f65042299c88"
+    },
+    "external_comparator": null,
+    "external_comparator_statement": "No external implementation or prior-version comparator was supplied."
+  },
+  "configuration": {
+    "excluded_fields": [
+      "binance_api_key",
+      "binance_api_secret"
+    ],
+    "fingerprint_algorithm": "sha256",
+    "fingerprint_sha256": "4ed7f3713a7b49e95beda375f415ca1534c84f8fb844b902035cc98d93bd7d16",
+    "values": {
+      "binance_fapi_base": "https://fapi.binance.com",
+      "binance_fws_base": "wss://fstream.binance.com",
+      "book_top_n": 50,
+      "collect_seconds": 3600,
+      "depth_stream_suffix": "@depth@100ms",
+      "fees_maker_bps": "-0.2",
+      "fees_taker_bps": "4.0",
+      "http_retries": 2,
+      "http_timeout": 10.0,
+      "log_level": "INFO",
+      "mm_enabled": true,
+      "mm_half_spread_bps": "2.0",
+      "mm_max_position": "0.01",
+      "mm_order_qty": "0.001",
+      "mm_requote_ms": 250.0,
+      "mm_skew_bps_per_unit": "10.0",
+      "rate_limit_req_per_sec": 8.0,
+      "record_dir": "data",
+      "record_flush_every": 2000,
+      "record_format": "ndjson",
+      "record_gzip": true,
+      "resync_on_gap": true,
+      "sim_cancel_latency_ms": 25.0,
+      "sim_fill_model": "trade",
+      "sim_markout_horizons_ms": [
+        100,
+        1000,
+        5000
+      ],
+      "sim_order_latency_ms": 25.0,
+      "snapshot_limit": 1000,
+      "symbols": [
+        "BTCUSDT"
+      ],
+      "trade_stream_suffix": "@aggTrade",
+      "ws_ping_interval": 180.0,
+      "ws_ping_timeout": 600.0,
+      "ws_reconnect_max_sec": 30.0
+    }
+  },
+  "created_at_utc": "2026-08-06T20:30:01.900114Z",
+  "environment": {
+    "cpu": {
+      "logical_count": 8,
+      "model": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel"
+    },
+    "platform": {
+      "machine": "AMD64",
+      "platform_string": "Windows-11-10.0.26200-SP0",
+      "release": "11",
+      "system": "Windows",
+      "version": "10.0.26200"
+    },
+    "python": {
+      "executable": "C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "implementation": "CPython",
+      "version": "3.13.1"
+    }
+  },
+  "fixture": {
+    "path": "C:\\bitbucket\\kibert\\lob_simulator\\lob_sim\\data\\raw_1772140125.ndjson.gz",
+    "record_count": 352,
+    "sha256": "9acc7378147e7e36d4a327e7c4ad7948bf52e90bcb8234d993c0f65042299c88",
+    "size_bytes": 132277
+  },
+  "invocation_command": "C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -m lob_sim.benchmark --input data/raw_1772140125.ndjson.gz --warmups 1 --repetitions 5 --output evidence/baseline_windows_python313.json",
+  "known_limitations": [
+    "Wall-clock timings include SimulationEngine construction and complete fixture replay.",
+    "Operating-system scheduling, background load, CPU frequency, and thermal state are not controlled.",
+    "Events per second weights every yielded fixture record equally despite different payload sizes and work.",
+    "The benchmark measures end-to-end throughput, not per-event latency or model correctness.",
+    "Peak-memory runs use tracemalloc and are separate from timing runs; tracemalloc reports Python allocations, not process RSS or native-library allocations.",
+    "The generated default command assumes the same configuration is loadable from .env and fails on fingerprint mismatch."
+  ],
+  "memory_runs": [
+    {
+      "peak_bytes": 1109706,
+      "run": 1
+    },
+    {
+      "peak_bytes": 1109538,
+      "run": 2
+    },
+    {
+      "peak_bytes": 1109418,
+      "run": 3
+    },
+    {
+      "peak_bytes": 1109306,
+      "run": 4
+    },
+    {
+      "peak_bytes": 1109218,
+      "run": 5
+    }
+  ],
+  "metric_definitions": {
+    "duration_seconds": {
+      "clock": "time.perf_counter_ns",
+      "definition": "Elapsed wall-clock time for fresh engine construction and one complete replay.",
+      "unit": "seconds"
+    },
+    "events_per_second": {
+      "definition": "fixture record_count divided by duration_seconds for the measured run.",
+      "unit": "records/second"
+    },
+    "p95": {
+      "definition": "Linear interpolation at index (sample_count - 1) * 0.95 over sorted values.",
+      "unit": "same as summarized metric"
+    },
+    "peak_bytes": {
+      "allocator_scope": "Python allocations traced by tracemalloc",
+      "definition": "Peak traced Python memory during fresh engine construction and complete replay.",
+      "unit": "bytes"
+    },
+    "record_count": {
+      "definition": "Number of nonblank NDJSON records yielded by lob_sim.replay.reader.iter_records.",
+      "unit": "records"
+    },
+    "stdev": {
+      "definition": "Population standard deviation across measured runs.",
+      "unit": "same as summarized metric"
+    }
+  },
+  "output_path": "C:\\bitbucket\\kibert\\lob_simulator\\lob_sim\\evidence\\baseline_windows_python313.json",
+  "protocol": {
+    "fresh_engine_per_run": true,
+    "measured_runs": 5,
+    "memory_measurement_runs": 5,
+    "timing_instrumentation": "perf_counter_ns with tracemalloc disabled",
+    "timing_scope": "Immediately before engine construction through completion of SimulationEngine.run.",
+    "warmup_runs": 1
+  },
+  "reproduction_command": "C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -m lob_sim.benchmark --input C:\\bitbucket\\kibert\\lob_simulator\\lob_sim\\data\\raw_1772140125.ndjson.gz --env .env --warmups 1 --repetitions 5 --expect-fixture-sha256 9acc7378147e7e36d4a327e7c4ad7948bf52e90bcb8234d993c0f65042299c88 --expect-config-fingerprint 4ed7f3713a7b49e95beda375f415ca1534c84f8fb844b902035cc98d93bd7d16 --expect-code-fingerprint f74154544bca8b678265c03e5af580b0955d4720a28d3d6a8bf6c02636bd4921",
+  "runs": [
+    {
+      "duration_seconds": 0.1842558,
+      "events_per_second": 1910.3876241616274,
+      "record_count": 352,
+      "run": 1
+    },
+    {
+      "duration_seconds": 0.2368039,
+      "events_per_second": 1486.4620050598828,
+      "record_count": 352,
+      "run": 2
+    },
+    {
+      "duration_seconds": 0.1972219,
+      "events_per_second": 1784.791648391989,
+      "record_count": 352,
+      "run": 3
+    },
+    {
+      "duration_seconds": 0.16885,
+      "events_per_second": 2084.6905537459284,
+      "record_count": 352,
+      "run": 4
+    },
+    {
+      "duration_seconds": 0.1609563,
+      "events_per_second": 2186.928998740652,
+      "record_count": 352,
+      "run": 5
+    }
+  ],
+  "schema_version": "lob_sim.benchmark.v1",
+  "summary": {
+    "duration_seconds": {
+      "max": 0.2368039,
+      "median": 0.1842558,
+      "min": 0.1609563,
+      "p95": 0.2288875,
+      "stdev": 0.026705372166918033
+    },
+    "events_per_second": {
+      "max": 2186.928998740652,
+      "median": 1910.3876241616274,
+      "min": 1486.4620050598828,
+      "p95": 2166.4813097417073,
+      "stdev": 245.11078362069452
+    },
+    "peak_bytes": {
+      "max": 1109706.0,
+      "median": 1109418.0,
+      "min": 1109218.0,
+      "p95": 1109672.4,
+      "stdev": 172.07254284167476
+    }
+  }
+}
