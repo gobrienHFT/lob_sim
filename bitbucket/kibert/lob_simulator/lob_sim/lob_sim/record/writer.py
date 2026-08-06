@@ -13,10 +13,12 @@ class NDJSONWriter:
         self.path = path
         self.flush_every = max(1, flush_every)
         self._count = 0
+        # The writer owns this handle across calls and closes it in `close()` /
+        # `__exit__`; a method-local context manager would close it too early.
         if path.suffix == ".gz":
-            self._fh = gzip.open(path, "at", encoding="utf-8")
+            self._fh = gzip.open(path, "xt", encoding="utf-8")  # noqa: SIM115
         else:
-            self._fh: TextIO = open(path, "a", encoding="utf-8")
+            self._fh: TextIO = path.open("x", encoding="utf-8")
 
     def write(self, record: NDJSONRecord) -> None:
         self._fh.write(record.to_json())
@@ -28,7 +30,7 @@ class NDJSONWriter:
     def close(self) -> None:
         self._fh.close()
 
-    def __enter__(self) -> "NDJSONWriter":
+    def __enter__(self) -> NDJSONWriter:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

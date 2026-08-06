@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Dict, Iterable
 
 from ..book.types import SymbolSpec
 

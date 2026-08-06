@@ -2,94 +2,116 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from lob_sim.book.local_book import LocalOrderBook
-from lob_sim.book.types import LevelChange, SymbolSpec
-from lob_sim.sim.fill_model import PassiveFillModel
-from lob_sim.sim.metrics import SimulationMetrics
-from lob_sim.config import Config, load_config
-from lob_sim.sim.orders import Order
-import os
+import pytest
+
+from lob_sim.book.types import AggTradeEvent, LevelChange, SymbolSpec
+from lob_sim.sim.fill_model import DuplicateActiveOrderError, PassiveFillModel
+from lob_sim.sim.orders import Order, OrderState
 
 
-def _build_config() -> Config:
-    values = {
-        "BINANCE_FAPI_BASE": "https://fapi.binance.com",
-        "BINANCE_FWS_BASE": "wss://fstream.binance.com",
-        "DEPTH_STREAM_SUFFIX": "@depth@100ms",
-        "TRADE_STREAM_SUFFIX": "@aggTrade",
-        "SYMBOLS": "BTCUSDT",
-        "SNAPSHOT_LIMIT": "1000",
-        "BOOK_TOP_N": "50",
-        "COLLECT_SECONDS": "10",
-        "RECORD_DIR": "./data",
-        "RECORD_FORMAT": "ndjson",
-        "RECORD_GZIP": "0",
-        "RECORD_FLUSH_EVERY": "2000",
-        "HTTP_TIMEOUT": "10",
-        "HTTP_RETRIES": "2",
-        "RATE_LIMIT_REQ_PER_SEC": "8",
-        "WS_PING_INTERVAL": "180",
-        "WS_PING_TIMEOUT": "600",
-        "WS_RECONNECT_MAX_SEC": "30",
-        "RESYNC_ON_GAP": "1",
-        "SIM_SEED": "1",
-        "SIM_ORDER_LATENCY_MS": "25",
-        "SIM_CANCEL_LATENCY_MS": "25",
-        "MM_ENABLED": "1",
-        "MM_REQUOTE_MS": "250",
-        "MM_ORDER_QTY": "0.001",
-        "MM_MAX_POSITION": "0.01",
-        "MM_HALF_SPREAD_BPS": "2.0",
-        "MM_SKEW_BPS_PER_UNIT": "10.0",
-        "FEES_MAKER_BPS": "-0.2",
-        "FEES_TAKER_BPS": "4.0",
-        "LOG_LEVEL": "INFO",
-    }
-    for key, value in values.items():
-        os.environ.setdefault(key, value)
-    return load_config(".env")
-
-
-def test_fill_model_queue_ahead_consumption_and_fill():
-    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("0.1"), step_size=Decimal("0.001"))
-    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
-    book.reset_from_snapshot(
-        1,
-        bids={10000: 10},
-        asks={10100: 10},
-    )
-    model = PassiveFillModel()
-    order = Order(
-        order_id="o1",
+def _order(
+    order_id: str = "o1",
+    *,
+    side: str = "bid",
+    price_tick: int = 10000,
+    qty_lots: int = 2,
+    queue_ahead_lots: int = 5,
+) -> Order:
+    return Order(
+        order_id=order_id,
         symbol="BTCUSDT",
-        side="bid",
-        price_tick=10000,
-        qty_lots=2,
-        queue_ahead_lots=10,
+        side=side,
+        price_tick=price_tick,
+        qty_lots=qty_lots,
+        queue_ahead_lots=queue_ahead_lots,
         created_ts=0.0,
-        remaining_lots=2,
+        remaining_lots=qty_lots,
     )
+
+
+def _trade(*, price_tick: int, qty_lots: int, buyer_is_maker: bool = True) -> AggTradeEvent:
+    return AggTradeEvent(
+        symbol="BTCUSDT",
+        price_tick=price_tick,
+        qty_lots=qty_lots,
+        buyer_is_maker=buyer_is_maker,
+        ts_local=1.0,
+    )
+
+
+def test_trade_model_does_not_double_consume_matching_depth_change() -> None:
+    model = PassiveFillModel("trade")
+    order = _order(queue_ahead_lots=5)
     model.place_order(order)
 
-    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 10, 5)], 1.0)
-    assert fills == []
-    assert model.get_order("BTCUSDT", "bid") is not None
+    assert model.apply_agg_trade(_trade(price_tick=10000, qty_lots=4), 1.0) == []
+    assert order.queue_ahead_lots == 1
 
-    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 5, 0)], 2.0)
-    assert fills == []
+    # The corresponding displayed decrease is the same observable flow, not
+    # independent evidence of another execution.
+    assert model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 5, 1)], 1.001) == []
+    assert order.queue_ahead_lots == 1
 
-    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 0, 3)], 3.0)
-    assert fills == []
+    fills = model.apply_agg_trade(_trade(price_tick=10000, qty_lots=2), 2.0)
+    assert len(fills) == 1
+    assert fills[0].qty_lots == 1
+    assert fills[0].cause == "agg_trade"
+    assert order.remaining_lots == 1
 
-    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 3, 0)], 4.0)
+
+def test_depth_model_is_explicit_optimistic_sensitivity_and_ignores_trades() -> None:
+    model = PassiveFillModel("depth")
+    order = _order(queue_ahead_lots=2)
+    model.place_order(order)
+
+    assert model.apply_agg_trade(_trade(price_tick=10000, qty_lots=10), 1.0) == []
+    fills = model.apply_depth_changes("BTCUSDT", [LevelChange("bids", 10000, 5, 0)], 1.1)
     assert len(fills) == 1
     assert fills[0].qty_lots == 2
+    assert fills[0].cause == "depth_decrease"
+    assert order.state is OrderState.FILLED
     assert model.get_order("BTCUSDT", "bid") is None
+    assert model.active_order_count == 0
+    assert model.order_state_counts()["filled"] == 1
+    assert model._orders_by_id == {}
 
-    cfg = _build_config()
-    m = SimulationMetrics(cfg)
-    for fill in fills:
-        m.on_fill(fill, book, mid=book.mid_price())
 
-    assert m.fill_count == 1
-    assert m.inventory_lots("BTCUSDT") == 2
+def test_trade_through_fills_remainder_without_using_print_quantity_as_queue_volume() -> None:
+    model = PassiveFillModel("trade")
+    order = _order(qty_lots=3, queue_ahead_lots=100)
+    model.place_order(order)
+
+    fills = model.apply_agg_trade(_trade(price_tick=9999, qty_lots=1), 1.0)
+    assert [fill.qty_lots for fill in fills] == [3]
+    assert fills[0].cause == "trade_through"
+    assert order.state is OrderState.FILLED
+
+
+def test_stale_cancel_cannot_delete_replacement() -> None:
+    model = PassiveFillModel()
+    old = _order("old")
+    model.place_order(old)
+    assert model.cancel_order("old", 1.0)
+
+    replacement = _order("new")
+    model.place_order(replacement)
+    assert model.cancel_order("old", 2.0) is False
+    assert model.get_order("BTCUSDT", "bid") is replacement
+
+
+def test_duplicate_live_order_is_rejected_instead_of_overwritten() -> None:
+    model = PassiveFillModel()
+    model.place_order(_order("old"))
+    with pytest.raises(DuplicateActiveOrderError):
+        model.place_order(_order("new"))
+
+
+def test_symbol_spec_exact_and_side_aware_quantization() -> None:
+    spec = SymbolSpec("BTCUSDT", tick_size=Decimal("0.1"), step_size=Decimal("0.001"))
+    assert spec.price_to_tick_floor("100.19") == 1001
+    assert spec.price_to_tick_ceil("100.11") == 1002
+    assert spec.qty_to_lot_floor("0.0019") == 1
+    with pytest.raises(ValueError):
+        spec.price_to_tick_exact("100.15")
+    with pytest.raises(ValueError):
+        spec.qty_to_lot_exact("0.0015")
