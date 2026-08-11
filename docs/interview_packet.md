@@ -2,7 +2,7 @@
 
 ## 60-Second Pitch
 
-`lob_sim` is a deterministic Binance USD-M public L2 replay and queue-aware passive-fill simulator. It records `exchangeInfo`, snapshots, depth diffs, and `aggTrade` prints; reconstructs the local book with explicit continuity checks; runs event-time strategy decisions, order arrivals, cancels, and fills through one timeline; and exports summaries, trades, event traces, and manifests that are audit-checked against the input. It does not claim alpha, profitability, private fill truth, or production latency. The signal is engineering discipline: replay correctness, explicit public-data assumptions, reproducibility, and reviewer-grade evidence.
+`lob_sim` is a deterministic Binance USD-M public L2 replay and execution-sensitivity laboratory. It records schema-v3 receipt metadata, reconstructs validity epochs with explicit continuity checks, runs causal strategy/order/risk/accounting lifecycles, and exports bounded audit artifacts with manifests. It does not claim alpha, profitability, private fill truth, historical participant FIFO, or production latency. The signal is engineering discipline: replay correctness, explicit public-data assumptions, reproducibility, and reviewer-grade evidence.
 
 ## Architecture
 
@@ -38,7 +38,7 @@ make reviewer-gate
 
 - `lob_sim/book/sync.py`: snapshot/diff continuity and gap policy.
 - `lob_sim/replay/adapters.py`: venue record normalization into instrument, snapshot, depth, and trade events.
-- `lob_sim/sim/fill_model.py`: FIFO visible-queue model, passive fills, public consumption, taker fills, and self-trade prevention.
+- `lob_sim/sim/fill_model.py`: synthetic queue-ahead scenarios, passive/taker fills, public consumption, and self-trade prevention.
 - `lob_sim/sim/engine.py`: event-time scheduling for market rows, decisions, arrivals, cancels, fills, and risk halts.
 - `lob_sim/sim/metrics.py`: fill-source metrics, markouts, inventory, PnL, lifecycle counts, and public-consumption summaries.
 - `scripts/audit_futures_pack.py`: cross-checks replay input, summary, CSVs, event trace, trades, manifest, provenance, and hashes.

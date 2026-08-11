@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Tuple, cast
 from dotenv import load_dotenv
 import logging
+import math
 import os
 
 
@@ -48,18 +49,53 @@ def _parse_float(name: str, value: str | None) -> float:
     if value is None:
         raise ConfigError(f"Missing float env var: {name}")
     try:
-        return float(value)
+        parsed = float(value)
     except ValueError as exc:
         raise ConfigError(f"Invalid float env var {name}: {value}") from exc
+    if not math.isfinite(parsed):
+        raise ConfigError(f"Invalid finite float env var {name}: {value}")
+    return parsed
+
+
+def _parse_positive_int_tuple(name: str, value: str | None) -> tuple[int, ...]:
+    if value is None:
+        raise ConfigError(f"Missing integer list env var: {name}")
+    raw_values = [part.strip() for part in value.split(",")]
+    if not raw_values or any(not part for part in raw_values):
+        raise ConfigError(f"{name} must be a comma-separated list of positive integers")
+    try:
+        parsed = tuple(int(part) for part in raw_values)
+    except ValueError as exc:
+        raise ConfigError(f"Invalid integer list env var {name}: {value}") from exc
+    if any(item <= 0 for item in parsed):
+        raise ConfigError(f"{name} values must all be > 0")
+    if len(set(parsed)) != len(parsed):
+        raise ConfigError(f"{name} values must be unique")
+    return tuple(sorted(parsed))
+
+
+def _parse_float_tuple(name: str, value: str | None) -> tuple[float, ...]:
+    if value is None or not value.strip():
+        return ()
+    try:
+        parsed = tuple(float(part.strip()) for part in value.split(",") if part.strip())
+    except ValueError as exc:
+        raise ConfigError(f"Invalid float list env var {name}: {value}") from exc
+    if any(not math.isfinite(item) or item < 0 for item in parsed):
+        raise ConfigError(f"{name} values must be finite and >= 0")
+    return parsed
 
 
 def _parse_decimal(name: str, value: str | None) -> Decimal:
     if value is None:
         raise ConfigError(f"Missing decimal env var: {name}")
     try:
-        return Decimal(value)
+        parsed = Decimal(value)
     except Exception as exc:  # noqa: BLE001
         raise ConfigError(f"Invalid decimal env var {name}: {value}") from exc
+    if not parsed.is_finite():
+        raise ConfigError(f"Invalid finite decimal env var {name}: {value}")
+    return parsed
 
 
 def _parse_symbols(value: str | None) -> Tuple[str, ...]:
@@ -178,6 +214,12 @@ class Config:
     fees_maker_bps: Decimal
     fees_taker_bps: Decimal
     log_level: str
+    sim_markout_horizons_ms: tuple[int, ...] = (100, 1000, 5000)
+    sim_fill_model: Literal["trade", "depth"] = "trade"
+    capture_schema_version: int = 3
+    sim_latency_mode: Literal["fixed", "empirical", "stress_tail"] = "fixed"
+    sim_latency_samples_ms: tuple[float, ...] = ()
+    sim_latency_stress_multiplier: float = 1.0
 
     def __post_init__(self) -> None:
         errs = []
@@ -251,12 +293,34 @@ class Config:
             "consume_fifo_queue",
         }:
             errs.append("Fill-assumption depth reduction mode is invalid")
-        if self.sim_adverse_markout_seconds < 0:
+        for name, value in (
+            ("SIM_ORDER_LATENCY_MS", self.sim_order_latency_ms),
+            ("SIM_CANCEL_LATENCY_MS", self.sim_cancel_latency_ms),
+        ):
+            if not math.isfinite(value) or value < 0:
+                errs.append(f"{name} must be finite and >= 0")
+        if not math.isfinite(self.sim_adverse_markout_seconds) or self.sim_adverse_markout_seconds < 0:
             errs.append("SIM_ADVERSE_MARKOUT_SECONDS must be >= 0")
         if self.sim_kill_max_drawdown < 0:
             errs.append("SIM_KILL_MAX_DRAWDOWN must be >= 0")
         if self.sim_kill_max_consecutive_losses < 0:
             errs.append("SIM_KILL_MAX_CONSECUTIVE_LOSSES must be >= 0")
+        if not self.sim_markout_horizons_ms or any(horizon <= 0 for horizon in self.sim_markout_horizons_ms):
+            errs.append("SIM_MARKOUT_HORIZONS_MS must contain positive values")
+        if len(set(self.sim_markout_horizons_ms)) != len(self.sim_markout_horizons_ms):
+            errs.append("SIM_MARKOUT_HORIZONS_MS values must be unique")
+        if self.sim_fill_model not in {"trade", "depth"}:
+            errs.append("SIM_FILL_MODEL must be trade or depth")
+        if self.capture_schema_version < 1:
+            errs.append("CAPTURE_SCHEMA_VERSION must be >= 1")
+        if self.sim_latency_mode not in {"fixed", "empirical", "stress_tail"}:
+            errs.append("SIM_LATENCY_MODE must be fixed, empirical, or stress_tail")
+        if any(not math.isfinite(value) or value < 0 for value in self.sim_latency_samples_ms):
+            errs.append("SIM_LATENCY_SAMPLES_MS must contain finite values >= 0")
+        if self.sim_latency_mode != "fixed" and not self.sim_latency_samples_ms:
+            errs.append("SIM_LATENCY_SAMPLES_MS is required for non-fixed latency modes")
+        if not math.isfinite(self.sim_latency_stress_multiplier) or self.sim_latency_stress_multiplier < 1:
+            errs.append("SIM_LATENCY_STRESS_MULTIPLIER must be finite and >= 1")
 
         if errs:
             raise ConfigError("; ".join(errs))
@@ -268,6 +332,14 @@ class Config:
     @property
     def output_dir(self) -> Path:
         return self.record_dir / "outputs"
+
+    @property
+    def effective_fill_assumption(self) -> FillAssumptionConfig:
+        """Return the mutually-exclusive execution signal selected for a run."""
+
+        if self.sim_fill_model == "trade":
+            return replace(self.fill_assumption, depth_reductions_consume_queue=False)
+        return replace(self.fill_assumption, agg_trades_consume_queue=False)
 
 
 def load_config(env_path: str = ".env") -> Config:
@@ -358,5 +430,29 @@ def load_config(env_path: str = ".env") -> Config:
         fees_maker_bps=_parse_decimal("FEES_MAKER_BPS", _get_optional("FEES_MAKER_BPS", "-0.2")),
         fees_taker_bps=_parse_decimal("FEES_TAKER_BPS", _get_optional("FEES_TAKER_BPS", "4.0")),
         log_level=_get_optional("LOG_LEVEL", "INFO").upper(),
+        sim_markout_horizons_ms=_parse_positive_int_tuple(
+            "SIM_MARKOUT_HORIZONS_MS",
+            _get_optional("SIM_MARKOUT_HORIZONS_MS", "100,1000,5000"),
+        ),
+        sim_fill_model=cast(
+            Literal["trade", "depth"],
+            _get_optional("SIM_FILL_MODEL", "trade").strip().lower(),
+        ),
+        capture_schema_version=_parse_int(
+            "CAPTURE_SCHEMA_VERSION",
+            _get_optional("CAPTURE_SCHEMA_VERSION", "3"),
+        ),
+        sim_latency_mode=cast(
+            Literal["fixed", "empirical", "stress_tail"],
+            _get_optional("SIM_LATENCY_MODE", "fixed").strip().lower(),
+        ),
+        sim_latency_samples_ms=_parse_float_tuple(
+            "SIM_LATENCY_SAMPLES_MS",
+            _get_optional("SIM_LATENCY_SAMPLES_MS", ""),
+        ),
+        sim_latency_stress_multiplier=_parse_float(
+            "SIM_LATENCY_STRESS_MULTIPLIER",
+            _get_optional("SIM_LATENCY_STRESS_MULTIPLIER", "1.0"),
+        ),
     )
     return cfg

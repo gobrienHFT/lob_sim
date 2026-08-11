@@ -301,7 +301,7 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
 EXPECTED_BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
-EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
+EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
 EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "symbol",
     "venue",
@@ -821,7 +821,7 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
         issues.append(
             f"{_repo_relative(path)} simulation_assumptions must not claim private exchange execution reports"
         )
-    if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
+    if assumptions.get("queue_priority_model") != "synthetic_queue_ahead_by_price_level":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected queue priority model")
 
     overlap = assumptions.get("overlap_netting")

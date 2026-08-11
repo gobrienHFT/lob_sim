@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from lob_sim.book.local_book import LocalOrderBook
-from lob_sim.book.sync import BookSynchronizer
+from lob_sim.book.sync import BookSynchronizer, BookSyncGapError
 from lob_sim.book.types import DepthUpdateEvent, InstrumentSpec, SnapshotEvent, SymbolSpec
 from lob_sim.binance.symbols import parse_exchange_info_for_symbol
 
@@ -76,24 +78,23 @@ def test_book_sync_records_gap_without_advancing_when_resync_disabled():
         )
     )
 
-    changes = sync.on_depth_update(
-        DepthUpdateEvent(
-            symbol="BTCUSDT",
-            first_update_id=111,
-            final_update_id=120,
-            prev_update_id=109,
-            bids=[(10000, 1)],
-            asks=[(10100, 1)],
-            ts_local=2.0,
+    with pytest.raises(BookSyncGapError):
+        sync.on_depth_update(
+            DepthUpdateEvent(
+                symbol="BTCUSDT",
+                first_update_id=111,
+                final_update_id=120,
+                prev_update_id=109,
+                bids=[(10000, 1)],
+                asks=[(10100, 1)],
+                ts_local=2.0,
+            )
         )
-    )
-
-    assert changes == []
     assert sync.gap_count == 1
     assert sync.synced is False
     assert sync.last_update_id is None
-    assert book.bids[10000] == 8
-    assert book.asks[10100] == 9
+    assert book.bids == {}
+    assert book.asks == {}
 
 
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():

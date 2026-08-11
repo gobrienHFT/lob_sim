@@ -6,7 +6,7 @@ Replay inputs are newline-delimited JSON. Each row has:
 
 - `ts_local`: event timestamp in seconds.
 - `symbol`: venue symbol, for example `BTCUSDT`.
-- `type`: one of `exchangeInfo`, `snapshot`, `depthUpdate`, or `aggTrade`.
+- `type`: one of `captureMeta`, `exchangeInfo`, `snapshot`, `depthUpdate`, or `aggTrade`.
 - `data`: raw or normalized payload for that event type.
 
 The reader validates required fields before replaying. Bad JSON, missing payload fields, malformed price/quantity levels, and unsupported event types fail with file and line-number context.
@@ -16,6 +16,7 @@ After validation, `lob_sim.replay.adapters.DEFAULT_REPLAY_ADAPTER` is the shared
 ## Event Types
 
 - `exchangeInfo`: contains positive `tickSize` and `stepSize`; optional `baseAsset`, `quoteAsset`, positive finite `contractMultiplier`, and `venue` fields carry instrument metadata used by reporting and fee audit fields.
+- `captureMeta`: declares schema version, receipt-clock policy, independent routes, and validity intersection for schema-v3 captures.
 - `snapshot`: contains `lastUpdateId`, `bids`, and `asks`.
 - `depthUpdate`: contains Binance diff ids `U`, `u`, optional `pu`, and changed bid/ask levels `b` and `a`.
 - `aggTrade`: contains trade price `p`, quantity `q`, and maker side flag `m`.
@@ -56,9 +57,9 @@ Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.
 
 The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, book-sync gap counts, fill-source counts, order-lifecycle counts, queue-ahead-at-arrival counts, kill-switch state, and self-trade-prevention counts. Those fields make it visible when a run skipped gap-affected depth data, relied on depth-inferred fills, posted quotes that never arrived, rested behind visible queue, expired a marketable remainder, halted on configured risk limits, or prevented a strategy own-cross instead of silently advancing the book.
 
-Summaries and manifests include `simulation_assumptions`: the structured public-data contract for the run. It states that the simulator uses public L2 and aggregate-trade records only, does not claim private exchange execution reports, uses visible price-time FIFO queue assumptions, keeps cancel latency explicit, records the selected fill-assumption profile, and records the overlap-netting window used to reduce double counting between depth reductions and trade prints.
+Summaries and manifests include `simulation_assumptions`: the structured public-data contract for the run. It states that the simulator uses public L2 and aggregate-trade records only, does not claim private exchange execution reports, uses synthetic queue-ahead assumptions, keeps cancel latency explicit, records the selected fill-assumption profile, and records the overlap-netting window used to reduce double counting between depth reductions and trade prints.
 
-Summaries also include `public_consumption_summary`: observed lots from public depth reductions and `aggTrade` prints, lots eligible for modeled queue consumption after overlap reconciliation, lots actually consumed from the internal FIFO queue, lots netted away inside the overlap window, and unmatched lots when no internal queue remained at that level. This makes the cancel-vs-trade and book-divergence ambiguity explicit even when the strategy receives no fill.
+Summaries also include `public_consumption_summary`: observed lots from public depth reductions and `aggTrade` prints, lots eligible for modeled queue consumption after overlap reconciliation, lots actually consumed from the synthetic queue, lots netted away inside the overlap window, and unmatched lots when no internal queue remained at that level. This makes the cancel-vs-trade and book-divergence ambiguity explicit even when the strategy receives no fill.
 
 Use [`docs/fill_assumption_envelope.md`](fill_assumption_envelope.md) when you want the same input replayed under conservative/base/aggressive public-L2 fill assumptions. Public L2 cannot prove private fills; robust conclusions should survive the envelope.
 

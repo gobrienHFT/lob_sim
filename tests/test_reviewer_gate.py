@@ -14,6 +14,10 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
         "type check core replay, record, and simulation modules",
         "ruff lint",
         "ruff format check",
+        "rust format check",
+        "rust kernel tests",
+        "rust clippy all features",
+        "python/rust primitive parity",
         "committed artifact verification",
         "whitespace check",
         "committed fixture determinism",
@@ -31,17 +35,21 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert "lob_sim/sim/mm_strategy.py" in steps[1].command
     assert steps[2].command == ("python", "-m", "ruff", "check", ".")
     assert steps[3].command == ("python", "-m", "ruff", "format", "--check", ".")
-    assert steps[4].command == ("python", "scripts/verify_committed_artifacts.py")
-    assert steps[5].command == ("git", "diff", "--check")
-    assert "scripts/check_futures_determinism.py" in steps[6].command
-    assert "scripts/audit_futures_pack.py" in steps[7].command
-    assert "--committed-futures" in steps[7].command
-    assert "experiments/benchmark_futures_replay.py" in steps[8].command
-    assert "--mode" in steps[8].command
-    assert "all" in steps[8].command
-    assert "--pack" in steps[8].command
-    assert "docs/sample_outputs/futures_stress_case" in steps[8].command
-    assert "--json-out" in steps[8].command
+    assert steps[4].command == ("cargo", "fmt", "--all", "--", "--check")
+    assert steps[5].command == ("cargo", "test", "--workspace")
+    assert steps[6].command[-2:] == ("-D", "warnings")
+    assert "scripts/check_rust_python_parity.py" in steps[7].command
+    assert steps[8].command == ("python", "scripts/verify_committed_artifacts.py")
+    assert steps[9].command == ("git", "diff", "--check")
+    assert "scripts/check_futures_determinism.py" in steps[10].command
+    assert "scripts/audit_futures_pack.py" in steps[11].command
+    assert "--committed-futures" in steps[11].command
+    assert "experiments/benchmark_futures_replay.py" in steps[12].command
+    assert "--mode" in steps[12].command
+    assert "all" in steps[12].command
+    assert "--pack" in steps[12].command
+    assert "docs/sample_outputs/futures_stress_case" in steps[12].command
+    assert "--json-out" in steps[12].command
 
 
 def test_reviewer_gate_mypy_targets_match_makefile() -> None:
@@ -53,7 +61,7 @@ def test_reviewer_gate_mypy_targets_match_makefile() -> None:
 
 
 def test_reviewer_gate_can_skip_benchmark_for_narrower_local_checks() -> None:
-    steps = reviewer_gate.build_reviewer_gate_steps("python", include_benchmark=False)
+    steps = reviewer_gate.build_reviewer_gate_steps("python", include_benchmark=False, include_rust=False)
 
     commands = [" ".join(step.command) for step in steps]
     assert len(steps) == 8

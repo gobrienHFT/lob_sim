@@ -1,15 +1,17 @@
 # lob_sim
 
-lob_sim is a deterministic Binance USD-M L2 capture/replay and queue-aware passive-fill simulator for market-making research. A secondary controlled options case study is included for reservation price, inventory skew, signed markout, and hedging logic.
+lob_sim is a deterministic, validity-aware Binance USD-M market-by-price replay and execution-sensitivity laboratory for market-making research. A secondary controlled options case study is included for reservation price, inventory skew, signed markout, and hedging logic.
 
 Fast reviewer links:
 
 - [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
-- [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
-- [Published Real-Data Report](docs/real_data_runs/raw_1780500354_10m.md): committed report-only artifact from a target-window BTCUSDT public-data tape, with raw data kept out of git.
 - [Short Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): earlier 30s BTCUSDT report retained as a compact historical comparison.
+- [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
+- [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
+- [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
+- [Published Real-Data Report](docs/real_data_runs/raw_1780500354_10m.md): superseded pre-semantic-repair historical artifact; not headline economic evidence.
 
 ## Overview
 
@@ -32,7 +34,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 
 - Event-time replay rather than bar backtest.
 - Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
-- Queue-aware passive-fill simulation with FIFO price-time assumptions and queue-ahead tracking.
+- Explicit public-L2 execution scenarios with synthetic queue-ahead tracking; historical Binance participant FIFO is not claimed.
 - Deterministic artifacts, reproducible runs, and a hash-based replay determinism checker for recorded NDJSON inputs.
 - Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
 - Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
@@ -42,12 +44,15 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 ### Futures replay core
 
 - Market-data capture into NDJSON via [`lob_sim/cli.py`](lob_sim/cli.py) and [`lob_sim/record/writer.py`](lob_sim/record/writer.py).
+- Schema-v3 capture metadata uses independent `public` depth and `market` trade routes, global receive sequence, receipt monotonic time, stream/sync epochs, and stream-first snapshot bridging.
 - Snapshot seeding plus diff-continuity checks in [`lob_sim/book/sync.py`](lob_sim/book/sync.py).
 - Local book reconstruction in [`lob_sim/book/local_book.py`](lob_sim/book/local_book.py).
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
 - Shared replay-row adapter/normalization in [`lob_sim/replay/adapters.py`](lob_sim/replay/adapters.py) and [`lob_sim/replay/normalization.py`](lob_sim/replay/normalization.py), so replay, simulation, and benchmarks consume the same `InstrumentSpec`, snapshot, depth, and trade event contract.
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
+- Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract.
+- `rust/lob_core` is the pinned, unsafe-free kernel boundary; Python remains the independent oracle until differential parity is demonstrated.
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
 ### Controlled options case study
@@ -65,7 +70,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Snapshot seeding uses the REST snapshot as the local book baseline, then requires the first accepted diff to cover the snapshot update id.
 - Diff continuity is enforced with Binance USD-M `U`, `u`, and `pu` semantics; gap handling is explicit rather than patched over.
 - With `RESYNC_ON_GAP=1`, live collection re-snapshots on continuity failure. Offline replay and simulation do not fabricate missing updates.
-- The simulation engine drains internal events in timestamp order before and after each market record, so decisions, order arrivals, cancels, and trade executions stay in one event-time timeline.
+- Schema-v3 simulation uses market-data-first logical ties; legacy v1 rows retain an explicitly labeled action-first compatibility policy.
 
 Run the futures paths with:
 
@@ -97,19 +102,19 @@ flowchart LR
 
 ## Matching Model
 
-- [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py) stores each price level as an explicit FIFO queue.
+- [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py) stores a synthetic queue-ahead at each visible price level; this is not historical Binance FIFO.
 - Snapshot seeding loads visible venue depth as resting queue ahead of any strategy order at that level.
-- Depth reductions consume the front of the queue before later arrivals, which is the core price-time assumption behind passive fills.
+- Depth reductions can be selected as an optimistic sensitivity; the trade-only scenario uses public prints as its queue-consumption signal.
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
-- `--fill-profile conservative|base|aggressive` makes the public-L2 passive-fill assumption explicit; the `base` profile is the default current behavior.
-- Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots for both public sources.
+- `--fill-profile conservative|base|aggressive` and `SIM_FILL_MODEL=trade|depth` make the public-L2 execution scenario explicit and mutually exclusive.
+- Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, synthetic queue lots consumed, and unmatched lots for both public sources.
 - Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.
 - Fill trace rows carry notional, fee, spread-capture, mid-at-fill, queue, and regime fields so a fill can be audited without leaving the event timeline.
 - Markout summaries are split by fill source, so adverse selection can be inspected separately for depth-inferred, aggregate-trade, and taker-order fills.
 - Event traces include `markout` rows when the post-fill horizon matures, tying each fill to the later mid, signed markout, adverse flag, and fill source.
-- Queue-ahead tracking is explicit: a resting strategy order only fills after the visible queue in front of it has been reduced.
+- Queue-ahead tracking is explicit: a resting strategy order only fills after the modeled visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 - A strategy decision with no desired quotes pulls stale live quotes instead of silently leaving them in the book.
 - Cancel latency is explicit: old quotes remain fillable until the modeled acknowledgement time, and a same-timestamp cancel acknowledgement is applied before the corresponding public market row.

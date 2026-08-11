@@ -1,13 +1,13 @@
 {
-  "run_id": "c90b7868bc4f028c",
+  "run_id": "a920d1d315275e57",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-08T12:26:52.940085Z",
+  "created_at_utc": "2026-08-11T07:42:23.763610Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
-    "sha256": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-    "modified_at_utc": "2026-06-08T12:26:52.822816Z"
+    "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+    "modified_at_utc": "2026-08-11T07:42:23.710491Z"
   },
   "config": {
     "symbols": [
@@ -19,7 +19,17 @@
     "sim_seed": 1,
     "sim_order_latency_ms": 0.0,
     "sim_cancel_latency_ms": 0.0,
+    "sim_latency_mode": "fixed",
+    "sim_latency_samples_ms": [],
+    "sim_latency_stress_multiplier": 1.0,
     "sim_adverse_markout_seconds": 1.0,
+    "sim_markout_horizons_ms": [
+      100,
+      1000,
+      5000
+    ],
+    "sim_fill_model": "trade",
+    "capture_schema_version": 3,
     "sim_kill_switch_enabled": false,
     "sim_kill_max_drawdown": "0",
     "sim_kill_max_consecutive_losses": 0,
@@ -86,23 +96,24 @@
     },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
-    "queue_priority_model": "visible_price_time_fifo",
+    "queue_priority_model": "synthetic_queue_ahead_by_price_level",
     "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
     "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
-    "depth_decrease": "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
-    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side as an additional queue-consumption signal.",
+    "depth_decrease": "Depth reductions consume a synthetic visible queue-ahead; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
+    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side when the trade-only scenario is selected.",
     "overlap_netting": {
       "enabled": true,
       "window_seconds": 0.125,
       "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting when the selected fill profile enables overlap netting."
     },
     "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
-    "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
+    "same_timestamp_ordering": "Schema-v3 market observations are applied before strategy actions at the same logical time; legacy v1 rows retain action-first ordering for compatibility.",
     "marketable_limits": "Marketable strategy limits execute as taker orders against visible depth and post only any non-crossing remainder.",
     "self_trade_prevention": "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead of self-trading.",
     "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
     "limitations": [
       "no_private_queue_ids",
+      "synthetic_queue_not_historical_fifo",
       "no_hidden_liquidity",
       "not_private_exchange_fill_truth",
       "public_l2_cannot_distinguish_all_cancels_from_trades"
@@ -127,30 +138,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
-      "size_bytes": 5528,
-      "sha256": "cfe8d345904ffaf463b6457bc27be4a00452d4029e250150ebc9d6f22d82d148",
-      "modified_at_utc": "2026-06-08T12:26:53.542912Z"
+      "size_bytes": 5580,
+      "sha256": "402228b69ee3c702b8d4084d9d69d32cc5f24adda17a8f91965a6aefc0147344",
+      "modified_at_utc": "2026-08-11T07:42:24.101218Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 8634,
-      "sha256": "8a633f81602ac5a377e18028e0c648e3f093bbca39f55deda896bad43eb17ecf",
-      "modified_at_utc": "2026-06-08T12:26:53.538195Z"
+      "size_bytes": 11716,
+      "sha256": "1a62b09122dedbc6ba7f8b97ee71161cd6a84dde6e972f8962b85de498cf00cb",
+      "modified_at_utc": "2026-08-11T07:42:24.096003Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 6662,
-      "sha256": "81cfc98f26ee5e76cf666c3e098a50951d644e99b1c9a26f9fd21a9d3fa7c792",
-      "modified_at_utc": "2026-06-08T12:26:53.541104Z"
+      "size_bytes": 9303,
+      "sha256": "ac2454c1d747d694ee28e4b54b74dcbbb9b3b2c70e25b6cad22736fb07205948",
+      "modified_at_utc": "2026-08-11T07:42:24.097461Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
-      "size_bytes": 399,
-      "sha256": "fec9a6140683c2e4008c14c1eb5192e30d03ffdcb665eb7f4bd07e3381262d7b",
-      "modified_at_utc": "2026-06-08T12:26:53.542168Z"
+      "size_bytes": 452,
+      "sha256": "dcc1e7bc3ec3b9e85c14426babf3b384a3d6e4ad7e7097ff5276218e5839e589",
+      "modified_at_utc": "2026-08-11T07:42:24.101218Z"
     }
   },
   "fixture_provenance": {

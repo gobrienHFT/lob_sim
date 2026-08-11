@@ -2,7 +2,7 @@
 
 ## 60-Second Pitch
 
-`lob_sim` is a deterministic Binance USD-M L2 capture/replay and queue-aware passive-fill simulator. The center of the repo is not alpha; it is infrastructure that proves careful thinking about book reconstruction, event-time replay, queue priority, public-data fill assumptions, adverse selection, inventory/risk metrics, reproducibility, and benchmark provenance.
+`lob_sim` is a deterministic, validity-aware Binance USD-M L2 capture/replay and execution-sensitivity laboratory. The center of the repo is not alpha; it is infrastructure that proves careful thinking about book reconstruction, receipt-time causality, synthetic queue-ahead assumptions, public-data fill uncertainty, adverse selection, inventory/risk metrics, reproducibility, and benchmark provenance.
 
 The options material is secondary: a controlled dealer-pricing case study for reservation price, signed markout, and hedging logic under synthetic assumptions.
 
@@ -97,7 +97,7 @@ Observed:
 - local event timestamps stored in the record stream.
 - adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created.
 - generated summary and manifest `instrument_specs`, matching the replay input metadata used for units and multiplier economics.
-- generated summary and manifest `simulation_assumptions`, explicitly stating public-data scope, FIFO assumptions, overlap netting, cancel-latency behavior, and no private execution-report claim.
+- generated summary and manifest `simulation_assumptions`, explicitly stating public-data scope, synthetic queue-ahead assumptions, overlap netting, cancel-latency behavior, and no private execution-report claim.
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
@@ -118,7 +118,7 @@ Inferred:
 
 - Snapshot levels seed visible queue ahead of strategy orders.
 - Depth increases append later venue liquidity behind existing resting orders at that price.
-- Depth reductions consume FIFO from the front of a level.
+- Depth reductions consume a synthetic queue-ahead from the front of a level only in the selected sensitivity scenario.
 - `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
 - Recent depth/trade overlap at the same symbol, side, and price is netted before queue consumption to reduce public-feed double counting.
 - `conservative`, `base`, and `aggressive` fill profiles make the passive-fill assumption explicit; the committed envelope sample is in [sample_outputs/futures_fill_assumption_envelope/README.md](sample_outputs/futures_fill_assumption_envelope/README.md).
@@ -127,7 +127,7 @@ Inferred:
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Summaries split signed markout, adverse samples, and adverse-fill rate by fill source, so fill-quality diagnostics are not blended across modeled passive and explicit taker fills.
 - Event traces emit post-horizon `markout` rows, making the later mid and adverse-selection flag auditable next to the original fill.
-- Summaries report public-consumption diagnostics: observed depth/print lots, overlap-netted lots, modeled queue-consumption candidates, actual FIFO queue lots consumed, and unmatched lots when no internal level remained to consume.
+- Summaries report public-consumption diagnostics: observed depth/print lots, overlap-netted lots, modeled queue-consumption candidates, synthetic queue lots consumed, and unmatched lots when no internal level remained to consume.
 - Event traces include `queue_consumption` rows for the per-price public consumption ledger behind those summary totals.
 - Summaries aggregate order lifecycle counts for scheduled arrivals, arrived quotes, rested quotes, immediate fills, expired remainders, cancel requests, and cancel acknowledgements.
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.

@@ -7,7 +7,7 @@ from typing import Dict
 import logging
 import time
 
-from ..book.local_book import LocalOrderBook
+from ..book.local_book import BookInvariantError, LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import SymbolSpec
 from ..config import Config
@@ -111,7 +111,10 @@ def replay(
         if rec.type == "snapshot":
             evt = adapter.snapshot_from_record(rec, spec)
             if syncer is not None:
-                syncer.on_snapshot(evt)
+                try:
+                    syncer.on_snapshot(evt)
+                except (BookSyncGapError, BookInvariantError) as exc:
+                    logger.warning("Invalid snapshot while replaying %s: %s", rec.symbol, exc)
             continue
 
         if rec.type == "depthUpdate":
@@ -123,7 +126,7 @@ def replay(
             try:
                 if syncer is not None:
                     syncer.on_depth_update(depth)
-            except BookSyncGapError:
+            except (BookSyncGapError, BookInvariantError):
                 logger.warning("Gap while replaying %s", rec.symbol)
             gap_count += max(0, syncer.gap_count - gap_count_before)
 

@@ -85,4 +85,6 @@ def test_replay_counts_non_resync_gap_without_advancing_book(tmp_path: Path, mon
     assert result.symbols["BTCUSDT"].gap_count == 1
     assert result.symbols["BTCUSDT"].synced is False
     assert result.symbols["BTCUSDT"].last_update_id is None
-    assert result.symbols["BTCUSDT"].total_levels == 2
+    # Gap invalidation clears the previous epoch; no stale liquidity remains
+    # available to fills or markouts while awaiting a fresh snapshot.
+    assert result.symbols["BTCUSDT"].total_levels == 0

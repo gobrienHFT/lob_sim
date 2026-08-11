@@ -41,3 +41,17 @@ def test_cli_simulate_exposes_fill_profile_flag() -> None:
     assert "--fill-profile" in result.stdout
     assert "conservative" in result.stdout
     assert "aggressive" in result.stdout
+
+
+def test_cli_exposes_reviewer_grade_command_surface() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "lob_sim.cli", "--help"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    for command in ("capture", "validate", "normalize", "replay", "simulate", "compare", "audit", "bench", "demo"):
+        assert command in result.stdout

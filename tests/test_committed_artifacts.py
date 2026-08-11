@@ -219,7 +219,7 @@ def _valid_simulation_assumptions() -> dict:
         "fill_assumption_profile": "base",
         "fill_assumption": {
             "profile": "base",
-            "depth_reductions_consume_queue": True,
+            "depth_reductions_consume_queue": False,
             "agg_trades_consume_queue": True,
             "overlap_netting_enabled": True,
             "overlap_window_seconds": verifier.EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS,
@@ -227,7 +227,7 @@ def _valid_simulation_assumptions() -> dict:
         },
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,
-        "queue_priority_model": "visible_price_time_fifo",
+        "queue_priority_model": "synthetic_queue_ahead_by_price_level",
         "snapshot_seed": "snapshot queue",
         "depth_increase": "depth increases append",
         "depth_decrease": "depth reductions consume",

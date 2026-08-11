@@ -4,5 +4,9 @@ __pycache__/
 .env
 data/
 outputs/
+target/
+.tooling/
+.cargo-local/
+.rustup-local/
 latest_report.png
 pnl_over_time.png

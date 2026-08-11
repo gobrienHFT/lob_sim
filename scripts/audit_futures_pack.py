@@ -23,7 +23,7 @@ from lob_sim.sim.fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 
 PACK_AUDIT_SCHEMA_VERSION = "lob_sim.futures_pack_audit.v1"
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
-SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
+SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
 FILL_SOURCES = ("depth_update", "agg_trade", "taker_order")
 FILL_ASSUMPTION_PROFILES = ("conservative", "base", "aggressive")
 PUBLIC_CONSUMPTION_SOURCES = ("depth_update", "agg_trade")
@@ -570,7 +570,7 @@ def _audit_simulation_assumptions(path: Path, assumptions: object, issues: list[
         issues.append(f"{_display_path(path)} simulation_assumptions has unexpected data_scope")
     if assumptions.get("private_exchange_execution_reports") is not False:
         issues.append(f"{_display_path(path)} simulation_assumptions must not claim private exchange execution reports")
-    if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
+    if assumptions.get("queue_priority_model") != "synthetic_queue_ahead_by_price_level":
         issues.append(f"{_display_path(path)} simulation_assumptions has unexpected queue priority model")
 
     overlap = assumptions.get("overlap_netting")

@@ -91,6 +91,10 @@ class PassiveFillModel:
     def get_order(self, symbol: str, side: str, quote_slot: str = "base") -> Order | None:
         return self._orders.get((symbol, self._ensure_order_type(side), quote_slot))
 
+    def get_order_by_id(self, order_id: str) -> Order | None:
+        key = self._order_index.get(order_id)
+        return self._orders.get(key) if key is not None else None
+
     def get_orders(self, symbol: str, side: str) -> list[Order]:
         normalized_side = self._ensure_order_type(side)
         orders = [
@@ -342,11 +346,14 @@ class PassiveFillModel:
         return self.queue_ahead_lots(order.symbol, order)
 
     def cancel_order(self, order_id: str) -> None:
+        order = self.get_order_by_id(order_id)
         key = self._order_index.pop(order_id, None)
         self._synthetic_queue_ahead.pop(order_id, None)
         if key is None:
             return
         self._orders.pop(key, None)
+        if order is not None:
+            order.mark_cancelled()
         symbol, _side, _slot = key
         # best effort removal from book (if active map already diverged, still cleanup queue)
         book_side = self._book(symbol)[self._bucket(_side)]
@@ -364,6 +371,20 @@ class PassiveFillModel:
             if order is None:
                 continue
             self._order_index.pop(order.order_id, None)
+            order.mark_cancelled()
+            self._remove_order_from_book(order)
+
+    def invalidate_all_for_symbol(self, symbol: str) -> None:
+        """Terminate live strategy state at a book/sync epoch boundary."""
+
+        keys = [key for key in self._orders if key[0] == symbol]
+        for key in keys:
+            order = self._orders.pop(key, None)
+            if order is None:
+                continue
+            self._order_index.pop(order.order_id, None)
+            self._synthetic_queue_ahead.pop(order.order_id, None)
+            order.mark_epoch_invalidated()
             self._remove_order_from_book(order)
 
     def _consume_front(
@@ -419,6 +440,7 @@ class PassiveFillModel:
                         queue_ahead_lots=queue_ahead,
                         created_ts=head.created_ts,
                         source=source,
+                        scenario_id=f"public_l2:{self.fill_assumption.profile}",
                     )
                 )
 
@@ -426,6 +448,7 @@ class PassiveFillModel:
                     self._orders.pop((symbol, head.side, head.quote_slot), None)
                     self._order_index.pop(head.order_id, None)
                     self._synthetic_queue_ahead.pop(head.order_id, None)
+                    head.mark_filled()
 
             if head.remaining_lots <= 0:
                 queue.popleft()
@@ -515,6 +538,7 @@ class PassiveFillModel:
                         queue_ahead_lots=0,
                         created_ts=order.created_ts,
                         source="taker_order",
+                        scenario_id="public_l2:taker_visible_depth",
                     )
                 )
 
@@ -523,6 +547,7 @@ class PassiveFillModel:
                         self._orders.pop((head.symbol, head.side, head.quote_slot), None)
                         self._order_index.pop(head.order_id, None)
                         self._synthetic_queue_ahead.pop(head.order_id, None)
+                        head.mark_filled()
                     head.active = False
                     queue.popleft()
                 elif not head.is_strategy:
@@ -563,6 +588,7 @@ class PassiveFillModel:
             self._synthetic_queue_ahead.pop(order.order_id, None)
         order.queue_ahead_lots = synthetic_ahead
         order.active = True
+        order.state = "live"
         queue.append(order)
         self._orders[(order.symbol, order.side, order.quote_slot)] = order
         self._order_index[order.order_id] = (order.symbol, order.side, order.quote_slot)

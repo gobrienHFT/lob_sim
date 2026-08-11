@@ -198,12 +198,8 @@ def test_seeded_gap_stream_records_gap_without_applying_bad_depth(
     assert summary["event_counts"]["book_gap_count"] >= 1
     assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": summary["event_counts"]["book_gap_count"]}
     assert engine._syncers["BTCUSDT"].synced is False
-    gap_index = next(
-        index for index, record in enumerate(_generated_records(23, with_gap=True)) if record.data.get("pu") == 116
-    )
-    last_good = _generated_records(23, with_gap=True)[gap_index - 1]
-    assert engine._books["BTCUSDT"].bids[1000] == int(Decimal(last_good.data["b"][0][1]) / Decimal("0.001"))
-    assert engine._books["BTCUSDT"].asks[1002] == int(Decimal(last_good.data["a"][0][1]) / Decimal("0.001"))
+    assert engine._books["BTCUSDT"].bids == {}
+    assert engine._books["BTCUSDT"].asks == {}
 
 
 class _SelfTradeProbeStrategy:

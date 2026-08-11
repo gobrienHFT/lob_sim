@@ -168,7 +168,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
         }
     }
     assert summary["simulation_assumptions"]["private_exchange_execution_reports"] is False
-    assert summary["simulation_assumptions"]["queue_priority_model"] == "visible_price_time_fifo"
+    assert summary["simulation_assumptions"]["queue_priority_model"] == "synthetic_queue_ahead_by_price_level"
     assert "not_private_exchange_fill_truth" in summary["simulation_assumptions"]["limitations"]
     assert summary["public_consumption_summary"] == {
         "overlap_window_seconds": 0.125,
