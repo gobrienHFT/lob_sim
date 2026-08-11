@@ -14,6 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
 STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
+DIFFERENTIAL_RESULTS_DIR = REPO_ROOT / "docs" / "differential_results"
+RUST_PYTHON_PARITY_REPORT = DIFFERENTIAL_RESULTS_DIR / "rust_python_parity_v2.json"
+RUST_PYTHON_PARITY_README = DIFFERENTIAL_RESULTS_DIR / "README.md"
 FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
@@ -195,6 +198,7 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "benchmark_results" / "futures_replay_reference.md",
     REPO_ROOT / "docs" / "reviewer_results_memo.md",
     REPO_ROOT / "docs" / "architecture_decisions.md",
+    RUST_PYTHON_PARITY_README,
     REAL_DATA_RUNBOOK,
     REAL_DATA_RESULTS_TEMPLATE,
     REAL_DATA_RUNS_DIR / "README.md",
@@ -535,6 +539,65 @@ def _verify_markdown_links() -> list[str]:
                 target.relative_to(REPO_ROOT.resolve())
             except ValueError:
                 issues.append(f"Markdown link escapes repository in {_repo_relative(path)}: {link}")
+    return issues
+
+
+def _verify_rust_python_parity_publication() -> list[str]:
+    issues: list[str] = []
+    if not RUST_PYTHON_PARITY_REPORT.exists():
+        return ["Missing docs/differential_results/rust_python_parity_v2.json"]
+    report = json.loads(_read_text(RUST_PYTHON_PARITY_REPORT))
+    required_fields = {
+        "schema_version",
+        "ok",
+        "seed",
+        "book_batches",
+        "accepted_batches",
+        "rejected_batches",
+        "synthetic_operations",
+        "synthetic_accepted_operations",
+        "synthetic_rejected_operations",
+        "synthetic_fill_count",
+        "synthetic_checkpoint_count",
+        "synthetic_checkpoint_interval",
+        "synthetic_operation_corpus_sha256",
+        "synthetic_final_state_sha256",
+        "remaining_full_engine_scope",
+        "full_engine_parity",
+    }
+    missing = sorted(required_fields - set(report))
+    if missing:
+        issues.append("Rust/Python parity report missing field(s): " + ", ".join(missing))
+        return issues
+    if report["schema_version"] != "lob_sim.rust_python_parity.v2" or report["ok"] is not True:
+        issues.append("Rust/Python parity report has an invalid schema or failed status")
+    if report["full_engine_parity"] is not False:
+        issues.append("Rust/Python parity report must not claim full-engine parity")
+    if report["book_batches"] != report["accepted_batches"] + report["rejected_batches"]:
+        issues.append("Rust/Python parity book batch counts do not reconcile")
+    if report["synthetic_operations"] != (
+        report["synthetic_accepted_operations"] + report["synthetic_rejected_operations"]
+    ):
+        issues.append("Rust/Python parity synthetic operation counts do not reconcile")
+    for field in ("synthetic_operation_corpus_sha256", "synthetic_final_state_sha256"):
+        value = report[field]
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            issues.append(f"Rust/Python parity report has invalid {field}")
+    expected_remaining = {
+        "public-L2 execution scenarios",
+        "latency scheduler",
+        "risk reservations",
+        "accounting and markouts",
+        "run manifests",
+    }
+    if set(report["remaining_full_engine_scope"]) != expected_remaining:
+        issues.append("Rust/Python parity report does not disclose the expected remaining scope")
+    for publication, token in (
+        (REPO_ROOT / "README.md", "docs/differential_results/rust_python_parity_v2.json"),
+        (RUST_PYTHON_PARITY_README, "rust_python_parity_v2.json"),
+    ):
+        if token not in _read_text(publication):
+            issues.append(f"{_repo_relative(publication)} does not publish the Rust/Python parity report")
     return issues
 
 
@@ -2827,6 +2890,7 @@ def _verify_artifact_order() -> list[str]:
 def collect_artifact_issues() -> list[str]:
     issues: list[str] = []
     issues.extend(_verify_markdown_links())
+    issues.extend(_verify_rust_python_parity_publication())
     issues.extend(_verify_summary_output_files())
     issues.extend(_verify_manifest_output_artifacts())
     issues.extend(_verify_manifest_source_provenance())
