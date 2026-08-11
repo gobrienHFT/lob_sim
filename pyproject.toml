@@ -31,6 +31,9 @@ dependencies = [
 dev = [
   "maturin>=1.7",
   "mypy>=1.10",
+  # NumPy 2.5 stubs use Python 3.12-only type statements; Mypy targets
+  # the package's declared Python 3.11 compatibility floor.
+  "numpy>=1.25,<2.5",
   "pytest>=8.0",
   "ruff>=0.8",
 ]
