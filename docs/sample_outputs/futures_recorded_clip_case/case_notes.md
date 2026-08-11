@@ -17,10 +17,10 @@
 
 - At `ts_local=1772633474.239`, the ask level at `71600.10` increases from `1` lot to `17` lots
 - At `ts_local=1772633474.341`, the next depth diff reduces that same ask level from `17` lots to `1` lot
-- This is the recorded level reduction that coincides with the simulator's passive ask fill in this clip
+- This is a recorded level reduction. Under the current trade-only execution scenario it is observed for diagnostics but is not also counted as a fill.
 
 ## Passive-Fill Example
 
 - `trades.csv` contains one passive ask fill at `ts_local=1772633474.341`
 - Fill details: side `ask`, price `71600.10`, qty `0.001`, `queue_ahead_lots=0`, `time_in_book_ms=113.13986778259277`
-- This is a top-of-queue fill, not a queue-ahead fill. The recorded clip demonstrates a real recorded level reduction and a passive fill under the public-data inference model
+- This clip demonstrates deterministic reconstruction on a real public-data excerpt. It does not establish a private fill or historical FIFO position.

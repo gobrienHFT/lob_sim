@@ -267,7 +267,7 @@
     "live_profitability": "not_claimed"
   },
   "state_sha256": "27bf478533624d83a8008fc2f5f2a7a334fc4e37540c6f6bcf289ea78e5ee4ff",
-  "run_id": "a920d1d315275e57",
+  "run_id": "4bff5f56800c38f7",
   "input_sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
   "feed_adapter": {
     "name": "binance_usdm",
@@ -291,7 +291,7 @@
     }
   },
   "simulation_assumptions": {
-    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "schema_version": "lob_sim.simulation_assumptions.v2",
     "fill_assumption_profile": "base",
     "fill_assumption": {
       "profile": "base",

@@ -1,13 +1,13 @@
 {
-  "run_id": "a920d1d315275e57",
+  "run_id": "4bff5f56800c38f7",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T07:42:23.763610Z",
+  "created_at_utc": "2026-08-11T08:27:00.461119Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-11T07:42:23.710491Z"
+    "modified_at_utc": "2026-08-11T08:27:00.384966Z"
   },
   "config": {
     "symbols": [
@@ -53,7 +53,7 @@
     "fill_assumption_profile": "base",
     "fill_assumption": {
       "profile": "base",
-      "depth_reductions_consume_queue": true,
+      "depth_reductions_consume_queue": false,
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
@@ -84,11 +84,11 @@
     }
   },
   "simulation_assumptions": {
-    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "schema_version": "lob_sim.simulation_assumptions.v2",
     "fill_assumption_profile": "base",
     "fill_assumption": {
       "profile": "base",
-      "depth_reductions_consume_queue": true,
+      "depth_reductions_consume_queue": false,
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
@@ -124,8 +124,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
-    "git_branch": "master",
+    "git_commit": "31311fdef35391ec39117c8ffad9f1a81215b244",
+    "git_branch": "codex/hft-market-sim",
     "git_dirty": false
   },
   "outputs": {
@@ -140,7 +140,7 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 5580,
       "sha256": "402228b69ee3c702b8d4084d9d69d32cc5f24adda17a8f91965a6aefc0147344",
-      "modified_at_utc": "2026-08-11T07:42:24.101218Z"
+      "modified_at_utc": "2026-08-11T08:27:01.017854Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -148,20 +148,20 @@
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 11716,
-      "sha256": "1a62b09122dedbc6ba7f8b97ee71161cd6a84dde6e972f8962b85de498cf00cb",
-      "modified_at_utc": "2026-08-11T07:42:24.096003Z"
+      "sha256": "5f7d2cad2ff00122cbc118fb57fdbc8fcc50c28a6bdb15b2d475053c5f739455",
+      "modified_at_utc": "2026-08-11T08:27:01.007441Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 9303,
-      "sha256": "ac2454c1d747d694ee28e4b54b74dcbbb9b3b2c70e25b6cad22736fb07205948",
-      "modified_at_utc": "2026-08-11T07:42:24.097461Z"
+      "sha256": "c27e0d69c4ae9da11b2328885d06eb888e5ba49c8273bcd09e3b427b03071cfc",
+      "modified_at_utc": "2026-08-11T08:27:01.010926Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 452,
       "sha256": "dcc1e7bc3ec3b9e85c14426babf3b384a3d6e4ad7e7097ff5276218e5839e589",
-      "modified_at_utc": "2026-08-11T07:42:24.101218Z"
+      "modified_at_utc": "2026-08-11T08:27:01.014558Z"
     }
   },
   "fixture_provenance": {
