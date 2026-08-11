@@ -20,6 +20,7 @@ MYPY_TARGETS = (
     "lob_sim/record",
     "lob_sim/cli.py",
     "lob_sim/config.py",
+    "lob_sim/oracle_kernel.py",
     "lob_sim/util.py",
     "lob_sim/sim/fill_model.py",
     "lob_sim/sim/engine.py",
@@ -99,7 +100,7 @@ def build_reviewer_gate_steps(
                         "--cases",
                         "10000",
                         "--expected",
-                        "docs/differential_results/rust_python_parity_v2.json",
+                        "docs/differential_results/rust_python_parity_v3.json",
                     ),
                 ),
             ]

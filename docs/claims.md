@@ -10,7 +10,7 @@ public evidence should be read using this matrix:
 | Clocks | Schema-v3 logical time is `(recv_monotonic_ns, recv_seq)` and regression is fail-closed. | Measured exchange, network, or colocated latency. |
 | Execution | Public-L2 fills are an explicit scenario envelope with evidence and validity state. | True Binance fills, counterfactual market impact, or true bounds. |
 | Synthetic venue | The synthetic mode has exact participant/order IDs and price-time priority. | Historical Binance FIFO equivalence. |
-| Differential proof | Python and Rust agree on generated fixed-point book batches and exact-synthetic new/cancel/replace lifecycle results, fills and periodic state hashes. | Full-engine parity for public-L2 fills, latency, risk, accounting, markouts or manifests. |
+| Differential proof | Python and Rust agree on generated fixed-point book batches, exact-synthetic new/cancel/replace lifecycles, integer-nanosecond scheduler transitions and per-symbol live-plus-pending lot reservations, including periodic state hashes. | End-to-end engine parity, public-L2 fill parity, portfolio-notional risk parity, accounting/markout parity or manifest parity. |
 | Risk/accounting | Live-plus-pending exposure, post-only arrival checks, fees, gross/net PnL and missing marks are auditable. | Capital deployment, live profitability, or risk-model completeness. |
 | Research | Paired scenario/latency studies can report markouts, uncertainty and robustness. | Alpha after an underpowered or holdout-tuned study. |
 | Performance | Benchmarks document a pinned build, corpus and host. | Trading latency, Jane Street equivalence, or production readiness. |

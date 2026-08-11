@@ -29,6 +29,7 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert "lob_sim/record" in steps[1].command
     assert "lob_sim/cli.py" in steps[1].command
     assert "lob_sim/config.py" in steps[1].command
+    assert "lob_sim/oracle_kernel.py" in steps[1].command
     assert "lob_sim/util.py" in steps[1].command
     assert "lob_sim/sim/engine.py" in steps[1].command
     assert "lob_sim/sim/run_manifest.py" in steps[1].command
@@ -40,7 +41,7 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert steps[6].command[-2:] == ("-D", "warnings")
     assert "scripts/check_rust_python_parity.py" in steps[7].command
     assert "--expected" in steps[7].command
-    assert "docs/differential_results/rust_python_parity_v2.json" in steps[7].command
+    assert "docs/differential_results/rust_python_parity_v3.json" in steps[7].command
     assert steps[8].command == ("python", "scripts/verify_committed_artifacts.py")
     assert steps[9].command == ("git", "diff", "--check")
     assert "scripts/check_futures_determinism.py" in steps[10].command
