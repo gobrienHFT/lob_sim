@@ -73,12 +73,40 @@ def _generated_synthetic_operations(rng: random.Random, cases: int) -> list[Synt
     attempted_order_ids: list[int] = []
     next_order_id = 1
     for _ in range(cases):
-        if attempted_order_ids and rng.randrange(100) < 24:
+        action_draw = rng.randrange(100)
+        if attempted_order_ids and action_draw < 20:
             if rng.randrange(100) < 82:
                 order_id = rng.choice(attempted_order_ids)
             else:
                 order_id = next_order_id + rng.randrange(1, 1000)
             operations.append((1, order_id, 0, True, None, 0, False, False))
+            continue
+        if attempted_order_ids and action_draw < 34:
+            if rng.randrange(100) < 82:
+                order_id = rng.choice(attempted_order_ids)
+            else:
+                order_id = next_order_id + rng.randrange(1, 1000)
+            if rng.randrange(100) < 24:
+                new_order_id = rng.choice(attempted_order_ids)
+            else:
+                new_order_id = next_order_id
+                next_order_id += 1
+                attempted_order_ids.append(new_order_id)
+            replace_price = 0 if rng.randrange(100) < 7 else rng.randrange(97, 106)
+            replace_quantity_draw = rng.randrange(100)
+            replace_qty = 0 if replace_quantity_draw < 5 else (-1 if replace_quantity_draw < 7 else rng.randrange(1, 6))
+            operations.append(
+                (
+                    2,
+                    order_id,
+                    new_order_id,
+                    True,
+                    replace_price,
+                    replace_qty,
+                    rng.randrange(100) < 24,
+                    False,
+                )
+            )
             continue
 
         if attempted_order_ids and rng.randrange(100) < 12:
@@ -134,6 +162,16 @@ def _python_synthetic_trace(
             )
         elif kind == 1:
             result = exchange.cancel(str(order_id), time=logical_time)
+        elif kind == 2:
+            assert price_tick is not None
+            result = exchange.replace(
+                str(order_id),
+                new_order_id=str(participant_id),
+                price_tick=price_tick,
+                qty_lots=qty_lots,
+                post_only=post_only,
+                time=logical_time,
+            )
         else:
             raise ValueError(f"unsupported synthetic operation kind: {kind}")
         reason = None
@@ -256,6 +294,11 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     synthetic_checkpoint_count = sum(1 for row in python_trace if row[4] is not None)
     synthetic_final_hash = python_trace[-1][4]
     assert synthetic_final_hash is not None
+    synthetic_operation_kind_counts = {
+        "new": sum(1 for operation in operations if operation[0] == 0),
+        "cancel": sum(1 for operation in operations if operation[0] == 1),
+        "replace": sum(1 for operation in operations if operation[0] == 2),
+    }
 
     return {
         "schema_version": "lob_sim.rust_python_parity.v2",
@@ -268,6 +311,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "rejected_batches": rejected_batches,
         "final_state_sha256": final_hash,
         "synthetic_operations": len(operations),
+        "synthetic_operation_kind_counts": synthetic_operation_kind_counts,
         "synthetic_operation_corpus_sha256": operation_corpus_sha256,
         "synthetic_checkpoint_interval": SYNTHETIC_CHECKPOINT_INTERVAL,
         "synthetic_accepted_operations": synthetic_accepted,
@@ -277,7 +321,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "synthetic_final_state_sha256": synthetic_final_hash,
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
-            "MBO new/cancel lifecycle with fills and periodic full-state hashes"
+            "MBO new/cancel/replace lifecycle with fills and periodic full-state hashes"
         ),
         "remaining_full_engine_scope": [
             "public-L2 execution scenarios",

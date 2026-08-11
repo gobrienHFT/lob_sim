@@ -25,7 +25,7 @@ are never mixed into a claim-ready markout report.
 retain an unbounded event list; a CSV trace is an explicit audit choice.
 
 The current cross-language differential boundary covers logical-time and
-fixed-point book primitives plus exact-synthetic MBO new/cancel lifecycle
+fixed-point book primitives plus exact-synthetic MBO new/cancel/replace lifecycle
 results, fills and periodic full-state hashes. It does not yet cover the
 public-L2 scenario venue, latency scheduler, risk reservations, accounting,
 markouts or run manifests; parity artifacts keep `full_engine_parity=false`

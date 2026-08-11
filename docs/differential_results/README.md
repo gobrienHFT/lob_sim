@@ -6,7 +6,8 @@ Python oracle and the Rust kernel over:
 
 - 10,000 logical-time cases;
 - 10,000 generated atomic fixed-point book batches, including invalid batches;
-- 10,000 generated exact-synthetic MBO new/cancel operations;
+- 10,000 generated exact-synthetic MBO operations (6,633 new, 1,895 cancel,
+  and 1,472 replace);
 - every lifecycle result and fill from those synthetic operations; and
 - 39 independently computed full-state hash checkpoints.
 

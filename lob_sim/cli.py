@@ -73,7 +73,20 @@ class _EnvelopeRecordWriter:
 
     def write(self, record: NDJSONRecord) -> None:
         capture_value = record.data.get("_capture")
-        capture = capture_value if isinstance(capture_value, Mapping) else {}
+        if isinstance(capture_value, Mapping):
+            capture = capture_value
+        elif record.type == "captureEvent":
+            # Early schema-v3 prototypes placed connection metadata directly
+            # on captureEvent payloads.  Preserve those receipt identities
+            # rather than silently assigning a second sequence and routing the
+            # event as generic control traffic.
+            capture = {
+                key: record.data[key]
+                for key in ("recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch", "route")
+                if key in record.data
+            }
+        else:
+            capture = {}
         recv_seq = int(capture["recvSeq"]) if capture.get("recvSeq") is not None else self.next_receive_seq()
         event_ms = record.data.get("E")
         transaction_ms = record.data.get("T")
@@ -120,6 +133,7 @@ async def _write_snapshot(
     writer: _RecordWriter,
     *,
     sync_epoch: int = 0,
+    stream_epoch: int = 0,
     reason: str = "bootstrap",
     accepted: bool = True,
     validation_error: str | None = None,
@@ -134,7 +148,9 @@ async def _write_snapshot(
     capture = {
         "recvSeq": next_receive_seq() if next_receive_seq is not None else None,
         "recvMonotonicNs": time.monotonic_ns(),
+        "streamEpoch": stream_epoch,
         "syncEpoch": sync_epoch,
+        "route": "public",
         "reason": reason,
         "snapshotAccepted": accepted,
     }
@@ -212,6 +228,8 @@ async def _collect_symbol(
     last_depth_stream_epoch: int | None = None
 
     async def _record_connection(route: str, stream_epoch: int) -> None:
+        recv_seq = receive_sequence()
+        recv_monotonic_ns = time.monotonic_ns()
         writer.write(
             NDJSONRecord(
                 ts_local=time.time(),
@@ -221,19 +239,27 @@ async def _collect_symbol(
                     "event": "connect",
                     "route": route,
                     "streamEpoch": stream_epoch,
-                    "recvSeq": receive_sequence(),
-                    "recvMonotonicNs": time.monotonic_ns(),
+                    "syncEpoch": sync.epoch,
+                    "recvSeq": recv_seq,
+                    "recvMonotonicNs": recv_monotonic_ns,
+                    "_capture": {
+                        "route": route,
+                        "streamEpoch": stream_epoch,
+                        "syncEpoch": sync.epoch,
+                        "recvSeq": recv_seq,
+                        "recvMonotonicNs": recv_monotonic_ns,
+                    },
                 },
             )
         )
 
     async def on_depth_connect(stream_epoch: int) -> None:
         nonlocal last_depth_stream_epoch, snapshot_reason
-        await _record_connection("public", stream_epoch)
         if last_depth_stream_epoch is not None and stream_epoch != last_depth_stream_epoch:
             sync.begin_resync("depth_stream_reconnect")
             snapshot_reason = "reconnect"
         last_depth_stream_epoch = stream_epoch
+        await _record_connection("public", stream_epoch)
         snapshot_requested.set()
 
     async def on_trade_connect(stream_epoch: int) -> None:
@@ -315,6 +341,7 @@ async def _collect_symbol(
                         snapshot_data,
                         writer,
                         sync_epoch=requested_epoch,
+                        stream_epoch=last_depth_stream_epoch or 0,
                         reason=requested_reason,
                         accepted=False,
                         validation_error=str(exc),
@@ -335,6 +362,7 @@ async def _collect_symbol(
                     snapshot_data,
                     writer,
                     sync_epoch=requested_epoch,
+                    stream_epoch=last_depth_stream_epoch or 0,
                     reason=requested_reason,
                     accepted=True,
                     next_receive_seq=receive_sequence,

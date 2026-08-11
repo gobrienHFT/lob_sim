@@ -32,7 +32,7 @@ def test_generated_synthetic_operations_are_seeded_and_mixed() -> None:
 
     assert first == second
     assert len(first) == 500
-    assert {operation[0] for operation in first} == {0, 1}
+    assert {operation[0] for operation in first} == {0, 1, 2}
     assert any(operation[4] is None for operation in first if operation[0] == 0)
     assert any(operation[5] <= 0 for operation in first if operation[0] == 0)
 
@@ -42,7 +42,9 @@ def test_python_synthetic_trace_reports_lifecycle_fills_and_checkpoints() -> Non
         (0, 1, 10, False, 101, 2, True, False),
         (0, 2, 20, False, 101, 2, True, False),
         (0, 3, 30, True, 101, 3, False, True),
-        (1, 2, 0, True, None, 0, False, False),
+        (2, 2, 4, True, 102, 1, True, False),
+        (2, 4, 5, True, 0, 1, False, False),
+        (1, 4, 0, True, None, 0, False, False),
         (0, 1, 40, True, 100, 1, False, False),
         (1, 999, 0, True, None, 0, False, False),
     ]
@@ -51,7 +53,9 @@ def test_python_synthetic_trace_reports_lifecycle_fills_and_checkpoints() -> Non
 
     assert trace[2][0:3] == (True, "filled", None)
     assert trace[2][3] == [(1, 3, 101, 2), (2, 3, 101, 1)]
-    assert trace[3][0:3] == (True, "cancelled", None)
-    assert trace[4][0:3] == (False, "rejected", "duplicate_order_id")
-    assert trace[5][0:3] == (False, "rejected", "unknown_order")
-    assert [index for index, row in enumerate(trace, start=1) if row[4] is not None] == [2, 4, 6]
+    assert trace[3][0:3] == (True, "live", None)
+    assert trace[4][0:3] == (False, "live", "invalid_price")
+    assert trace[5][0:3] == (True, "cancelled", None)
+    assert trace[6][0:3] == (False, "rejected", "duplicate_order_id")
+    assert trace[7][0:3] == (False, "rejected", "unknown_order")
+    assert [index for index, row in enumerate(trace, start=1) if row[4] is not None] == [2, 4, 6, 8]

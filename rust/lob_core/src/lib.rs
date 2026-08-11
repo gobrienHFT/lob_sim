@@ -233,6 +233,28 @@ impl SyntheticExchange {
         immediate_or_cancel: bool,
     ) -> SubmitResult {
         self.sequence += 1;
+        self.submit_current(
+            order_id,
+            participant_id,
+            side,
+            price_tick,
+            qty_lots,
+            post_only,
+            immediate_or_cancel,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn submit_current(
+        &mut self,
+        order_id: u64,
+        participant_id: u64,
+        side: Side,
+        price_tick: Option<i64>,
+        qty_lots: i64,
+        post_only: bool,
+        immediate_or_cancel: bool,
+    ) -> SubmitResult {
         if self.orders.contains_key(&order_id) {
             return SubmitResult {
                 accepted: false,
@@ -372,6 +394,10 @@ impl SyntheticExchange {
 
     pub fn cancel(&mut self, order_id: u64) -> bool {
         self.sequence += 1;
+        self.cancel_current(order_id)
+    }
+
+    fn cancel_current(&mut self, order_id: u64) -> bool {
         let Some(order) = self.orders.get(&order_id) else {
             return false;
         };
@@ -397,6 +423,87 @@ impl SyntheticExchange {
             .expect("order must exist")
             .state = OrderState::Cancelled;
         true
+    }
+
+    pub fn replace(
+        &mut self,
+        order_id: u64,
+        new_order_id: u64,
+        price_tick: Option<i64>,
+        qty_lots: i64,
+        post_only: bool,
+    ) -> SubmitResult {
+        self.sequence += 1;
+        let Some(existing) = self.orders.get(&order_id) else {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Rejected,
+                reason: Some("unknown_order"),
+                fills: Vec::new(),
+            };
+        };
+        if existing.state != OrderState::Live {
+            return SubmitResult {
+                accepted: false,
+                state: existing.state,
+                reason: Some("order_not_live"),
+                fills: Vec::new(),
+            };
+        }
+        let participant_id = existing.participant_id;
+        let side = existing.side;
+        if qty_lots <= 0 {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Live,
+                reason: Some("invalid_quantity"),
+                fills: Vec::new(),
+            };
+        }
+        if price_tick.is_some_and(|price| price <= 0) {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Live,
+                reason: Some("invalid_price"),
+                fills: Vec::new(),
+            };
+        }
+        if price_tick.is_none() {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Live,
+                reason: Some("market_order_requires_ioc"),
+                fills: Vec::new(),
+            };
+        }
+        if self.orders.contains_key(&new_order_id) {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Live,
+                reason: Some("duplicate_order_id"),
+                fills: Vec::new(),
+            };
+        }
+        if post_only && self.crosses(side, price_tick) {
+            return SubmitResult {
+                accepted: false,
+                state: OrderState::Live,
+                reason: Some("post_only_would_cross"),
+                fills: Vec::new(),
+            };
+        }
+
+        let cancelled = self.cancel_current(order_id);
+        debug_assert!(cancelled);
+        self.submit_current(
+            new_order_id,
+            participant_id,
+            side,
+            price_tick,
+            qty_lots,
+            post_only,
+            false,
+        )
     }
 
     #[must_use]
@@ -497,9 +604,10 @@ fn apply_book_batch(
 ///
 /// Operation tuples are `(kind, order_id, participant_id, is_bid,
 /// price_tick, qty_lots, post_only, immediate_or_cancel)`, where kind `0` is
-/// submit and kind `1` is cancel.  The returned row contains the lifecycle
-/// result, fills, and a periodic full-state hash.  This remains synthetic
-/// exchange scope and does not imply historical venue FIFO knowledge.
+/// submit, kind `1` is cancel, and kind `2` is replace (using participant_id as
+/// the new order ID). The returned row contains the lifecycle result, fills,
+/// and a periodic full-state hash. This remains synthetic exchange scope and
+/// does not imply historical venue FIFO knowledge.
 #[cfg(feature = "python")]
 #[pyo3::pyfunction]
 fn run_synthetic_trace(
@@ -575,6 +683,28 @@ fn run_synthetic_trace(
                     ),
                 }
             }
+            2 => {
+                let result =
+                    exchange.replace(order_id, participant_id, price_tick, qty_lots, post_only);
+                let fills = result
+                    .fills
+                    .into_iter()
+                    .map(|fill| {
+                        (
+                            fill.maker_order_id,
+                            fill.taker_order_id,
+                            fill.price_tick,
+                            fill.qty_lots,
+                        )
+                    })
+                    .collect();
+                (
+                    result.accepted,
+                    result.state.as_str().to_owned(),
+                    result.reason.map(str::to_owned),
+                    fills,
+                )
+            }
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "unsupported synthetic operation kind: {kind}"
@@ -604,6 +734,8 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use super::{BookState, OrderState, Side, SyntheticExchange};
 
     #[test]
@@ -696,5 +828,34 @@ mod tests {
             Some("market_order_cannot_be_post_only")
         );
         assert_eq!(exchange.state_sha256(), before);
+    }
+
+    #[test]
+    fn replace_is_atomic_and_loses_time_priority() {
+        let mut exchange = SyntheticExchange::default();
+        exchange.submit(1, 10, Side::Bid, Some(100), 1, true, false);
+        exchange.submit(2, 20, Side::Bid, Some(100), 1, true, false);
+
+        let invalid = exchange.replace(1, 3, Some(0), 1, false);
+        assert!(!invalid.accepted);
+        assert_eq!(invalid.state, OrderState::Live);
+        assert_eq!(invalid.reason, Some("invalid_price"));
+        assert_eq!(
+            exchange.bids.get(&100).expect("bid queue"),
+            &VecDeque::from([1, 2])
+        );
+
+        let replaced = exchange.replace(1, 3, Some(100), 1, false);
+        assert!(replaced.accepted);
+        assert_eq!(replaced.state, OrderState::Live);
+        assert_eq!(
+            exchange.bids.get(&100).expect("bid queue"),
+            &VecDeque::from([2, 3])
+        );
+        assert_eq!(
+            exchange.order(1).expect("old order").state,
+            OrderState::Cancelled
+        );
+        assert_eq!(exchange.order(3).expect("new order").arrival_sequence, 4);
     }
 }
