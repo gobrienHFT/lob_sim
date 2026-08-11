@@ -13,6 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Sequence
 
+from lob_sim.oracle_kernel import DeterministicSchedulerOracle, OracleDecision, RiskReservationOracle
 from lob_sim.record.envelope import LogicalTime
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 
@@ -21,6 +22,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SYNTHETIC_CHECKPOINT_INTERVAL = 257
 
 SyntheticOperation = tuple[int, int, int, bool, int | None, int, bool, bool]
+SchedulerOperation = tuple[int, int, int, int, bool]
+RiskOperation = tuple[int, int, bool, int]
 
 
 def _python_apply_batch(
@@ -196,6 +199,177 @@ def _python_synthetic_trace(
     return rows
 
 
+def _generated_scheduler_operations(rng: random.Random, cases: int) -> list[SchedulerOperation]:
+    operations: list[SchedulerOperation] = []
+    attempted_action_ids: list[int] = []
+    next_action_id = 1
+    structured_target = cases // 2
+    while len(operations) + 6 <= structured_target:
+        first_id = next_action_id
+        second_id = next_action_id + 1
+        next_action_id += 2
+        attempted_action_ids.extend((first_id, second_id))
+        due_ns = 10_000 + len(operations)
+        operations.extend(
+            [
+                (0, first_id, due_ns, 7, False),
+                (0, second_id, due_ns, 7, False),
+                (1, 0, due_ns, 7, False),
+                (2, first_id, 0, 0, False),
+                (1, 0, due_ns, 7, True),
+                (0, first_id, due_ns + 1, 8, False),
+            ]
+        )
+    while len(operations) < cases:
+        draw = rng.randrange(100)
+        monotonic_ns = rng.randrange(0, max(10, cases // 2))
+        recv_seq = rng.randrange(0, 64)
+        if draw < 55:
+            if attempted_action_ids and rng.randrange(100) < 16:
+                action_id = rng.choice(attempted_action_ids)
+            else:
+                action_id = next_action_id
+                next_action_id += 1
+                attempted_action_ids.append(action_id)
+            operations.append((0, action_id, monotonic_ns, recv_seq, False))
+        elif draw < 84:
+            operations.append((1, 0, monotonic_ns, recv_seq, bool(rng.randrange(2))))
+        else:
+            action_id = (
+                rng.choice(attempted_action_ids)
+                if attempted_action_ids and rng.randrange(100) < 82
+                else next_action_id + rng.randrange(1, 1000)
+            )
+            operations.append((2, action_id, 0, 0, False))
+    return operations
+
+
+def _python_scheduler_trace(
+    operations: list[SchedulerOperation],
+    *,
+    checkpoint_interval: int,
+) -> list[tuple[bool, str | None, list[int], int, str | None]]:
+    scheduler = DeterministicSchedulerOracle()
+    rows: list[tuple[bool, str | None, list[int], int, str | None]] = []
+    for index, (kind, action_id, monotonic_ns, recv_seq, inclusive) in enumerate(operations):
+        time = LogicalTime(monotonic_ns, recv_seq)
+        drained: list[int] = []
+        if kind == 0:
+            decision = scheduler.schedule(action_id, time)
+        elif kind == 1:
+            drained = list(scheduler.drain(time, inclusive=inclusive))
+            decision = OracleDecision(True)
+        elif kind == 2:
+            decision = scheduler.cancel(action_id)
+        else:
+            raise ValueError(f"unsupported scheduler operation kind: {kind}")
+        ordinal = index + 1
+        checkpoint = (
+            scheduler.state_sha256() if ordinal % checkpoint_interval == 0 or ordinal == len(operations) else None
+        )
+        rows.append((decision.accepted, decision.reason, drained, scheduler.pending_count, checkpoint))
+    return rows
+
+
+def _generated_risk_operations(rng: random.Random, cases: int) -> list[RiskOperation]:
+    operations: list[RiskOperation] = []
+    attempted_order_ids: list[int] = []
+    next_order_id = 1
+    structured_target = cases // 2
+    while len(operations) + 9 <= structured_target:
+        bid_id = next_order_id
+        ask_id = next_order_id + 1
+        next_order_id += 2
+        attempted_order_ids.extend((bid_id, ask_id))
+        operations.extend(
+            [
+                (4, 0, False, 0),
+                (0, bid_id, True, 2),
+                (1, bid_id, False, 0),
+                (3, bid_id, False, 1),
+                (2, bid_id, False, 0),
+                (0, ask_id, False, 2),
+                (1, ask_id, False, 0),
+                (3, ask_id, False, 1),
+                (2, ask_id, False, 0),
+            ]
+        )
+    while len(operations) < cases:
+        draw = rng.randrange(100)
+        if draw < 50:
+            if attempted_order_ids and rng.randrange(100) < 14:
+                order_id = rng.choice(attempted_order_ids)
+            else:
+                order_id = next_order_id
+                next_order_id += 1
+                attempted_order_ids.append(order_id)
+            quantity_draw = rng.randrange(100)
+            qty_lots = 0 if quantity_draw < 5 else (-1 if quantity_draw < 7 else rng.randrange(1, 11))
+            operations.append((0, order_id, bool(rng.randrange(2)), qty_lots))
+        elif draw < 66:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 82
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            operations.append((1, order_id, False, 0))
+        elif draw < 79:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 82
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            operations.append((2, order_id, False, 0))
+        elif draw < 97:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 86
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            quantity_draw = rng.randrange(100)
+            qty_lots = 0 if quantity_draw < 5 else (-1 if quantity_draw < 7 else rng.randrange(1, 11))
+            operations.append((3, order_id, False, qty_lots))
+        else:
+            operations.append((4, 0, False, 0))
+    return operations
+
+
+def _python_risk_trace(
+    operations: list[RiskOperation],
+    *,
+    max_position_lots: int,
+    checkpoint_interval: int,
+) -> list[tuple[bool, str | None, int, int, int, str | None]]:
+    ledger = RiskReservationOracle(max_position_lots)
+    rows: list[tuple[bool, str | None, int, int, int, str | None]] = []
+    for index, (kind, order_id, is_bid, qty_lots) in enumerate(operations):
+        if kind == 0:
+            decision = ledger.reserve(order_id, is_bid=is_bid, qty_lots=qty_lots)
+        elif kind == 1:
+            decision = ledger.request_cancel(order_id)
+        elif kind == 2:
+            decision = ledger.cancel_ack(order_id)
+        elif kind == 3:
+            decision = ledger.fill(order_id, qty_lots)
+        elif kind == 4:
+            decision = ledger.invalidate_epoch()
+        else:
+            raise ValueError(f"unsupported risk operation kind: {kind}")
+        ordinal = index + 1
+        checkpoint = ledger.state_sha256() if ordinal % checkpoint_interval == 0 or ordinal == len(operations) else None
+        rows.append(
+            (
+                decision.accepted,
+                decision.reason,
+                ledger.position_lots,
+                ledger.reserved_buy_lots,
+                ledger.reserved_sell_lots,
+                checkpoint,
+            )
+        )
+    return rows
+
+
 def _build_extension(cargo: str, directory: Path) -> Path:
     environment = dict(os.environ)
     cargo_path = Path(cargo)
@@ -294,14 +468,106 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     synthetic_checkpoint_count = sum(1 for row in python_trace if row[4] is not None)
     synthetic_final_hash = python_trace[-1][4]
     assert synthetic_final_hash is not None
+    synthetic_trace_sha256 = hashlib.sha256(json.dumps(python_trace, separators=(",", ":")).encode("utf-8")).hexdigest()
     synthetic_operation_kind_counts = {
         "new": sum(1 for operation in operations if operation[0] == 0),
         "cancel": sum(1 for operation in operations if operation[0] == 1),
         "replace": sum(1 for operation in operations if operation[0] == 2),
     }
 
+    scheduler_operations = _generated_scheduler_operations(rng, cases)
+    scheduler_corpus_sha256 = hashlib.sha256(
+        json.dumps(scheduler_operations, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    python_scheduler_trace = _python_scheduler_trace(
+        scheduler_operations,
+        checkpoint_interval=SYNTHETIC_CHECKPOINT_INTERVAL,
+    )
+    rust_scheduler_trace = list(lob_core.run_scheduler_trace(scheduler_operations, SYNTHETIC_CHECKPOINT_INTERVAL))
+    if len(rust_scheduler_trace) != len(python_scheduler_trace):
+        raise AssertionError(
+            f"scheduler trace length differs: python={len(python_scheduler_trace)}, rust={len(rust_scheduler_trace)}"
+        )
+    for index, (python_row, rust_row) in enumerate(zip(python_scheduler_trace, rust_scheduler_trace, strict=True)):
+        if python_row != rust_row:
+            raise AssertionError(
+                "scheduler divergence at operation "
+                f"{index}: operation={scheduler_operations[index]!r}, python={python_row!r}, rust={rust_row!r}"
+            )
+    scheduler_accepted = sum(1 for row in python_scheduler_trace if row[0])
+    scheduler_drained = sum(len(row[2]) for row in python_scheduler_trace)
+    scheduler_checkpoint_count = sum(1 for row in python_scheduler_trace if row[4] is not None)
+    scheduler_final_hash = python_scheduler_trace[-1][4]
+    assert scheduler_final_hash is not None
+    scheduler_trace_sha256 = hashlib.sha256(
+        json.dumps(python_scheduler_trace, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    scheduler_operation_kind_counts = {
+        "schedule": sum(1 for operation in scheduler_operations if operation[0] == 0),
+        "drain": sum(1 for operation in scheduler_operations if operation[0] == 1),
+        "cancel": sum(1 for operation in scheduler_operations if operation[0] == 2),
+    }
+    scheduler_accepted_operation_kind_counts = {
+        name: sum(
+            1
+            for operation, row in zip(scheduler_operations, python_scheduler_trace, strict=True)
+            if operation[0] == kind and row[0]
+        )
+        for name, kind in (("schedule", 0), ("drain", 1), ("cancel", 2))
+    }
+
+    risk_max_position_lots = 25
+    risk_operations = _generated_risk_operations(rng, cases)
+    risk_corpus_sha256 = hashlib.sha256(json.dumps(risk_operations, separators=(",", ":")).encode("utf-8")).hexdigest()
+    python_risk_trace = _python_risk_trace(
+        risk_operations,
+        max_position_lots=risk_max_position_lots,
+        checkpoint_interval=SYNTHETIC_CHECKPOINT_INTERVAL,
+    )
+    rust_risk_trace = list(
+        lob_core.run_risk_trace(
+            risk_operations,
+            risk_max_position_lots,
+            SYNTHETIC_CHECKPOINT_INTERVAL,
+        )
+    )
+    if len(rust_risk_trace) != len(python_risk_trace):
+        raise AssertionError(f"risk trace length differs: python={len(python_risk_trace)}, rust={len(rust_risk_trace)}")
+    for index, (python_row, rust_row) in enumerate(zip(python_risk_trace, rust_risk_trace, strict=True)):
+        if python_row != rust_row:
+            raise AssertionError(
+                "risk reservation divergence at operation "
+                f"{index}: operation={risk_operations[index]!r}, python={python_row!r}, rust={rust_row!r}"
+            )
+    risk_accepted = sum(1 for row in python_risk_trace if row[0])
+    risk_checkpoint_count = sum(1 for row in python_risk_trace if row[5] is not None)
+    risk_final_hash = python_risk_trace[-1][5]
+    assert risk_final_hash is not None
+    risk_trace_sha256 = hashlib.sha256(json.dumps(python_risk_trace, separators=(",", ":")).encode("utf-8")).hexdigest()
+    risk_operation_kind_counts = {
+        "reserve": sum(1 for operation in risk_operations if operation[0] == 0),
+        "request_cancel": sum(1 for operation in risk_operations if operation[0] == 1),
+        "cancel_ack": sum(1 for operation in risk_operations if operation[0] == 2),
+        "fill": sum(1 for operation in risk_operations if operation[0] == 3),
+        "epoch_invalidate": sum(1 for operation in risk_operations if operation[0] == 4),
+    }
+    risk_accepted_operation_kind_counts = {
+        name: sum(
+            1
+            for operation, row in zip(risk_operations, python_risk_trace, strict=True)
+            if operation[0] == kind and row[0]
+        )
+        for name, kind in (
+            ("reserve", 0),
+            ("request_cancel", 1),
+            ("cancel_ack", 2),
+            ("fill", 3),
+            ("epoch_invalidate", 4),
+        )
+    }
+
     return {
-        "schema_version": "lob_sim.rust_python_parity.v2",
+        "schema_version": "lob_sim.rust_python_parity.v3",
         "ok": True,
         "seed": 17,
         "logical_time_cases": logical_time_cases,
@@ -313,20 +579,44 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "synthetic_operations": len(operations),
         "synthetic_operation_kind_counts": synthetic_operation_kind_counts,
         "synthetic_operation_corpus_sha256": operation_corpus_sha256,
+        "synthetic_trace_sha256": synthetic_trace_sha256,
         "synthetic_checkpoint_interval": SYNTHETIC_CHECKPOINT_INTERVAL,
         "synthetic_accepted_operations": synthetic_accepted,
         "synthetic_rejected_operations": len(operations) - synthetic_accepted,
         "synthetic_fill_count": synthetic_fill_count,
         "synthetic_checkpoint_count": synthetic_checkpoint_count,
         "synthetic_final_state_sha256": synthetic_final_hash,
+        "scheduler_operations": len(scheduler_operations),
+        "scheduler_operation_kind_counts": scheduler_operation_kind_counts,
+        "scheduler_accepted_operation_kind_counts": scheduler_accepted_operation_kind_counts,
+        "scheduler_operation_corpus_sha256": scheduler_corpus_sha256,
+        "scheduler_trace_sha256": scheduler_trace_sha256,
+        "scheduler_accepted_operations": scheduler_accepted,
+        "scheduler_rejected_operations": len(scheduler_operations) - scheduler_accepted,
+        "scheduler_drained_actions": scheduler_drained,
+        "scheduler_checkpoint_count": scheduler_checkpoint_count,
+        "scheduler_final_state_sha256": scheduler_final_hash,
+        "risk_operations": len(risk_operations),
+        "risk_operation_kind_counts": risk_operation_kind_counts,
+        "risk_accepted_operation_kind_counts": risk_accepted_operation_kind_counts,
+        "risk_operation_corpus_sha256": risk_corpus_sha256,
+        "risk_trace_sha256": risk_trace_sha256,
+        "risk_accepted_operations": risk_accepted,
+        "risk_rejected_operations": len(risk_operations) - risk_accepted,
+        "risk_checkpoint_count": risk_checkpoint_count,
+        "risk_max_position_lots": risk_max_position_lots,
+        "risk_final_position_lots": python_risk_trace[-1][2],
+        "risk_final_reserved_buy_lots": python_risk_trace[-1][3],
+        "risk_final_reserved_sell_lots": python_risk_trace[-1][4],
+        "risk_final_state_sha256": risk_final_hash,
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
-            "MBO new/cancel/replace lifecycle with fills and periodic full-state hashes"
+            "MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol "
+            "live-plus-pending lot reservations, with transition traces and periodic full-state hashes"
         ),
         "remaining_full_engine_scope": [
             "public-L2 execution scenarios",
-            "latency scheduler",
-            "risk reservations",
+            "engine-integrated latency and portfolio risk",
             "accounting and markouts",
             "run manifests",
         ],

@@ -1,0 +1,76 @@
+{
+  "accepted_batches": 3202,
+  "book_batches": 10000,
+  "final_state_sha256": "d08345b1e5b0d9d7046d83a45ee99804008e67dabed50c7e971b69daa58592e4",
+  "full_engine_parity": false,
+  "logical_time_cases": 10000,
+  "ok": true,
+  "rejected_batches": 6798,
+  "remaining_full_engine_scope": [
+    "public-L2 execution scenarios",
+    "engine-integrated latency and portfolio risk",
+    "accounting and markouts",
+    "run manifests"
+  ],
+  "risk_accepted_operation_kind_counts": {
+    "cancel_ack": 1110,
+    "epoch_invalidate": 704,
+    "fill": 1110,
+    "request_cancel": 1112,
+    "reserve": 2101
+  },
+  "risk_accepted_operations": 6137,
+  "risk_checkpoint_count": 39,
+  "risk_final_position_lots": 0,
+  "risk_final_reserved_buy_lots": 1,
+  "risk_final_reserved_sell_lots": 3,
+  "risk_final_state_sha256": "b7abb8fbcc4af80a022d68e780d6fb825d76fbee086be754dd36c107c716c10f",
+  "risk_max_position_lots": 25,
+  "risk_operation_corpus_sha256": "8a8db4cd5d5ffd569d48b90c64c37fb2788918986113e237f3f65fdc545b0099",
+  "risk_operation_kind_counts": {
+    "cancel_ack": 1736,
+    "epoch_invalidate": 704,
+    "fill": 2009,
+    "request_cancel": 1923,
+    "reserve": 3628
+  },
+  "risk_operations": 10000,
+  "risk_rejected_operations": 3863,
+  "risk_trace_sha256": "977c2719a75d33ff8777672a8096027c1fe9333b75fd362e39ec542da878b557",
+  "scheduler_accepted_operation_kind_counts": {
+    "cancel": 836,
+    "drain": 3098,
+    "schedule": 3995
+  },
+  "scheduler_accepted_operations": 7929,
+  "scheduler_checkpoint_count": 39,
+  "scheduler_drained_actions": 3140,
+  "scheduler_final_state_sha256": "ff90789bf7a9c33a370fc21b32aca2b3f2166dc0cbcd89626b31a1850ec05781",
+  "scheduler_operation_corpus_sha256": "ddae311fec4b5b1bfc9c56a662e5a4eb988cdc207a99f21cf79679c81c0b2cfb",
+  "scheduler_operation_kind_counts": {
+    "cancel": 1626,
+    "drain": 3098,
+    "schedule": 5276
+  },
+  "scheduler_operations": 10000,
+  "scheduler_rejected_operations": 2071,
+  "scheduler_trace_sha256": "7207edb898467b8e5640dd8ae89f9f5a5874ea7301055b62d3fe26f7b1600c11",
+  "schema_version": "lob_sim.rust_python_parity.v3",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, with transition traces and periodic full-state hashes",
+  "seed": 17,
+  "synthetic_accepted_operations": 4772,
+  "synthetic_checkpoint_count": 39,
+  "synthetic_checkpoint_interval": 257,
+  "synthetic_fill_count": 2102,
+  "synthetic_final_state_sha256": "ed6cdbab19cd009f3041235b3de78fc585f137cebb53dd3acd3caa61595d34ad",
+  "synthetic_operation_corpus_sha256": "d98b0fc37d6822ece78142d0581eee05ce4f70c880b8fc3c803b89f31b85a4f3",
+  "synthetic_operation_kind_counts": {
+    "cancel": 1895,
+    "new": 6633,
+    "replace": 1472
+  },
+  "synthetic_operations": 10000,
+  "synthetic_rejected_operations": 5228,
+  "synthetic_trace_sha256": "6e4497dddaaaff65099e6c7dc5a116e1eed0a9c1b1d494d00ad0301a5a787830",
+  "uncrossed_cases": 10000
+}

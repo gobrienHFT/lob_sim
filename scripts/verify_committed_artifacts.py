@@ -15,7 +15,7 @@ SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
 STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
 DIFFERENTIAL_RESULTS_DIR = REPO_ROOT / "docs" / "differential_results"
-RUST_PYTHON_PARITY_REPORT = DIFFERENTIAL_RESULTS_DIR / "rust_python_parity_v2.json"
+RUST_PYTHON_PARITY_REPORT = DIFFERENTIAL_RESULTS_DIR / "rust_python_parity_v3.json"
 RUST_PYTHON_PARITY_README = DIFFERENTIAL_RESULTS_DIR / "README.md"
 FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
@@ -545,7 +545,7 @@ def _verify_markdown_links() -> list[str]:
 def _verify_rust_python_parity_publication() -> list[str]:
     issues: list[str] = []
     if not RUST_PYTHON_PARITY_REPORT.exists():
-        return ["Missing docs/differential_results/rust_python_parity_v2.json"]
+        return ["Missing docs/differential_results/rust_python_parity_v3.json"]
     report = json.loads(_read_text(RUST_PYTHON_PARITY_REPORT))
     required_fields = {
         "schema_version",
@@ -562,7 +562,31 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "synthetic_checkpoint_count",
         "synthetic_checkpoint_interval",
         "synthetic_operation_corpus_sha256",
+        "synthetic_trace_sha256",
         "synthetic_final_state_sha256",
+        "scheduler_operations",
+        "scheduler_operation_kind_counts",
+        "scheduler_accepted_operation_kind_counts",
+        "scheduler_accepted_operations",
+        "scheduler_rejected_operations",
+        "scheduler_drained_actions",
+        "scheduler_checkpoint_count",
+        "scheduler_operation_corpus_sha256",
+        "scheduler_trace_sha256",
+        "scheduler_final_state_sha256",
+        "risk_operations",
+        "risk_operation_kind_counts",
+        "risk_accepted_operation_kind_counts",
+        "risk_accepted_operations",
+        "risk_rejected_operations",
+        "risk_checkpoint_count",
+        "risk_max_position_lots",
+        "risk_final_position_lots",
+        "risk_final_reserved_buy_lots",
+        "risk_final_reserved_sell_lots",
+        "risk_operation_corpus_sha256",
+        "risk_trace_sha256",
+        "risk_final_state_sha256",
         "remaining_full_engine_scope",
         "full_engine_parity",
     }
@@ -570,7 +594,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
     if missing:
         issues.append("Rust/Python parity report missing field(s): " + ", ".join(missing))
         return issues
-    if report["schema_version"] != "lob_sim.rust_python_parity.v2" or report["ok"] is not True:
+    if report["schema_version"] != "lob_sim.rust_python_parity.v3" or report["ok"] is not True:
         issues.append("Rust/Python parity report has an invalid schema or failed status")
     if report["full_engine_parity"] is not False:
         issues.append("Rust/Python parity report must not claim full-engine parity")
@@ -585,22 +609,85 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity report has invalid synthetic operation kind counts")
     elif report["synthetic_operations"] != sum(operation_kind_counts.values()):
         issues.append("Rust/Python parity synthetic operation kind counts do not reconcile")
-    for field in ("synthetic_operation_corpus_sha256", "synthetic_final_state_sha256"):
+    if report["scheduler_operations"] != (
+        report["scheduler_accepted_operations"] + report["scheduler_rejected_operations"]
+    ):
+        issues.append("Rust/Python parity scheduler operation counts do not reconcile")
+    scheduler_kind_counts = report["scheduler_operation_kind_counts"]
+    if not isinstance(scheduler_kind_counts, dict) or set(scheduler_kind_counts) != {"schedule", "drain", "cancel"}:
+        issues.append("Rust/Python parity report has invalid scheduler operation kind counts")
+    elif report["scheduler_operations"] != sum(scheduler_kind_counts.values()):
+        issues.append("Rust/Python parity scheduler operation kind counts do not reconcile")
+    scheduler_accepted_kind_counts = report["scheduler_accepted_operation_kind_counts"]
+    if not isinstance(scheduler_accepted_kind_counts, dict) or set(scheduler_accepted_kind_counts) != {
+        "schedule",
+        "drain",
+        "cancel",
+    }:
+        issues.append("Rust/Python parity report has invalid accepted scheduler kind counts")
+    elif report["scheduler_accepted_operations"] != sum(scheduler_accepted_kind_counts.values()):
+        issues.append("Rust/Python parity accepted scheduler kind counts do not reconcile")
+    if report["risk_operations"] != report["risk_accepted_operations"] + report["risk_rejected_operations"]:
+        issues.append("Rust/Python parity risk operation counts do not reconcile")
+    risk_kind_counts = report["risk_operation_kind_counts"]
+    expected_risk_kinds = {"reserve", "request_cancel", "cancel_ack", "fill", "epoch_invalidate"}
+    if not isinstance(risk_kind_counts, dict) or set(risk_kind_counts) != expected_risk_kinds:
+        issues.append("Rust/Python parity report has invalid risk operation kind counts")
+    elif report["risk_operations"] != sum(risk_kind_counts.values()):
+        issues.append("Rust/Python parity risk operation kind counts do not reconcile")
+    risk_accepted_kind_counts = report["risk_accepted_operation_kind_counts"]
+    if not isinstance(risk_accepted_kind_counts, dict) or set(risk_accepted_kind_counts) != expected_risk_kinds:
+        issues.append("Rust/Python parity report has invalid accepted risk kind counts")
+    elif report["risk_accepted_operations"] != sum(risk_accepted_kind_counts.values()):
+        issues.append("Rust/Python parity accepted risk kind counts do not reconcile")
+    elif any(risk_accepted_kind_counts[kind] <= 0 for kind in expected_risk_kinds):
+        issues.append("Rust/Python parity generated trace did not accept every risk operation kind")
+    scheduler_schedule_count = (
+        scheduler_kind_counts.get("schedule", 0) if isinstance(scheduler_kind_counts, dict) else 0
+    )
+    if report["scheduler_drained_actions"] < 0 or report["scheduler_drained_actions"] > scheduler_schedule_count:
+        issues.append("Rust/Python parity scheduler drained action count is invalid")
+    if report["risk_max_position_lots"] <= 0:
+        issues.append("Rust/Python parity risk limit must be positive")
+    if abs(report["risk_final_position_lots"]) > report["risk_max_position_lots"]:
+        issues.append("Rust/Python parity final risk position exceeds its limit")
+    for field in ("risk_final_reserved_buy_lots", "risk_final_reserved_sell_lots"):
+        if report[field] < 0:
+            issues.append(f"Rust/Python parity report has invalid {field}")
+    risk_limit = report["risk_max_position_lots"]
+    risk_position = report["risk_final_position_lots"]
+    if risk_position + report["risk_final_reserved_buy_lots"] > risk_limit:
+        issues.append("Rust/Python parity final long reservation exceeds its worst-case limit")
+    if risk_position - report["risk_final_reserved_sell_lots"] < -risk_limit:
+        issues.append("Rust/Python parity final short reservation exceeds its worst-case limit")
+    for field in ("synthetic_checkpoint_count", "scheduler_checkpoint_count", "risk_checkpoint_count"):
+        if report[field] <= 0:
+            issues.append(f"Rust/Python parity report has invalid {field}")
+    for field in (
+        "synthetic_operation_corpus_sha256",
+        "synthetic_trace_sha256",
+        "synthetic_final_state_sha256",
+        "scheduler_operation_corpus_sha256",
+        "scheduler_trace_sha256",
+        "scheduler_final_state_sha256",
+        "risk_operation_corpus_sha256",
+        "risk_trace_sha256",
+        "risk_final_state_sha256",
+    ):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
             issues.append(f"Rust/Python parity report has invalid {field}")
     expected_remaining = {
         "public-L2 execution scenarios",
-        "latency scheduler",
-        "risk reservations",
+        "engine-integrated latency and portfolio risk",
         "accounting and markouts",
         "run manifests",
     }
     if set(report["remaining_full_engine_scope"]) != expected_remaining:
         issues.append("Rust/Python parity report does not disclose the expected remaining scope")
     for publication, token in (
-        (REPO_ROOT / "README.md", "docs/differential_results/rust_python_parity_v2.json"),
-        (RUST_PYTHON_PARITY_README, "rust_python_parity_v2.json"),
+        (REPO_ROOT / "README.md", "docs/differential_results/rust_python_parity_v3.json"),
+        (RUST_PYTHON_PARITY_README, "rust_python_parity_v3.json"),
     ):
         if token not in _read_text(publication):
             issues.append(f"{_repo_relative(publication)} does not publish the Rust/Python parity report")

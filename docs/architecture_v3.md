@@ -25,8 +25,11 @@ are never mixed into a claim-ready markout report.
 retain an unbounded event list; a CSV trace is an explicit audit choice.
 
 The current cross-language differential boundary covers logical-time and
-fixed-point book primitives plus exact-synthetic MBO new/cancel/replace lifecycle
-results, fills and periodic full-state hashes. It does not yet cover the
-public-L2 scenario venue, latency scheduler, risk reservations, accounting,
-markouts or run manifests; parity artifacts keep `full_engine_parity=false`
-until those surfaces are independently compared.
+fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
+results, an integer-nanosecond action scheduler, and per-symbol worst-case
+live-plus-pending lot reservations. Transition results and periodic full-state
+hashes agree across the independent Python and Rust implementations. These
+primitives are not yet the engine's end-to-end scheduler or portfolio-notional
+risk path. The public-L2 scenario venue, engine integration, accounting,
+markouts and run manifests remain outside the parity claim, so artifacts keep
+`full_engine_parity=false`.
