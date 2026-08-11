@@ -555,6 +555,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "accepted_batches",
         "rejected_batches",
         "synthetic_operations",
+        "synthetic_operation_kind_counts",
         "synthetic_accepted_operations",
         "synthetic_rejected_operations",
         "synthetic_fill_count",
@@ -579,6 +580,11 @@ def _verify_rust_python_parity_publication() -> list[str]:
         report["synthetic_accepted_operations"] + report["synthetic_rejected_operations"]
     ):
         issues.append("Rust/Python parity synthetic operation counts do not reconcile")
+    operation_kind_counts = report["synthetic_operation_kind_counts"]
+    if not isinstance(operation_kind_counts, dict) or set(operation_kind_counts) != {"new", "cancel", "replace"}:
+        issues.append("Rust/Python parity report has invalid synthetic operation kind counts")
+    elif report["synthetic_operations"] != sum(operation_kind_counts.values()):
+        issues.append("Rust/Python parity synthetic operation kind counts do not reconcile")
     for field in ("synthetic_operation_corpus_sha256", "synthetic_final_state_sha256"):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):

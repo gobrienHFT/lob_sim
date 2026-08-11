@@ -14,15 +14,20 @@
     "run manifests"
   ],
   "schema_version": "lob_sim.rust_python_parity.v2",
-  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel lifecycle with fills and periodic full-state hashes",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle with fills and periodic full-state hashes",
   "seed": 17,
-  "synthetic_accepted_operations": 5457,
+  "synthetic_accepted_operations": 4772,
   "synthetic_checkpoint_count": 39,
   "synthetic_checkpoint_interval": 257,
-  "synthetic_fill_count": 2297,
-  "synthetic_final_state_sha256": "e3b75dfcbc042c7655d74ff13982867c55a5a576185feff62179d3be59d376f8",
-  "synthetic_operation_corpus_sha256": "1d20c6a873f3b6d3d1b3a0518ebde2f377649d74301e61e5d36bcb614efec9d7",
+  "synthetic_fill_count": 2102,
+  "synthetic_final_state_sha256": "ed6cdbab19cd009f3041235b3de78fc585f137cebb53dd3acd3caa61595d34ad",
+  "synthetic_operation_corpus_sha256": "d98b0fc37d6822ece78142d0581eee05ce4f70c880b8fc3c803b89f31b85a4f3",
+  "synthetic_operation_kind_counts": {
+    "cancel": 1895,
+    "new": 6633,
+    "replace": 1472
+  },
   "synthetic_operations": 10000,
-  "synthetic_rejected_operations": 4543,
+  "synthetic_rejected_operations": 5228,
   "uncrossed_cases": 10000
 }

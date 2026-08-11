@@ -52,7 +52,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
 - Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract.
-- `rust/lob_core` is the pinned, unsafe-free kernel boundary. The independent Python oracle and Rust agree on generated fixed-point book batches plus exact-synthetic new/cancel lifecycle results, fills, and periodic state hashes; the [committed report](docs/differential_results/rust_python_parity_v2.json) explicitly keeps full-engine parity false.
+- `rust/lob_core` is the pinned, unsafe-free kernel boundary. The independent Python oracle and Rust agree on generated fixed-point book batches plus exact-synthetic new/cancel/replace lifecycle results, fills, and periodic state hashes; the [committed report](docs/differential_results/rust_python_parity_v2.json) explicitly keeps full-engine parity false.
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
 ### Controlled options case study
