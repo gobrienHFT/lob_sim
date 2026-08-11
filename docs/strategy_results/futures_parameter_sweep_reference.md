@@ -2,13 +2,13 @@
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
-- Config digest: `c44933922b7655a7dab3d4e006c19a3ca492a458bf0f8f97d763fa433064f34a`
+- Config digest: `fce1efcdc9c0bd515638d499f49be648c4b7185e1e0a2354612fa3a2fdece912`
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Public-L2 fill model: `trade` (mutually exclusive scenario)
 - Profiles: `baseline, layered_mm, research_mm`
 - Half-spread bps grid: `0.05, 0.10, 0.25`
 - Queue repost lots grid: `0, 5, 99`
-- Git commit at run time: `f4db27b5353b32473eb0f73b753ab2a99fe83e4d`
+- Git commit at run time: `f6741171108a91d655da3d4bb4efa90b450c3fbe`
 - Git dirty at run time: `False`
 
 Exact command:
