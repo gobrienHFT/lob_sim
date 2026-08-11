@@ -6,8 +6,6 @@ from itertools import count
 from pathlib import Path
 from typing import Any, Dict
 
-import csv
-import json
 import math
 
 from ..book.local_book import BookInvariantError, LocalOrderBook
@@ -17,30 +15,21 @@ from ..config import Config
 from ..record.envelope import ValidityState
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
-from ..util import write_summary_csv
 from ..oracle import state_hash
+from .export import (
+    EVENT_TRACE_FIELDS,
+    TRADE_AUDIT_FIELDS,
+    atomic_write_json,
+    atomic_write_summary_csv,
+    verify_streaming_audit_files,
+)
 from .fill_model import PassiveFillModel, PublicConsumptionEvent
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
-from .run_manifest import build_run_manifest, instrument_specs_snapshot, simulation_assumptions_snapshot
-from .sinks import EventSink, NullSink
+from .run_manifest import RunManifest, build_run_manifest, instrument_specs_snapshot, simulation_assumptions_snapshot
+from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
-
-EVENT_TRACE_FIELDS = [
-    "ts_local",
-    "seq",
-    "symbol",
-    "event_type",
-    "source",
-    "side",
-    "quote_slot",
-    "price_tick",
-    "qty_lots",
-    "order_id",
-    "fill_source",
-    "details",
-]
 
 STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failure", "overflow"})
 
@@ -96,6 +85,7 @@ class SimulationEngine:
         self.event_trace: list[dict[str, Any]] = []
         self._retain_event_trace = retain_event_trace
         self._event_trace_count = 0
+        self._last_trace_ts: float | None = None
         self._trading_halted = False
         self._pending_cancel_ack_ts: dict[str, float] = {}
         self._pending_replacement_slots: set[tuple[str, str, str]] = set()
@@ -379,6 +369,9 @@ class SimulationEngine:
         fill_source: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
+        if self._last_trace_ts is not None and ts < self._last_trace_ts:
+            raise RuntimeError(f"event trace violated causal order: timestamp {ts!r} followed {self._last_trace_ts!r}")
+        self._last_trace_ts = ts
         event = {
             "ts_local": ts,
             "seq": next(self._trace_counter),
@@ -398,8 +391,10 @@ class SimulationEngine:
         if self._retain_event_trace:
             self.event_trace.append(event)
 
-    def _trace_market_record(self, rec: RecordedEvent) -> None:
+    def _trace_market_record(self, rec: RecordedEvent, logical_ts: float, observed_ts: float) -> None:
         details: dict[str, Any] = {"record_type": rec.type}
+        if logical_ts != observed_ts:
+            details.update({"observed_ts_local": observed_ts, "clock_clamped": True})
         if rec.type == "exchangeInfo":
             details.update(
                 {
@@ -458,7 +453,7 @@ class SimulationEngine:
                     ),
                 }
             )
-        self._trace(float(rec.ts_local), rec.symbol, "market_record", rec.type, details=details)
+        self._trace(logical_ts, rec.symbol, "market_record", rec.type, details=details)
 
     def _trace_book_gap(self, ts: float, event: DepthUpdateEvent) -> None:
         self._trace(
@@ -1147,7 +1142,8 @@ class SimulationEngine:
                 market_data_first = self._capture_schema_version >= 3
                 self._receive_clock = rec.data.get("clock") == "receive_time"
 
-            now = self._event_time(rec)
+            observed_ts = self._event_time(rec)
+            now = observed_ts
             if now < last_ts:
                 self._clock_regressions += 1
                 now = last_ts
@@ -1155,12 +1151,13 @@ class SimulationEngine:
                 last_ts = now
             symbol_now = max(now, self._symbol_time_watermark.get(rec.symbol, now))
             self._symbol_time_watermark[rec.symbol] = symbol_now
-            self._observe_capture_epoch(rec, now)
 
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
+            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
             self._drain_events(now, inclusive=not market_data_first)
-            self._trace_market_record(rec)
+            self._observe_capture_epoch(rec, now)
+            self._trace_market_record(rec, now, observed_ts)
             if rec.type in {"captureMeta", "captureEvent"}:
                 continue
             if rec.type == "exchangeInfo":
@@ -1187,9 +1184,6 @@ class SimulationEngine:
                     },
                 )
                 continue
-
-            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=False)
-            self._drain_events(now, inclusive=not market_data_first)
 
             if rec.type == "snapshot":
                 capture = rec.data.get("_capture", {})
@@ -1332,20 +1326,10 @@ class SimulationEngine:
         return self.metrics
 
     def _write_event_trace(self, path: Path) -> None:
-        def _cell(value: Any) -> Any:
-            if value is None:
-                return ""
-            if isinstance(value, (dict, list)):
-                return json.dumps(value, sort_keys=True, default=str)
-            return value
-
-        with path.open("w", encoding="utf-8", newline="") as trace_file:
-            writer = csv.DictWriter(trace_file, fieldnames=EVENT_TRACE_FIELDS)
-            writer.writeheader()
+        with StreamingCsvSink(path, EVENT_TRACE_FIELDS) as sink:
             rows = sorted(self.event_trace, key=lambda row: (float(row["ts_local"]), int(row["seq"])))
             for export_seq, row in enumerate(rows):
-                export_row = {**row, "seq": export_seq}
-                writer.writerow({field: _cell(export_row.get(field)) for field in EVENT_TRACE_FIELDS})
+                sink.write({**row, "seq": export_seq})
 
     def _summary_annotations(self) -> dict[str, Any]:
         book_state = {
@@ -1507,14 +1491,74 @@ class SimulationEngine:
 
         return state_hash(self._deterministic_state())
 
-    def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
-        if not getattr(metrics, "retain_audit_rows", True):
-            raise RuntimeError(
-                "write_outputs requires retained audit rows; use a streaming export path for aggregate-only runs"
-            )
+    def _prepare_output_summary(
+        self,
+        file_path: str | Path,
+        metrics: SimulationMetrics,
+        output_files: dict[str, Path],
+        *,
+        export_mode: str,
+        manifest_seed: RunManifest | None = None,
+    ) -> tuple[dict[str, Any], RunManifest]:
         summary = metrics.get_summary(self._books)
         summary.update(self._summary_annotations())
         summary["state_sha256"] = self.state_sha256()
+        seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
+        summary["run_id"] = seed.run_id
+        summary["input_sha256"] = seed.input["sha256"]
+        summary["feed_adapter"] = seed.feed_adapter
+        summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
+        summary["simulation_assumptions"] = simulation_assumptions_snapshot(self.fill_model.fill_assumption)
+        summary["fill_assumption_profile"] = self.fill_model.fill_assumption.profile
+        summary["fill_assumption"] = self.fill_model.fill_assumption.as_dict()
+        summary["fill_assumption_diagnostics"] = self.fill_model.fill_assumption_diagnostics()
+        summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
+        summary["output_files"] = {name: str(path) for name, path in output_files.items()}
+        summary["event_trace_count"] = self._event_trace_count
+        summary["simulation_export"] = {
+            "schema_version": "lob_sim.simulation_export.v1",
+            "mode": export_mode,
+            "memory_bounded_by_tape_duration": export_mode == "bounded_streaming",
+            "detail_rows_complete_in_summary": export_mode == "fixture_scale_in_memory",
+            "detail_rows_streamed": export_mode == "bounded_streaming",
+            "markout_audit_file": "markouts" if "markouts" in output_files else None,
+            "completion_record": (
+                "manifest_with_absent_incomplete_sentinel" if export_mode == "bounded_streaming" else "manifest"
+            ),
+            "intended_use": (
+                "ordinary_and_large_tape_simulation"
+                if export_mode == "bounded_streaming"
+                else "small_fixture_and_committed_evidence_generation"
+            ),
+        }
+        return summary, seed
+
+    def _write_manifest(
+        self,
+        file_path: str | Path,
+        output_files: dict[str, Path],
+        manifest_seed: RunManifest,
+    ) -> None:
+        manifest = build_run_manifest(
+            file_path,
+            self.cfg,
+            output_files,
+            created_at_utc=manifest_seed.created_at_utc,
+            source=manifest_seed.source,
+            adapter=self.adapter,
+            instrument_specs=self._specs,
+        )
+        if manifest.run_id != manifest_seed.run_id:
+            raise RuntimeError(f"run identity changed during export: {manifest_seed.run_id!r} -> {manifest.run_id!r}")
+        atomic_write_json(output_files["manifest"], manifest.as_dict())
+
+    def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
+        """Write the fixture-scale, full-retention compatibility artifact set."""
+
+        if not getattr(metrics, "retain_audit_rows", True):
+            raise RuntimeError(
+                "write_outputs requires retained audit rows; use bounded streaming export for ordinary runs"
+            )
         output_dir = self.cfg.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(file_path).stem.replace(".ndjson", "")
@@ -1530,84 +1574,64 @@ class SimulationEngine:
             "trades": trades_path,
             "manifest": manifest_path,
         }
-        manifest_seed = build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
-        summary["run_id"] = manifest_seed.run_id
-        summary["input_sha256"] = manifest_seed.input["sha256"]
-        summary["feed_adapter"] = manifest_seed.feed_adapter
-        summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
-        summary["simulation_assumptions"] = simulation_assumptions_snapshot(self.fill_model.fill_assumption)
-        summary["fill_assumption_profile"] = self.fill_model.fill_assumption.profile
-        summary["fill_assumption"] = self.fill_model.fill_assumption.as_dict()
-        summary["fill_assumption_diagnostics"] = self.fill_model.fill_assumption_diagnostics()
-        summary["public_consumption_summary"] = self.fill_model.public_consumption_summary()
-        summary["output_files"] = {name: str(path) for name, path in output_files.items()}
-        summary["event_trace_count"] = self._event_trace_count
-
-        with open(summary_path, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(summary, fh, indent=2)
-        write_summary_csv(summary_csv_path, summary, exclude_keys={"fills", "markout_events"})
-
-        with open(trades_path, "w", encoding="utf-8", newline="") as csv_file:
-            writer = csv.DictWriter(
-                csv_file,
-                fieldnames=[
-                    "provenance_schema_version",
-                    "ts_local",
-                    "symbol",
-                    "side",
-                    "price",
-                    "qty",
-                    "notional",
-                    "contract_multiplier",
-                    "maker",
-                    "fill_source",
-                    "fee_bps",
-                    "fee",
-                    "fee_currency",
-                    "order_id",
-                    "created_ts",
-                    "mid_at_fill",
-                    "spread_capture",
-                    "spread_capture_value",
-                    "regime",
-                    "queue_ahead_lots",
-                    "time_in_book_ms",
-                    "markout_horizon",
-                    "book_bid_tick",
-                    "book_ask_tick",
-                    "scenario_id",
-                    "evidence_ids",
-                    "validity",
-                    "queue_trajectory",
-                    "latency_draws_ms",
-                    "latency_model",
-                    "order_state_at_fill",
-                    "fee_model_id",
-                ],
-            )
-            writer.writeheader()
-            for row in summary.get("fills", []):
-                exported = dict(row)
-                for field in (
-                    "evidence_ids",
-                    "validity",
-                    "queue_trajectory",
-                    "latency_draws_ms",
-                    "latency_model",
-                ):
-                    exported[field] = json.dumps(exported.get(field), sort_keys=True, separators=(",", ":"))
-                writer.writerow(exported)
-        self._write_event_trace(event_trace_path)
-
-        manifest = build_run_manifest(
+        summary, manifest_seed = self._prepare_output_summary(
             file_path,
-            self.cfg,
+            metrics,
             output_files,
-            created_at_utc=manifest_seed.created_at_utc,
-            source=manifest_seed.source,
-            adapter=self.adapter,
-            instrument_specs=self._specs,
+            export_mode="fixture_scale_in_memory",
         )
-        with open(manifest_path, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(manifest.as_dict(), fh, indent=2)
+        atomic_write_json(summary_path, summary)
+        atomic_write_summary_csv(summary_csv_path, summary)
+
+        with StreamingCsvSink(trades_path, TRADE_AUDIT_FIELDS) as sink:
+            for row in summary.get("fills", []):
+                sink.write(row)
+        self._write_event_trace(event_trace_path)
+        self._write_manifest(file_path, output_files, manifest_seed)
+        return output_files, summary
+
+    def finalize_streaming_outputs(
+        self,
+        file_path: str | Path,
+        metrics: SimulationMetrics,
+        output_files: dict[str, Path],
+        manifest_seed: RunManifest,
+    ) -> tuple[dict[str, Path], dict[str, Any]]:
+        """Finalize aggregate summaries and the manifest after streamed audits close."""
+
+        if self._retain_event_trace or getattr(metrics, "retain_audit_rows", True):
+            raise RuntimeError("bounded streaming finalization requires all detail retention to be disabled")
+        required = {"event_trace", "markouts", "summary", "summary_csv", "trades", "manifest"}
+        if set(output_files) != required:
+            raise RuntimeError(f"unexpected streaming output contract: {sorted(output_files)}")
+        audit_names = ("event_trace", "trades", "markouts")
+        missing_audits = [name for name in audit_names if not output_files[name].is_file()]
+        partial_audits = [
+            str(output_files[name].with_name(output_files[name].name + ".partial"))
+            for name in audit_names
+            if output_files[name].with_name(output_files[name].name + ".partial").exists()
+        ]
+        if missing_audits or partial_audits:
+            raise RuntimeError(
+                f"streaming audits are not finalized: missing={missing_audits}, partials={partial_audits}"
+            )
+        verify_streaming_audit_files(
+            output_files,
+            event_trace_count=self._event_trace_count,
+            fill_count=metrics.fill_count,
+            fill_sha256=metrics.fill_audit_sha256,
+            markout_count=metrics.markout_event_count,
+            markout_sha256=metrics.markout_audit_sha256,
+        )
+
+        summary, seed = self._prepare_output_summary(
+            file_path,
+            metrics,
+            output_files,
+            export_mode="bounded_streaming",
+            manifest_seed=manifest_seed,
+        )
+        atomic_write_json(output_files["summary"], summary)
+        atomic_write_summary_csv(output_files["summary_csv"], summary)
+        self._write_manifest(file_path, output_files, seed)
         return output_files, summary

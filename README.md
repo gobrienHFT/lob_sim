@@ -50,7 +50,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Shared replay-row adapter/normalization in [`lob_sim/replay/adapters.py`](lob_sim/replay/adapters.py) and [`lob_sim/replay/normalization.py`](lob_sim/replay/normalization.py), so replay, simulation, and benchmarks consume the same `InstrumentSpec`, snapshot, depth, and trade event contract.
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
-- Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract. Aggregate-only simulation retains no event/fill/resolved-markout rows, publishes deterministic audit-chain hashes, and fails before a fill if the configured pending-markout cap is exhausted; fixture-scale CSV export declares its explicit in-memory retention mode.
+- Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract. Ordinary `simulate` runs stream event, fill, and markout audits without retaining those rows, publish deterministic audit-chain hashes, and fail before a fill if the configured pending-markout cap is exhausted. The old full-detail path is available only through the explicit `--in-memory-export` fixture compatibility flag.
 - `rust/lob_core` is the pinned, unsafe-free kernel boundary. The independent Python oracle and Rust agree on generated fixed-point book batches, exact-synthetic new/cancel/replace lifecycles, integer-nanosecond scheduler transitions, and per-symbol live-plus-pending lot reservations; the [committed report](docs/differential_results/rust_python_parity_v3.json) explicitly keeps full-engine parity false.
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
@@ -137,13 +137,28 @@ The baseline remains the default. Opt-in `layered_mm` and `research_mm` profiles
 
 ## Metrics and Outputs
 
-The futures simulation writes:
+The default futures simulation creates one unique directory under `RECORD_DIR/outputs/` named
+`run_<input>_<run_id>_<created_at>/` and writes:
 
-- `summary_<stem>.json`
-- `summary_<stem>.csv`
-- `trades_<stem>.csv`
-- `event_trace_<stem>.csv`
-- `manifest_<stem>.json`
+- `summary.json`
+- `summary.csv`
+- `trades.csv`
+- `markouts.csv`
+- `event_trace.csv`
+- `manifest.json`
+
+Event, fill, and resolved-markout rows go directly to same-directory `.partial`
+files with bounded memory. All three audits are flushed and fsynced before
+promotion. `_INCOMPLETE.json` remains visible until the summaries and hashed
+manifest are finalized, so an interrupted run cannot look complete. Raw clock
+regressions in legacy tapes are recorded in trace details while exported rows
+stay in normalized causal-time order. The JSON summary deliberately contains
+`fills=null` and `markout_events=null`; the complete rows live in the CSV audits
+and their canonical content is bound by the summary audit-chain hashes.
+
+`--in-memory-export` preserves the old `summary_<stem>.*`, `trades_<stem>.csv`,
+`event_trace_<stem>.csv`, and `manifest_<stem>.json` layout for small fixtures
+and committed evidence generators. It is explicitly not bounded by tape length.
 
 Tracked metrics include:
 

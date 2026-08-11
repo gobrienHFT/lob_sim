@@ -54,7 +54,13 @@ It verifies that each pack's replay input, `summary.json`, `summary.csv`, `trade
 
 ## Simulation Manifests
 
-Every futures simulation writes a manifest next to `summary_*.json`, `summary_*.csv`, `trades_*.csv`, and `event_trace_*.csv`.
+Every ordinary futures simulation writes a unique run directory containing
+`summary.json`, `summary.csv`, `trades.csv`, `markouts.csv`, `event_trace.csv`,
+and `manifest.json`. The three row-level audits stream through fixed-schema
+`.partial` files and are fsynced before promotion. `_INCOMPLETE.json` remains
+until every declared artifact and its manifest exist. Absence of the manifest
+or presence of that sentinel means the bundle is incomplete. The explicit
+`--in-memory-export` option retains the historical stem-based fixture layout.
 
 The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, book-sync gap counts, fill-source counts, order-lifecycle counts, queue-ahead-at-arrival counts, kill-switch state, and self-trade-prevention counts. Those fields make it visible when a run skipped gap-affected depth data, relied on depth-inferred fills, posted quotes that never arrived, rested behind visible queue, expired a marketable remainder, halted on configured risk limits, or prevented a strategy own-cross instead of silently advancing the book.
 
@@ -64,7 +70,7 @@ Summaries also include `public_consumption_summary`: observed lots from public d
 
 Use [`docs/fill_assumption_envelope.md`](fill_assumption_envelope.md) when you want the same input replayed under conservative/base/aggressive public-L2 fill assumptions. Public L2 cannot prove private fills; robust conclusions should survive the envelope.
 
-The event trace CSV is the event-time audit trail: replay records, strategy decisions, public `queue_consumption` rows, scheduled order arrivals, cancel requests and acknowledgements, book gaps, risk halts, fills, and post-horizon `markout` rows share one timestamped sequence. `queue_consumption` rows tie each public depth/trade signal at a price level to observed lots, overlap-netted lots, modeled queue-consumption candidates, actual synthetic queue lots consumed, and unmatched lots. Fill rows carry `lob_sim.fill_provenance.v1`: scenario ID, resolvable decision/arrival/trigger evidence IDs, source-specific validity, queue trajectory, configured latency draws, non-measured latency-model label, lifecycle state, fee-model ID, notional, fee, spread capture, mid-at-fill, time-in-book, regime, and local book ticks. `markout` rows tie each fill to the later mid used for signed adverse-selection measurement, including the horizon, fill source, side, quantity, markout, and adverse flag. Arrival rows include resting-state queue-ahead metadata; summaries aggregate those arrival queue-position samples separately from fill-time residual queue ahead. Cancel-request rows include the reason and replacement context when a quote is being refreshed. Risk-halt rows include the configured trigger reason, current PnL/drawdown state, and the live/pending strategy state cleared when trading stops.
+The event trace CSV is the causal-time audit trail: replay records, strategy decisions, public `queue_consumption` rows, scheduled order arrivals, cancel requests and acknowledgements, book gaps, risk halts, fills, and post-horizon `markout` rows share one monotonically emitted sequence. A regressing legacy input clock is clamped to the prior logical time and the raw value is retained as `observed_ts_local` with `clock_clamped=true`; streaming export never relies on an after-the-fact in-memory sort. `queue_consumption` rows tie each public depth/trade signal at a price level to observed lots, overlap-netted lots, modeled queue-consumption candidates, actual synthetic queue lots consumed, and unmatched lots. Fill rows carry `lob_sim.fill_provenance.v1`: scenario ID, resolvable decision/arrival/trigger evidence IDs, source-specific validity, queue trajectory, configured latency draws, non-measured latency-model label, lifecycle state, fee-model ID, notional, fee, spread capture, mid-at-fill, time-in-book, regime, and local book ticks. `markout` rows tie each fill to the later mid used for signed adverse-selection measurement, including the horizon, fill source, side, quantity, markout, and adverse flag. Arrival rows include resting-state queue-ahead metadata; summaries aggregate those arrival queue-position samples separately from fill-time residual queue ahead. Cancel-request rows include the reason and replacement context when a quote is being refreshed. Risk-halt rows include the configured trigger reason, current PnL/drawdown state, and the live/pending strategy state cleared when trading stops.
 
 Decision rows include strategy diagnostics in `details`: decision reason when present, best bid/ask ticks, mid, inventory, volatility, quote-size lots, spread inputs, imbalance inputs, and profile-specific gate state when available. These fields are intended for offline audit of why a quote target was chosen or why live quotes were pulled.
 
@@ -86,7 +92,8 @@ The manifest records:
 - Python/platform/runtime metadata;
 - git branch, commit, and dirty-worktree flag when available;
 - output paths and a deterministic `run_id` derived from input digest, simulator version, config, and feed adapter.
-- output artifact size and SHA-256 metadata for generated summary, summary CSV, trades CSV, and event trace CSV files.
+- output artifact size and SHA-256 metadata for generated summary, summary CSV,
+  trades CSV, markouts CSV, and event trace CSV files.
 
 Committed futures sample manifests are verified with `source.git_dirty == false`; if a pack is refreshed while another generated file is still dirty, `scripts/verify_committed_artifacts.py` fails instead of publishing ambiguous provenance.
 

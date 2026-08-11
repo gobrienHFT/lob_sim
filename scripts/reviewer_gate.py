@@ -25,6 +25,8 @@ MYPY_TARGETS = (
     "lob_sim/util.py",
     "lob_sim/sim/fill_model.py",
     "lob_sim/sim/engine.py",
+    "lob_sim/sim/export.py",
+    "lob_sim/sim/runner.py",
     "lob_sim/sim/metrics.py",
     "lob_sim/sim/run_manifest.py",
     "lob_sim/sim/mm_strategy.py",

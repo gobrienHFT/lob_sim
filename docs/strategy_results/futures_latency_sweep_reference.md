@@ -8,7 +8,7 @@
 - Strategy profile: `baseline`
 - Order latency grid ms: `0, 10, 50`
 - Cancel latency grid ms: `0, 10, 50`
-- Git commit at run time: `f6741171108a91d655da3d4bb4efa90b450c3fbe`
+- Git commit at run time: `d71ea90d219122556941b1ca88dd3241b926ba2f`
 - Git dirty at run time: `False`
 
 Exact command:

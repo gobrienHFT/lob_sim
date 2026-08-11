@@ -1799,8 +1799,8 @@ def test_simulation_event_trace_exports_order_lifecycle(
         "rested_after_arrival": 3,
         "immediate_fill_arrivals": 0,
         "expired_unfilled_arrivals": 0,
-        "cancel_requested": 0,
-        "cancel_acknowledged": 0,
+        "cancel_requested": 1,
+        "cancel_acknowledged": 1,
         "self_trade_prevented": 0,
     }
     assert "fill_rate" not in summary
@@ -1851,7 +1851,9 @@ def test_simulation_event_trace_exports_order_lifecycle(
     assert fill_details["mid_at_fill"] == "100.05"
     assert fill_details["spread_capture"] == "0.05"
     assert fill_details["spread_capture_value"] == "0.00005"
-    assert fill_details["time_in_book_ms"] == pytest.approx(1000.0)
+    # Legacy coarse timestamps use the explicit action-first sensitivity: the
+    # quote refresh due at 3.0 is live before the 3.0 aggTrade observation.
+    assert fill_details["time_in_book_ms"] == pytest.approx(0.0)
     assert fill_details["markout_horizon"] == 1.0
     assert fill_details["regime"] == "tight_sell"
 

@@ -76,7 +76,7 @@ The report script writes `benchmark.json`. To run the benchmark manually:
 python experiments/benchmark_futures_replay.py --file data/capture_....manifest.json --env .env.real-data --mode all --pack outputs/real_data_runs/BTCUSDT_30m/pack --json-out outputs/real_data_runs/BTCUSDT_30m/benchmark.json
 ```
 
-Publish benchmark numbers with hardware, Python version, platform, input SHA-256, event count, and whether event-trace export was included.
+Publish benchmark numbers with hardware, Python version, platform, input SHA-256, event count, and whether bounded streaming audit export was included. The benchmark mode is named `simulation_with_streaming_audit_export`; it writes event, fill, and markout audits without retaining those rows in memory.
 
 ## Publish
 

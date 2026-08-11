@@ -438,6 +438,16 @@
     "manifest": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
   },
   "event_trace_count": 18,
+  "simulation_export": {
+    "schema_version": "lob_sim.simulation_export.v1",
+    "mode": "fixture_scale_in_memory",
+    "memory_bounded_by_tape_duration": false,
+    "detail_rows_complete_in_summary": true,
+    "detail_rows_streamed": false,
+    "markout_audit_file": null,
+    "completion_record": "manifest",
+    "intended_use": "small_fixture_and_committed_evidence_generation"
+  },
   "fixture_provenance": {
     "data_class": "synthetic",
     "source": "synthetic_walkthrough",

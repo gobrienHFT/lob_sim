@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from dataclasses import replace
@@ -74,8 +75,61 @@ def test_cli_simulate_exposes_fill_profile_flag() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "--fill-profile" in result.stdout
+    assert "--in-memory-export" in result.stdout
+    assert "memory grows" in " ".join(result.stdout.split())
     assert "conservative" in result.stdout
     assert "aggressive" in result.stdout
+
+
+def test_cli_replay_and_default_bounded_simulate_dispatch_end_to_end(tmp_path: Path) -> None:
+    fixture = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "input_fixture.ndjson"
+    env = {**os.environ, "RECORD_DIR": str(tmp_path)}
+    replay_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "lob_sim.cli",
+            "--env",
+            ".env.example",
+            "replay",
+            "--file",
+            str(fixture),
+            "--progress-every",
+            "0",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert replay_result.returncode == 0, replay_result.stderr
+
+    simulation_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "lob_sim.cli",
+            "--env",
+            ".env.example",
+            "simulate",
+            "--file",
+            str(fixture),
+            "--progress-every",
+            "0",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert simulation_result.returncode == 0, simulation_result.stderr
+    summary = json.loads(simulation_result.stdout)
+    assert summary["simulation_export"]["mode"] == "bounded_streaming"
+    manifest_path = Path(summary["output_files"]["manifest"])
+    assert manifest_path.is_file()
+    assert not (manifest_path.parent / "_INCOMPLETE.json").exists()
 
 
 def test_cli_exposes_reviewer_grade_command_surface() -> None:
