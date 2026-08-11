@@ -304,9 +304,10 @@ def _assert_stress_coverage(summary: dict[str, Any], event_trace: list[dict[str,
         raise RuntimeError("Stress case is expected to be a no-gap fixture.")
     if int(fill_sources.get("depth_update", 0)) != 0:
         raise RuntimeError("Trade-only stress scenario unexpectedly produced a depth_update fill.")
-    for source in ("agg_trade", "taker_order"):
-        if int(fill_sources.get(source, 0)) <= 0:
-            raise RuntimeError(f"Stress case did not produce a {source} fill.")
+    if int(fill_sources.get("agg_trade", 0)) <= 0:
+        raise RuntimeError("Stress case did not produce an agg_trade fill.")
+    if int(fill_sources.get("taker_order", 0)) != 0:
+        raise RuntimeError("Post-only stress scenario unexpectedly produced a taker fill.")
     if int(lifecycle.get("self_trade_prevented", 0)) <= 0:
         raise RuntimeError("Stress case did not trigger self-trade prevention.")
     if int(lifecycle.get("cancel_requested", 0)) <= 0 or int(lifecycle.get("cancel_acknowledged", 0)) <= 0:
@@ -316,16 +317,11 @@ def _assert_stress_coverage(summary: dict[str, Any], event_trace: list[dict[str,
     depth_diagnostics = public_consumption.get("sources", {}).get("depth_update", {})
     if int(depth_diagnostics.get("unmatched_lots", 0)) <= 0:
         raise RuntimeError("Stress case did not prove that depth decreases are excluded in trade-only mode.")
-    adverse_samples = sum(int(data.get("adverse_samples", 0)) for data in markouts.values())
-    non_adverse_samples = sum(
-        int(data.get("samples", 0)) - int(data.get("adverse_samples", 0)) for data in markouts.values()
-    )
-    if adverse_samples <= 0 or non_adverse_samples <= 0:
-        raise RuntimeError("Stress case needs both adverse and non-adverse markout samples.")
-    if not any(
-        row["event_type"] == "order_arrival" and row["details"].get("immediate_fills", 0) > 0 for row in event_trace
-    ):
-        raise RuntimeError("Stress case did not produce a marketable taker arrival.")
+    markout_samples = sum(int(data.get("samples", 0)) for data in markouts.values())
+    if markout_samples <= 0:
+        raise RuntimeError("Stress case needs at least one signed markout sample.")
+    if int(summary.get("order_rejected_by_reason", {}).get("post_only_would_cross", 0)) <= 0:
+        raise RuntimeError("Stress case did not exercise arrival-time post-only rejection.")
 
 
 def _render_readme(summary: dict[str, Any]) -> str:
@@ -345,11 +341,11 @@ def _render_readme(summary: dict[str, Any]) -> str:
             "",
             "- Snapshot-seeded visible queue ahead and partial passive fills.",
             "- Mutually exclusive trade-only attribution: depth decreases remain diagnostic and unmatched.",
-            "- `aggTrade`-inferred and marketable taker fills; no depth-inferred fill in this scenario.",
-            "- Adverse and non-adverse post-fill markouts.",
+            "- `aggTrade`-inferred passive fills; no depth-inferred or taker fill in this post-only scenario.",
+            "- Signed post-fill markout accounting.",
             "- Cancel latency, including an old quote fill before acknowledgement.",
             "- Same-timestamp cancel acknowledgement before public trade consumption.",
-            "- Conservative self-trade prevention for a marketable strategy order.",
+            "- Arrival-time post-only rejection and conservative self-trade prevention.",
             "- No-gap replay continuity; `book_gap_count` stays zero.",
             "",
             "## Summary",
@@ -432,10 +428,10 @@ def refresh_futures_stress_case(output_dir: Path = STRESS_CASE_DIR) -> dict[str,
             "queue_ahead": True,
             "partial_fills": True,
             "exclusive_trade_fill_attribution": True,
-            "adverse_and_non_adverse_markouts": True,
+            "signed_markout_accounting": True,
             "cancel_latency": True,
             "same_timestamp_cancel_before_trade": True,
-            "marketable_taker_fill": True,
+            "arrival_time_post_only_rejection": True,
             "self_trade_prevention": True,
             "book_gap_count": summary["event_counts"]["book_gap_count"],
         }

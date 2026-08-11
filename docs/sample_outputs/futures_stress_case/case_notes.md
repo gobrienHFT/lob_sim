@@ -4,15 +4,15 @@ This pack is synthetic by design. It should be read as an executable invariant f
 
 ## Event Counts
 
-- Event trace rows: `52`
-- Event type counts: `{"cancel_ack": 2, "cancel_requested": 2, "decision": 4, "fill": 5, "market_record": 14, "markout": 5, "order_arrival": 4, "order_arrival_scheduled": 4, "queue_consumption": 12}`
+- Event trace rows: `46`
+- Event type counts: `{"cancel_ack": 2, "cancel_requested": 2, "decision": 4, "fill": 1, "market_record": 14, "markout": 1, "order_arrival": 4, "order_arrival_scheduled": 4, "order_rejected": 2, "queue_consumption": 12}`
 - Replay event counts: `{"agg_trade": 4, "book_gap_count": 0, "depth_changes_applied": 12, "depth_update": 8, "exchange_info": 1, "records_processed": 14, "snapshot": 1}`
 
 ## Fill And Queue Evidence
 
-- Fill-source mix: `{"agg_trade": 2, "depth_update": 1, "taker_order": 2}`
-- Queue consumption: `{"overlap_window_seconds": 0.125, "sources": {"agg_trade": {"modeled_lots": 4, "observed_lots": 5, "overlap_netted_lots": 1, "queue_consumed_lots": 4, "unmatched_lots": 0}, "depth_update": {"modeled_lots": 14, "observed_lots": 14, "overlap_netted_lots": 0, "queue_consumed_lots": 12, "unmatched_lots": 2}}, "total_modeled_lots": 18, "total_observed_lots": 19, "total_overlap_netted_lots": 1, "total_queue_consumed_lots": 16, "total_unmatched_lots": 2}`
-- Markout by source: `{"agg_trade": {"adverse_fill_rate_1s": 0.5, "adverse_samples": 1, "avg_markout_1s": 0.1, "qty": 0.003, "samples": 2}, "depth_update": {"adverse_fill_rate_1s": 0.0, "adverse_samples": 0, "avg_markout_1s": 0.2, "qty": 0.001, "samples": 1}, "taker_order": {"adverse_fill_rate_1s": 0.5, "adverse_samples": 1, "avg_markout_1s": -0.05, "qty": 0.002, "samples": 2}}`
+- Fill-source mix: `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}`
+- Queue consumption: `{"overlap_window_seconds": 0.125, "sources": {"agg_trade": {"modeled_lots": 5, "observed_lots": 5, "overlap_netted_lots": 0, "queue_consumed_lots": 5, "unmatched_lots": 0}, "depth_update": {"modeled_lots": 14, "observed_lots": 14, "overlap_netted_lots": 0, "queue_consumed_lots": 0, "unmatched_lots": 14}}, "total_modeled_lots": 19, "total_observed_lots": 19, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 5, "total_unmatched_lots": 14}`
+- Markout by source: `{"agg_trade": {"adverse_fill_rate_1s": 0.0, "adverse_samples": 0, "avg_markout_1s": 0.2, "qty": 0.001, "samples": 1}, "depth_update": {"adverse_fill_rate_1s": 0.0, "adverse_samples": 0, "avg_markout_1s": 0.0, "qty": 0.0, "samples": 0}, "taker_order": {"adverse_fill_rate_1s": 0.0, "adverse_samples": 0, "avg_markout_1s": 0.0, "qty": 0.0, "samples": 0}}`
 - Arrival queue samples: `2`
 - Max arrival queue ahead lots: `2`
 

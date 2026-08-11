@@ -603,6 +603,59 @@ class SimulationEngine:
                     },
                 )
 
+    def _reject_arrival(
+        self,
+        *,
+        now: float,
+        symbol: str,
+        side: str,
+        quote_slot: str,
+        price_tick: int,
+        qty_lots: int,
+        reason: str,
+        source: str,
+        extra_details: dict[str, Any] | None = None,
+    ) -> None:
+        remaining_lots = max(0, qty_lots)
+        details = dict(extra_details or {})
+        self.metrics.on_order_rejected(reason)
+        self.metrics.on_order_arrival(
+            resting_after_arrival=False,
+            immediate_fills=0,
+            remaining_lots_after_arrival=remaining_lots,
+            state="rejected",
+        )
+        self._trace(
+            now,
+            symbol,
+            "order_rejected",
+            source,
+            side=side,
+            quote_slot=quote_slot,
+            price_tick=price_tick,
+            qty_lots=qty_lots,
+            details={"reason": reason, **details},
+        )
+        self._trace(
+            now,
+            symbol,
+            "order_arrival",
+            "engine",
+            side=side,
+            quote_slot=quote_slot,
+            price_tick=price_tick,
+            qty_lots=qty_lots,
+            details={
+                "rejected": True,
+                "rejection_reason": reason,
+                "self_trade_prevented": reason == "self_trade_prevented",
+                "remaining_lots_after_arrival": remaining_lots,
+                "immediate_fills": 0,
+                "resting_after_arrival": False,
+                **details,
+            },
+        )
+
     def _handle_arrival(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
         side = payload["side"]
         quote_slot = str(payload.get("quote_slot", "base"))
@@ -616,14 +669,15 @@ class SimulationEngine:
         book = self._books.get(symbol)
         syncer = self._syncers.get(symbol)
         if book is None or syncer is None or not syncer.synced or qty_lots <= 0:
-            self.metrics.on_order_rejected(
-                "unsynced_book" if syncer is None or not syncer.synced else "invalid_quantity"
-            )
-            self.metrics.on_order_arrival(
-                resting_after_arrival=False,
-                immediate_fills=0,
-                remaining_lots_after_arrival=max(0, qty_lots),
-                state="rejected",
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
+                side=side,
+                quote_slot=quote_slot,
+                price_tick=price_tick,
+                qty_lots=qty_lots,
+                reason="unsynced_book" if syncer is None or not syncer.synced else "invalid_quantity",
+                source="risk",
             )
             return
 
@@ -632,23 +686,15 @@ class SimulationEngine:
         # capacity until their acknowledgements are observed.
         best_ticks = book.best_ticks()
         if best_ticks is None:
-            self.metrics.on_order_rejected("empty_book")
-            self.metrics.on_order_arrival(
-                resting_after_arrival=False,
-                immediate_fills=0,
-                remaining_lots_after_arrival=qty_lots,
-                state="rejected",
-            )
-            self._trace(
-                now,
-                symbol,
-                "order_rejected",
-                "risk",
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
                 side=side,
                 quote_slot=quote_slot,
                 price_tick=price_tick,
                 qty_lots=qty_lots,
-                details={"reason": "empty_book"},
+                reason="empty_book",
+                source="risk",
             )
             return
         best_bid, best_ask = best_ticks
@@ -663,60 +709,28 @@ class SimulationEngine:
         )
         if own_cross:
             self.metrics.on_self_trade_prevented()
-            self.metrics.on_order_rejected("self_trade_prevented")
-            self.metrics.on_order_arrival(
-                resting_after_arrival=False,
-                immediate_fills=0,
-                remaining_lots_after_arrival=qty_lots,
-                state="rejected",
-            )
-            self._trace(
-                now,
-                symbol,
-                "order_rejected",
-                "risk",
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
                 side=side,
                 quote_slot=quote_slot,
                 price_tick=price_tick,
                 qty_lots=qty_lots,
-                details={"reason": "self_trade_prevented"},
-            )
-            self._trace(
-                now,
-                symbol,
-                "order_arrival",
-                "engine",
-                side=side,
-                quote_slot=quote_slot,
-                price_tick=price_tick,
-                qty_lots=qty_lots,
-                details={
-                    "self_trade_prevented": True,
-                    "rejected": True,
-                    "remaining_lots_after_arrival": qty_lots,
-                    "immediate_fills": 0,
-                    "resting_after_arrival": False,
-                },
+                reason="self_trade_prevented",
+                source="risk",
             )
             return
         if (side == "bid" and price_tick >= best_ask) or (side == "ask" and price_tick <= best_bid):
-            self.metrics.on_order_rejected("post_only_would_cross")
-            self.metrics.on_order_arrival(
-                resting_after_arrival=False,
-                immediate_fills=0,
-                remaining_lots_after_arrival=qty_lots,
-                state="rejected",
-            )
-            self._trace(
-                now,
-                symbol,
-                "order_rejected",
-                "venue",
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
                 side=side,
                 quote_slot=quote_slot,
                 price_tick=price_tick,
                 qty_lots=qty_lots,
-                details={"reason": "post_only_would_cross", "best_bid": best_bid, "best_ask": best_ask},
+                reason="post_only_would_cross",
+                source="venue",
+                extra_details={"best_bid": best_bid, "best_ask": best_ask},
             )
             return
         inventory_lots = self.metrics.inventory_lots(symbol)
@@ -733,23 +747,16 @@ class SimulationEngine:
             else max_position_lots + inventory_lots - same_side_live - same_side_pending
         )
         if qty_lots > max(0, capacity):
-            self.metrics.on_order_rejected("risk_limit")
-            self.metrics.on_order_arrival(
-                resting_after_arrival=False,
-                immediate_fills=0,
-                remaining_lots_after_arrival=qty_lots,
-                state="rejected",
-            )
-            self._trace(
-                now,
-                symbol,
-                "order_rejected",
-                "risk",
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
                 side=side,
                 quote_slot=quote_slot,
                 price_tick=price_tick,
                 qty_lots=qty_lots,
-                details={"reason": "risk_limit", "capacity_lots": max(0, capacity)},
+                reason="risk_limit",
+                source="risk",
+                extra_details={"capacity_lots": max(0, capacity)},
             )
             return
 

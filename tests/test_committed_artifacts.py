@@ -1088,17 +1088,17 @@ def test_futures_stress_pack_covers_reviewer_edge_cases() -> None:
             "queue_ahead",
             "partial_fills",
             "exclusive_trade_fill_attribution",
-            "adverse_and_non_adverse_markouts",
+            "signed_markout_accounting",
             "cancel_latency",
             "same_timestamp_cancel_before_trade",
-            "marketable_taker_fill",
+            "arrival_time_post_only_rejection",
             "self_trade_prevention",
         ]
     )
     assert coverage["book_gap_count"] == 0
     assert summary["fill_source_counts"]["depth_update"] == 0
     assert summary["fill_source_counts"]["agg_trade"] > 0
-    assert summary["fill_source_counts"]["taker_order"] > 0
+    assert summary["fill_source_counts"]["taker_order"] == 0
     assert summary["public_consumption_summary"]["sources"]["depth_update"]["unmatched_lots"] > 0
     assert summary["order_lifecycle_counts"]["self_trade_prevented"] == 1
 

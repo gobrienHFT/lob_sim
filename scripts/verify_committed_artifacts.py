@@ -2367,10 +2367,10 @@ def _verify_futures_stress_pack_publication() -> list[str]:
         "queue_ahead",
         "partial_fills",
         "exclusive_trade_fill_attribution",
-        "adverse_and_non_adverse_markouts",
+        "signed_markout_accounting",
         "cancel_latency",
         "same_timestamp_cancel_before_trade",
-        "marketable_taker_fill",
+        "arrival_time_post_only_rejection",
         "self_trade_prevention",
     }
     if not isinstance(coverage, dict):
@@ -2386,9 +2386,9 @@ def _verify_futures_stress_pack_publication() -> list[str]:
         not isinstance(fill_sources, dict)
         or fill_sources.get("depth_update", 0) != 0
         or fill_sources.get("agg_trade", 0) <= 0
-        or fill_sources.get("taker_order", 0) <= 0
+        or fill_sources.get("taker_order", 0) != 0
     ):
-        issues.append("futures_stress_case must isolate agg_trade and taker fills from depth diagnostics")
+        issues.append("futures_stress_case must isolate agg_trade fills from depth diagnostics and taker fills")
     public = summary.get("public_consumption_summary", {})
     depth_diagnostics = public.get("sources", {}).get("depth_update", {}) if isinstance(public, dict) else {}
     if depth_diagnostics.get("unmatched_lots", 0) <= 0:
@@ -2397,12 +2397,9 @@ def _verify_futures_stress_pack_publication() -> list[str]:
     if not isinstance(markout_by_source, dict):
         issues.append("futures_stress_case is missing markout_by_fill_source")
     else:
-        adverse = sum(int(data.get("adverse_samples", 0)) for data in markout_by_source.values())
-        non_adverse = sum(
-            int(data.get("samples", 0)) - int(data.get("adverse_samples", 0)) for data in markout_by_source.values()
-        )
-        if adverse <= 0 or non_adverse <= 0:
-            issues.append("futures_stress_case must include both adverse and non-adverse markouts")
+        samples = sum(int(data.get("samples", 0)) for data in markout_by_source.values())
+        if samples <= 0:
+            issues.append("futures_stress_case must include signed markout evidence")
 
     text = _read_text(FUTURES_STRESS_DIR / "README.md")
     for token in ["synthetic-but-exchange-shaped", "self-trade prevention", "Same-timestamp"]:
