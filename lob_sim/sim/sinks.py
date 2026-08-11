@@ -96,30 +96,82 @@ class StreamingJsonlSink:
 
 
 class StreamingCsvSink:
-    """Bounded CSV audit sink with a fixed schema."""
+    """Batch-free, atomically finalized CSV audit sink with a fixed schema."""
 
     memory_bounded = True
 
-    def __init__(self, path: str | Path, fieldnames: Iterable[str]) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        fieldnames: Iterable[str],
+        *,
+        flush_every: int = 4096,
+    ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = self.path.open("w", encoding="utf-8", newline="")
+        self.partial_path = self.path.with_name(self.path.name + ".partial")
+        self._fh = self.partial_path.open("x", encoding="utf-8", newline="")
         self._writer = csv.DictWriter(self._fh, fieldnames=list(fieldnames), extrasaction="ignore")
         self._writer.writeheader()
+        self._flush_every = max(1, flush_every)
+        self._prepared = False
+        self._closed = False
+        self.count = 0
+
+    @staticmethod
+    def _cell(value: Any) -> Any:
+        if value is None:
+            return ""
+        if isinstance(value, (Mapping, list, tuple)):
+            return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+        return value
 
     def write(self, event: Mapping[str, Any]) -> None:
-        self._writer.writerow(dict(event))
+        if self._prepared or self._closed:
+            raise RuntimeError("cannot write to a closed CSV sink")
+        self._writer.writerow({key: self._cell(value) for key, value in event.items()})
+        self.count += 1
+        if self.count % self._flush_every == 0:
+            self._fh.flush()
+
+    def prepare(self) -> None:
+        """Durably close the partial file without publishing it."""
+
+        if self._prepared or self._closed:
+            return
+        self._fh.flush()
+        os.fsync(self._fh.fileno())
+        self._fh.close()
+        self._prepared = True
+
+    def commit(self) -> None:
+        """Publish a prepared file with one same-directory atomic replace."""
+
+        if self._closed:
+            return
+        self.prepare()
+        self.partial_path.replace(self.path)
+        self._closed = True
 
     def close(self) -> None:
+        self.commit()
+
+    def abort(self) -> None:
+        if self._closed:
+            return
         if not self._fh.closed:
             self._fh.flush()
             self._fh.close()
+        self._closed = True
 
     def __enter__(self) -> "StreamingCsvSink":
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        self.close()
+        if exc_type is None:
+            self.close()
+        else:
+            self.abort()
 
 
 class StreamingParquetSink:

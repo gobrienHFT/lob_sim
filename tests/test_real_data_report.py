@@ -50,7 +50,7 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert payload["target_window"]["env_overrides"]["COLLECT_SECONDS"] == "1800"
     assert payload["target_window"]["longer_run_commands"]
     assert payload["audit"]["ok"] is True
-    assert payload["benchmark"]["schema_version"] == "lob_sim.reviewer_benchmark.v1"
+    assert payload["benchmark"]["schema_version"] == "lob_sim.reviewer_benchmark.v2"
 
     markdown = paths["published_report_md"].read_text(encoding="utf-8")
     assert "Plain Interpretation" in markdown

@@ -140,7 +140,7 @@ def test_reviewer_benchmark_modes_time_simulation_export_and_audit(
     assert set(result["modes"]) == {
         "replay_only",
         "simulation_no_export",
-        "simulation_with_event_trace_export",
+        "simulation_with_streaming_audit_export",
         "pack_audit",
     }
     assert result["modes"]["replay_only"]["event_counts"]["total_events"] == 4
@@ -150,13 +150,18 @@ def test_reviewer_benchmark_modes_time_simulation_export_and_audit(
     assert no_export["event_trace_retention"]["rows_retained"] == 0
     assert no_export["audit_retention"]["memory_bounded_by_tape_duration"] is True
     assert no_export["audit_retention"]["fill_rows_retained"] == 0
-    assert result["modes"]["simulation_with_event_trace_export"]["artifact_labels"] == [
+    streaming_export = result["modes"]["simulation_with_streaming_audit_export"]
+    assert streaming_export["artifact_labels"] == [
         "event_trace",
         "manifest",
+        "markouts",
         "summary",
         "summary_csv",
         "trades",
     ]
+    assert streaming_export["event_trace_retention"]["memory_bounded_by_tape_duration"] is True
+    assert streaming_export["audit_retention"]["memory_bounded_by_tape_duration"] is True
+    assert streaming_export["simulation_export"]["mode"] == "bounded_streaming"
     assert result["modes"]["pack_audit"]["audit_ok"] is True
     for mode in result["modes"].values():
         assert mode["timing"]["wall_time_seconds"] >= 0

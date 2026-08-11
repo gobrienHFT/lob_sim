@@ -2567,7 +2567,7 @@ def _verify_benchmark_publication() -> list[str]:
     for token in [
         "--mode all",
         "simulation without writing artifacts",
-        "simulation plus event-trace export",
+        "bounded simulation plus streamed event/fill/markout audits",
         "docs/sample_outputs/futures_stress_case",
     ]:
         if token not in text:

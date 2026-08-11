@@ -25,13 +25,14 @@ from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, a
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim.runner import run_bounded_simulation
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, instrument_specs_snapshot, source_state
 
 from scripts.audit_futures_pack import audit_futures_pack
 
 
 BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
-REVIEWER_BENCHMARK_SCHEMA_VERSION = "lob_sim.reviewer_benchmark.v1"
+REVIEWER_BENCHMARK_SCHEMA_VERSION = "lob_sim.reviewer_benchmark.v2"
 
 
 def _percentile(sorted_values: list[float], pct: float) -> float:
@@ -223,7 +224,7 @@ def _benchmark_simulation_no_export(path: Path, env_path: str, runs: int) -> dic
     }
 
 
-def _benchmark_simulation_with_export(path: Path, env_path: str, runs: int) -> dict[str, Any]:
+def _benchmark_simulation_streaming_export(path: Path, env_path: str, runs: int) -> dict[str, Any]:
     wall_times: list[float] = []
     peak_bytes = 0
     last_summary: dict[str, Any] = {}
@@ -237,9 +238,7 @@ def _benchmark_simulation_with_export(path: Path, env_path: str, runs: int) -> d
 
                 def operation() -> tuple[dict[str, Any], dict[str, str]]:
                     cfg = load_config(env_path)
-                    engine = SimulationEngine(cfg)
-                    metrics = engine.run(path)
-                    generated_paths, summary = engine.write_outputs(str(path), metrics)
+                    generated_paths, summary = run_bounded_simulation(cfg, path)
                     return summary, {name: generated.as_posix() for name, generated in generated_paths.items()}
 
                 (last_summary, last_artifacts), wall_time, peak = _run_with_memory(operation)
@@ -265,6 +264,9 @@ def _benchmark_simulation_with_export(path: Path, env_path: str, runs: int) -> d
         "event_counts": last_summary.get("event_counts", {}),
         "fill_count": last_summary.get("fill_count", 0),
         "event_trace_count": last_summary.get("event_trace_count", 0),
+        "event_trace_retention": last_summary.get("event_trace_retention", {}),
+        "audit_retention": last_summary.get("audit_retention", {}),
+        "simulation_export": last_summary.get("simulation_export", {}),
         "artifact_labels": sorted(last_artifacts),
     }
 
@@ -310,7 +312,7 @@ def benchmark_reviewer_modes(
             "event_counts": replay["event_counts"],
         },
         "simulation_no_export": _benchmark_simulation_no_export(path, env_path, runs),
-        "simulation_with_event_trace_export": _benchmark_simulation_with_export(path, env_path, runs),
+        "simulation_with_streaming_audit_export": _benchmark_simulation_streaming_export(path, env_path, runs),
     }
     if pack_dir is not None:
         modes["pack_audit"] = _benchmark_pack_audit(pack_dir, runs)

@@ -340,8 +340,8 @@ def _build_report_payload(
             "platform": benchmark_metadata.get("platform"),
             "replay_only": _benchmark_mode_context(benchmark, "replay_only"),
             "simulation_no_export": _benchmark_mode_context(benchmark, "simulation_no_export"),
-            "simulation_with_event_trace_export": _benchmark_mode_context(
-                benchmark, "simulation_with_event_trace_export"
+            "simulation_with_streaming_audit_export": _benchmark_mode_context(
+                benchmark, "simulation_with_streaming_audit_export"
             ),
             "pack_audit": _benchmark_mode_context(benchmark, "pack_audit"),
         },
@@ -475,11 +475,11 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Simulation without export events/sec: `{benchmark['simulation_no_export'].get('events_per_second')}`",
             (
                 "- Simulation with event-trace export events/sec: "
-                f"`{benchmark['simulation_with_event_trace_export'].get('events_per_second')}`"
+                f"`{benchmark['simulation_with_streaming_audit_export'].get('events_per_second')}`"
             ),
             (
                 "- Simulation with event-trace export peak traced MiB: "
-                f"`{benchmark['simulation_with_event_trace_export'].get('peak_traced_mib')}`"
+                f"`{benchmark['simulation_with_streaming_audit_export'].get('peak_traced_mib')}`"
             ),
             f"- Runtime: Python `{benchmark.get('python_version')}`, platform `{benchmark.get('platform')}`",
             "",

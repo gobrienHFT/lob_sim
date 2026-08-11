@@ -873,9 +873,17 @@ class SimulationMetrics:
         sinks_memory_bounded = bool(getattr(self._fill_sink, "memory_bounded", False)) and bool(
             getattr(self._markout_sink, "memory_bounded", False)
         )
+        sink_names = {type(self._fill_sink).__name__, type(self._markout_sink).__name__}
+        retention_mode = (
+            "in_memory"
+            if self._retain_audit_rows
+            else "streaming"
+            if any(name.startswith("Streaming") for name in sink_names)
+            else "aggregate_only"
+        )
         audit_retention = {
             "schema_version": "lob_sim.audit_retention.v1",
-            "mode": "in_memory" if self._retain_audit_rows else "aggregate_only",
+            "mode": retention_mode,
             "memory_bounded_by_tape_duration": not self._retain_audit_rows and sinks_memory_bounded,
             "built_in_sinks_memory_bounded": sinks_memory_bounded,
             "detail_rows_complete_in_summary": self._retain_audit_rows,

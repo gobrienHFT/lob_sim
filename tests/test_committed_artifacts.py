@@ -1060,7 +1060,8 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
         "lob_sim/oracle_kernel.py "
         "lob_sim/util.py "
         "lob_sim/sim/fill_model.py "
-        "lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py"
+        "lob_sim/sim/engine.py lob_sim/sim/export.py lob_sim/sim/runner.py "
+        "lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py"
     )
     for version in ("3.11", "3.12", "3.13"):
         assert f"Programming Language :: Python :: {version}" in pyproject
@@ -1369,7 +1370,7 @@ def test_futures_benchmark_reference_is_published() -> None:
     assert "Instrument specs: `BTCUSDT`" in benchmarks
     assert "--mode all" in benchmarks
     assert "simulation without writing artifacts" in benchmarks
-    assert "simulation plus event-trace export" in benchmarks
+    assert "bounded simulation plus streamed event/fill/markout audits" in benchmarks
     assert "docs/sample_outputs/futures_stress_case" in benchmarks
     assert benchmark_json["schema_version"] == verifier.EXPECTED_BENCHMARK_SCHEMA_VERSION
     assert "config" in benchmark_json["metadata"]

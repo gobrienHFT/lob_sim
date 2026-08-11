@@ -13,6 +13,7 @@ public evidence should be read using this matrix:
 | Synthetic venue | The synthetic mode has exact participant/order IDs and price-time priority. | Historical Binance FIFO equivalence. |
 | Differential proof | Python and Rust agree on generated fixed-point book batches, exact-synthetic new/cancel/replace lifecycles, integer-nanosecond scheduler transitions and per-symbol live-plus-pending lot reservations, including periodic state hashes. | End-to-end engine parity, public-L2 fill parity, portfolio-notional risk parity, accounting/markout parity or manifest parity. |
 | Risk/accounting | Live-plus-pending exposure, post-only arrival checks, fees, gross/net PnL and missing marks are auditable. | Capital deployment, live profitability, or risk-model completeness. |
+| Simulation persistence | Ordinary runs stream causal trace, fill and markout rows with tape-duration-independent retention. Fsynced partials, an incomplete sentinel and the final hashed manifest distinguish failed from complete bundles. | Filesystem-wide atomicity across every file, recovery of an un-fsynced tail, or bounded memory beyond configured live state and pending-markout caps. |
 | Research | Paired scenario/latency studies can report markouts, uncertainty and robustness. | Alpha after an underpowered or holdout-tuned study. |
 | Performance | Benchmarks document a pinned build, corpus and host. | Trading latency, Jane Street equivalence, or production readiness. |
 

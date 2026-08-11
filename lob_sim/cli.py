@@ -45,6 +45,7 @@ from .replay.arrow_store import normalize_to_arrow
 from .replay.reader import iter_records
 from .replay.runner import replay
 from .sim.engine import SimulationEngine
+from .sim.runner import run_bounded_simulation
 from .sim.sinks import NullSink
 from .sim.run_manifest import config_snapshot
 from . import __version__
@@ -719,14 +720,31 @@ def cmd_doctor(config: Config) -> None:
     print(json.dumps(payload, indent=2))
 
 
-def cmd_simulate(config: Config, file: str, verbose: bool = False, progress_every: int = 5000) -> None:
-    engine = SimulationEngine(config)
-    metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
-    output_files, summary = engine.write_outputs(file, metrics)
+def cmd_simulate(
+    config: Config,
+    file: str,
+    verbose: bool = False,
+    progress_every: int = 5000,
+    in_memory_export: bool = False,
+) -> None:
+    if in_memory_export:
+        engine = SimulationEngine(config)
+        metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
+        output_files, summary = engine.write_outputs(file, metrics)
+    else:
+        output_files, summary = run_bounded_simulation(
+            config,
+            file,
+            verbose=verbose,
+            progress_every=progress_every,
+        )
     if verbose:
+        print(f"[simulate] completed run directory {output_files['manifest'].parent}", flush=True)
         print(f"[simulate] summary written to {output_files['summary']}", flush=True)
         print(f"[simulate] summary CSV written to {output_files['summary_csv']}", flush=True)
         print(f"[simulate] trades written to {output_files['trades']}", flush=True)
+        if "markouts" in output_files:
+            print(f"[simulate] markouts written to {output_files['markouts']}", flush=True)
     print(json.dumps(summary, indent=2))
 
 
@@ -948,6 +966,11 @@ def main() -> None:
     )
     s.add_argument("--verbose", action="store_true")
     s.add_argument("--progress-every", type=int, default=5000)
+    s.add_argument(
+        "--in-memory-export",
+        action="store_true",
+        help="Use the fixture-scale compatibility exporter; memory grows with trace, fill, and markout rows.",
+    )
     s.set_defaults(func=cmd_simulate)
 
     compare = sub.add_parser("compare")
@@ -1014,7 +1037,7 @@ def main() -> None:
     elif args.command == "simulate":
         if args.fill_profile is not None:
             cfg = replace(cfg, fill_assumption=fill_assumption_config_for_profile(args.fill_profile))
-        args.func(cfg, args.file, args.verbose, args.progress_every)
+        args.func(cfg, args.file, args.verbose, args.progress_every, args.in_memory_export)
     elif args.command == "compare":
         args.func(cfg, args.file, args.repetitions)
     elif args.command == "audit":
