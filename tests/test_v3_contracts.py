@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from lob_sim.cli import _EnvelopeRecordWriter
 from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkpoint
 from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
+from lob_sim.record.format import NDJSONRecord
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
 from lob_sim.replay.reader import iter_records
 from lob_sim.replay.arrow_store import arrow_metadata, iter_arrow_rows, normalize_to_arrow
@@ -86,6 +88,64 @@ def test_segment_rejects_nonincreasing_global_receive_sequence(tmp_path: Path) -
     with pytest.raises(Exception, match="receive sequence must increase"):
         writer.write(_envelope(2))
     writer.close()
+
+
+def test_capture_event_envelope_preserves_route_epochs_and_receive_identity() -> None:
+    envelopes: list[EventEnvelope] = []
+
+    class _Writer:
+        def write(self, envelope: EventEnvelope) -> None:
+            envelopes.append(envelope)
+
+    fallback_calls = 0
+
+    def fallback_sequence() -> int:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return 999
+
+    adapter = _EnvelopeRecordWriter(_Writer(), "capture-1", fallback_sequence)  # type: ignore[arg-type]
+    adapter.write(
+        NDJSONRecord(
+            ts_local=1.25,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={
+                "event": "connect",
+                "route": "public",
+                "recvSeq": 41,
+                "recvMonotonicNs": 123_456,
+                "streamEpoch": 3,
+                "syncEpoch": 7,
+            },
+        )
+    )
+
+    assert fallback_calls == 0
+    assert len(envelopes) == 1
+    envelope = envelopes[0]
+    assert envelope.recv_seq == 41
+    assert envelope.recv_monotonic_ns == 123_456
+    assert envelope.route == "public"
+    assert envelope.stream_epoch == 3
+    assert envelope.sync_epoch == 7
+
+
+def test_partial_recovery_recomputes_payload_checksum(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="capture interrupted"):
+        with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
+            writer.write(_envelope(1))
+            raise RuntimeError("capture interrupted")
+
+    partial = next(tmp_path.glob("*.partial"))
+    rows = [json.loads(line) for line in partial.read_text(encoding="utf-8").splitlines()]
+    event_row = next(row for row in rows if row.get("record") == "event")
+    event_row["event"]["payload"]["U"] = 999
+    partial.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    assert list(recover_valid_envelopes(partial)) == []
+    report = validate_segment(partial)
+    assert "line 2: payload checksum mismatch" in report.issues
 
 
 def test_checkpoint_round_trip_and_tamper_detection(tmp_path: Path) -> None:

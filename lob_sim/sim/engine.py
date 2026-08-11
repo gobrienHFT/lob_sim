@@ -93,6 +93,7 @@ class SimulationEngine:
         self._receive_clock = False
         self._last_receive_seq: int | None = None
         self._stream_epochs: dict[tuple[str, str], int] = {}
+        self._capture_sync_epochs: dict[str, int] = {}
         self._sync_epoch_transitions = 0
         self._gap_count = 0
         self._snapshot_rejections = 0
@@ -136,6 +137,7 @@ class SimulationEngine:
                 raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
             self._last_receive_seq = seq
         route = str(capture.get("route", ""))
+        book_epoch_reason: str | None = None
         stream_epoch = capture.get("streamEpoch")
         if stream_epoch is not None:
             key = (rec.symbol, route)
@@ -144,7 +146,7 @@ class SimulationEngine:
             if previous is not None and epoch != previous:
                 self._sync_epoch_transitions += 1
                 if route == "public":
-                    self._invalidate_symbol(rec.symbol, now, "depth_stream_reconnect")
+                    book_epoch_reason = "depth_stream_reconnect"
                 elif route == "market":
                     self._trade_stream_valid[rec.symbol] = False
                     self.metrics.on_trade_stream_invalidated(rec.symbol)
@@ -152,9 +154,19 @@ class SimulationEngine:
             if route == "market" and previous is None:
                 self._trade_stream_valid[rec.symbol] = True
         capture_sync_epoch = capture.get("syncEpoch")
-        syncer = self._syncers.get(rec.symbol)
-        if syncer is not None and capture_sync_epoch is not None and int(capture_sync_epoch) != syncer.epoch:
-            self._sync_epoch_transitions += 1
+        if route == "public" and capture_sync_epoch is not None:
+            epoch = int(capture_sync_epoch)
+            previous = self._capture_sync_epochs.get(rec.symbol)
+            if previous is not None and epoch != previous:
+                if book_epoch_reason is None:
+                    self._sync_epoch_transitions += 1
+                    book_epoch_reason = "capture_sync_epoch_changed"
+            self._capture_sync_epochs[rec.symbol] = epoch
+        if book_epoch_reason is not None:
+            syncer = self._syncers.get(rec.symbol)
+            if syncer is not None:
+                syncer.begin_resync(book_epoch_reason)
+            self._invalidate_symbol(rec.symbol, now, book_epoch_reason)
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
         heappush(

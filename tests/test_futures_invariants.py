@@ -12,6 +12,7 @@ from lob_sim.book.sync import BookSyncGapError, BookSynchronizer
 from lob_sim.book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SnapshotEvent, SymbolSpec
 from lob_sim.config import Config, load_config
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
+from lob_sim.replay.reader import RecordedEvent
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import SimulationMetrics
@@ -106,6 +107,72 @@ def test_first_depth_event_must_cover_snapshot_id() -> None:
                 ts_local=1.0,
             )
         )
+
+
+def test_capture_epoch_transition_invalidates_book_orders_and_pending_actions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._specs["BTCUSDT"] = _spec()
+    syncer = engine._get_sync("BTCUSDT")
+    assert syncer is not None
+    syncer.on_snapshot(
+        SnapshotEvent(
+            symbol="BTCUSDT",
+            last_update_id=100,
+            bids=[(1000, 10)],
+            asks=[(1001, 10)],
+        )
+    )
+    syncer.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=100,
+            final_update_id=101,
+            prev_update_id=99,
+            bids=[],
+            asks=[],
+            ts_local=1.0,
+        )
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-live",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=999,
+        qty_lots=1,
+        quote_slot="base",
+        created_ts=1.0,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+    engine._schedule(3.0, "order_arrival", "BTCUSDT", {"side": "bid", "qty_lots": 1})
+
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={"_capture": {"route": "public", "streamEpoch": 1, "syncEpoch": 1, "recvSeq": 1}},
+        ),
+        1.0,
+    )
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={"_capture": {"route": "public", "streamEpoch": 2, "syncEpoch": 2, "recvSeq": 2}},
+        ),
+        2.0,
+    )
+
+    assert syncer.synced is False
+    assert syncer.ready is False
+    assert syncer.book.total_levels() == 0
+    assert order.state == "epoch_invalidated"
+    assert not engine._actions
+    assert engine.metrics.book_invalidation_count == 1
 
 
 def test_fifo_queue_priority_keeps_later_venue_volume_behind_resting_strategy_order() -> None:

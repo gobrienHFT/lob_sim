@@ -288,7 +288,8 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
             except (TypeError, ValueError):
                 break
             checksum = row.get("payload_checksum")
-            if checksum != envelope.raw_payload_checksum:
+            computed_checksum = payload_checksum(envelope.payload)
+            if checksum != computed_checksum or envelope.raw_payload_checksum != computed_checksum:
                 break
             if previous_seq is not None and envelope.recv_seq <= previous_seq:
                 break
@@ -337,7 +338,11 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 except (TypeError, ValueError) as exc:
                     issues.append(f"line {line_number}: invalid envelope: {exc}")
                     continue
-                if row.get("payload_checksum") != envelope.raw_payload_checksum:
+                computed_checksum = payload_checksum(envelope.payload)
+                if (
+                    row.get("payload_checksum") != computed_checksum
+                    or envelope.raw_payload_checksum != computed_checksum
+                ):
                     issues.append(f"line {line_number}: payload checksum mismatch")
                 if last_seq is not None and envelope.recv_seq <= last_seq:
                     issues.append(f"line {line_number}: receive sequence is not strictly increasing")
