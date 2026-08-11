@@ -27,6 +27,7 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert steps[0].command == ("python", "-m", "pytest", "-q")
     assert steps[1].command[:3] == ("python", "-m", "mypy")
     assert "lob_sim/record" in steps[1].command
+    assert "lob_sim/binance/ws.py" in steps[1].command
     assert "lob_sim/cli.py" in steps[1].command
     assert "lob_sim/config.py" in steps[1].command
     assert "lob_sim/oracle_kernel.py" in steps[1].command

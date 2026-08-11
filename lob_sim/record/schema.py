@@ -204,6 +204,7 @@ def validate_record_object(
             _require_keys(data, ("event", "route"), "captureEvent payload", path=path, line_number=line_number)
             _require_optional_string(data, "event", "captureEvent", path=path, line_number=line_number)
             _require_optional_string(data, "route", "captureEvent", path=path, line_number=line_number)
+            _require_optional_string(data, "reason", "captureEvent", path=path, line_number=line_number)
             return
         if "schemaVersion" in data:
             _require_intish(data["schemaVersion"], "captureMeta.schemaVersion", path=path, line_number=line_number)

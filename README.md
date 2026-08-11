@@ -44,7 +44,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 ### Futures replay core
 
 - Market-data capture into NDJSON via [`lob_sim/cli.py`](lob_sim/cli.py) and [`lob_sim/record/writer.py`](lob_sim/record/writer.py).
-- Schema-v3 capture metadata uses independent `public` depth and `market` trade routes, global receive sequence, receipt monotonic time, stream/sync epochs, and stream-first snapshot bridging.
+- Schema-v3 capture metadata uses independent `public` depth and `market` trade routes, global receive sequence, receipt monotonic time, stream/sync epochs, and stream-first snapshot bridging. Connect, disconnect, connect-failure, and parse-failure boundaries are explicit; downstream writer failures stop capture rather than being mistaken for network reconnects.
 - Snapshot seeding plus diff-continuity checks in [`lob_sim/book/sync.py`](lob_sim/book/sync.py).
 - Local book reconstruction in [`lob_sim/book/local_book.py`](lob_sim/book/local_book.py).
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
@@ -111,6 +111,7 @@ flowchart LR
 - `--fill-profile conservative|base|aggressive` and `SIM_FILL_MODEL=trade|depth` make the public-L2 execution scenario explicit and mutually exclusive.
 - Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, synthetic queue lots consumed, and unmatched lots for both public sources.
 - Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.
+- Trade-stream outages clear stale flow signals and invalidate live/pending execution state whenever the chosen fill or strategy scenario requires trades. Reconnect recovery starts a fresh prospective epoch; the still-valid depth book is not falsely marked broken, and pre-outage queue evidence cannot fill in the new epoch.
 - Fill trace rows carry notional, fee, spread-capture, mid-at-fill, queue, and regime fields so a fill can be audited without leaving the event timeline.
 - Markout summaries are split by fill source, so adverse selection can be inspected separately for depth-inferred, aggregate-trade, and taker-order fills.
 - Event traces include `markout` rows when the post-fill horizon matures, tying each fill to the later mid, signed markout, adverse flag, and fill source.

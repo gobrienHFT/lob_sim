@@ -118,6 +118,7 @@ def _capture_metadata() -> dict[str, object]:
         "exchangeTimestampUnit": "milliseconds",
         "eventMetadataField": "_capture",
         "routes": {"depth": "public", "aggTrade": "market"},
+        "streamLifecycleEvents": ["connect", "disconnect", "connect_failure", "parse_failure"],
         "validity": "book AND trade_stream AND clock AND capture",
     }
 
@@ -227,43 +228,68 @@ async def _collect_symbol(
     snapshot_reason = "bootstrap"
     last_depth_stream_epoch: int | None = None
 
-    async def _record_connection(route: str, stream_epoch: int) -> None:
+    async def _record_stream_event(
+        event: str,
+        route: str,
+        stream_epoch: int,
+        reason: str | None = None,
+    ) -> None:
         recv_seq = receive_sequence()
         recv_monotonic_ns = time.monotonic_ns()
+        capture = {
+            "route": route,
+            "streamEpoch": stream_epoch,
+            "syncEpoch": sync.epoch,
+            "recvSeq": recv_seq,
+            "recvMonotonicNs": recv_monotonic_ns,
+        }
+        if reason is not None:
+            capture["reason"] = reason
+        data = {
+            "event": event,
+            "route": route,
+            "streamEpoch": stream_epoch,
+            "syncEpoch": sync.epoch,
+            "recvSeq": recv_seq,
+            "recvMonotonicNs": recv_monotonic_ns,
+            "_capture": capture,
+        }
+        if reason is not None:
+            data["reason"] = reason
         writer.write(
             NDJSONRecord(
                 ts_local=time.time(),
                 symbol=symbol,
                 type="captureEvent",
-                data={
-                    "event": "connect",
-                    "route": route,
-                    "streamEpoch": stream_epoch,
-                    "syncEpoch": sync.epoch,
-                    "recvSeq": recv_seq,
-                    "recvMonotonicNs": recv_monotonic_ns,
-                    "_capture": {
-                        "route": route,
-                        "streamEpoch": stream_epoch,
-                        "syncEpoch": sync.epoch,
-                        "recvSeq": recv_seq,
-                        "recvMonotonicNs": recv_monotonic_ns,
-                    },
-                },
+                data=data,
             )
         )
 
     async def on_depth_connect(stream_epoch: int) -> None:
         nonlocal last_depth_stream_epoch, snapshot_reason
         if last_depth_stream_epoch is not None and stream_epoch != last_depth_stream_epoch:
-            sync.begin_resync("depth_stream_reconnect")
+            # A recorded disconnect has already opened a fresh sync epoch.
+            # Retain compatibility with tapes where only the reconnect was
+            # observable by invalidating here when the old book is still live.
+            if sync.ready:
+                sync.begin_resync("depth_stream_reconnect")
             snapshot_reason = "reconnect"
         last_depth_stream_epoch = stream_epoch
-        await _record_connection("public", stream_epoch)
+        await _record_stream_event("connect", "public", stream_epoch)
         snapshot_requested.set()
 
     async def on_trade_connect(stream_epoch: int) -> None:
-        await _record_connection("market", stream_epoch)
+        await _record_stream_event("connect", "market", stream_epoch)
+
+    async def on_depth_failure(stream_epoch: int, event: str, reason: str) -> None:
+        nonlocal snapshot_reason
+        if event != "connect_failure" and sync.ready:
+            sync.begin_resync(f"depth_stream_{event}")
+            snapshot_reason = event
+        await _record_stream_event(event, "public", stream_epoch, reason)
+
+    async def on_trade_failure(stream_epoch: int, event: str, reason: str) -> None:
+        await _record_stream_event(event, "market", stream_epoch, reason)
 
     async def on_depth(evt, raw):
         nonlocal snapshot_reason
@@ -377,10 +403,26 @@ async def _collect_symbol(
 
     async with asyncio.TaskGroup() as task_group:
         task_group.create_task(
-            run_depth_stream(symbol, spec, config, on_depth, stop_event, on_connect=on_depth_connect)
+            run_depth_stream(
+                symbol,
+                spec,
+                config,
+                on_depth,
+                stop_event,
+                on_connect=on_depth_connect,
+                on_failure=on_depth_failure,
+            )
         )
         task_group.create_task(
-            run_trade_stream(symbol, spec, config, on_trade, stop_event, on_connect=on_trade_connect)
+            run_trade_stream(
+                symbol,
+                spec,
+                config,
+                on_trade,
+                stop_event,
+                on_connect=on_trade_connect,
+                on_failure=on_trade_failure,
+            )
         )
         task_group.create_task(snapshot_worker())
 

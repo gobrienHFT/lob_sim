@@ -67,6 +67,10 @@ class SimulationMetrics:
         self.book_invalidation_by_symbol: dict[str, int] = defaultdict(int)
         self.book_invalidation_reasons: dict[str, int] = defaultdict(int)
         self.trade_stream_invalidation_count = 0
+        self.trade_stream_invalidation_by_symbol: dict[str, int] = defaultdict(int)
+        self.trade_stream_invalidation_reasons: dict[str, int] = defaultdict(int)
+        self.trade_stream_recovery_count = 0
+        self.trade_stream_recovery_by_symbol: dict[str, int] = defaultdict(int)
         self.spread_capture_sum = Decimal("0")
         self.spread_capture_qty = Decimal("0")
         self.max_abs_inventory = Decimal("0")
@@ -191,9 +195,13 @@ class SimulationMetrics:
         self.book_invalidation_reasons[reason] += 1
 
     def on_trade_stream_invalidated(self, symbol: str, reason: str = "trade_stream_reconnect") -> None:
-        del symbol
         self.trade_stream_invalidation_count += 1
-        self.book_invalidation_reasons[f"trade:{reason}"] += 1
+        self.trade_stream_invalidation_by_symbol[symbol] += 1
+        self.trade_stream_invalidation_reasons[reason] += 1
+
+    def on_trade_stream_recovered(self, symbol: str) -> None:
+        self.trade_stream_recovery_count += 1
+        self.trade_stream_recovery_by_symbol[symbol] += 1
 
     def inventory_lots(self, symbol: str) -> int:
         return self.position.get(symbol, PositionState()).lot_size
@@ -716,6 +724,10 @@ class SimulationMetrics:
             "book_invalidation_by_symbol": dict(sorted(self.book_invalidation_by_symbol.items())),
             "book_invalidation_reasons": dict(sorted(self.book_invalidation_reasons.items())),
             "trade_stream_invalidation_count": self.trade_stream_invalidation_count,
+            "trade_stream_invalidation_by_symbol": dict(sorted(self.trade_stream_invalidation_by_symbol.items())),
+            "trade_stream_invalidation_reasons": dict(sorted(self.trade_stream_invalidation_reasons.items())),
+            "trade_stream_recovery_count": self.trade_stream_recovery_count,
+            "trade_stream_recovery_by_symbol": dict(sorted(self.trade_stream_recovery_by_symbol.items())),
             "total_pnl": total_pnl,
             "realized_pnl": float(self.realized_pnl),
             "gross_realized_pnl": float(gross_realized_pnl),

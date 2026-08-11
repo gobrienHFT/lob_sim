@@ -19,6 +19,30 @@ logger = logging.getLogger(__name__)
 DepthCallback = Callable[[DepthUpdateEvent, dict], Awaitable[None]]
 TradeCallback = Callable[[AggTradeEvent, dict], Awaitable[None]]
 ConnectionCallback = Callable[[int], Awaitable[None]]
+StreamFailureCallback = Callable[[int, str, str], Awaitable[None]]
+
+
+class StreamConsumerError(RuntimeError):
+    """A downstream capture callback failed and the collector must stop."""
+
+
+async def _call_consumer(callback: Callable[..., Awaitable[None]], *args: object) -> None:
+    """Keep writer/consumer failures outside the reconnect error boundary."""
+
+    try:
+        await callback(*args)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        raise StreamConsumerError("market-data consumer failed") from exc
+
+
+def _stream_failure_kind(exc: BaseException, *, connected: bool) -> tuple[str, str]:
+    if not connected:
+        return "connect_failure", type(exc).__name__
+    if isinstance(exc, (json.JSONDecodeError, ValueError)):
+        return "parse_failure", type(exc).__name__
+    return "disconnect", type(exc).__name__
 
 
 def _parse_event_ts(payload: dict) -> float:
@@ -163,10 +187,12 @@ async def _run_stream(
     callback: Callable[[Any, dict], Awaitable[None]],
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
+    on_failure: StreamFailureCallback | None = None,
 ) -> None:
     backoff = 1.0
     stream_epoch = 0
     while not stop_event.is_set():
+        active_epoch: int | None = None
         try:
             async with websockets.connect(
                 url,
@@ -176,8 +202,9 @@ async def _run_stream(
             ) as ws:
                 backoff = 1.0
                 stream_epoch += 1
+                active_epoch = stream_epoch
                 if on_connect is not None:
-                    await on_connect(stream_epoch)
+                    await _call_consumer(on_connect, stream_epoch)
                 while not stop_event.is_set():
                     received = await _recv_or_stop(ws, stop_event)
                     if received is None:
@@ -198,11 +225,18 @@ async def _run_stream(
                     )
                     data["_capture"] = capture
                     event = parser(symbol, spec, data, received_ts)
-                    await callback(event, data)
+                    await _call_consumer(callback, event, data)
+        except StreamConsumerError:
+            # Disk, backpressure, and downstream state failures must stop the
+            # capture. Reconnecting would silently create an incomplete tape.
+            raise
         except asyncio.CancelledError:
             raise
         except (ConnectionClosed, OSError, TimeoutError, json.JSONDecodeError, ValueError) as exc:
+            failure_kind, failure_reason = _stream_failure_kind(exc, connected=active_epoch is not None)
             logger.warning("%s websocket for %s ended: %s", route, symbol, exc)
+            if on_failure is not None:
+                await on_failure(active_epoch or stream_epoch, failure_kind, failure_reason)
             await _wait_for_retry(stop_event, min(config.ws_reconnect_max_sec, backoff))
             backoff = min(config.ws_reconnect_max_sec, backoff * 2.0)
 
@@ -214,6 +248,7 @@ async def run_depth_stream(
     on_depth: DepthCallback,
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
+    on_failure: StreamFailureCallback | None = None,
 ) -> None:
     await _run_stream(
         symbol=symbol,
@@ -226,6 +261,7 @@ async def run_depth_stream(
         callback=on_depth,
         stop_event=stop_event,
         on_connect=on_connect,
+        on_failure=on_failure,
     )
 
 
@@ -236,6 +272,7 @@ async def run_trade_stream(
     on_trade: TradeCallback,
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
+    on_failure: StreamFailureCallback | None = None,
 ) -> None:
     await _run_stream(
         symbol=symbol,
@@ -248,6 +285,7 @@ async def run_trade_stream(
         callback=on_trade,
         stop_event=stop_event,
         on_connect=on_connect,
+        on_failure=on_failure,
     )
 
 

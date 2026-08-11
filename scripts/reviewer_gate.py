@@ -18,6 +18,7 @@ MYPY_TARGETS = (
     "lob_sim/book",
     "lob_sim/replay",
     "lob_sim/record",
+    "lob_sim/binance/ws.py",
     "lob_sim/cli.py",
     "lob_sim/config.py",
     "lob_sim/oracle_kernel.py",
