@@ -7,7 +7,7 @@ boundary without importing the strategy/reporting layer.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
@@ -62,7 +62,13 @@ class FillEvent:
     qty_lots: int
     time: LogicalTime
     scenario_id: str
+    validity: ValidityState
     evidence_ids: tuple[str, ...] = ()
+    queue_trajectory: Mapping[str, int] = field(default_factory=dict)
+    latency_draws_ms: Mapping[str, float | None] = field(default_factory=dict)
+    latency_model: Mapping[str, Any] = field(default_factory=dict)
+    order_state_at_fill: str = "live"
+    fee_model_id: str = "static_config_bps"
 
 
 @dataclass(frozen=True)

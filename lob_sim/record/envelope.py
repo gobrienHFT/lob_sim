@@ -55,11 +55,13 @@ class ValidityState:
     trade_stream_valid: bool = False
     clock_valid: bool = False
     capture_valid: bool = False
+    trade_stream_required: bool = True
     reason: str | None = None
 
     @property
     def execution_valid(self) -> bool:
-        return self.book_valid and self.trade_stream_valid and self.clock_valid and self.capture_valid
+        trade_valid = self.trade_stream_valid or not self.trade_stream_required
+        return self.book_valid and trade_valid and self.clock_valid and self.capture_valid
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +69,7 @@ class ValidityState:
             "trade_stream_valid": self.trade_stream_valid,
             "clock_valid": self.clock_valid,
             "capture_valid": self.capture_valid,
+            "trade_stream_required": self.trade_stream_required,
             "execution_valid": self.execution_valid,
             "reason": self.reason,
         }

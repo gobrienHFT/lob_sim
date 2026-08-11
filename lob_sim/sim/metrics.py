@@ -464,6 +464,7 @@ class SimulationMetrics:
 
         best_ticks = book.best_ticks()
         fill_audit = {
+            "provenance_schema_version": "lob_sim.fill_provenance.v1",
             "ts_local": fill.ts_local,
             "symbol": fill.symbol,
             "side": fill.side,
@@ -476,10 +477,21 @@ class SimulationMetrics:
             "scenario_id": fill.scenario_id,
             "evidence_ids": list(fill.evidence_ids),
             "validity": fill.validity,
+            "queue_trajectory": dict(fill.queue_trajectory),
+            "latency_draws_ms": dict(fill.latency_draws_ms),
+            "latency_model": {
+                "mode": self.cfg.sim_latency_mode,
+                "seed": self.cfg.sim_seed,
+                "source": "configured_scenario",
+                "measured": False,
+            },
+            "order_state_at_fill": fill.order_state_at_fill,
+            "fee_model_id": self.fee_model.model_id,
             "fee_bps": str(fee.rate_bps),
             "fee": str(fee.amount),
             "fee_currency": fee.currency,
             "order_id": fill.order_id,
+            "created_ts": fill.created_ts,
             "mid_at_fill": str(mid) if mid is not None else None,
             "spread_capture": str(spread_capture) if mid is not None else None,
             "spread_capture_value": str(spread_capture_value) if mid is not None else None,
@@ -708,6 +720,44 @@ class SimulationMetrics:
             "cancel_acknowledged": self.cancel_ack_count,
             "self_trade_prevented": self.self_trade_prevention_count,
         }
+        provenance_counts = {
+            "with_provenance_schema": sum(
+                fill.get("provenance_schema_version") == "lob_sim.fill_provenance.v1" for fill in self.fills_log
+            ),
+            "with_scenario": sum(bool(fill.get("scenario_id")) for fill in self.fills_log),
+            "with_evidence_ids": sum(bool(fill.get("evidence_ids")) for fill in self.fills_log),
+            "with_validity": sum(isinstance(fill.get("validity"), dict) for fill in self.fills_log),
+            "execution_valid": sum(
+                isinstance(fill.get("validity"), dict) and fill["validity"].get("execution_valid") is True
+                for fill in self.fills_log
+            ),
+            "with_queue_trajectory": sum(bool(fill.get("queue_trajectory")) for fill in self.fills_log),
+            "with_latency_draws": sum(bool(fill.get("latency_draws_ms")) for fill in self.fills_log),
+            "with_latency_model": sum(bool(fill.get("latency_model")) for fill in self.fills_log),
+            "with_lifecycle_state": sum(
+                fill.get("order_state_at_fill") in {"live", "pending_cancel"} for fill in self.fills_log
+            ),
+            "with_fee_model": sum(bool(fill.get("fee_model_id")) for fill in self.fills_log),
+        }
+        fill_provenance: dict[str, object] = {
+            "schema_version": "lob_sim.fill_provenance_coverage.v1",
+            "fill_count": self.fill_count,
+            **provenance_counts,
+            "complete": all(
+                provenance_counts[field] == self.fill_count
+                for field in (
+                    "with_provenance_schema",
+                    "with_scenario",
+                    "with_evidence_ids",
+                    "with_validity",
+                    "with_queue_trajectory",
+                    "with_latency_draws",
+                    "with_latency_model",
+                    "with_lifecycle_state",
+                    "with_fee_model",
+                )
+            ),
+        }
 
         valuation_complete = not self.missing_mark_symbols
         total_pnl: float | None = float(self.realized_pnl + self.unrealized_pnl) if valuation_complete else None
@@ -738,6 +788,7 @@ class SimulationMetrics:
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
             "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
+            "fill_provenance": fill_provenance,
             "quote_fill_probability": float(quote_fill_probability),
             "fills_per_quote_request": float(fills_per_quote_request),
             "fills_per_arrived_order": float(fills_per_arrived_order),

@@ -11,6 +11,16 @@ tracked independently for book, trade stream, clock and capture; execution is
 valid only at the intersection required by the selected venue and strategy
 scenario.
 
+Every exported fill uses `lob_sim.fill_provenance.v1`. The record includes the
+public-L2 scenario ID, the order-decision/arrival and triggering market-record
+IDs, the source-specific validity intersection, the synthetic queue trajectory,
+the actual configured new/cancel latency draws, the order lifecycle state at
+the fill, and the fee-model ID. Schema-v3 manifest captures use a
+capture/receive-sequence/payload-checksum identity. Legacy fixtures use a stable
+input-row identity and are labeled as such. These IDs make a modeled fill
+replayable against immutable input; they do not turn public L2 into a private
+execution report or measured latency evidence.
+
 Stream lifecycle records are causal boundaries, not logging decoration.
 Schema-v3 capture records `connect`, `disconnect`, `connect_failure`, and
 `parse_failure` events before retrying, plus a final `capture_trailer` only on

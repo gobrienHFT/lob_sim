@@ -42,6 +42,7 @@ def test_event_envelope_round_trip_and_validity_dimensions() -> None:
     assert restored.raw_payload_checksum == payload_checksum(restored.payload)
     assert ValidityState(True, True, True, True).execution_valid is True
     assert ValidityState(True, False, True, True, reason="trade reconnect").execution_valid is False
+    assert ValidityState(True, False, True, True, trade_stream_required=False).execution_valid is True
 
 
 def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: Path) -> None:
@@ -82,6 +83,8 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: 
     assert len(manifest["manifest_sha256"]) == 64
     replayed = list(iter_records(tmp_path / "capture-1.manifest.json"))
     assert [record.data["_capture"]["recvSeq"] for record in replayed] == [1, 2]
+    assert [record.data["_capture"]["captureId"] for record in replayed] == ["capture-1", "capture-1"]
+    assert all(record.data["_capture"]["payloadChecksum"].startswith("crc32c:") for record in replayed)
     assert [record.type for record in replayed] == ["depthUpdate", "depthUpdate"]
 
 

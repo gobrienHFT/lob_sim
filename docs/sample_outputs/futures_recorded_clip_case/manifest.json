@@ -1,13 +1,13 @@
 {
   "run_id": "8f9f7edcb6091af1",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T08:47:03.241147Z",
+  "created_at_utc": "2026-08-11T16:30:32.568494Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "size_bytes": 121067,
     "sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
-    "modified_at_utc": "2026-08-11T08:47:03.069721Z"
+    "modified_at_utc": "2026-08-11T16:30:32.394353Z"
   },
   "config": {
     "symbols": [
@@ -124,8 +124,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "dbad4b8dc14560b0022980bb5ba00fe74b0639fd",
-    "git_branch": "codex/hft-market-sim",
+    "git_commit": "f4db27b5353b32473eb0f73b753ab2a99fe83e4d",
+    "git_branch": "codex/hft-fill-evidence-provenance",
     "git_dirty": false
   },
   "outputs": {
@@ -138,30 +138,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
-      "size_bytes": 300769,
-      "sha256": "30143a2d3cf261651a18e34a566e85f83511e5860439586d3aa6deffa86c1674",
-      "modified_at_utc": "2026-08-11T08:47:03.496627Z"
+      "size_bytes": 301579,
+      "sha256": "a3da5d6c765cb81d6e6aec3dcd9c6b4886c0077cb4d690d9da5a40eb6b067e4c",
+      "modified_at_utc": "2026-08-11T16:30:32.776895Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 10213,
-      "sha256": "f5e4839fd5edccbd899d75f4eaa706c5a097515b337ec5f56010d4ee5ea36ab2",
-      "modified_at_utc": "2026-08-11T08:47:03.485238Z"
+      "size_bytes": 11275,
+      "sha256": "12b58f2cc3af377099ca56508371ea4feda93df033aea1b53a7d93b5f2e19240",
+      "modified_at_utc": "2026-08-11T16:30:32.769005Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
-      "size_bytes": 9171,
-      "sha256": "1e1f7c27882eb9925a9ba4c911a63ddef76ef70228f118ce9e33d159aa14b091",
-      "modified_at_utc": "2026-08-11T08:47:03.486473Z"
+      "size_bytes": 10099,
+      "sha256": "15a1cbb82954827224b6b9839efc3d01e109ea272e0bffc695f2795e03f9480a",
+      "modified_at_utc": "2026-08-11T16:30:32.772841Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
-      "size_bytes": 279,
-      "sha256": "70bdd32fa5d42a27ad6d20874f1c00c6bcf5bdec883ccc4ce0c11862e6b387d0",
-      "modified_at_utc": "2026-08-11T08:47:03.488538Z"
+      "size_bytes": 397,
+      "sha256": "f85ed9999581c52797f28d042ee2ea9cc98c73fbd11496fe29e1505fd0ca6579",
+      "modified_at_utc": "2026-08-11T16:30:32.774864Z"
     }
   },
   "fixture_provenance": {

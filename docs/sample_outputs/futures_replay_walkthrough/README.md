@@ -9,8 +9,8 @@ This pack is a tiny deterministic walkthrough fixture for the futures replay and
 - [`summary.json`](summary.json): machine-readable run summary.
 - [`summary.csv`](summary.csv): flat summary row for quick scanning.
 - [`manifest.json`](manifest.json): input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests.
-- [`trades.csv`](trades.csv): passive-fill rows produced by the replay.
-- [`event_trace.csv`](event_trace.csv): event-time audit trail of market records, strategy decisions, scheduled arrivals, cancels, and fills.
+- [`trades.csv`](trades.csv): passive-fill rows with scenario, resolvable input evidence, validity, queue trajectory, configured latency draws, lifecycle state, fee model, and economics.
+- [`event_trace.csv`](event_trace.csv): event-time audit trail carrying the same structured fill provenance beside market records, strategy decisions, scheduled arrivals, and cancels.
 
 ## Regenerate
 

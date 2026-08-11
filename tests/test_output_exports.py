@@ -114,6 +114,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
                 "inventory_by_symbol": {"BTCUSDT": 0.001},
                 "fills": [
                     {
+                        "provenance_schema_version": "lob_sim.fill_provenance.v1",
                         "ts_local": 1.0,
                         "symbol": "BTCUSDT",
                         "side": "bid",
@@ -123,8 +124,42 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
                         "contract_multiplier": "1",
                         "maker": True,
                         "fill_source": "depth_update",
+                        "scenario_id": "public_l2:base:signal=depth:overlap_us=0",
+                        "evidence_ids": ["input_row:4", "input_row:5"],
+                        "validity": {
+                            "book_valid": True,
+                            "trade_stream_valid": False,
+                            "clock_valid": True,
+                            "capture_valid": True,
+                            "trade_stream_required": False,
+                            "execution_valid": True,
+                            "reason": None,
+                        },
+                        "queue_trajectory": {
+                            "queue_ahead_before_trigger_lots": 3,
+                            "queue_ahead_at_fill_lots": 0,
+                            "queue_consumed_before_fill_lots": 3,
+                            "public_consumption_trigger_lots": 4,
+                            "fill_lots": 1,
+                            "remaining_order_lots_after_fill": 0,
+                        },
+                        "latency_draws_ms": {"new_order": 1.0, "cancel": None},
+                        "latency_model": {
+                            "mode": "fixed",
+                            "seed": 7,
+                            "source": "configured_scenario",
+                            "measured": False,
+                        },
+                        "order_state_at_fill": "live",
+                        "fee_model_id": "static_config_bps",
+                        "fee_bps": "0",
+                        "fee": "0",
+                        "fee_currency": "USDT",
                         "order_id": "o1",
+                        "created_ts": 0.99,
                         "mid_at_fill": 100000.5,
+                        "spread_capture": "0.5",
+                        "spread_capture_value": "0.0005",
                         "regime": "neutral",
                         "queue_ahead_lots": 0,
                         "time_in_book_ms": 10.0,
@@ -133,6 +168,21 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
                         "book_ask_tick": 1000010,
                     }
                 ],
+                "fill_provenance": {
+                    "schema_version": "lob_sim.fill_provenance_coverage.v1",
+                    "fill_count": 1,
+                    "with_provenance_schema": 1,
+                    "with_scenario": 1,
+                    "with_evidence_ids": 1,
+                    "with_validity": 1,
+                    "execution_valid": 1,
+                    "with_queue_trajectory": 1,
+                    "with_latency_draws": 1,
+                    "with_latency_model": 1,
+                    "with_lifecycle_state": 1,
+                    "with_fee_model": 1,
+                    "complete": True,
+                },
                 "markout_events": [{"side": "bid", "markout": -0.5}],
             }
 
@@ -203,6 +253,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert json.loads(row["instrument_specs"]) == summary["instrument_specs"]
     assert json.loads(row["simulation_assumptions"]) == summary["simulation_assumptions"]
     assert json.loads(row["public_consumption_summary"]) == summary["public_consumption_summary"]
+    assert json.loads(row["fill_provenance"]) == summary["fill_provenance"]
     assert "fills" not in row
     assert "markout_events" not in row
 
@@ -214,6 +265,12 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert rows[0]["notional"] == "100.0000"
     assert rows[0]["contract_multiplier"] == "1"
     assert rows[0]["fill_source"] == "depth_update"
+    assert json.loads(rows[0]["evidence_ids"]) == ["input_row:4", "input_row:5"]
+    assert json.loads(rows[0]["validity"])["trade_stream_required"] is False
+    assert json.loads(rows[0]["queue_trajectory"])["fill_lots"] == 1
+    assert json.loads(rows[0]["latency_draws_ms"]) == {"cancel": None, "new_order": 1.0}
+    assert json.loads(rows[0]["latency_model"])["measured"] is False
+    assert rows[0]["fee_model_id"] == "static_config_bps"
 
     with output_files["event_trace"].open("r", encoding="utf-8", newline="") as handle:
         trace_rows = list(csv.DictReader(handle))

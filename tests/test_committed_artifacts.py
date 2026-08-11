@@ -295,11 +295,13 @@ def test_futures_simulation_assumption_verifier_rejects_private_fill_claim(tmp_p
     ]
 
 
-def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path, monkeypatch) -> None:
+def test_futures_trade_audit_verifier_requires_economics_and_provenance(tmp_path, monkeypatch) -> None:
     showcase = tmp_path / "showcase"
     recorded = tmp_path / "recorded"
+    stress = tmp_path / "stress"
     showcase.mkdir()
     recorded.mkdir()
+    stress.mkdir()
 
     with (showcase / "trades.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["fill_source", "fee_bps", "fee", "fee_currency"])
@@ -308,30 +310,64 @@ def test_futures_trade_audit_verifier_requires_notional_and_multiplier(tmp_path,
     with (recorded / "trades.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=sorted(verifier.FUTURES_TRADE_AUDIT_FIELDS))
         writer.writeheader()
-        writer.writerow(
-            {
-                "fill_source": "agg_trade",
-                "notional": "100.0",
-                "contract_multiplier": "1",
-                "fee_bps": "0",
-                "fee": "0",
-                "fee_currency": "USDT",
-                "spread_capture": "0.1",
-                "spread_capture_value": "0.0001",
-            }
-        )
+    with (stress / "trades.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=sorted(verifier.FUTURES_TRADE_AUDIT_FIELDS))
+        writer.writeheader()
     monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
     monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "FUTURES_STRESS_DIR", stress)
     monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
 
     issues = verifier._verify_futures_trade_audit_fields()
+    provided = {"fill_source", "fee_bps", "fee", "fee_currency"}
+    missing = ", ".join(sorted(verifier.FUTURES_TRADE_AUDIT_FIELDS - provided))
 
-    assert issues == [
-        (
-            f"{showcase / 'trades.csv'} is missing trade audit column(s): "
-            "contract_multiplier, notional, spread_capture, spread_capture_value"
-        )
-    ]
+    assert issues == [f"{showcase / 'trades.csv'} is missing trade audit column(s): {missing}"]
+
+
+def test_fill_provenance_verifier_rejects_inconsistent_validity(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+    row = _event_trace_row(
+        event_type="fill",
+        side="bid",
+        qty_lots="2",
+        fill_source="agg_trade",
+    )
+    details = {
+        "provenance_schema_version": "lob_sim.fill_provenance.v1",
+        "scenario_id": "public_l2:base:signal=trade:overlap_us=0",
+        "evidence_ids": ["input_row:4"],
+        "validity": {
+            "book_valid": True,
+            "trade_stream_valid": True,
+            "clock_valid": True,
+            "capture_valid": True,
+            "trade_stream_required": True,
+            "execution_valid": False,
+            "reason": None,
+        },
+        "queue_trajectory": {
+            "queue_ahead_before_trigger_lots": 3,
+            "queue_ahead_at_fill_lots": 0,
+            "queue_consumed_before_fill_lots": 3,
+            "public_consumption_trigger_lots": 5,
+            "fill_lots": 2,
+            "remaining_order_lots_after_fill": 0,
+        },
+        "latency_draws_ms": {"new_order": 1.0, "cancel": None},
+        "latency_model": {
+            "mode": "fixed",
+            "seed": 7,
+            "source": "configured_scenario",
+            "measured": False,
+        },
+        "order_state_at_fill": "live",
+        "fee_model_id": "static_config_bps",
+    }
+
+    issues = verifier._verify_fill_provenance_details(tmp_path / "event_trace.csv", 2, row, details)
+
+    assert issues == [f"{tmp_path / 'event_trace.csv'}:2 fill row validity has inconsistent execution_valid"]
 
 
 def _write_public_consumption_case(directory: Path, diagnostics: dict) -> None:
@@ -1050,7 +1086,9 @@ def test_ci_runs_supported_python_matrix_and_artifact_verifier() -> None:
     assert "docs/interview_packet.md" in WALKTHROUGH.read_text(encoding="utf-8")
     assert "docs/real_data_runbook.md" in README.read_text(encoding="utf-8")
     assert "docs/real_data_results_template.md" in README.read_text(encoding="utf-8")
-    assert "docs/real_data_runs/raw_1772633471.md" in README.read_text(encoding="utf-8")[:1200]
+    readme_front_door = README.read_text(encoding="utf-8")[:1200]
+    assert "docs/real_data_runs/raw_1772633471.md" not in readme_front_door
+    assert "docs/real_data_runs/raw_1780500354_10m.md" not in readme_front_door
 
 
 def test_published_real_data_report_contains_required_evidence() -> None:
