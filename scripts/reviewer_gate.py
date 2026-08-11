@@ -90,7 +90,7 @@ def build_reviewer_gate_steps(
                     ),
                 ),
                 GateStep(
-                    "python/rust primitive parity",
+                    "python/rust differential parity",
                     (
                         python_executable,
                         "scripts/check_rust_python_parity.py",
@@ -98,6 +98,8 @@ def build_reviewer_gate_steps(
                         cargo_executable,
                         "--cases",
                         "10000",
+                        "--expected",
+                        "docs/differential_results/rust_python_parity_v2.json",
                     ),
                 ),
             ]

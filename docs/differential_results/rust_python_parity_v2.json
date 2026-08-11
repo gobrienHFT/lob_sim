@@ -1,0 +1,28 @@
+{
+  "accepted_batches": 3202,
+  "book_batches": 10000,
+  "final_state_sha256": "d08345b1e5b0d9d7046d83a45ee99804008e67dabed50c7e971b69daa58592e4",
+  "full_engine_parity": false,
+  "logical_time_cases": 10000,
+  "ok": true,
+  "rejected_batches": 6798,
+  "remaining_full_engine_scope": [
+    "public-L2 execution scenarios",
+    "latency scheduler",
+    "risk reservations",
+    "accounting and markouts",
+    "run manifests"
+  ],
+  "schema_version": "lob_sim.rust_python_parity.v2",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel lifecycle with fills and periodic full-state hashes",
+  "seed": 17,
+  "synthetic_accepted_operations": 5457,
+  "synthetic_checkpoint_count": 39,
+  "synthetic_checkpoint_interval": 257,
+  "synthetic_fill_count": 2297,
+  "synthetic_final_state_sha256": "e3b75dfcbc042c7655d74ff13982867c55a5a576185feff62179d3be59d376f8",
+  "synthetic_operation_corpus_sha256": "1d20c6a873f3b6d3d1b3a0518ebde2f377649d74301e61e5d36bcb614efec9d7",
+  "synthetic_operations": 10000,
+  "synthetic_rejected_operations": 4543,
+  "uncrossed_cases": 10000
+}

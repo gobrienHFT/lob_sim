@@ -14,3 +14,4 @@ python = ["dep:pyo3"]
 
 [dependencies]
 pyo3 = { version = "0.22", optional = true, features = ["extension-module"] }
+sha2 = "0.10"
