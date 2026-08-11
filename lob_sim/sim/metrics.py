@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from math import sqrt
@@ -8,8 +10,10 @@ from typing import Any, Dict, List, cast
 
 from ..book.local_book import LocalOrderBook
 from ..config import Config
+from ..oracle import canonical_bytes
 from .fees import StaticFeeModel
 from .orders import Fill, FillSource
+from .sinks import EventSink, NullSink
 
 FILL_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade", "taker_order")
 ORDER_LIFECYCLE_COUNT_KEYS: tuple[str, ...] = (
@@ -22,6 +26,39 @@ ORDER_LIFECYCLE_COUNT_KEYS: tuple[str, ...] = (
     "cancel_acknowledged",
     "self_trade_prevented",
 )
+FILL_PROVENANCE_COUNT_KEYS: tuple[str, ...] = (
+    "with_provenance_schema",
+    "with_scenario",
+    "with_evidence_ids",
+    "with_validity",
+    "execution_valid",
+    "with_queue_trajectory",
+    "with_latency_draws",
+    "with_latency_model",
+    "with_lifecycle_state",
+    "with_fee_model",
+)
+FILL_AUDIT_CHAIN_DOMAIN = "lob_sim.fill_audit_chain.v1"
+MARKOUT_AUDIT_CHAIN_DOMAIN = "lob_sim.markout_audit_chain.v1"
+
+
+def advance_audit_digest(current: bytes, event: Mapping[str, Any]) -> bytes:
+    """Advance a domain-seeded canonical hash chain by one immutable audit row."""
+
+    return hashlib.sha256(current + b"\0" + canonical_bytes(event)).digest()
+
+
+def audit_chain_sha256(domain: str, events: Iterable[Mapping[str, Any]]) -> str:
+    """Independently reproduce a fill or markout audit-chain identity."""
+
+    digest = hashlib.sha256(domain.encode("utf-8")).digest()
+    for event in events:
+        digest = advance_audit_digest(digest, event)
+    return digest.hex()
+
+
+class MarkoutCapacityError(RuntimeError):
+    """Raised before a fill when its pending markout would exceed the configured cap."""
 
 
 @dataclass
@@ -31,9 +68,23 @@ class PositionState:
 
 
 class SimulationMetrics:
-    def __init__(self, cfg: Config) -> None:
+    def __init__(
+        self,
+        cfg: Config,
+        *,
+        fill_sink: EventSink | None = None,
+        markout_sink: EventSink | None = None,
+        retain_audit_rows: bool = True,
+        buffer_markout_trace_events: bool | None = None,
+    ) -> None:
         self.cfg = cfg
         self.fee_model = StaticFeeModel.from_config(cfg)
+        self._fill_sink = fill_sink or NullSink()
+        self._markout_sink = markout_sink or NullSink()
+        self._retain_audit_rows = retain_audit_rows
+        self._buffer_markout_trace_events = (
+            retain_audit_rows if buffer_markout_trace_events is None else buffer_markout_trace_events
+        )
         self.position: Dict[str, PositionState] = {}
         self.specs: Dict[str, object] = {}
 
@@ -45,7 +96,7 @@ class SimulationMetrics:
         self.fill_count = 0
         self.fill_qty: Decimal = Decimal("0")
         self.fill_source_counts: dict[FillSource, int] = {source: 0 for source in FILL_SOURCES}
-        self._filled_order_ids: set[str] = set()
+        self.filled_order_count = 0
         self.quote_count = 0
         self.cancel_count = 0
         self.cancel_ack_count = 0
@@ -87,10 +138,14 @@ class SimulationMetrics:
         self._time_inventory_seconds = Decimal("0")
 
         self.fills_log: List[dict] = []
+        self._fill_audit_digest = hashlib.sha256(FILL_AUDIT_CHAIN_DOMAIN.encode("utf-8")).digest()
+        self._fill_provenance_counts: dict[str, int] = {key: 0 for key in FILL_PROVENANCE_COUNT_KEYS}
 
         self._pending_markouts: list[dict[str, Any]] = []
         self._markout_events: list[dict[str, Any]] = []
         self._new_markout_events: list[dict[str, Any]] = []
+        self._markout_event_count = 0
+        self._markout_audit_digest = hashlib.sha256(MARKOUT_AUDIT_CHAIN_DOMAIN.encode("utf-8")).digest()
         self.markout_sum = Decimal("0")
         self.markout_qty = Decimal("0")
         self.markout_count = 0
@@ -126,6 +181,27 @@ class SimulationMetrics:
         self.max_consecutive_loss_count = 0
         self.kill_switch_triggered = False
         self.kill_switch_reason: str | None = None
+
+    @property
+    def retain_audit_rows(self) -> bool:
+        return self._retain_audit_rows
+
+    @property
+    def fill_audit_sha256(self) -> str:
+        return self._fill_audit_digest.hex()
+
+    @property
+    def markout_audit_sha256(self) -> str:
+        return self._markout_audit_digest.hex()
+
+    @property
+    def markout_event_count(self) -> int:
+        return self._markout_event_count
+
+    def pending_markout_state(self) -> list[dict[str, Any]]:
+        """Return the bounded unresolved state used by deterministic hashing."""
+
+        return [dict(entry) for entry in self._pending_markouts]
 
     def register_symbol(self, symbol: str) -> None:
         self.position.setdefault(symbol, PositionState())
@@ -245,6 +321,38 @@ class SimulationMetrics:
         self._regime_fill_qty[regime] += qty
         self._regime_spread_capture[regime] += spread_capture_value
 
+    def _record_fill_audit(self, fill_audit: dict[str, Any]) -> None:
+        counts = self._fill_provenance_counts
+        counts["with_provenance_schema"] += int(
+            fill_audit.get("provenance_schema_version") == "lob_sim.fill_provenance.v1"
+        )
+        counts["with_scenario"] += int(bool(fill_audit.get("scenario_id")))
+        counts["with_evidence_ids"] += int(bool(fill_audit.get("evidence_ids")))
+        validity = fill_audit.get("validity")
+        counts["with_validity"] += int(isinstance(validity, dict))
+        counts["execution_valid"] += int(isinstance(validity, dict) and validity.get("execution_valid") is True)
+        counts["with_queue_trajectory"] += int(bool(fill_audit.get("queue_trajectory")))
+        counts["with_latency_draws"] += int(bool(fill_audit.get("latency_draws_ms")))
+        counts["with_latency_model"] += int(bool(fill_audit.get("latency_model")))
+        counts["with_lifecycle_state"] += int(fill_audit.get("order_state_at_fill") in {"live", "pending_cancel"})
+        counts["with_fee_model"] += int(bool(fill_audit.get("fee_model_id")))
+        self._fill_sink.write(fill_audit)
+        self._fill_audit_digest = advance_audit_digest(self._fill_audit_digest, fill_audit)
+        if self._retain_audit_rows:
+            self.fills_log.append(fill_audit)
+
+    def _record_markout_audit(self, markout_event: dict[str, Any]) -> None:
+        self._markout_sink.write(markout_event)
+        self._markout_audit_digest = advance_audit_digest(
+            self._markout_audit_digest,
+            markout_event,
+        )
+        self._markout_event_count += 1
+        if self._retain_audit_rows:
+            self._markout_events.append(markout_event)
+        if self._buffer_markout_trace_events:
+            self._new_markout_events.append(markout_event)
+
     def _drain_markout_windows(self, now_ts: float, mids: Dict[str, Decimal]) -> None:
         if not self._pending_markouts:
             return
@@ -310,8 +418,7 @@ class SimulationMetrics:
                 "resolution_lag_seconds": max(0.0, float(now_ts - float(entry["ts_local"]))),
                 "status": "resolved",
             }
-            self._markout_events.append(markout_event)
-            self._new_markout_events.append(markout_event)
+            self._record_markout_audit(markout_event)
 
         self._pending_markouts = keep
 
@@ -360,8 +467,7 @@ class SimulationMetrics:
                 "status": "invalidated",
                 "invalid_reason": reason,
             }
-            self._markout_events.append(invalidated_event)
-            self._new_markout_events.append(invalidated_event)
+            self._record_markout_audit(invalidated_event)
         self._pending_markouts = keep
         self.markout_invalidated_count += invalidated
         self.markout_unresolved_count += invalidated
@@ -389,6 +495,15 @@ class SimulationMetrics:
             )
 
     def on_fill(self, fill: Fill, book: LocalOrderBook, mid: Decimal | None) -> dict[str, Any]:
+        if (
+            self.cfg.sim_adverse_markout_seconds > 0
+            and len(self._pending_markouts) >= self.cfg.sim_max_pending_markouts
+        ):
+            raise MarkoutCapacityError(
+                "pending markout capacity reached before fill "
+                f"{fill.order_id or '<unknown>'}: {len(self._pending_markouts)} >= "
+                f"SIM_MAX_PENDING_MARKOUTS={self.cfg.sim_max_pending_markouts}"
+            )
         pos = self.position.setdefault(fill.symbol, PositionState())
         qty = book.spec.lot_to_qty(fill.qty_lots)
         price = book.spec.tick_to_price(fill.price_tick)
@@ -432,8 +547,8 @@ class SimulationMetrics:
 
         self.fill_count += 1
         self.order_state_counts["filled"] += 1
-        if fill.order_id is not None:
-            self._filled_order_ids.add(fill.order_id)
+        if fill.order_id is None or fill.is_first_fill_for_order:
+            self.filled_order_count += 1
         self.fill_qty += qty
         self.fill_source_counts[fill.source] = self.fill_source_counts.get(fill.source, 0) + 1
 
@@ -502,7 +617,7 @@ class SimulationMetrics:
             "book_bid_tick": best_ticks[0] if best_ticks else None,
             "book_ask_tick": best_ticks[1] if best_ticks else None,
         }
-        self.fills_log.append(fill_audit)
+        self._record_fill_audit(fill_audit)
 
         if self.cfg.sim_adverse_markout_seconds > 0:
             self._pending_markouts.append(
@@ -566,6 +681,21 @@ class SimulationMetrics:
 
             unreal += sign * qty * (mid - pos.avg_cost) * book.spec.contract_multiplier
 
+        # Markout sampling is independent of whether the net position remains
+        # open. A round trip can leave inventory flat while both fill horizons
+        # still need the first eligible post-fill midpoint.
+        if now_ts is not None and self._pending_markouts:
+            pending_symbols = sorted({str(entry["symbol"]) for entry in self._pending_markouts})
+            for symbol in pending_symbols:
+                if symbol in mids:
+                    continue
+                book = books.get(symbol)
+                if book is None:
+                    continue
+                mid = book.mid_price()
+                if mid is not None:
+                    mids[symbol] = mid
+
         self.unrealized_pnl = unreal
         self.missing_mark_symbols = tuple(sorted(missing_mark_symbols))
         if abs(total_inventory) > self.max_abs_inventory:
@@ -612,7 +742,7 @@ class SimulationMetrics:
 
         quote_fill_probability = Decimal("0")
         if self.order_arrival_count > 0:
-            quote_fill_probability = Decimal(len(self._filled_order_ids)) / Decimal(self.order_arrival_count)
+            quote_fill_probability = Decimal(self.filled_order_count) / Decimal(self.order_arrival_count)
 
         avg_fill_wait_ms = Decimal("0")
         if self.fill_wait_count > 0:
@@ -720,25 +850,7 @@ class SimulationMetrics:
             "cancel_acknowledged": self.cancel_ack_count,
             "self_trade_prevented": self.self_trade_prevention_count,
         }
-        provenance_counts = {
-            "with_provenance_schema": sum(
-                fill.get("provenance_schema_version") == "lob_sim.fill_provenance.v1" for fill in self.fills_log
-            ),
-            "with_scenario": sum(bool(fill.get("scenario_id")) for fill in self.fills_log),
-            "with_evidence_ids": sum(bool(fill.get("evidence_ids")) for fill in self.fills_log),
-            "with_validity": sum(isinstance(fill.get("validity"), dict) for fill in self.fills_log),
-            "execution_valid": sum(
-                isinstance(fill.get("validity"), dict) and fill["validity"].get("execution_valid") is True
-                for fill in self.fills_log
-            ),
-            "with_queue_trajectory": sum(bool(fill.get("queue_trajectory")) for fill in self.fills_log),
-            "with_latency_draws": sum(bool(fill.get("latency_draws_ms")) for fill in self.fills_log),
-            "with_latency_model": sum(bool(fill.get("latency_model")) for fill in self.fills_log),
-            "with_lifecycle_state": sum(
-                fill.get("order_state_at_fill") in {"live", "pending_cancel"} for fill in self.fills_log
-            ),
-            "with_fee_model": sum(bool(fill.get("fee_model_id")) for fill in self.fills_log),
-        }
+        provenance_counts = dict(self._fill_provenance_counts)
         fill_provenance: dict[str, object] = {
             "schema_version": "lob_sim.fill_provenance_coverage.v1",
             "fill_count": self.fill_count,
@@ -757,6 +869,27 @@ class SimulationMetrics:
                     "with_fee_model",
                 )
             ),
+        }
+        sinks_memory_bounded = bool(getattr(self._fill_sink, "memory_bounded", False)) and bool(
+            getattr(self._markout_sink, "memory_bounded", False)
+        )
+        audit_retention = {
+            "schema_version": "lob_sim.audit_retention.v1",
+            "mode": "in_memory" if self._retain_audit_rows else "aggregate_only",
+            "memory_bounded_by_tape_duration": not self._retain_audit_rows and sinks_memory_bounded,
+            "built_in_sinks_memory_bounded": sinks_memory_bounded,
+            "detail_rows_complete_in_summary": self._retain_audit_rows,
+            "fill_rows_emitted": self.fill_count,
+            "fill_rows_retained": len(self.fills_log),
+            "fill_audit_sha256": self.fill_audit_sha256,
+            "fill_sink": type(self._fill_sink).__name__,
+            "markout_rows_emitted": self._markout_event_count,
+            "markout_rows_retained": len(self._markout_events),
+            "markout_audit_sha256": self.markout_audit_sha256,
+            "markout_sink": type(self._markout_sink).__name__,
+            "markout_trace_buffering": self._buffer_markout_trace_events,
+            "pending_markouts": len(self._pending_markouts),
+            "max_pending_markouts": self.cfg.sim_max_pending_markouts,
         }
 
         valuation_complete = not self.missing_mark_symbols
@@ -789,6 +922,7 @@ class SimulationMetrics:
             "fill_count": self.fill_count,
             "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
             "fill_provenance": fill_provenance,
+            "audit_retention": audit_retention,
             "quote_fill_probability": float(quote_fill_probability),
             "fills_per_quote_request": float(fills_per_quote_request),
             "fills_per_arrived_order": float(fills_per_arrived_order),
@@ -827,12 +961,12 @@ class SimulationMetrics:
             "markout_invalidated_count": self.markout_invalidated_count,
             "markout_unresolved_count": self.markout_unresolved_count + len(self._pending_markouts),
             "avg_markout_1s": float(avg_markout),
-            "markout_events": list(self._markout_events),
+            "markout_events": list(self._markout_events) if self._retain_audit_rows else None,
             "inventory_by_symbol": inventory_by_symbol,
             "kill_switch_triggered": self.kill_switch_triggered,
             "kill_switch_reason": self.kill_switch_reason,
             "regime_performance": regime_performance,
-            "fills": list(self.fills_log),
+            "fills": list(self.fills_log) if self._retain_audit_rows else None,
         }
         if self.public_consumption_summary is not None:
             summary["public_consumption_summary"] = self.public_consumption_summary

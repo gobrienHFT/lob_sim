@@ -191,10 +191,14 @@ def _benchmark_simulation_no_export(path: Path, env_path: str, runs: int) -> dic
 
         def operation() -> dict[str, Any]:
             cfg = load_config(env_path)
-            engine = SimulationEngine(cfg)
+            engine = SimulationEngine(
+                cfg,
+                retain_event_trace=False,
+                retain_audit_rows=False,
+            )
             metrics = engine.run(path)
             summary = metrics.get_summary(engine._books)  # noqa: SLF001
-            summary["event_trace_count"] = len(engine.event_trace)
+            summary["event_trace_retention"] = engine.event_trace_retention()
             return summary
 
         last_summary, wall_time, peak = _run_with_memory(operation)
@@ -214,7 +218,8 @@ def _benchmark_simulation_no_export(path: Path, env_path: str, runs: int) -> dic
         },
         "event_counts": last_summary.get("event_counts", {}),
         "fill_count": last_summary.get("fill_count", 0),
-        "event_trace_count": last_summary.get("event_trace_count", 0),
+        "event_trace_retention": last_summary.get("event_trace_retention", {}),
+        "audit_retention": last_summary.get("audit_retention", {}),
     }
 
 

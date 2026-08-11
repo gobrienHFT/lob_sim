@@ -19,6 +19,11 @@ from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.record.schema import RecordValidationError
 from lob_sim.sim.fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
+from lob_sim.sim.metrics import (
+    FILL_AUDIT_CHAIN_DOMAIN,
+    MARKOUT_AUDIT_CHAIN_DOMAIN,
+    audit_chain_sha256,
+)
 
 
 PACK_AUDIT_SCHEMA_VERSION = "lob_sim.futures_pack_audit.v1"
@@ -200,6 +205,8 @@ SUMMARY_CSV_JSON_FIELDS = (
     "book_gap_count_by_symbol",
     "fill_source_counts",
     "fill_provenance",
+    "audit_retention",
+    "event_trace_retention",
     "order_lifecycle_counts",
     "adverse_fill_rate_1s_by_side",
     "markout_by_fill_source",
@@ -218,6 +225,61 @@ FILL_FREQUENCY_REPLACEMENT_FIELDS = {
     "fills_per_quote_request",
     "fills_per_arrived_order",
 }
+
+
+def _audit_retention_contract(summary: dict[str, Any], issues: list[str]) -> None:
+    fills = summary.get("fills")
+    markouts = summary.get("markout_events")
+    retention = summary.get("audit_retention")
+    if not isinstance(fills, list) or not isinstance(markouts, list):
+        return
+    if not isinstance(retention, dict):
+        issues.append("summary.json is missing audit_retention")
+        return
+
+    expected = {
+        "schema_version": "lob_sim.audit_retention.v1",
+        "mode": "in_memory",
+        "memory_bounded_by_tape_duration": False,
+        "built_in_sinks_memory_bounded": True,
+        "detail_rows_complete_in_summary": True,
+        "fill_rows_emitted": len(fills),
+        "fill_rows_retained": len(fills),
+        "fill_audit_sha256": audit_chain_sha256(FILL_AUDIT_CHAIN_DOMAIN, fills),
+        "fill_sink": "NullSink",
+        "markout_rows_emitted": len(markouts),
+        "markout_rows_retained": len(markouts),
+        "markout_audit_sha256": audit_chain_sha256(MARKOUT_AUDIT_CHAIN_DOMAIN, markouts),
+        "markout_sink": "NullSink",
+        "markout_trace_buffering": True,
+        "pending_markouts": summary.get("markout_samples_remaining"),
+    }
+    for field, expected_value in expected.items():
+        if retention.get(field) != expected_value:
+            issues.append(
+                f"summary.audit_retention.{field}={retention.get(field)!r} does not match expected {expected_value!r}"
+            )
+    if set(retention) != {*expected, "max_pending_markouts"}:
+        issues.append("summary.audit_retention has unexpected fields")
+    max_pending = retention.get("max_pending_markouts")
+    if not isinstance(max_pending, int) or isinstance(max_pending, bool) or max_pending <= 0:
+        issues.append("summary.audit_retention.max_pending_markouts must be a positive integer")
+
+    trace_retention = summary.get("event_trace_retention")
+    event_trace_count = summary.get("event_trace_count")
+    expected_trace = {
+        "schema_version": "lob_sim.event_trace_retention.v1",
+        "retained_in_memory": True,
+        "rows_emitted": event_trace_count,
+        "rows_retained": event_trace_count,
+        "sink": "NullSink",
+        "sink_memory_bounded": True,
+        "memory_bounded_by_tape_duration": False,
+    }
+    if not isinstance(trace_retention, dict):
+        issues.append("summary.json is missing event_trace_retention")
+    elif trace_retention != expected_trace:
+        issues.append("summary.event_trace_retention does not match the in-memory pack export")
 
 
 def _repo_root() -> Path:
@@ -1138,6 +1200,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
         _audit_summary_csv(pack_dir, summary, issues)
         _audit_fill_frequency_metrics(pack_dir, summary, trade_rows, issues)
+        _audit_retention_contract(summary, issues)
 
     expected_event_trace_count = summary.get("event_trace_count")
     if isinstance(expected_event_trace_count, int) and len(trace_rows) != expected_event_trace_count:

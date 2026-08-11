@@ -12,8 +12,10 @@ from experiments.benchmark_futures_replay import (
     benchmark_reviewer_modes,
     write_benchmark_json,
 )
+from lob_sim.config import load_config
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.sim.engine import SimulationEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -143,6 +145,11 @@ def test_reviewer_benchmark_modes_time_simulation_export_and_audit(
     }
     assert result["modes"]["replay_only"]["event_counts"]["total_events"] == 4
     assert result["modes"]["simulation_no_export"]["event_counts"]["records_processed"] == 4
+    no_export = result["modes"]["simulation_no_export"]
+    assert no_export["event_trace_retention"]["memory_bounded_by_tape_duration"] is True
+    assert no_export["event_trace_retention"]["rows_retained"] == 0
+    assert no_export["audit_retention"]["memory_bounded_by_tape_duration"] is True
+    assert no_export["audit_retention"]["fill_rows_retained"] == 0
     assert result["modes"]["simulation_with_event_trace_export"]["artifact_labels"] == [
         "event_trace",
         "manifest",
@@ -154,3 +161,25 @@ def test_reviewer_benchmark_modes_time_simulation_export_and_audit(
     for mode in result["modes"].values():
         assert mode["timing"]["wall_time_seconds"] >= 0
         assert mode["memory"]["peak_traced_bytes"] >= 0
+
+
+def test_engine_state_hash_is_independent_of_audit_retention(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECORD_DIR", str(tmp_path))
+    monkeypatch.setenv("SIM_ORDER_LATENCY_MS", "0")
+    monkeypatch.setenv("SIM_CANCEL_LATENCY_MS", "0")
+    input_path = _write_benchmark_fixture(tmp_path / "retention_fixture.ndjson")
+    cfg = load_config(str(REPO_ROOT / ".env.example"))
+
+    full = SimulationEngine(cfg)
+    full.run(input_path)
+    bounded = SimulationEngine(cfg, retain_event_trace=False, retain_audit_rows=False)
+    bounded.run(input_path)
+
+    assert bounded.event_trace == []
+    assert bounded.metrics.fills_log == []
+    assert bounded.metrics.fill_audit_sha256 == full.metrics.fill_audit_sha256
+    assert bounded.metrics.markout_audit_sha256 == full.metrics.markout_audit_sha256
+    assert bounded.state_sha256() == full.state_sha256()

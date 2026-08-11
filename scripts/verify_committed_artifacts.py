@@ -11,6 +11,15 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from lob_sim.sim.metrics import (  # noqa: E402
+    FILL_AUDIT_CHAIN_DOMAIN,
+    MARKOUT_AUDIT_CHAIN_DOMAIN,
+    audit_chain_sha256,
+)
+
 SAMPLE_ROOT = REPO_ROOT / "docs" / "sample_outputs"
 BENCHMARK_RESULTS_DIR = REPO_ROOT / "docs" / "benchmark_results"
 STRATEGY_RESULTS_DIR = REPO_ROOT / "docs" / "strategy_results"
@@ -1233,6 +1242,78 @@ def _verify_futures_fill_provenance_coverage() -> list[str]:
         else:
             if csv_provenance != provenance:
                 issues.append(f"{_repo_relative(summary_csv_path)} fill_provenance does not match summary.json")
+    return issues
+
+
+def _verify_futures_audit_retention() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        summary = json.loads(_read_text(summary_path))
+        fills = summary.get("fills")
+        markouts = summary.get("markout_events")
+        retention = summary.get("audit_retention")
+        if not isinstance(fills, list) or not isinstance(markouts, list):
+            issues.append(f"{_repo_relative(summary_path)} is missing retained audit rows")
+            continue
+        if not isinstance(retention, dict):
+            issues.append(f"{_repo_relative(summary_path)} is missing audit_retention")
+            continue
+        expected = {
+            "schema_version": "lob_sim.audit_retention.v1",
+            "mode": "in_memory",
+            "memory_bounded_by_tape_duration": False,
+            "built_in_sinks_memory_bounded": True,
+            "detail_rows_complete_in_summary": True,
+            "fill_rows_emitted": len(fills),
+            "fill_rows_retained": len(fills),
+            "fill_audit_sha256": audit_chain_sha256(FILL_AUDIT_CHAIN_DOMAIN, fills),
+            "fill_sink": "NullSink",
+            "markout_rows_emitted": len(markouts),
+            "markout_rows_retained": len(markouts),
+            "markout_audit_sha256": audit_chain_sha256(MARKOUT_AUDIT_CHAIN_DOMAIN, markouts),
+            "markout_sink": "NullSink",
+            "markout_trace_buffering": True,
+            "pending_markouts": summary.get("markout_samples_remaining"),
+        }
+        for field, expected_value in expected.items():
+            if retention.get(field) != expected_value:
+                issues.append(
+                    f"{_repo_relative(summary_path)} audit_retention.{field} does not match expected {expected_value!r}"
+                )
+        if set(retention) != {*expected, "max_pending_markouts"}:
+            issues.append(f"{_repo_relative(summary_path)} has invalid audit_retention fields")
+        max_pending = retention.get("max_pending_markouts")
+        if not isinstance(max_pending, int) or isinstance(max_pending, bool) or max_pending <= 0:
+            issues.append(f"{_repo_relative(summary_path)} has invalid max_pending_markouts")
+
+        event_trace_count = summary.get("event_trace_count")
+        expected_trace = {
+            "schema_version": "lob_sim.event_trace_retention.v1",
+            "retained_in_memory": True,
+            "rows_emitted": event_trace_count,
+            "rows_retained": event_trace_count,
+            "sink": "NullSink",
+            "sink_memory_bounded": True,
+            "memory_bounded_by_tape_duration": False,
+        }
+        if summary.get("event_trace_retention") != expected_trace:
+            issues.append(f"{_repo_relative(summary_path)} has invalid event_trace_retention")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows:
+            issues.append(f"{_repo_relative(summary_csv_path)} has no rows")
+            continue
+        for field in ("audit_retention", "event_trace_retention"):
+            try:
+                csv_value = json.loads(rows[0][field])
+            except (KeyError, json.JSONDecodeError) as exc:
+                issues.append(f"{_repo_relative(summary_csv_path)} {field} is invalid JSON: {exc}")
+            else:
+                if csv_value != summary.get(field):
+                    issues.append(f"{_repo_relative(summary_csv_path)} {field} does not match summary.json")
     return issues
 
 
@@ -3223,6 +3304,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
     issues.extend(_verify_futures_fill_provenance_coverage())
+    issues.extend(_verify_futures_audit_retention())
     issues.extend(_verify_futures_fill_source_counts())
     issues.extend(_verify_futures_fill_frequency_metrics())
     issues.extend(_verify_futures_markout_by_source())

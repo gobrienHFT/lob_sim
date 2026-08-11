@@ -19,6 +19,8 @@ except ImportError:  # pragma: no cover - installation dependent
 
 
 class EventSink(Protocol):
+    memory_bounded: bool
+
     def write(self, event: Mapping[str, Any]) -> None: ...
 
     def close(self) -> None: ...
@@ -26,6 +28,8 @@ class EventSink(Protocol):
 
 class NullSink:
     """No-op sink used by hot-path benchmarks."""
+
+    memory_bounded = True
 
     def write(self, event: Mapping[str, Any]) -> None:
         del event
@@ -36,6 +40,8 @@ class NullSink:
 
 class AggregateMetricsSink:
     """Constant-cardinality event counters without retaining individual rows."""
+
+    memory_bounded = True
 
     def __init__(self) -> None:
         self.count = 0
@@ -60,6 +66,8 @@ class AggregateMetricsSink:
 
 class StreamingJsonlSink:
     """Flushable JSONL sink that never retains the trace in memory."""
+
+    memory_bounded = True
 
     def __init__(self, path: str | Path, *, flush_every: int = 4096) -> None:
         self.path = Path(path)
@@ -90,6 +98,8 @@ class StreamingJsonlSink:
 class StreamingCsvSink:
     """Bounded CSV audit sink with a fixed schema."""
 
+    memory_bounded = True
+
     def __init__(self, path: str | Path, fieldnames: Iterable[str]) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +124,8 @@ class StreamingCsvSink:
 
 class StreamingParquetSink:
     """Batch-bounded Parquet sink with atomic finalization."""
+
+    memory_bounded = True
 
     def __init__(
         self,

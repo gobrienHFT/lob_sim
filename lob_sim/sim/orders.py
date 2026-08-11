@@ -76,3 +76,4 @@ class Fill:
     queue_trajectory: dict[str, int] = field(default_factory=dict)
     latency_draws_ms: dict[str, float | None] = field(default_factory=dict)
     order_state_at_fill: OrderState = "live"
+    is_first_fill_for_order: bool = True
