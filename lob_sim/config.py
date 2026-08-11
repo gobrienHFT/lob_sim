@@ -217,6 +217,7 @@ class Config:
     sim_markout_horizons_ms: tuple[int, ...] = (100, 1000, 5000)
     sim_fill_model: Literal["trade", "depth"] = "trade"
     capture_schema_version: int = 3
+    capture_writer_queue_max: int = 65_536
     sim_latency_mode: Literal["fixed", "empirical", "stress_tail"] = "fixed"
     sim_latency_samples_ms: tuple[float, ...] = ()
     sim_latency_stress_multiplier: float = 1.0
@@ -313,6 +314,8 @@ class Config:
             errs.append("SIM_FILL_MODEL must be trade or depth")
         if self.capture_schema_version < 1:
             errs.append("CAPTURE_SCHEMA_VERSION must be >= 1")
+        if self.capture_writer_queue_max <= 0:
+            errs.append("CAPTURE_WRITER_QUEUE_MAX must be > 0")
         if self.sim_latency_mode not in {"fixed", "empirical", "stress_tail"}:
             errs.append("SIM_LATENCY_MODE must be fixed, empirical, or stress_tail")
         if any(not math.isfinite(value) or value < 0 for value in self.sim_latency_samples_ms):
@@ -441,6 +444,10 @@ def load_config(env_path: str = ".env") -> Config:
         capture_schema_version=_parse_int(
             "CAPTURE_SCHEMA_VERSION",
             _get_optional("CAPTURE_SCHEMA_VERSION", "3"),
+        ),
+        capture_writer_queue_max=_parse_int(
+            "CAPTURE_WRITER_QUEUE_MAX",
+            _get_optional("CAPTURE_WRITER_QUEUE_MAX", "65536"),
         ),
         sim_latency_mode=cast(
             Literal["fixed", "empirical", "stress_tail"],
