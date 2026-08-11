@@ -2366,7 +2366,7 @@ def _verify_futures_stress_pack_publication() -> list[str]:
     required_coverage = {
         "queue_ahead",
         "partial_fills",
-        "depth_agg_trade_overlap_netting",
+        "exclusive_trade_fill_attribution",
         "adverse_and_non_adverse_markouts",
         "cancel_latency",
         "same_timestamp_cancel_before_trade",
@@ -2382,13 +2382,17 @@ def _verify_futures_stress_pack_publication() -> list[str]:
         if coverage.get("book_gap_count") != 0:
             issues.append("futures_stress_case should be a no-gap stress fixture")
     fill_sources = summary.get("fill_source_counts")
-    if not isinstance(fill_sources, dict) or not all(
-        fill_sources.get(source, 0) > 0 for source in FUTURES_FILL_SOURCES
+    if (
+        not isinstance(fill_sources, dict)
+        or fill_sources.get("depth_update", 0) != 0
+        or fill_sources.get("agg_trade", 0) <= 0
+        or fill_sources.get("taker_order", 0) <= 0
     ):
-        issues.append("futures_stress_case must include depth_update, agg_trade, and taker_order fills")
+        issues.append("futures_stress_case must isolate agg_trade and taker fills from depth diagnostics")
     public = summary.get("public_consumption_summary", {})
-    if not isinstance(public, dict) or public.get("total_overlap_netted_lots", 0) <= 0:
-        issues.append("futures_stress_case must include overlap-netted public consumption")
+    depth_diagnostics = public.get("sources", {}).get("depth_update", {}) if isinstance(public, dict) else {}
+    if depth_diagnostics.get("unmatched_lots", 0) <= 0:
+        issues.append("futures_stress_case must expose unmatched depth diagnostics in trade-only mode")
     markout_by_source = summary.get("markout_by_fill_source", {})
     if not isinstance(markout_by_source, dict):
         issues.append("futures_stress_case is missing markout_by_fill_source")

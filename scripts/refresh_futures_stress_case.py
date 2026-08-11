@@ -302,7 +302,9 @@ def _assert_stress_coverage(summary: dict[str, Any], event_trace: list[dict[str,
 
     if summary.get("book_gap_count_by_symbol") != {}:
         raise RuntimeError("Stress case is expected to be a no-gap fixture.")
-    for source in ("depth_update", "agg_trade", "taker_order"):
+    if int(fill_sources.get("depth_update", 0)) != 0:
+        raise RuntimeError("Trade-only stress scenario unexpectedly produced a depth_update fill.")
+    for source in ("agg_trade", "taker_order"):
         if int(fill_sources.get(source, 0)) <= 0:
             raise RuntimeError(f"Stress case did not produce a {source} fill.")
     if int(lifecycle.get("self_trade_prevented", 0)) <= 0:
@@ -311,8 +313,9 @@ def _assert_stress_coverage(summary: dict[str, Any], event_trace: list[dict[str,
         raise RuntimeError("Stress case did not exercise cancel latency.")
     if int(summary.get("arrival_with_queue_ahead_count", 0)) <= 0:
         raise RuntimeError("Stress case did not record queue ahead at arrival.")
-    if int(public_consumption.get("total_overlap_netted_lots", 0)) <= 0:
-        raise RuntimeError("Stress case did not exercise depth/aggTrade overlap netting.")
+    depth_diagnostics = public_consumption.get("sources", {}).get("depth_update", {})
+    if int(depth_diagnostics.get("unmatched_lots", 0)) <= 0:
+        raise RuntimeError("Stress case did not prove that depth decreases are excluded in trade-only mode.")
     adverse_samples = sum(int(data.get("adverse_samples", 0)) for data in markouts.values())
     non_adverse_samples = sum(
         int(data.get("samples", 0)) - int(data.get("adverse_samples", 0)) for data in markouts.values()
@@ -341,8 +344,8 @@ def _render_readme(summary: dict[str, Any]) -> str:
             "## Coverage",
             "",
             "- Snapshot-seeded visible queue ahead and partial passive fills.",
-            "- Depth/`aggTrade` overlap netting on the same side and price.",
-            "- Depth-inferred, `aggTrade`-inferred, and marketable taker fills.",
+            "- Mutually exclusive trade-only attribution: depth decreases remain diagnostic and unmatched.",
+            "- `aggTrade`-inferred and marketable taker fills; no depth-inferred fill in this scenario.",
             "- Adverse and non-adverse post-fill markouts.",
             "- Cancel latency, including an old quote fill before acknowledgement.",
             "- Same-timestamp cancel acknowledgement before public trade consumption.",
@@ -356,7 +359,7 @@ def _render_readme(summary: dict[str, Any]) -> str:
             f"- AggTrade records: `{event_counts['agg_trade']}`",
             f"- Fill-source counts: `{json.dumps(fill_sources, sort_keys=True)}`",
             f"- Order lifecycle counts: `{json.dumps(lifecycle, sort_keys=True)}`",
-            f"- Public overlap-netted lots: `{public['total_overlap_netted_lots']}`",
+            f"- Depth diagnostic unmatched lots: `{public['sources']['depth_update']['unmatched_lots']}`",
             "",
             "## Files",
             "",
@@ -428,7 +431,7 @@ def refresh_futures_stress_case(output_dir: Path = STRESS_CASE_DIR) -> dict[str,
         summary["stress_coverage"] = {
             "queue_ahead": True,
             "partial_fills": True,
-            "depth_agg_trade_overlap_netting": True,
+            "exclusive_trade_fill_attribution": True,
             "adverse_and_non_adverse_markouts": True,
             "cancel_latency": True,
             "same_timestamp_cancel_before_trade": True,
