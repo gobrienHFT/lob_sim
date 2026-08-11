@@ -148,6 +148,7 @@ def build_sweep_metadata(
         "env_path": env_path,
         "config_digest": config_digest(cfg_snapshot),
         "feed_adapter": adapter_metadata(adapter),
+        "fill_model": cfg.sim_fill_model,
         "profiles": profiles,
         "half_spreads_bps": [str(value) for value in half_spreads_bps],
         "queue_repost_lots": queue_repost_lots,
@@ -193,6 +194,7 @@ def write_sweep_outputs(
                 f"- Input SHA-256: `{metadata['input_sha256']}`",
                 f"- Config digest: `{metadata['config_digest']}`",
                 f"- Feed adapter: `{metadata['feed_adapter']['name']}` (`{metadata['feed_adapter']['venue_label']}`)",
+                f"- Public-L2 fill model: `{metadata['fill_model']}` (mutually exclusive scenario)",
                 f"- Profiles: `{', '.join(metadata['profiles'])}`",
                 f"- Half-spread bps grid: `{', '.join(metadata['half_spreads_bps'])}`",
                 f"- Queue repost lots grid: `{', '.join(str(value) for value in metadata['queue_repost_lots'])}`",
@@ -203,6 +205,16 @@ def write_sweep_outputs(
     if command:
         metadata_lines.extend(["", "Exact command:", "", "```bash", command, "```"])
 
+    evidence_notes = [
+        "- Ranking score is diagnostic only; it is not an alpha or profitability claim.",
+        "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
+        "- Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.",
+    ]
+    if rows and all(int(row.get("fill_count", 0)) == 0 for row in rows):
+        evidence_notes.append(
+            "- This tiny committed clip produced no confirmed-trade fills; it is a zero-fill diagnostic, not economic evidence."
+        )
+
     md_path.write_text(
         "\n".join(
             [
@@ -210,9 +222,7 @@ def write_sweep_outputs(
                 "",
                 *metadata_lines,
                 "",
-                "- Ranking score is diagnostic only; it is not an alpha or profitability claim.",
-                "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
-                "- Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.",
+                *evidence_notes,
                 "",
                 *table,
                 "",

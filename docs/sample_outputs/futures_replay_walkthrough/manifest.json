@@ -1,13 +1,13 @@
 {
   "run_id": "4bff5f56800c38f7",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T08:30:04.731859Z",
+  "created_at_utc": "2026-08-11T08:34:53.272973Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-11T08:30:04.682617Z"
+    "modified_at_utc": "2026-08-11T08:34:53.237777Z"
   },
   "config": {
     "symbols": [
@@ -124,7 +124,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "4cc0c6c4e75bccaacf3fcfc150e7e3af235b4a7f",
+    "git_commit": "a3e8f8ddb482fec62b77b783492602de2ac02562",
     "git_branch": "codex/hft-market-sim",
     "git_dirty": false
   },
@@ -140,7 +140,7 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 5580,
       "sha256": "402228b69ee3c702b8d4084d9d69d32cc5f24adda17a8f91965a6aefc0147344",
-      "modified_at_utc": "2026-08-11T08:30:05.085670Z"
+      "modified_at_utc": "2026-08-11T08:34:53.591360Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -149,19 +149,19 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 11716,
       "sha256": "5f7d2cad2ff00122cbc118fb57fdbc8fcc50c28a6bdb15b2d475053c5f739455",
-      "modified_at_utc": "2026-08-11T08:30:05.079262Z"
+      "modified_at_utc": "2026-08-11T08:34:53.585652Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 9303,
       "sha256": "c27e0d69c4ae9da11b2328885d06eb888e5ba49c8273bcd09e3b427b03071cfc",
-      "modified_at_utc": "2026-08-11T08:30:05.082650Z"
+      "modified_at_utc": "2026-08-11T08:34:53.588814Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 452,
       "sha256": "dcc1e7bc3ec3b9e85c14426babf3b384a3d6e4ad7e7097ff5276218e5839e589",
-      "modified_at_utc": "2026-08-11T08:30:05.083661Z"
+      "modified_at_utc": "2026-08-11T08:34:53.591360Z"
     }
   },
   "fixture_provenance": {

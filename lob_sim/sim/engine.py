@@ -120,7 +120,7 @@ class SimulationEngine:
         self._actions = [action for action in self._actions if action.symbol != symbol]
         heapify(self._actions)
         self.metrics.on_book_invalidated(symbol, reason)
-        self.metrics.invalidate_markouts(symbol, reason)
+        self.metrics.invalidate_markouts(symbol, reason, ts_local=now)
         self._trace(now, symbol, "epoch_invalidated", "book_sync", details={"reason": reason})
 
     def _observe_capture_epoch(self, rec: RecordedEvent, now: float) -> None:

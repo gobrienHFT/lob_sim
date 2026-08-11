@@ -89,6 +89,7 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
+    assert metadata["fill_model"] == "trade"
     assert paths["csv"].exists()
     assert paths["markdown"].exists()
 
@@ -98,4 +99,7 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
     assert "modeled order-arrival and cancel-ack delays" in markdown
     assert "not a latency-arbitrage, alpha, or profitability claim" in markdown
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in markdown
+    assert "Public-L2 fill model: `trade`" in markdown
+    if all(row["fill_count"] == 0 for row in rows):
+        assert "zero-fill diagnostic, not economic evidence" in markdown
     assert "python latency" in markdown

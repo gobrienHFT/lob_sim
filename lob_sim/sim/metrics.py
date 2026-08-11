@@ -312,7 +312,13 @@ class SimulationMetrics:
         self._new_markout_events = []
         return events
 
-    def invalidate_markouts(self, symbol: str, reason: str) -> int:
+    def invalidate_markouts(
+        self,
+        symbol: str,
+        reason: str,
+        *,
+        ts_local: float | None = None,
+    ) -> int:
         """Fail closed for pending horizons that cross an invalid epoch."""
 
         keep: list[dict[str, Any]] = []
@@ -322,12 +328,32 @@ class SimulationMetrics:
                 keep.append(entry)
                 continue
             invalidated += 1
-            entry = dict(entry)
-            entry["status"] = "invalidated"
-            entry["invalid_reason"] = reason
-            entry["markout"] = None
-            self._markout_events.append(entry)
-            self._new_markout_events.append(entry)
+            invalidation_ts = ts_local if ts_local is not None else float(entry["ts_local"])
+            invalidated_event = {
+                "symbol": str(entry["symbol"]),
+                "side": str(entry["side"]),
+                "fill_source": str(entry.get("fill_source", "depth_update")),
+                "regime": str(entry["regime"]),
+                "fill_price": str(entry["price"]),
+                "price_tick": entry.get("price_tick"),
+                "qty": str(entry["qty"]),
+                "qty_lots": entry.get("qty_lots"),
+                "order_id": entry.get("order_id"),
+                "fill_mid": str(entry["mid_at_fill"]) if entry.get("mid_at_fill") is not None else None,
+                "mid_after": None,
+                "markout": None,
+                "contract_multiplier": str(entry.get("contract_multiplier", "1")),
+                "adverse": None,
+                "horizon": self.cfg.sim_adverse_markout_seconds,
+                "ts_local": entry.get("ts_local"),
+                "deadline_ts": entry.get("deadline_ts"),
+                "markout_ts_local": invalidation_ts,
+                "resolution_lag_seconds": None,
+                "status": "invalidated",
+                "invalid_reason": reason,
+            }
+            self._markout_events.append(invalidated_event)
+            self._new_markout_events.append(invalidated_event)
         self._pending_markouts = keep
         self.markout_invalidated_count += invalidated
         self.markout_unresolved_count += invalidated

@@ -859,7 +859,8 @@ def test_futures_event_trace_verifier_rejects_malformed_markout(tmp_path, monkey
                     '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
                     '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
                     '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
-                    '"adverse":"yes","regime":"tight"}'
+                    '"adverse":"yes","regime":"tight","status":"resolved",'
+                    '"invalid_reason":null}'
                 ),
             )
         ],
@@ -882,13 +883,43 @@ def test_futures_event_trace_verifier_rejects_malformed_markout(tmp_path, monkey
     assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid adverse" in issues
 
 
+def test_markout_trace_verifier_accepts_invalidated_null_result(tmp_path) -> None:
+    row = _event_trace_row(
+        event_type="markout",
+        source="metrics",
+        side="bid",
+        price_tick="1000",
+        qty_lots="1",
+        order_id="order-1",
+        fill_source="agg_trade",
+    )
+    details = {
+        "fill_ts_local": 1.0,
+        "deadline_ts": 2.0,
+        "horizon": 1.0,
+        "fill_price": "100",
+        "qty": "0.001",
+        "fill_mid": "100.5",
+        "mid_after": None,
+        "markout": None,
+        "contract_multiplier": "1",
+        "adverse": None,
+        "regime": "tight",
+        "status": "invalidated",
+        "invalid_reason": "depth_gap",
+    }
+
+    assert verifier._verify_markout_trace_details(tmp_path / "event_trace.csv", 2, row, details) == []
+
+
 def test_futures_event_trace_verifier_rejects_markout_summary_mismatch(tmp_path, monkeypatch) -> None:
     showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
     markout_details = (
         '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
         '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
         '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
-        '"adverse":true,"regime":"tight"}'
+        '"adverse":true,"regime":"tight","status":"resolved",'
+        '"invalid_reason":null}'
     )
     _write_event_trace_case(
         showcase,
@@ -1313,6 +1344,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "not an alpha or profitability claim" in sweep_reference
     assert "Git dirty at run time: `False`" in sweep_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
+    assert "Public-L2 fill model: `trade`" in sweep_reference
+    assert "zero-fill diagnostic, not economic evidence" in sweep_reference
     latency_reference = FUTURES_LATENCY_SWEEP_REFERENCE.read_text(encoding="utf-8")
     assert COMMITTED_STRATEGY_INPUT in latency_reference
     assert "python scripts/refresh_futures_latency_sweep_reference.py" in latency_reference
@@ -1320,6 +1353,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "not a latency-arbitrage, alpha, or profitability claim" in latency_reference
     assert "Git dirty at run time: `False`" in latency_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in latency_reference
+    assert "Public-L2 fill model: `trade`" in latency_reference
+    assert "zero-fill diagnostic, not economic evidence" in latency_reference
 
     with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -1329,14 +1364,14 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert len(rows) == 27
     assert [int(row["rank"]) for row in rows] == list(range(1, 28))
     assert {"baseline", "layered_mm", "research_mm"} <= {row["strategy_profile"] for row in rows}
-    assert max(int(row["fill_count"]) for row in rows) > 0
+    assert max(int(row["fill_count"]) for row in rows) == 0
     assert "fill_source_counts" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
     assert len(latency_rows) == 9
     assert [int(row["rank"]) for row in latency_rows] == list(range(1, 10))
     assert {float(row["order_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
     assert {float(row["cancel_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
-    assert max(int(row["fill_count"]) for row in latency_rows) > 0
+    assert max(int(row["fill_count"]) for row in latency_rows) == 0
     assert "avg_fill_wait_ms" in latency_rows[0]
     assert "fill_source_counts" in latency_rows[0]
     assert "order_lifecycle_counts" in latency_rows[0]

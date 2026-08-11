@@ -2,12 +2,13 @@
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
-- Base config digest: `78d3dd4777f91d40382478a8c32c89b28e8d38b68dd00e91c2da073be480ba65`
+- Base config digest: `0225438a30acd84d658d56f34075748e042686615420d7bae33bf9d97e2195c6`
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
+- Public-L2 fill model: `trade` (mutually exclusive scenario)
 - Strategy profile: `baseline`
 - Order latency grid ms: `0, 10, 50`
 - Cancel latency grid ms: `0, 10, 50`
-- Git commit at run time: `0697acce8a5f2c782a033666113702c0c3f15fef`
+- Git commit at run time: `a3e8f8ddb482fec62b77b783492602de2ac02562`
 - Git dirty at run time: `False`
 
 Exact command:
@@ -20,15 +21,16 @@ python scripts/refresh_futures_latency_sweep_reference.py
 - Ranking score is diagnostic only; it is not a latency-arbitrage, alpha, or profitability claim.
 - `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.
 - Use this table to inspect how queue position, fill quality, adverse markout, and cancel races respond to explicit latency assumptions on one deterministic fixture.
+- This tiny committed clip produced no confirmed-trade fills; it is a zero-fill diagnostic, not economic evidence.
 
 | Rank | Profile | Order latency ms | Cancel latency ms | Score | Fills | Quote-fill probability | Fills / quote request | Avg spread | Adverse 1s | Avg wait ms | Inventory stdev | Max drawdown |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | `baseline` | 0 | 0 | 26.986765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 113.139868 | 0.000382 | 0.000000 |
-| 2 | `baseline` | 10 | 0 | 26.896765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 103.139877 | 0.000382 | 0.000000 |
-| 3 | `baseline` | 0 | 10 | 26.886765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 113.139868 | 0.000382 | 0.000000 |
-| 4 | `baseline` | 10 | 10 | 26.796765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 103.139877 | 0.000382 | 0.000000 |
-| 5 | `baseline` | 0 | 50 | 26.486765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 113.139868 | 0.000382 | 0.000000 |
-| 6 | `baseline` | 10 | 50 | 26.396765 | 1 | 0.500000 | 0.500000 | 13.550000 | 0.000000 | 103.139877 | 0.000382 | 0.000000 |
-| 7 | `baseline` | 50 | 0 | -19.308867 | 1 | 0.500000 | 0.500000 | -0.050000 | 1.000000 | 0.000000 | 0.000466 | 0.008750 |
-| 8 | `baseline` | 50 | 10 | -19.408867 | 1 | 0.500000 | 0.500000 | -0.050000 | 1.000000 | 0.000000 | 0.000466 | 0.008750 |
-| 9 | `baseline` | 50 | 50 | -19.808867 | 1 | 0.500000 | 0.500000 | -0.050000 | 1.000000 | 0.000000 | 0.000466 | 0.008750 |
+| 1 | `baseline` | 0 | 0 | 0.000000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 2 | `baseline` | 0 | 10 | -0.100000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 3 | `baseline` | 10 | 0 | -0.100000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 4 | `baseline` | 10 | 10 | -0.200000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 5 | `baseline` | 0 | 50 | -0.500000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 6 | `baseline` | 50 | 0 | -0.500000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 7 | `baseline` | 10 | 50 | -0.600000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 8 | `baseline` | 50 | 10 | -0.600000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 9 | `baseline` | 50 | 50 | -1.000000 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |

@@ -71,10 +71,14 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
+    assert metadata["fill_model"] == "trade"
     assert paths["csv"].exists()
     assert paths["markdown"].exists()
     markdown = paths["markdown"].read_text(encoding="utf-8")
     assert "not an alpha or profitability claim" in markdown
     assert "Input SHA-256" in markdown
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in markdown
+    assert "Public-L2 fill model: `trade`" in markdown
+    if all(row["fill_count"] == 0 for row in rows):
+        assert "zero-fill diagnostic, not economic evidence" in markdown
     assert "python sweep" in markdown
