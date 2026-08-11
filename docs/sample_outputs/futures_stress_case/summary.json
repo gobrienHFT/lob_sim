@@ -23,6 +23,10 @@
   "book_invalidation_by_symbol": {},
   "book_invalidation_reasons": {},
   "trade_stream_invalidation_count": 0,
+  "trade_stream_invalidation_by_symbol": {},
+  "trade_stream_invalidation_reasons": {},
+  "trade_stream_recovery_count": 0,
+  "trade_stream_recovery_by_symbol": {},
   "total_pnl": 0.0002,
   "realized_pnl": 0.0,
   "gross_realized_pnl": 0.0,
@@ -36,6 +40,21 @@
     "depth_update": 0,
     "agg_trade": 1,
     "taker_order": 0
+  },
+  "fill_provenance": {
+    "schema_version": "lob_sim.fill_provenance_coverage.v1",
+    "fill_count": 1,
+    "with_provenance_schema": 1,
+    "with_scenario": 1,
+    "with_evidence_ids": 1,
+    "with_validity": 1,
+    "execution_valid": 1,
+    "with_queue_trajectory": 1,
+    "with_latency_draws": 1,
+    "with_latency_model": 1,
+    "with_lifecycle_state": 1,
+    "with_fee_model": 1,
+    "complete": true
   },
   "quote_fill_probability": 0.25,
   "fills_per_quote_request": 0.25,
@@ -157,6 +176,7 @@
   },
   "fills": [
     {
+      "provenance_schema_version": "lob_sim.fill_provenance.v1",
       "ts_local": 3.05,
       "symbol": "BTCUSDT",
       "side": "bid",
@@ -166,13 +186,45 @@
       "contract_multiplier": "1",
       "maker": true,
       "fill_source": "agg_trade",
-      "scenario_id": "public_l2:base",
-      "evidence_ids": [],
-      "validity": null,
+      "scenario_id": "public_l2:base:signal=trade:overlap_us=0",
+      "evidence_ids": [
+        "input_row:3",
+        "input_row:9"
+      ],
+      "validity": {
+        "book_valid": true,
+        "trade_stream_valid": true,
+        "clock_valid": true,
+        "capture_valid": true,
+        "trade_stream_required": true,
+        "execution_valid": true,
+        "reason": null
+      },
+      "queue_trajectory": {
+        "queue_ahead_before_trigger_lots": 1,
+        "queue_ahead_at_fill_lots": 0,
+        "queue_consumed_before_fill_lots": 1,
+        "public_consumption_trigger_lots": 2,
+        "fill_lots": 1,
+        "remaining_order_lots_after_fill": 2
+      },
+      "latency_draws_ms": {
+        "new_order": 0.0,
+        "cancel": 100.0
+      },
+      "latency_model": {
+        "mode": "fixed",
+        "seed": 1,
+        "source": "configured_scenario",
+        "measured": false
+      },
+      "order_state_at_fill": "pending_cancel",
+      "fee_model_id": "static_config_bps",
       "fee_bps": "0",
       "fee": "0.0000",
       "fee_currency": "USDT",
       "order_id": "BTCUSDT-bid-2000000-3",
+      "created_ts": 2.0,
       "mid_at_fill": "100.05",
       "spread_capture": "0.05",
       "spread_capture_value": "0.00005",
@@ -214,7 +266,8 @@
     "queue_rule": "same-price public trade volume consumes a synthetic queue-ahead; trade-through fills the remainder",
     "same_timestamp_tie_break": "legacy_action_first",
     "post_only": true,
-    "historical_fifo_claim": false
+    "historical_fifo_claim": false,
+    "trade_stream_required": true
   },
   "economic_assumptions": {
     "order_latency_ms": 0.0,
@@ -256,7 +309,21 @@
         "levels": 3
       }
     },
+    "stream_state": {
+      "BTCUSDT": {
+        "depth_stream_valid": true,
+        "trade_stream_valid": true,
+        "trade_stream_required": true,
+        "public_stream_epoch": null,
+        "market_stream_epoch": null,
+        "capture_sync_epoch": null,
+        "public_invalid_reason": null,
+        "market_invalid_reason": null,
+        "execution_inputs_valid": true
+      }
+    },
     "all_books_synced_at_end": true,
+    "all_required_execution_inputs_valid_at_end": true,
     "feed_completeness": "not proven without venue-side packet-loss telemetry"
   },
   "evidence_quality": {
@@ -271,7 +338,7 @@
     "latency": "configured_scenario_not_exchange_measurement",
     "live_profitability": "not_claimed"
   },
-  "state_sha256": "d3752a1fe798f8bac07c85572aaa0867f9953ad30628bd68029cec5ba4fadd37",
+  "state_sha256": "cf6caa150adafce18577bb2f455dfafdecfc90a0f1714107536c8bdb33a06383",
   "run_id": "88881b3a605285a5",
   "input_sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
   "feed_adapter": {
