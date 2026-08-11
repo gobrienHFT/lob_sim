@@ -43,8 +43,9 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 
 ### Futures replay core
 
-- Market-data capture into NDJSON via [`lob_sim/cli.py`](lob_sim/cli.py) and [`lob_sim/record/writer.py`](lob_sim/record/writer.py).
-- Schema-v3 capture metadata uses independent `public` depth and `market` trade routes, global receive sequence, receipt monotonic time, stream/sync epochs, and stream-first snapshot bridging. Connect, disconnect, connect-failure, and parse-failure boundaries are explicit; downstream writer failures stop capture rather than being mistaken for network reconnects.
+- Market-data capture into crash-visible segmented NDJSON via [`lob_sim/cli.py`](lob_sim/cli.py), [`lob_sim/record/async_writer.py`](lob_sim/record/async_writer.py), and [`lob_sim/record/segmented.py`](lob_sim/record/segmented.py).
+- Schema-v3 capture metadata uses independent `public` depth and `market` trade routes, global receive sequence assigned before payload parsing, receipt monotonic time, stream/sync epochs, and stream-first snapshot bridging. Connect, disconnect, connect-failure, parse-failure, and normal capture-trailer boundaries are explicit.
+- Compression and disk I/O run on one dedicated writer thread behind a configurable hard bound. Queue overflow or sink failure aborts capture rather than silently dropping and continuing, leaves a recoverable `.partial` tail, and writes a sanitized hashed failure sidecar; successful manifests include queue/outstanding high-water, lag, and completion evidence. This is fail-closed backpressure behavior, not proof of zero venue-side loss or a completed 24-hour soak.
 - Snapshot seeding plus diff-continuity checks in [`lob_sim/book/sync.py`](lob_sim/book/sync.py).
 - Local book reconstruction in [`lob_sim/book/local_book.py`](lob_sim/book/local_book.py).
 - Event-driven replay and offline simulation in [`lob_sim/replay/runner.py`](lob_sim/replay/runner.py) and [`lob_sim/sim/engine.py`](lob_sim/sim/engine.py).
@@ -77,9 +78,9 @@ Run the futures paths with:
 ```bash
 python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli --env .env.example collect
-python -m lob_sim.cli inspect --file data/raw_....ndjson
-python -m lob_sim.cli --env .env.example replay --file data/raw_....ndjson
-python -m lob_sim.cli --env .env.example simulate --file data/raw_....ndjson
+python -m lob_sim.cli inspect --file data/capture_....manifest.json
+python -m lob_sim.cli --env .env.example replay --file data/capture_....manifest.json
+python -m lob_sim.cli --env .env.example simulate --file data/capture_....manifest.json
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 ```
 
