@@ -13,7 +13,10 @@ scenario.
 
 Stream lifecycle records are causal boundaries, not logging decoration.
 Schema-v3 capture records `connect`, `disconnect`, `connect_failure`, and
-`parse_failure` events before retrying. A public-stream outage invalidates the
+`parse_failure` events before retrying, plus a final `capture_trailer` only on
+normal completion. Receipt sequence and monotonic time are assigned immediately
+after websocket receipt and before JSON or venue parsing; a parse-failure record
+therefore retains the identity of the failed observation. A public-stream outage invalidates the
 book and all dependent execution state. A market-stream outage preserves an
 independently valid depth book, clears stale trade-flow history, and invalidates
 live/pending state when the chosen fill or strategy scenario requires trades.
@@ -21,6 +24,17 @@ Repeated failure records do not double-invalidate. A new stream epoch resumes
 prospectively only after a connect record (or an explicitly handled legacy
 implicit boundary); no queue or order state crosses the outage. Regressing
 stream or sync epochs are rejected.
+
+Disk and compression work is serialized on one dedicated writer thread. The
+producer uses a non-blocking queue with a configured hard capacity. A full queue
+or sink exception is an integrity failure: collection stops, no success manifest
+is written, a checksummed-record prefix remains recoverable from the visible
+`.partial` segment, and a sanitized hashed failure sidecar records the failure
+types and writer counters. Normal shutdown drains the queue, persists the
+capture trailer, closes the writer, and only then finalizes segments and a
+manifest containing queue capacity, queue/outstanding high-water, maximum
+enqueue-to-write lag, counts, and completion state. These mechanics do not establish a zero-drop or
+24-hour-soak claim by themselves.
 
 For schema-v3 replay, the logical priority at equal receipt time is:
 

@@ -64,7 +64,7 @@ python experiments/benchmark_futures_replay.py --file docs/sample_outputs/future
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
 python scripts/refresh_futures_parameter_sweep_reference.py
-python scripts/run_real_data_report.py --file data/raw_....ndjson.gz --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
+python scripts/run_real_data_report.py --file data/capture_....manifest.json --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
 ```
 
 With `make` available:

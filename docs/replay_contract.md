@@ -6,7 +6,7 @@ Replay inputs are newline-delimited JSON. Each row has:
 
 - `ts_local`: event timestamp in seconds.
 - `symbol`: venue symbol, for example `BTCUSDT`.
-- `type`: one of `captureMeta`, `exchangeInfo`, `snapshot`, `depthUpdate`, or `aggTrade`.
+- `type`: one of `captureMeta`, `captureEvent`, `exchangeInfo`, `snapshot`, `depthUpdate`, or `aggTrade`.
 - `data`: raw or normalized payload for that event type.
 
 The reader validates required fields before replaying. Bad JSON, missing payload fields, malformed price/quantity levels, and unsupported event types fail with file and line-number context.
@@ -17,6 +17,7 @@ After validation, `lob_sim.replay.adapters.DEFAULT_REPLAY_ADAPTER` is the shared
 
 - `exchangeInfo`: contains positive `tickSize` and `stepSize`; optional `baseAsset`, `quoteAsset`, positive finite `contractMultiplier`, and `venue` fields carry instrument metadata used by reporting and fee audit fields.
 - `captureMeta`: declares schema version, receipt-clock policy, independent routes, and validity intersection for schema-v3 captures.
+- `captureEvent`: records route lifecycle/failure boundaries or the normal capture trailer with its receipt identity and epoch context.
 - `snapshot`: contains `lastUpdateId`, `bids`, and `asks`.
 - `depthUpdate`: contains Binance diff ids `U`, `u`, optional `pu`, and changed bid/ask levels `b` and `a`.
 - `aggTrade`: contains trade price `p`, quantity `q`, and maker side flag `m`.

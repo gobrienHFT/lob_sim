@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -9,14 +10,14 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
-from itertools import count
 from dataclasses import replace
+from itertools import count
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from .binance.rest import BinanceRESTClient
 from .binance.symbols import parse_exchange_info_for_symbol
-from .binance.ws import run_depth_stream, run_trade_stream
+from .binance.ws import ReceiveIdentity, run_depth_stream, run_trade_stream
 from .book.local_book import LocalOrderBook
 from .book.sync import BookSyncGapError, BookSynchronizer
 from .book.types import SnapshotEvent, SymbolSpec
@@ -33,11 +34,12 @@ from .options.demo import (
     scenario_card,
     options_scenarios,
 )
-from .record.format import NDJSONRecord, snapshot_payload
+from .record.async_writer import BoundedCaptureWriter
 from .record.envelope import EventEnvelope, SCHEMA_V3
+from .record.format import NDJSONRecord, snapshot_payload
+from .record.schema import RECORD_SCHEMA_VERSION
 from .record.segmented import SegmentedCaptureWriter
 from .record.writer import NDJSONWriter
-from .record.schema import RECORD_SCHEMA_VERSION
 from .replay.inspection import inspect_stream
 from .replay.arrow_store import normalize_to_arrow
 from .replay.reader import iter_records
@@ -58,12 +60,83 @@ class _RecordWriter(Protocol):
     def write(self, record: NDJSONRecord) -> None: ...
 
 
+class _EnvelopeWriter(Protocol):
+    def write(self, envelope: EventEnvelope) -> None: ...
+
+
+def _exception_type_names(error: BaseException) -> list[str]:
+    pending = [error]
+    names: set[str] = set()
+    while pending:
+        current = pending.pop()
+        names.add(type(current).__name__)
+        if isinstance(current, BaseExceptionGroup):
+            pending.extend(current.exceptions)
+        cause = current.__cause__
+        if cause is not None:
+            pending.append(cause)
+    return sorted(names)
+
+
+def _write_capture_failure_report(
+    directory: Path,
+    capture_id: str,
+    error: BaseException,
+    writer_stats: Mapping[str, object] | None,
+) -> Path:
+    """Atomically preserve a sanitized reason for an incomplete capture."""
+
+    payload: dict[str, object] = {
+        "schema_version": "lob_sim.capture_failure.v1",
+        "capture_id": capture_id,
+        "complete": False,
+        "failed_wall_ns": time.time_ns(),
+        "failed_monotonic_ns": time.monotonic_ns(),
+        "failure_types": _exception_type_names(error),
+        "writer": dict(writer_stats) if writer_stats is not None else None,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    payload["report_sha256"] = hashlib.sha256(encoded).hexdigest()
+    target = directory / f"{capture_id}.failure.json"
+    partial = target.with_name(target.name + ".partial")
+    with partial.open("x", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    partial.replace(target)
+    return target
+
+
+class _CaptureFailureEvidence:
+    def __init__(self, directory: Path, capture_id: str) -> None:
+        self.directory = directory
+        self.capture_id = capture_id
+        self.writer: BoundedCaptureWriter[Any] | None = None
+
+    def __enter__(self) -> "_CaptureFailureEvidence":
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if not isinstance(exc, BaseException):
+            return
+        writer_stats = self.writer.stats if self.writer is not None else None
+        try:
+            _write_capture_failure_report(self.directory, self.capture_id, exc, writer_stats)
+        except OSError as report_error:
+            logger.error(
+                "Could not persist failure evidence for %s: %s",
+                self.capture_id,
+                type(report_error).__name__,
+            )
+
+
 class _EnvelopeRecordWriter:
     """Adapt the existing collector callbacks to schema-v3 envelopes."""
 
     def __init__(
         self,
-        writer: SegmentedCaptureWriter,
+        writer: _EnvelopeWriter,
         capture_id: str,
         next_receive_seq: Callable[[], int],
     ) -> None:
@@ -110,7 +183,7 @@ class _EnvelopeRecordWriter:
         )
 
 
-def _capture_metadata() -> dict[str, object]:
+def _capture_metadata(writer_queue_capacity: int) -> dict[str, object]:
     return {
         "schemaVersion": CAPTURE_SCHEMA_VERSION,
         "clock": "receive_time",
@@ -118,9 +191,51 @@ def _capture_metadata() -> dict[str, object]:
         "exchangeTimestampUnit": "milliseconds",
         "eventMetadataField": "_capture",
         "routes": {"depth": "public", "aggTrade": "market"},
-        "streamLifecycleEvents": ["connect", "disconnect", "connect_failure", "parse_failure"],
+        "streamLifecycleEvents": [
+            "connect",
+            "disconnect",
+            "connect_failure",
+            "parse_failure",
+            "capture_trailer",
+        ],
+        "writerQueueCapacity": writer_queue_capacity,
+        "writerOverflowPolicy": "fail_closed",
         "validity": "book AND trade_stream AND clock AND capture",
     }
+
+
+def _capture_trailer_record(
+    next_receive_seq: Callable[[], int],
+    *,
+    writer_queue_capacity: int,
+) -> NDJSONRecord:
+    recv_seq = next_receive_seq()
+    recv_wall_ts = time.time()
+    recv_monotonic_ns = time.monotonic_ns()
+    capture = {
+        "route": "control",
+        "streamEpoch": 0,
+        "syncEpoch": 0,
+        "recvSeq": recv_seq,
+        "recvMonotonicNs": recv_monotonic_ns,
+        "reason": "configured_duration_complete",
+    }
+    return NDJSONRecord(
+        ts_local=recv_wall_ts,
+        symbol="*",
+        type="captureEvent",
+        data={
+            "event": "capture_trailer",
+            "route": "control",
+            "reason": "configured_duration_complete",
+            "writerQueueCapacity": writer_queue_capacity,
+            "recvSeq": recv_seq,
+            "recvMonotonicNs": recv_monotonic_ns,
+            "streamEpoch": 0,
+            "syncEpoch": 0,
+            "_capture": capture,
+        },
+    )
 
 
 def _snapshot_level_payload(spec: SymbolSpec, entries: list[tuple[int, int]]) -> list[tuple[str, str]]:
@@ -174,13 +289,20 @@ async def _write_snapshot(
     return bids, asks
 
 
-def _add_capture_metadata(raw: dict, *, recv_seq: int, sync_epoch: int, default_route: str) -> dict:
+def _add_capture_metadata(
+    raw: dict,
+    *,
+    sync_epoch: int,
+    default_route: str,
+    next_receive_seq: Callable[[], int],
+) -> dict:
     payload = dict(raw)
     capture = dict(payload.get("_capture", {}))
     capture.setdefault("recvMonotonicNs", time.monotonic_ns())
     capture.setdefault("streamEpoch", 0)
     capture.setdefault("route", default_route)
-    capture["recvSeq"] = recv_seq
+    if capture.get("recvSeq") is None:
+        capture["recvSeq"] = next_receive_seq()
     capture["syncEpoch"] = sync_epoch
     payload["_capture"] = capture
     return payload
@@ -233,9 +355,11 @@ async def _collect_symbol(
         route: str,
         stream_epoch: int,
         reason: str | None = None,
+        receipt: ReceiveIdentity | None = None,
     ) -> None:
-        recv_seq = receive_sequence()
-        recv_monotonic_ns = time.monotonic_ns()
+        recv_seq = receipt.recv_seq if receipt is not None else receive_sequence()
+        recv_monotonic_ns = receipt.recv_monotonic_ns if receipt is not None else time.monotonic_ns()
+        recv_wall_ts = receipt.recv_wall_ts if receipt is not None else time.time()
         capture = {
             "route": route,
             "streamEpoch": stream_epoch,
@@ -258,7 +382,7 @@ async def _collect_symbol(
             data["reason"] = reason
         writer.write(
             NDJSONRecord(
-                ts_local=time.time(),
+                ts_local=recv_wall_ts,
                 symbol=symbol,
                 type="captureEvent",
                 data=data,
@@ -281,15 +405,25 @@ async def _collect_symbol(
     async def on_trade_connect(stream_epoch: int) -> None:
         await _record_stream_event("connect", "market", stream_epoch)
 
-    async def on_depth_failure(stream_epoch: int, event: str, reason: str) -> None:
+    async def on_depth_failure(
+        stream_epoch: int,
+        event: str,
+        reason: str,
+        receipt: ReceiveIdentity | None,
+    ) -> None:
         nonlocal snapshot_reason
         if event != "connect_failure" and sync.ready:
             sync.begin_resync(f"depth_stream_{event}")
             snapshot_reason = event
-        await _record_stream_event(event, "public", stream_epoch, reason)
+        await _record_stream_event(event, "public", stream_epoch, reason, receipt)
 
-    async def on_trade_failure(stream_epoch: int, event: str, reason: str) -> None:
-        await _record_stream_event(event, "market", stream_epoch, reason)
+    async def on_trade_failure(
+        stream_epoch: int,
+        event: str,
+        reason: str,
+        receipt: ReceiveIdentity | None,
+    ) -> None:
+        await _record_stream_event(event, "market", stream_epoch, reason, receipt)
 
     async def on_depth(evt, raw):
         nonlocal snapshot_reason
@@ -308,9 +442,9 @@ async def _collect_symbol(
                     type="depthUpdate",
                     data=_add_capture_metadata(
                         raw,
-                        recv_seq=receive_sequence(),
                         sync_epoch=sync.epoch,
                         default_route="public",
+                        next_receive_seq=receive_sequence,
                     ),
                 )
             )
@@ -323,9 +457,9 @@ async def _collect_symbol(
                 type="aggTrade",
                 data=_add_capture_metadata(
                     raw,
-                    recv_seq=receive_sequence(),
                     sync_epoch=sync.epoch,
                     default_route="market",
+                    next_receive_seq=receive_sequence,
                 ),
             )
         )
@@ -411,6 +545,7 @@ async def _collect_symbol(
                 stop_event,
                 on_connect=on_depth_connect,
                 on_failure=on_depth_failure,
+                next_receive_seq=receive_sequence,
             )
         )
         task_group.create_task(
@@ -422,6 +557,7 @@ async def _collect_symbol(
                 stop_event,
                 on_connect=on_trade_connect,
                 on_failure=on_trade_failure,
+                next_receive_seq=receive_sequence,
             )
         )
         task_group.create_task(snapshot_worker())
@@ -453,7 +589,8 @@ async def cmd_collect(config: Config, verbose: bool = False) -> None:
         def next_receive_seq() -> int:
             return next(receive_counter)
 
-        with ExitStack() as stack:
+        with _CaptureFailureEvidence(config.record_dir, capture_id) as failure_evidence, ExitStack() as stack:
+            segmented: SegmentedCaptureWriter | None = None
             if config.capture_schema_version >= 3:
                 segmented = stack.enter_context(
                     SegmentedCaptureWriter(
@@ -462,49 +599,71 @@ async def cmd_collect(config: Config, verbose: bool = False) -> None:
                         compression="zstd" if config.record_gzip else "none",
                     )
                 )
-                writer: _RecordWriter = _EnvelopeRecordWriter(segmented, capture_id, next_receive_seq)
+                synchronous_sink: Any = segmented
             else:
-                writer = stack.enter_context(NDJSONWriter(legacy_path, flush_every=config.record_flush_every))
-            writer.write(
-                NDJSONRecord(
-                    ts_local=time.time(),
-                    symbol="*",
-                    type="captureMeta",
-                    data=_capture_metadata(),
-                )
+                synchronous_sink = stack.enter_context(NDJSONWriter(legacy_path, flush_every=config.record_flush_every))
+            bounded_writer: BoundedCaptureWriter[Any] = BoundedCaptureWriter(
+                synchronous_sink,
+                capacity=config.capture_writer_queue_max,
             )
-            for symbol, spec in symbols.items():
+            failure_evidence.writer = bounded_writer
+            writer: _RecordWriter
+            if segmented is not None:
+                writer = _EnvelopeRecordWriter(bounded_writer, capture_id, next_receive_seq)
+            else:
+                writer = bounded_writer
+            async with bounded_writer:
                 writer.write(
                     NDJSONRecord(
                         ts_local=time.time(),
-                        symbol=symbol,
-                        type="exchangeInfo",
-                        data={
-                            "symbol": symbol,
-                            "tickSize": str(spec.tick_size),
-                            "stepSize": str(spec.step_size),
-                            "baseAsset": spec.quantity_unit,
-                            "quoteAsset": spec.price_currency,
-                            "venue": spec.venue,
-                        },
+                        symbol="*",
+                        type="captureMeta",
+                        data=_capture_metadata(config.capture_writer_queue_max),
                     )
                 )
-            async with asyncio.TaskGroup() as task_group:
                 for symbol, spec in symbols.items():
-                    task_group.create_task(
-                        _collect_symbol(
-                            symbol,
-                            spec,
-                            config,
-                            rest,
-                            writer,
-                            stop,
-                            verbose,
-                            next_receive_seq,
+                    writer.write(
+                        NDJSONRecord(
+                            ts_local=time.time(),
+                            symbol=symbol,
+                            type="exchangeInfo",
+                            data={
+                                "symbol": symbol,
+                                "tickSize": str(spec.tick_size),
+                                "stepSize": str(spec.step_size),
+                                "baseAsset": spec.quantity_unit,
+                                "quoteAsset": spec.price_currency,
+                                "venue": spec.venue,
+                            },
                         )
                     )
-                await asyncio.sleep(config.collect_seconds)
-                stop.set()
+                async with asyncio.TaskGroup() as task_group:
+                    task_group.create_task(bounded_writer.wait_for_failure_or_stop(stop))
+                    for symbol, spec in symbols.items():
+                        task_group.create_task(
+                            _collect_symbol(
+                                symbol,
+                                spec,
+                                config,
+                                rest,
+                                writer,
+                                stop,
+                                verbose,
+                                next_receive_seq,
+                            )
+                        )
+                    await asyncio.sleep(config.collect_seconds)
+                    stop.set()
+                await bounded_writer.drain()
+                writer.write(
+                    _capture_trailer_record(
+                        next_receive_seq,
+                        writer_queue_capacity=config.capture_writer_queue_max,
+                    )
+                )
+                await bounded_writer.drain()
+            if segmented is not None:
+                segmented.update_manifest_metadata({"writer": bounded_writer.stats})
     if verbose:
         print(f"[capture] completed recording to {display_path}", flush=True)
 

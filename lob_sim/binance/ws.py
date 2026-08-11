@@ -6,6 +6,7 @@ import logging
 import math
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 import websockets
@@ -19,7 +20,18 @@ logger = logging.getLogger(__name__)
 DepthCallback = Callable[[DepthUpdateEvent, dict], Awaitable[None]]
 TradeCallback = Callable[[AggTradeEvent, dict], Awaitable[None]]
 ConnectionCallback = Callable[[int], Awaitable[None]]
-StreamFailureCallback = Callable[[int, str, str], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class ReceiveIdentity:
+    """Identity assigned immediately after a websocket receipt."""
+
+    recv_seq: int
+    recv_wall_ts: float
+    recv_monotonic_ns: int
+
+
+StreamFailureCallback = Callable[[int, str, str, ReceiveIdentity | None], Awaitable[None]]
 
 
 class StreamConsumerError(RuntimeError):
@@ -188,11 +200,13 @@ async def _run_stream(
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
     on_failure: StreamFailureCallback | None = None,
+    next_receive_seq: Callable[[], int] | None = None,
 ) -> None:
     backoff = 1.0
     stream_epoch = 0
     while not stop_event.is_set():
         active_epoch: int | None = None
+        failure_receipt: ReceiveIdentity | None = None
         try:
             async with websockets.connect(
                 url,
@@ -206,14 +220,23 @@ async def _run_stream(
                 if on_connect is not None:
                     await _call_consumer(on_connect, stream_epoch)
                 while not stop_event.is_set():
+                    failure_receipt = None
                     received = await _recv_or_stop(ws, stop_event)
                     if received is None:
                         return
                     raw_message, received_ts, received_monotonic_ns = received
+                    if next_receive_seq is not None:
+                        failure_receipt = ReceiveIdentity(
+                            recv_seq=next_receive_seq(),
+                            recv_wall_ts=received_ts,
+                            recv_monotonic_ns=received_monotonic_ns,
+                        )
                     payload = json.loads(raw_message)
+                    if not isinstance(payload, dict):
+                        raise ValueError("websocket payload must be an object")
                     raw_data = payload.get("data", payload)
                     if not isinstance(raw_data, dict) or raw_data.get("e") != expected_event_type:
-                        continue
+                        raise ValueError(f"unexpected websocket event; expected {expected_event_type}")
                     data = dict(raw_data)
                     capture = dict(data.get("_capture", {}))
                     capture.update(
@@ -223,9 +246,12 @@ async def _run_stream(
                             "route": route,
                         }
                     )
+                    if failure_receipt is not None:
+                        capture["recvSeq"] = failure_receipt.recv_seq
                     data["_capture"] = capture
                     event = parser(symbol, spec, data, received_ts)
                     await _call_consumer(callback, event, data)
+                    failure_receipt = None
         except StreamConsumerError:
             # Disk, backpressure, and downstream state failures must stop the
             # capture. Reconnecting would silently create an incomplete tape.
@@ -236,7 +262,7 @@ async def _run_stream(
             failure_kind, failure_reason = _stream_failure_kind(exc, connected=active_epoch is not None)
             logger.warning("%s websocket for %s ended: %s", route, symbol, exc)
             if on_failure is not None:
-                await on_failure(active_epoch or stream_epoch, failure_kind, failure_reason)
+                await on_failure(active_epoch or stream_epoch, failure_kind, failure_reason, failure_receipt)
             await _wait_for_retry(stop_event, min(config.ws_reconnect_max_sec, backoff))
             backoff = min(config.ws_reconnect_max_sec, backoff * 2.0)
 
@@ -249,6 +275,7 @@ async def run_depth_stream(
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
     on_failure: StreamFailureCallback | None = None,
+    next_receive_seq: Callable[[], int] | None = None,
 ) -> None:
     await _run_stream(
         symbol=symbol,
@@ -262,6 +289,7 @@ async def run_depth_stream(
         stop_event=stop_event,
         on_connect=on_connect,
         on_failure=on_failure,
+        next_receive_seq=next_receive_seq,
     )
 
 
@@ -273,6 +301,7 @@ async def run_trade_stream(
     stop_event: asyncio.Event,
     on_connect: ConnectionCallback | None = None,
     on_failure: StreamFailureCallback | None = None,
+    next_receive_seq: Callable[[], int] | None = None,
 ) -> None:
     await _run_stream(
         symbol=symbol,
@@ -286,6 +315,7 @@ async def run_trade_stream(
         stop_event=stop_event,
         on_connect=on_connect,
         on_failure=on_failure,
+        next_receive_seq=next_receive_seq,
     )
 
 

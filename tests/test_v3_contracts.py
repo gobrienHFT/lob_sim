@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from lob_sim.cli import _EnvelopeRecordWriter
+from lob_sim.cli import _EnvelopeRecordWriter, _capture_trailer_record, _write_capture_failure_report
 from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkpoint
 from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
 from lob_sim.record.format import NDJSONRecord
@@ -52,6 +53,16 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: 
     ) as writer:
         writer.write(_envelope(1))
         writer.write(_envelope(2))
+        writer.update_manifest_metadata(
+            {
+                "writer": {
+                    "queue_capacity": 8,
+                    "queue_high_water": 2,
+                    "overflow_count": 0,
+                    "complete": True,
+                }
+            }
+        )
 
     segments = sorted(tmp_path.glob("capture-1_*.ndjson"))
     assert len(segments) == 2
@@ -62,6 +73,12 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: 
     assert manifest["event_count"] == 2
     assert manifest["first_recv_seq"] == 1
     assert manifest["last_recv_seq"] == 2
+    assert manifest["capture_runtime"]["writer"] == {
+        "queue_capacity": 8,
+        "queue_high_water": 2,
+        "overflow_count": 0,
+        "complete": True,
+    }
     assert len(manifest["manifest_sha256"]) == 64
     replayed = list(iter_records(tmp_path / "capture-1.manifest.json"))
     assert [record.data["_capture"]["recvSeq"] for record in replayed] == [1, 2]
@@ -129,6 +146,57 @@ def test_capture_event_envelope_preserves_route_epochs_and_receive_identity() ->
     assert envelope.route == "public"
     assert envelope.stream_epoch == 3
     assert envelope.sync_epoch == 7
+
+
+def test_envelope_adapter_assigns_fallback_identity_before_sink_write_returns() -> None:
+    envelopes: list[EventEnvelope] = []
+    assigned: list[int] = []
+
+    class _Writer:
+        def write(self, envelope: EventEnvelope) -> None:
+            envelopes.append(envelope)
+
+    def next_sequence() -> int:
+        sequence = len(assigned) + 1
+        assigned.append(sequence)
+        return sequence
+
+    adapter = _EnvelopeRecordWriter(_Writer(), "capture-1", next_sequence)
+    adapter.write(NDJSONRecord(ts_local=1.0, symbol="*", type="captureMeta", data={"schemaVersion": 3}))
+
+    assert assigned == [1]
+    assert envelopes[0].recv_seq == 1
+
+
+def test_capture_trailer_has_one_shared_receive_identity() -> None:
+    record = _capture_trailer_record(iter([81]).__next__, writer_queue_capacity=4096)
+
+    assert record.type == "captureEvent"
+    assert record.data["event"] == "capture_trailer"
+    assert record.data["route"] == "control"
+    assert record.data["recvSeq"] == 81
+    assert record.data["_capture"]["recvSeq"] == 81
+    assert record.data["writerQueueCapacity"] == 4096
+
+
+def test_capture_failure_report_is_atomic_sanitized_and_hashed(tmp_path: Path) -> None:
+    report_path = _write_capture_failure_report(
+        tmp_path,
+        "capture-1",
+        OSError("sensitive local path"),
+        {"failure_type": "CaptureWriterIOError", "complete": False},
+    )
+
+    assert report_path.name == "capture-1.failure.json"
+    assert not list(tmp_path.glob("*.partial"))
+    raw = report_path.read_text(encoding="utf-8")
+    assert "sensitive local path" not in raw
+    report = json.loads(raw)
+    expected_hash = report.pop("report_sha256")
+    encoded = json.dumps(report, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    assert expected_hash == hashlib.sha256(encoded).hexdigest()
+    assert report["complete"] is False
+    assert report["failure_types"] == ["OSError"]
 
 
 def test_partial_recovery_recomputes_payload_checksum(tmp_path: Path) -> None:

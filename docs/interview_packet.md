@@ -37,6 +37,8 @@ make reviewer-gate
 ## Strongest Files
 
 - `lob_sim/book/sync.py`: snapshot/diff continuity and gap policy.
+- `lob_sim/record/async_writer.py`: hard-bounded off-event-loop capture persistence and fail-closed overflow/I/O semantics.
+- `lob_sim/record/segmented.py`: checksummed segments, visible partial recovery, atomic finalization, and hashed writer evidence.
 - `lob_sim/replay/adapters.py`: venue record normalization into instrument, snapshot, depth, and trade events.
 - `lob_sim/sim/fill_model.py`: synthetic queue-ahead scenarios, passive/taker fills, public consumption, and self-trade prevention.
 - `lob_sim/sim/engine.py`: event-time scheduling for market rows, decisions, arrivals, cancels, fills, and risk halts.

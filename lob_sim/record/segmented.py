@@ -14,7 +14,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, TextIO
+from typing import Any, Iterator, Mapping, TextIO
 
 from .envelope import EventEnvelope, SCHEMA_V3, canonical_json, payload_checksum
 
@@ -81,6 +81,7 @@ class SegmentedCaptureWriter:
         self._final_path: Path | None = None
         self._global_last_seq: int | None = None
         self._finalized_segments: list[dict[str, Any]] = []
+        self._manifest_metadata: dict[str, Any] = {}
         self._closed = False
         self._open_segment()
 
@@ -211,6 +212,11 @@ class SegmentedCaptureWriter:
     def manifest_path(self) -> Path:
         return self.directory / f"{self.capture_id}.manifest.json"
 
+    def update_manifest_metadata(self, metadata: Mapping[str, Any]) -> None:
+        if self._closed:
+            raise SegmentIntegrityError("cannot update metadata after capture close")
+        self._manifest_metadata.update(dict(metadata))
+
     def manifest(self) -> dict[str, Any]:
         payload = {
             "schema_version": "lob_sim.capture_manifest.v1",
@@ -223,6 +229,8 @@ class SegmentedCaptureWriter:
             "first_recv_seq": (self._finalized_segments[0]["first_recv_seq"] if self._finalized_segments else None),
             "last_recv_seq": (self._finalized_segments[-1]["last_recv_seq"] if self._finalized_segments else None),
         }
+        if self._manifest_metadata:
+            payload["capture_runtime"] = dict(self._manifest_metadata)
         payload["manifest_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
         return payload
 
