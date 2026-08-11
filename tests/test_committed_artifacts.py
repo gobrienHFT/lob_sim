@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -106,6 +107,30 @@ def test_futures_manifest_verifier_rejects_dirty_source_provenance(tmp_path, mon
     issues = verifier._verify_manifest_source_provenance()
 
     assert issues == [f"{showcase / 'manifest.json'} should be refreshed from a clean source tree"]
+
+
+def test_futures_retention_verifier_rejects_tampered_audit_chain(tmp_path, monkeypatch) -> None:
+    copied_dirs = []
+    for source in (
+        verifier.FUTURES_SHOWCASE_DIR,
+        verifier.RECORDED_CLIP_DIR,
+        verifier.FUTURES_STRESS_DIR,
+    ):
+        target = tmp_path / source.name
+        shutil.copytree(source, target)
+        copied_dirs.append(target)
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", copied_dirs[0])
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", copied_dirs[1])
+    monkeypatch.setattr(verifier, "FUTURES_STRESS_DIR", copied_dirs[2])
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+    summary_path = copied_dirs[0] / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["audit_retention"]["markout_audit_sha256"] = "f" * 64
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    issues = verifier._verify_futures_audit_retention()
+
+    assert any("audit_retention.markout_audit_sha256" in issue for issue in issues)
 
 
 def test_futures_feed_adapter_verifier_rejects_stale_metadata(tmp_path, monkeypatch) -> None:

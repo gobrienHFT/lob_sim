@@ -1250,7 +1250,9 @@ def _verify_futures_audit_retention() -> list[str]:
     for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
         summary_path = directory / "summary.json"
         summary_csv_path = directory / "summary.csv"
+        manifest_path = directory / "manifest.json"
         summary = json.loads(_read_text(summary_path))
+        manifest = json.loads(_read_text(manifest_path))
         fills = summary.get("fills")
         markouts = summary.get("markout_events")
         retention = summary.get("audit_retention")
@@ -1287,6 +1289,9 @@ def _verify_futures_audit_retention() -> list[str]:
         max_pending = retention.get("max_pending_markouts")
         if not isinstance(max_pending, int) or isinstance(max_pending, bool) or max_pending <= 0:
             issues.append(f"{_repo_relative(summary_path)} has invalid max_pending_markouts")
+        manifest_config = manifest.get("config")
+        if not isinstance(manifest_config, dict) or manifest_config.get("sim_max_pending_markouts") != max_pending:
+            issues.append(f"{_repo_relative(manifest_path)} has stale sim_max_pending_markouts")
 
         event_trace_count = summary.get("event_trace_count")
         expected_trace = {

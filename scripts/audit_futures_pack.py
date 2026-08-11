@@ -227,7 +227,11 @@ FILL_FREQUENCY_REPLACEMENT_FIELDS = {
 }
 
 
-def _audit_retention_contract(summary: dict[str, Any], issues: list[str]) -> None:
+def _audit_retention_contract(
+    summary: dict[str, Any],
+    manifest: dict[str, Any],
+    issues: list[str],
+) -> None:
     fills = summary.get("fills")
     markouts = summary.get("markout_events")
     retention = summary.get("audit_retention")
@@ -264,6 +268,11 @@ def _audit_retention_contract(summary: dict[str, Any], issues: list[str]) -> Non
     max_pending = retention.get("max_pending_markouts")
     if not isinstance(max_pending, int) or isinstance(max_pending, bool) or max_pending <= 0:
         issues.append("summary.audit_retention.max_pending_markouts must be a positive integer")
+    manifest_config = manifest.get("config")
+    if not isinstance(manifest_config, dict):
+        issues.append("manifest.json is missing config for retention audit")
+    elif manifest_config.get("sim_max_pending_markouts") != max_pending:
+        issues.append("manifest.config.sim_max_pending_markouts does not match summary.audit_retention")
 
     trace_retention = summary.get("event_trace_retention")
     event_trace_count = summary.get("event_trace_count")
@@ -1200,7 +1209,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
         _audit_summary_csv(pack_dir, summary, issues)
         _audit_fill_frequency_metrics(pack_dir, summary, trade_rows, issues)
-        _audit_retention_contract(summary, issues)
+        _audit_retention_contract(summary, manifest, issues)
 
     expected_event_trace_count = summary.get("event_trace_count")
     if isinstance(expected_event_trace_count, int) and len(trace_rows) != expected_event_trace_count:
