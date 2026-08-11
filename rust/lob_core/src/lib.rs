@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use sha2::{Digest, Sha256};
 
@@ -20,6 +20,14 @@ type PythonSyntheticTraceRow = (
     Vec<PythonSyntheticFill>,
     Option<String>,
 );
+#[cfg(feature = "python")]
+type PythonSchedulerOperation = (u8, u64, u64, u64, bool);
+#[cfg(feature = "python")]
+type PythonSchedulerTraceRow = (bool, Option<String>, Vec<u64>, usize, Option<String>);
+#[cfg(feature = "python")]
+type PythonRiskOperation = (u8, u64, bool, i64);
+#[cfg(feature = "python")]
+type PythonRiskTraceRow = (bool, Option<String>, i64, i128, i128, Option<String>);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -93,6 +101,345 @@ impl BookState {
             bytes.extend_from_slice(format!("a:{price}:{qty};").as_bytes());
         }
         bytes
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct SchedulerKey {
+    due: LogicalTime,
+    insertion_sequence: u64,
+    action_id: u64,
+}
+
+/// Deterministic integer-nanosecond scheduler used as a kernel parity boundary.
+///
+/// Actions due strictly before an observation can be drained separately from
+/// actions due exactly at the observation. Exact ties retain insertion order.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct DeterministicScheduler {
+    next_insertion_sequence: u64,
+    pending: BTreeSet<SchedulerKey>,
+    by_id: BTreeMap<u64, SchedulerKey>,
+    seen_action_ids: BTreeSet<u64>,
+}
+
+impl DeterministicScheduler {
+    pub fn schedule(&mut self, action_id: u64, due: LogicalTime) -> Result<(), &'static str> {
+        if self.seen_action_ids.contains(&action_id) {
+            return Err("duplicate_action_id");
+        }
+        let insertion_sequence = self.next_insertion_sequence;
+        self.next_insertion_sequence = self
+            .next_insertion_sequence
+            .checked_add(1)
+            .ok_or("scheduler_sequence_overflow")?;
+        let key = SchedulerKey {
+            due,
+            insertion_sequence,
+            action_id,
+        };
+        self.seen_action_ids.insert(action_id);
+        self.pending.insert(key);
+        self.by_id.insert(action_id, key);
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, action_id: u64) -> Result<(), &'static str> {
+        let Some(key) = self.by_id.remove(&action_id) else {
+            return Err("unknown_action");
+        };
+        self.pending.remove(&key);
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn drain(&mut self, cutoff: LogicalTime, inclusive: bool) -> Vec<u64> {
+        let mut drained = Vec::new();
+        loop {
+            let Some(key) = self.pending.first().copied() else {
+                break;
+            };
+            if key.due > cutoff || (key.due == cutoff && !inclusive) {
+                break;
+            }
+            self.pending.remove(&key);
+            self.by_id.remove(&key.action_id);
+            drained.push(key.action_id);
+        }
+        drained
+    }
+
+    #[must_use]
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut state = format!("next:{};seen:", self.next_insertion_sequence);
+        for (index, action_id) in self.seen_action_ids.iter().enumerate() {
+            if index > 0 {
+                state.push(',');
+            }
+            state.push_str(&action_id.to_string());
+        }
+        state.push(';');
+        for action in &self.pending {
+            state.push_str(&format!(
+                "action:{}:{}:{}:{};",
+                action.action_id,
+                action.due.recv_monotonic_ns,
+                action.due.recv_seq,
+                action.insertion_sequence
+            ));
+        }
+        state.into_bytes()
+    }
+
+    #[must_use]
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReservationState {
+    Live,
+    PendingCancel,
+    Filled,
+    Cancelled,
+    EpochInvalidated,
+}
+
+impl ReservationState {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::PendingCancel => "pending_cancel",
+            Self::Filled => "filled",
+            Self::Cancelled => "cancelled",
+            Self::EpochInvalidated => "epoch_invalidated",
+        }
+    }
+
+    const fn reserves(self) -> bool {
+        matches!(self, Self::Live | Self::PendingCancel)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ReservedOrder {
+    is_bid: bool,
+    remaining_lots: i64,
+    state: ReservationState,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReservationDecision {
+    pub accepted: bool,
+    pub reason: Option<&'static str>,
+}
+
+impl ReservationDecision {
+    const fn accepted() -> Self {
+        Self {
+            accepted: true,
+            reason: None,
+        }
+    }
+
+    const fn rejected(reason: &'static str) -> Self {
+        Self {
+            accepted: false,
+            reason: Some(reason),
+        }
+    }
+}
+
+/// Worst-case per-symbol live-plus-pending lot reservation ledger.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RiskReservationLedger {
+    max_position_lots: i64,
+    position_lots: i64,
+    orders: BTreeMap<u64, ReservedOrder>,
+    seen_order_ids: BTreeSet<u64>,
+}
+
+impl RiskReservationLedger {
+    pub fn new(max_position_lots: i64) -> Result<Self, &'static str> {
+        if max_position_lots <= 0 {
+            return Err("max_position_lots must be positive");
+        }
+        Ok(Self {
+            max_position_lots,
+            position_lots: 0,
+            orders: BTreeMap::new(),
+            seen_order_ids: BTreeSet::new(),
+        })
+    }
+
+    fn reservation_totals_i128(&self) -> (i128, i128) {
+        self.orders
+            .values()
+            .filter(|order| order.state.reserves())
+            .fold((0, 0), |(buy_lots, sell_lots), order| {
+                if order.is_bid {
+                    (buy_lots + i128::from(order.remaining_lots), sell_lots)
+                } else {
+                    (buy_lots, sell_lots + i128::from(order.remaining_lots))
+                }
+            })
+    }
+
+    fn within_limits(&self, buy_lots: i128, sell_lots: i128) -> bool {
+        let position = i128::from(self.position_lots);
+        let limit = i128::from(self.max_position_lots);
+        position + buy_lots <= limit && position - sell_lots >= -limit
+    }
+
+    fn debug_assert_invariants(&self) {
+        let (buy_lots, sell_lots) = self.reservation_totals_i128();
+        debug_assert!(self.within_limits(buy_lots, sell_lots));
+        debug_assert!(self.orders.values().all(|order| order.remaining_lots >= 0));
+    }
+
+    pub fn reserve(&mut self, order_id: u64, is_bid: bool, qty_lots: i64) -> ReservationDecision {
+        if self.seen_order_ids.contains(&order_id) {
+            return ReservationDecision::rejected("duplicate_order_id");
+        }
+        self.seen_order_ids.insert(order_id);
+        if qty_lots <= 0 {
+            return ReservationDecision::rejected("invalid_quantity");
+        }
+        let (mut buy_lots, mut sell_lots) = self.reservation_totals_i128();
+        let reason = if is_bid {
+            buy_lots += i128::from(qty_lots);
+            "long_limit"
+        } else {
+            sell_lots += i128::from(qty_lots);
+            "short_limit"
+        };
+        if !self.within_limits(buy_lots, sell_lots) {
+            return ReservationDecision::rejected(reason);
+        }
+        self.orders.insert(
+            order_id,
+            ReservedOrder {
+                is_bid,
+                remaining_lots: qty_lots,
+                state: ReservationState::Live,
+            },
+        );
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn request_cancel(&mut self, order_id: u64) -> ReservationDecision {
+        let Some(order) = self.orders.get_mut(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if order.state != ReservationState::Live {
+            return ReservationDecision::rejected("order_not_live");
+        }
+        order.state = ReservationState::PendingCancel;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn cancel_ack(&mut self, order_id: u64) -> ReservationDecision {
+        let Some(order) = self.orders.get_mut(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if order.state != ReservationState::PendingCancel {
+            return ReservationDecision::rejected("cancel_not_pending");
+        }
+        order.state = ReservationState::Cancelled;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn fill(&mut self, order_id: u64, qty_lots: i64) -> ReservationDecision {
+        let Some(order) = self.orders.get(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if !order.state.reserves() {
+            return ReservationDecision::rejected("order_not_fillable");
+        }
+        if qty_lots <= 0 {
+            return ReservationDecision::rejected("invalid_fill_quantity");
+        }
+        if qty_lots > order.remaining_lots {
+            return ReservationDecision::rejected("fill_exceeds_remaining");
+        }
+        let is_bid = order.is_bid;
+        let next_position = if is_bid {
+            self.position_lots.checked_add(qty_lots)
+        } else {
+            self.position_lots.checked_sub(qty_lots)
+        };
+        let Some(next_position) = next_position else {
+            return ReservationDecision::rejected("position_overflow");
+        };
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .expect("validated order must exist");
+        order.remaining_lots -= qty_lots;
+        if order.remaining_lots == 0 {
+            order.state = ReservationState::Filled;
+        }
+        self.position_lots = next_position;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn invalidate_epoch(&mut self) -> ReservationDecision {
+        for order in self.orders.values_mut() {
+            if order.state.reserves() {
+                order.state = ReservationState::EpochInvalidated;
+            }
+        }
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    #[must_use]
+    pub fn position_lots(&self) -> i64 {
+        self.position_lots
+    }
+
+    #[must_use]
+    pub fn reservation_totals(&self) -> (i128, i128) {
+        self.reservation_totals_i128()
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut state = format!(
+            "max:{};position:{};seen:",
+            self.max_position_lots, self.position_lots
+        );
+        for (index, order_id) in self.seen_order_ids.iter().enumerate() {
+            if index > 0 {
+                state.push(',');
+            }
+            state.push_str(&order_id.to_string());
+        }
+        state.push(';');
+        for (order_id, order) in &self.orders {
+            state.push_str(&format!(
+                "order:{order_id}:{}:{}:{};",
+                if order.is_bid { "bid" } else { "ask" },
+                order.remaining_lots,
+                order.state.as_str()
+            ));
+        }
+        state.into_bytes()
+    }
+
+    #[must_use]
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
     }
 }
 
@@ -722,6 +1069,117 @@ fn run_synthetic_trace(
     Ok(rows)
 }
 
+/// Run generated scheduler operations for independent Python/Rust parity.
+///
+/// Operations are `(kind, action_id, monotonic_ns, recv_seq, inclusive)`,
+/// where kind `0` schedules, kind `1` drains at the supplied logical time,
+/// and kind `2` cancels a pending action.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_scheduler_trace(
+    operations: Vec<PythonSchedulerOperation>,
+    checkpoint_interval: usize,
+) -> pyo3::PyResult<Vec<PythonSchedulerTraceRow>> {
+    if checkpoint_interval == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "checkpoint_interval must be positive",
+        ));
+    }
+    let operation_count = operations.len();
+    let mut scheduler = DeterministicScheduler::default();
+    let mut rows = Vec::with_capacity(operation_count);
+    for (index, (kind, action_id, monotonic_ns, recv_seq, inclusive)) in
+        operations.into_iter().enumerate()
+    {
+        let time = LogicalTime {
+            recv_monotonic_ns: monotonic_ns,
+            recv_seq,
+        };
+        let (accepted, reason, drained) = match kind {
+            0 => match scheduler.schedule(action_id, time) {
+                Ok(()) => (true, None, Vec::new()),
+                Err(reason) => (false, Some(reason.to_owned()), Vec::new()),
+            },
+            1 => (true, None, scheduler.drain(time, inclusive)),
+            2 => match scheduler.cancel(action_id) {
+                Ok(()) => (true, None, Vec::new()),
+                Err(reason) => (false, Some(reason.to_owned()), Vec::new()),
+            },
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported scheduler operation kind: {kind}"
+                )))
+            }
+        };
+        let ordinal = index + 1;
+        let checkpoint = if ordinal % checkpoint_interval == 0 || ordinal == operation_count {
+            Some(scheduler.state_sha256())
+        } else {
+            None
+        };
+        rows.push((
+            accepted,
+            reason,
+            drained,
+            scheduler.pending_count(),
+            checkpoint,
+        ));
+    }
+    Ok(rows)
+}
+
+/// Run per-symbol worst-case lot reservation operations for differential proof.
+///
+/// Operations are `(kind, order_id, is_bid, qty_lots)`, where kinds are
+/// reserve, request-cancel, cancel-ack, fill and epoch-invalidate respectively.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_risk_trace(
+    operations: Vec<PythonRiskOperation>,
+    max_position_lots: i64,
+    checkpoint_interval: usize,
+) -> pyo3::PyResult<Vec<PythonRiskTraceRow>> {
+    if checkpoint_interval == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "checkpoint_interval must be positive",
+        ));
+    }
+    let operation_count = operations.len();
+    let mut ledger = RiskReservationLedger::new(max_position_lots)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let mut rows = Vec::with_capacity(operation_count);
+    for (index, (kind, order_id, is_bid, qty_lots)) in operations.into_iter().enumerate() {
+        let decision = match kind {
+            0 => ledger.reserve(order_id, is_bid, qty_lots),
+            1 => ledger.request_cancel(order_id),
+            2 => ledger.cancel_ack(order_id),
+            3 => ledger.fill(order_id, qty_lots),
+            4 => ledger.invalidate_epoch(),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported risk operation kind: {kind}"
+                )))
+            }
+        };
+        let (reserved_buy_lots, reserved_sell_lots) = ledger.reservation_totals();
+        let ordinal = index + 1;
+        let checkpoint = if ordinal % checkpoint_interval == 0 || ordinal == operation_count {
+            Some(ledger.state_sha256())
+        } else {
+            None
+        };
+        rows.push((
+            decision.accepted,
+            decision.reason.map(str::to_owned),
+            ledger.position_lots(),
+            reserved_buy_lots,
+            reserved_sell_lots,
+            checkpoint,
+        ));
+    }
+    Ok(rows)
+}
+
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
@@ -729,6 +1187,8 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(uncrossed, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_book_batch, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_synthetic_trace, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_scheduler_trace, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_risk_trace, m)?)?;
     Ok(())
 }
 
@@ -736,7 +1196,10 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
 mod tests {
     use std::collections::VecDeque;
 
-    use super::{BookState, OrderState, Side, SyntheticExchange};
+    use super::{
+        BookState, DeterministicScheduler, LogicalTime, OrderState, RiskReservationLedger, Side,
+        SyntheticExchange,
+    };
 
     #[test]
     fn invalid_book_batch_is_atomic() {
@@ -857,5 +1320,45 @@ mod tests {
             OrderState::Cancelled
         );
         assert_eq!(exchange.order(3).expect("new order").arrival_sequence, 4);
+    }
+
+    #[test]
+    fn scheduler_separates_strict_and_inclusive_ties() {
+        let mut scheduler = DeterministicScheduler::default();
+        let due = LogicalTime {
+            recv_monotonic_ns: 100,
+            recv_seq: 5,
+        };
+        scheduler.schedule(1, due).expect("schedule one");
+        scheduler.schedule(2, due).expect("schedule two");
+        assert!(scheduler.drain(due, false).is_empty());
+        assert_eq!(scheduler.drain(due, true), vec![1, 2]);
+        assert_eq!(scheduler.schedule(1, due), Err("duplicate_action_id"));
+    }
+
+    #[test]
+    fn pending_cancel_reservation_remains_fillable_until_ack() {
+        let mut ledger = RiskReservationLedger::new(10).expect("valid limit");
+        assert!(ledger.reserve(1, true, 7).accepted);
+        assert!(ledger.request_cancel(1).accepted);
+        assert_eq!(ledger.reservation_totals(), (7, 0));
+        assert_eq!(ledger.reserve(2, true, 4).reason, Some("long_limit"));
+        assert!(ledger.fill(1, 3).accepted);
+        assert_eq!(ledger.position_lots(), 3);
+        assert_eq!(ledger.reservation_totals(), (4, 0));
+        assert!(ledger.cancel_ack(1).accepted);
+        assert_eq!(ledger.reservation_totals(), (0, 0));
+        assert!(ledger.reserve(3, true, 7).accepted);
+    }
+
+    #[test]
+    fn reservation_totals_do_not_overflow_i64_at_extreme_valid_limits() {
+        let limit = i64::MAX;
+        let mut ledger = RiskReservationLedger::new(limit).expect("valid limit");
+        assert!(ledger.reserve(1, false, limit).accepted);
+        assert!(ledger.fill(1, limit).accepted);
+        assert!(ledger.reserve(2, true, limit).accepted);
+        assert!(ledger.reserve(3, true, limit).accepted);
+        assert_eq!(ledger.reservation_totals(), (i128::from(limit) * 2, 0));
     }
 }

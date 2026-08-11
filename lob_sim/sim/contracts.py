@@ -1,8 +1,8 @@
 """Small public interfaces separating replay, venue, risk and accounting.
 
 These contracts are deliberately data-oriented.  The Python implementation is
-the readable oracle; a future Rust kernel can implement the same boundary
-without importing the strategy/reporting layer.
+the readable oracle; the Rust kernel implements selected primitives at the same
+boundary without importing the strategy/reporting layer.
 """
 
 from __future__ import annotations
