@@ -15,7 +15,7 @@ For modeled latency sensitivity rather than benchmark throughput, use [docs/stra
 - Instrument specs: `BTCUSDT` tick `0.10` lot `0.001` unit `BTC` price `USDT` multiplier `1` venue `BINANCE_USDM`
 - Machine: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
-- Benchmark date: `2026-08-11T17:04:02Z`
+- Benchmark date: `2026-08-11T17:44:37Z`
 - Human-readable output: [docs/benchmark_results/futures_replay_reference.md](benchmark_results/futures_replay_reference.md)
 - Structured JSON: [docs/benchmark_results/futures_replay_reference.json](benchmark_results/futures_replay_reference.json)
 
@@ -30,7 +30,7 @@ Event counts for the committed input:
 
 | Run | Total events | ExchangeInfo events | Snapshot events | Depth events | AggTrade events | Gap count | Wall time (s) | Events/sec | Loop latency p50 (us) | Loop latency p99 (us) | Peak traced memory (MiB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.789134 | 101.38 | 299.75 | 113011.45 | 0.68 |
+| Reference | 80 | 1 | 1 | 9 | 69 | 0 | 0.837651 | 95.51 | 306.85 | 114563.63 | 0.68 |
 
 Exact benchmark command:
 

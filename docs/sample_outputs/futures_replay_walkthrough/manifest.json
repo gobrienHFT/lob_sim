@@ -1,13 +1,13 @@
 {
   "run_id": "87135ef02e50cf60",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T17:03:51.499184Z",
+  "created_at_utc": "2026-08-11T17:44:20.919904Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-11T17:03:51.438667Z"
+    "modified_at_utc": "2026-08-11T17:44:20.816933Z"
   },
   "config": {
     "symbols": [
@@ -125,8 +125,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "f6741171108a91d655da3d4bb4efa90b450c3fbe",
-    "git_branch": "codex/hft-bounded-simulation-retention",
+    "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
+    "git_branch": "codex/hft-streaming-simulation-export",
     "git_dirty": false
   },
   "outputs": {
@@ -139,30 +139,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
-      "size_bytes": 7537,
-      "sha256": "0ce7cbdc8e9c70c7917cb7844d601eefde4e76b373cdb4f4771b382212375e1c",
-      "modified_at_utc": "2026-08-11T17:03:51.934149Z"
+      "size_bytes": 7112,
+      "sha256": "2dc39da1e1775fb5fddef30910aae2297436b1fffcf852c7a24152950eb8075e",
+      "modified_at_utc": "2026-08-11T17:44:21.756595Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 14747,
-      "sha256": "84c2a13439a6f01fe5942f3b9b215a3219eced047305d3e7824d420e8f50261f",
-      "modified_at_utc": "2026-08-11T17:03:51.921805Z"
+      "size_bytes": 15135,
+      "sha256": "84028ea1d2cc149c2ad448f0fe390a853ba4cc0d52e19834889f0ee9ee5afe9b",
+      "modified_at_utc": "2026-08-11T17:44:21.736828Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 11168,
-      "sha256": "69309a8edfb4e1bf9422f47fc622875d06c10d8e371f9350f919fd25c0ef46fb",
-      "modified_at_utc": "2026-08-11T17:03:51.928388Z"
+      "size_bytes": 11540,
+      "sha256": "cb6a1fa3349ba62849f9abc661ffe274dd311d7dab7fec4611766c5cf1de8ae1",
+      "modified_at_utc": "2026-08-11T17:44:21.744841Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 1179,
       "sha256": "a6730cbe10029e9161b710333184a2831d316f1b888f807d0c64da407ea9c378",
-      "modified_at_utc": "2026-08-11T17:03:51.932142Z"
+      "modified_at_utc": "2026-08-11T17:44:21.749743Z"
     }
   },
   "fixture_provenance": {

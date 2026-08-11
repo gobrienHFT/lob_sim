@@ -1,13 +1,13 @@
 {
   "run_id": "dc48635cef3dea0f",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T17:03:52.854874Z",
+  "created_at_utc": "2026-08-11T17:44:23.165952Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-08-11T17:03:52.809845Z"
+    "modified_at_utc": "2026-08-11T17:44:23.096329Z"
   },
   "config": {
     "symbols": [
@@ -125,8 +125,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "f6741171108a91d655da3d4bb4efa90b450c3fbe",
-    "git_branch": "codex/hft-bounded-simulation-retention",
+    "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
+    "git_branch": "codex/hft-streaming-simulation-export",
     "git_dirty": false
   },
   "outputs": {
@@ -139,30 +139,30 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
-      "size_bytes": 14236,
-      "sha256": "195aff7a708682941afa7c4a40fe5d3af0ecdb000f5c1b4ac86df68bb3425a95",
-      "modified_at_utc": "2026-08-11T17:03:53.062391Z"
+      "size_bytes": 13526,
+      "sha256": "0069dad5e707f505067231569e004138dc7a5cb6d380a2171bae8e7ce11028b0",
+      "modified_at_utc": "2026-08-11T17:44:23.565612Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
-      "size_bytes": 15137,
-      "sha256": "279e4b6d7df5fff55c3fc9818866483301aba44953171bf323a68cf448c47ac7",
-      "modified_at_utc": "2026-08-11T17:03:53.050589Z"
+      "size_bytes": 15525,
+      "sha256": "0eab61a6a080971aca9fe7033b79c11098ce864afa43a0c566642483636fc217",
+      "modified_at_utc": "2026-08-11T17:44:23.545726Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
-      "size_bytes": 11524,
-      "sha256": "d7877f1d50b83f91fb8ef2f0ecdc649454341077221dba099c4007d8ebfa9404",
-      "modified_at_utc": "2026-08-11T17:03:53.056618Z"
+      "size_bytes": 11896,
+      "sha256": "9789302e43e30ff8e6a23d1a5c08771334184472048c2d6550d9da61a2dece14",
+      "modified_at_utc": "2026-08-11T17:44:23.552374Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 1191,
       "sha256": "dc06e246992f6a6ad65f51aef12be9e6e5ba6160cb19a505fece97a87bb0e744",
-      "modified_at_utc": "2026-08-11T17:03:53.058627Z"
+      "modified_at_utc": "2026-08-11T17:44:23.559582Z"
     }
   },
   "fixture_provenance": {

@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-11T17:04:02.192910Z",
+    "benchmark_created_at_utc": "2026-08-11T17:44:37.946585Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -94,16 +94,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "codex/hft-bounded-simulation-retention",
-      "git_commit": "f6741171108a91d655da3d4bb4efa90b450c3fbe",
+      "git_branch": "codex/hft-streaming-simulation-export",
+      "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 101.37696530080908,
-    "loop_latency_p50_us": 299.75,
-    "loop_latency_p99_us": 113011.45199999973,
-    "wall_time_seconds": 0.7891339000198059
+    "events_per_second": 95.50518002096216,
+    "loop_latency_p50_us": 306.85,
+    "loop_latency_p99_us": 114563.62999999938,
+    "wall_time_seconds": 0.8376509000081569
   }
 }
