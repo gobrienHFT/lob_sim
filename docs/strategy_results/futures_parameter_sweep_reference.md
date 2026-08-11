@@ -8,7 +8,7 @@
 - Profiles: `baseline, layered_mm, research_mm`
 - Half-spread bps grid: `0.05, 0.10, 0.25`
 - Queue repost lots grid: `0, 5, 99`
-- Git commit at run time: `a3e8f8ddb482fec62b77b783492602de2ac02562`
+- Git commit at run time: `dbad4b8dc14560b0022980bb5ba00fe74b0639fd`
 - Git dirty at run time: `False`
 
 Exact command:

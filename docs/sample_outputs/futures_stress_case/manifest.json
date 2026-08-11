@@ -1,13 +1,13 @@
 {
   "run_id": "88881b3a605285a5",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T08:34:54.314037Z",
+  "created_at_utc": "2026-08-11T08:47:03.655459Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-08-11T08:34:54.285058Z"
+    "modified_at_utc": "2026-08-11T08:47:03.624816Z"
   },
   "config": {
     "symbols": [
@@ -124,7 +124,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "a3e8f8ddb482fec62b77b783492602de2ac02562",
+    "git_commit": "dbad4b8dc14560b0022980bb5ba00fe74b0639fd",
     "git_branch": "codex/hft-market-sim",
     "git_dirty": false
   },
@@ -140,7 +140,7 @@
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
       "size_bytes": 12516,
       "sha256": "05551a0dcd5db9c6f1117bbecb130869775a18310a03280906ed2371d1b383e2",
-      "modified_at_utc": "2026-08-11T08:34:54.507993Z"
+      "modified_at_utc": "2026-08-11T08:47:03.835482Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
@@ -149,19 +149,19 @@
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
       "size_bytes": 12095,
       "sha256": "38e41eef7ad70cd78fa8fdf4a456991d90dd9d9452c5b18cbee23082f71990c5",
-      "modified_at_utc": "2026-08-11T08:34:54.493884Z"
+      "modified_at_utc": "2026-08-11T08:47:03.826656Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
       "size_bytes": 9659,
       "sha256": "9682d8be3f21b2758bdb500b6bd0e240ee5d5feeda8770ee5883b6987310da26",
-      "modified_at_utc": "2026-08-11T08:34:54.500693Z"
+      "modified_at_utc": "2026-08-11T08:47:03.830309Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 453,
       "sha256": "18dae87b6262bfacc6d98a797191e91080414a5941785cd5c18f02351020ef28",
-      "modified_at_utc": "2026-08-11T08:34:54.503354Z"
+      "modified_at_utc": "2026-08-11T08:47:03.832316Z"
     }
   },
   "fixture_provenance": {

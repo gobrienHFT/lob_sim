@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-11T08:35:02.626116Z",
+    "benchmark_created_at_utc": "2026-08-11T08:47:10.671367Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -94,15 +94,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "codex/hft-market-sim",
-      "git_commit": "a3e8f8ddb482fec62b77b783492602de2ac02562",
+      "git_commit": "dbad4b8dc14560b0022980bb5ba00fe74b0639fd",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 123.0957851401942,
-    "loop_latency_p50_us": 260.65,
-    "loop_latency_p99_us": 90935.41599999966,
-    "wall_time_seconds": 0.6499003999924753
+    "events_per_second": 118.39016603893046,
+    "loop_latency_p50_us": 216.75,
+    "loop_latency_p99_us": 93633.28199999985,
+    "wall_time_seconds": 0.6757318000018131
   }
 }
