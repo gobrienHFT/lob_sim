@@ -119,8 +119,8 @@ Inferred:
 - Snapshot levels seed visible queue ahead of strategy orders.
 - Depth increases append later venue liquidity behind existing resting orders at that price.
 - Depth reductions consume a synthetic queue-ahead from the front of a level only in the selected sensitivity scenario.
-- `aggTrade` prints are used as an additional conservative queue-consumption signal at the traded price.
-- Recent depth/trade overlap at the same symbol, side, and price is netted before queue consumption to reduce public-feed double counting.
+- In the selected trade-only scenario, `aggTrade` prints consume synthetic queue at the traded price; in the mutually exclusive depth sensitivity, displayed decreases do so instead.
+- When a configured scenario observes both public signals for reconciliation diagnostics, recent same-symbol/side/price overlap is netted before modeled consumption to reduce double counting.
 - `conservative`, `base`, and `aggressive` fill profiles make the passive-fill assumption explicit; the committed envelope sample is in [sample_outputs/futures_fill_assumption_envelope/README.md](sample_outputs/futures_fill_assumption_envelope/README.md).
 - Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
@@ -135,6 +135,7 @@ Inferred:
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
 - During cancel latency the old quote remains fillable; a cancel acknowledgement at the exact timestamp of a public market row is applied before that row consumes queue.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
+- Schema-v3 route failures are replayed as validity boundaries. A trade outage leaves an independently synchronized depth book intact but clears stale flow history and, when trades are required, terminates old orders/actions and blocks decisions until a fresh epoch connects. Summary `integrity.stream_state` and trace rows expose invalidation, ignored records, and recovery.
 - Decision trace rows carry the strategy inputs and reason used to produce quote targets or pull quotes, so reservation-price and spread/gate logic can be inspected after the run.
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Self-trade prevention is conservative: a strategy taker order can consume venue liquidity, but stops before its own opposite-side resting order and expires the crossed remainder.

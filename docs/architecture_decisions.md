@@ -20,6 +20,10 @@ Depth reductions and aggregate trade prints can describe the same public consump
 
 The simulator emits event-time rows for market records, decisions, order arrivals, cancels, fills, queue consumption, markouts, gaps, and risk halts. The trace is the primary audit surface: it shows ordering, queue-ahead-at-arrival, fill economics, cancel races, and post-fill markouts without stepping through a debugger.
 
+## Independent Stream Epochs
+
+Public depth and market trade connections fail independently, so one boolean feed flag is insufficient. Capture emits route-specific connection/failure events. Replay invalidates a depth book at a public-route failure, but a market-route failure preserves that book while clearing trade-flow history. Live orders, cancel acknowledgements, replacements, and scheduled actions are terminated only when the selected fill or strategy scenario depends on trades. Recovery is prospective: a new market epoch can support new orders, but never completes an old queue trajectory.
+
 ## Fee Model
 
 Fees are static maker/taker bps in the current implementation. Rebates are negative fees. Each fill export includes notional, contract multiplier, fee bps, fee amount, and fee currency. PnL, spread capture, fees, and markout use the instrument multiplier; inventory remains in normalized quantity units.
@@ -37,7 +41,7 @@ Public L2 and aggregate-trade feeds cannot prove private queue identity, hidden 
 The committed type-check target starts with the highest-risk futures core:
 
 ```bash
-python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
+python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/binance/ws.py lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py lob_sim/sim/contracts.py lob_sim/sim/latency.py lob_sim/sim/sinks.py lob_sim/sim/synthetic_exchange.py
 ```
 
 This includes replay inspection through the `lob_sim/replay` package, record schema/writing, core CLI/config/util helpers, run-manifest provenance, and the market-making strategy layer. Options demos, plotting-heavy experiments, artifact refresh scripts, and tests remain outside the gradual mypy gate because they are more dynamic and less central to replay/fill correctness. They still run under pytest, ruff, artifact verification, and CI.

@@ -8,7 +8,19 @@ Each envelope carries a capture ID, schema version, venue/instrument, route,
 global receipt sequence, wall and monotonic receipt clocks, optional exchange
 timestamps, stream/sync epochs, payload checksum and raw payload. Validity is
 tracked independently for book, trade stream, clock and capture; execution is
-valid only at their intersection.
+valid only at the intersection required by the selected venue and strategy
+scenario.
+
+Stream lifecycle records are causal boundaries, not logging decoration.
+Schema-v3 capture records `connect`, `disconnect`, `connect_failure`, and
+`parse_failure` events before retrying. A public-stream outage invalidates the
+book and all dependent execution state. A market-stream outage preserves an
+independently valid depth book, clears stale trade-flow history, and invalidates
+live/pending state when the chosen fill or strategy scenario requires trades.
+Repeated failure records do not double-invalidate. A new stream epoch resumes
+prospectively only after a connect record (or an explicitly handled legacy
+implicit boundary); no queue or order state crosses the outage. Regressing
+stream or sync epochs are rejected.
 
 For schema-v3 replay, the logical priority at equal receipt time is:
 
