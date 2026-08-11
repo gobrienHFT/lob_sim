@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Literal, cast
+from typing import Any, Deque, Literal, cast
 
 from ..book.types import AggTradeEvent, LevelChange
 from ..config import (
@@ -345,6 +345,34 @@ class PassiveFillModel:
     def queue_position(self, order: Order) -> int:
         return self.queue_ahead_lots(order.symbol, order)
 
+    @staticmethod
+    def _combined_evidence(order: Order, trigger_evidence_ids: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys((*order.arrival_evidence_ids, *trigger_evidence_ids)))
+
+    @staticmethod
+    def _latency_draws(order: Order) -> dict[str, float | None]:
+        return {
+            "new_order": order.new_order_latency_ms,
+            "cancel": order.cancel_latency_ms,
+        }
+
+    def _passive_scenario_id(self) -> str:
+        if self.fill_assumption.agg_trades_consume_queue and self.fill_assumption.depth_reductions_consume_queue:
+            signal = "trade_and_depth"
+        elif self.fill_assumption.agg_trades_consume_queue:
+            signal = "trade"
+        elif self.fill_assumption.depth_reductions_consume_queue:
+            signal = "depth"
+        else:
+            signal = "none"
+        overlap_active = (
+            self.fill_assumption.overlap_netting_enabled
+            and self.fill_assumption.agg_trades_consume_queue
+            and self.fill_assumption.depth_reductions_consume_queue
+        )
+        overlap_us = round(self.fill_assumption.overlap_window_seconds * 1_000_000) if overlap_active else 0
+        return f"public_l2:{self.fill_assumption.profile}:signal={signal}:overlap_us={overlap_us}"
+
     def cancel_order(self, order_id: str) -> None:
         order = self.get_order_by_id(order_id)
         key = self._order_index.pop(order_id, None)
@@ -396,9 +424,15 @@ class PassiveFillModel:
         ts_local: float,
         maker_fill: bool,
         source: FillSource,
+        evidence_ids: tuple[str, ...],
+        validity: dict[str, Any] | None,
     ) -> tuple[list[Fill], int]:
         fills: list[Fill] = []
         remaining = max(0, lots)
+        trigger_lots = remaining
+        queue_ahead_before = {
+            order.order_id: self.queue_ahead_lots(symbol, order) for order in queue if order.is_strategy
+        }
         while remaining > 0 and queue:
             head = queue[0]
             if not head.active or head.remaining_lots <= 0:
@@ -428,6 +462,8 @@ class PassiveFillModel:
             remaining -= take
 
             if head.is_strategy:
+                state_at_fill = head.state
+                queue_before = queue_ahead_before.get(head.order_id, queue_ahead)
                 fills.append(
                     Fill(
                         ts_local=ts_local,
@@ -440,7 +476,19 @@ class PassiveFillModel:
                         queue_ahead_lots=queue_ahead,
                         created_ts=head.created_ts,
                         source=source,
-                        scenario_id=f"public_l2:{self.fill_assumption.profile}",
+                        scenario_id=self._passive_scenario_id(),
+                        evidence_ids=self._combined_evidence(head, evidence_ids),
+                        validity=dict(validity) if validity is not None else None,
+                        queue_trajectory={
+                            "queue_ahead_before_trigger_lots": queue_before,
+                            "queue_ahead_at_fill_lots": queue_ahead,
+                            "queue_consumed_before_fill_lots": max(0, queue_before - queue_ahead),
+                            "public_consumption_trigger_lots": trigger_lots,
+                            "fill_lots": take,
+                            "remaining_order_lots_after_fill": head.remaining_lots,
+                        },
+                        latency_draws_ms=self._latency_draws(head),
+                        order_state_at_fill=state_at_fill,
                     )
                 )
 
@@ -471,13 +519,25 @@ class PassiveFillModel:
         ts_local: float,
         maker_fill: bool,
         source: FillSource,
+        evidence_ids: tuple[str, ...],
+        validity: dict[str, Any] | None,
     ) -> tuple[list[Fill], int]:
         bucket = self._bucket(side)
         queue = self._book(symbol)[bucket].get(price_tick)
         if queue is None:
             return [], 0
 
-        fills, remaining = self._consume_front(symbol, side, queue, lots, ts_local, maker_fill, source)
+        fills, remaining = self._consume_front(
+            symbol,
+            side,
+            queue,
+            lots,
+            ts_local,
+            maker_fill,
+            source,
+            evidence_ids,
+            validity,
+        )
         queue_consumed_lots = max(0, lots) - remaining
         if not queue:
             self._book(symbol)[bucket].pop(price_tick, None)
@@ -523,6 +583,9 @@ class PassiveFillModel:
                     self.last_self_trade_prevented = True
                     return _TakerExecution(fills=fills, self_trade_prevented=True)
 
+                visible_level_before = sum(
+                    resting.remaining_lots for resting in queue if resting.active and resting.remaining_lots > 0
+                )
                 take = min(remaining, head.remaining_lots)
                 head.remaining_lots -= take
                 remaining -= take
@@ -539,6 +602,16 @@ class PassiveFillModel:
                         created_ts=order.created_ts,
                         source="taker_order",
                         scenario_id="public_l2:taker_visible_depth",
+                        evidence_ids=order.arrival_evidence_ids,
+                        validity=(dict(order.arrival_validity) if order.arrival_validity is not None else None),
+                        queue_trajectory={
+                            "visible_level_before_lots": visible_level_before,
+                            "fill_lots": take,
+                            "visible_level_after_lots": max(0, visible_level_before - take),
+                            "remaining_order_lots_after_fill": remaining,
+                        },
+                        latency_draws_ms=self._latency_draws(order),
+                        order_state_at_fill=order.state,
                     )
                 )
 
@@ -637,7 +710,15 @@ class PassiveFillModel:
 
         return []
 
-    def apply_depth_changes(self, symbol: str, changes: list[LevelChange], ts_local: float) -> list[Fill]:
+    def apply_depth_changes(
+        self,
+        symbol: str,
+        changes: list[LevelChange],
+        ts_local: float,
+        *,
+        evidence_ids: tuple[str, ...] = (),
+        validity: dict[str, Any] | None = None,
+    ) -> list[Fill]:
         fills: list[Fill] = []
         for change in changes:
             side = "bid" if change.side == "bids" else "ask"
@@ -701,6 +782,8 @@ class PassiveFillModel:
                     ts_local=ts_local,
                     maker_fill=True,
                     source="depth_update",
+                    evidence_ids=evidence_ids,
+                    validity=validity,
                 )
                 self._record_public_consumption_stats(
                     "depth_update",
@@ -729,7 +812,14 @@ class PassiveFillModel:
 
         return fills
 
-    def apply_agg_trade(self, trade: AggTradeEvent, ts_local: float) -> list[Fill]:
+    def apply_agg_trade(
+        self,
+        trade: AggTradeEvent,
+        ts_local: float,
+        *,
+        evidence_ids: tuple[str, ...] = (),
+        validity: dict[str, Any] | None = None,
+    ) -> list[Fill]:
         side = "bid" if trade.buyer_is_maker else "ask"
         if not self.fill_assumption.agg_trades_consume_queue:
             self._record_public_consumption_stats("agg_trade", trade.qty_lots, 0, 0)
@@ -781,6 +871,8 @@ class PassiveFillModel:
             ts_local=ts_local,
             maker_fill=True,
             source="agg_trade",
+            evidence_ids=evidence_ids,
+            validity=validity,
         )
         self._record_public_consumption_stats(
             "agg_trade",

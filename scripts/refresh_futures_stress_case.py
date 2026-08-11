@@ -342,6 +342,7 @@ def _render_readme(summary: dict[str, Any]) -> str:
             "- Snapshot-seeded visible queue ahead and partial passive fills.",
             "- Mutually exclusive trade-only attribution: depth decreases remain diagnostic and unmatched.",
             "- `aggTrade`-inferred passive fills; no depth-inferred or taker fill in this post-only scenario.",
+            "- Per-fill scenario, resolvable input evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, and fee-model provenance.",
             "- Signed post-fill markout accounting.",
             "- Cancel latency, including an old quote fill before acknowledgement.",
             "- Same-timestamp cancel acknowledgement before public trade consumption.",

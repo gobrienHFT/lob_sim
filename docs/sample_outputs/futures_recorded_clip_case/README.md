@@ -24,5 +24,6 @@ python scripts/refresh_futures_recorded_case.py
 - Committed clip time range: `ts_local` `1772633472.3978999` to `1772633474.824`
 - `manifest.json` records input digest, non-secret config, runtime/source metadata, output paths, and generated-output digests
 - `event_trace.csv` records the event-time sequence of market rows, strategy decisions, scheduled arrivals, cancel acknowledgements, and fills
+- `summary.fill_provenance` proves complete provenance coverage; with zero modeled fills, the coverage contract is vacuously complete rather than evidence of execution
 
 The original larger raw file is not committed in this pack. The committed input here is the clipped replay window used to regenerate the case outputs.

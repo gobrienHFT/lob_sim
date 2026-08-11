@@ -29,11 +29,13 @@ def _record_from_envelope(envelope: object) -> RecordedEvent:
     capture = dict(capture_value) if isinstance(capture_value, dict) else {}
     capture.update(
         {
+            "captureId": envelope.capture_id,
             "recvSeq": envelope.recv_seq,
             "recvMonotonicNs": envelope.recv_monotonic_ns,
             "streamEpoch": envelope.stream_epoch,
             "syncEpoch": envelope.sync_epoch,
             "route": envelope.route,
+            "payloadChecksum": envelope.raw_payload_checksum,
         }
     )
     data["_capture"] = capture

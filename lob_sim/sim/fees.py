@@ -21,6 +21,10 @@ class StaticFeeModel:
     maker_bps: Decimal
     taker_bps: Decimal
 
+    @property
+    def model_id(self) -> str:
+        return "static_config_bps"
+
     @classmethod
     def from_config(cls, cfg: Config) -> StaticFeeModel:
         return cls(maker_bps=cfg.fees_maker_bps, taker_bps=cfg.fees_taker_bps)

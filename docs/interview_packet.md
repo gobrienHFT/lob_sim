@@ -42,39 +42,29 @@ make reviewer-gate
 - `lob_sim/replay/adapters.py`: venue record normalization into instrument, snapshot, depth, and trade events.
 - `lob_sim/sim/fill_model.py`: synthetic queue-ahead scenarios, passive/taker fills, public consumption, and self-trade prevention.
 - `lob_sim/sim/engine.py`: event-time scheduling for market rows, decisions, arrivals, cancels, fills, and risk halts.
-- `lob_sim/sim/metrics.py`: fill-source metrics, markouts, inventory, PnL, lifecycle counts, and public-consumption summaries.
-- `scripts/audit_futures_pack.py`: cross-checks replay input, summary, CSVs, event trace, trades, manifest, provenance, and hashes.
+- `lob_sim/sim/metrics.py`: fill-source metrics, per-fill evidence/validity/queue/latency provenance, markouts, inventory, PnL, lifecycle counts, and public-consumption summaries.
+- `scripts/audit_futures_pack.py`: resolves fill evidence against replay input and cross-checks summary, CSVs, event trace, trades, manifest, validity, queue trajectories, latency labels, provenance, and hashes.
 - `scripts/verify_committed_artifacts.py`: repository-level evidence gate.
 - `docs/sample_outputs/futures_recorded_clip_case/README.md`: small recorded public-data proof point.
 - `docs/sample_outputs/futures_stress_case/README.md`: synthetic stress pack for rare mechanics.
 - `scripts/run_real_data_report.py`: local real-tape inspect/simulate/audit/benchmark/report pipeline with report-only docs publishing.
-- `docs/real_data_runs/raw_1780500354_10m.md`: target-window BTCUSDT public-data report; raw tape kept local-only.
-- `docs/real_data_runs/raw_1772633471.md`: earlier short local BTCUSDT public-data report retained as historical evidence.
 - `docs/real_data_runbook.md`: 10-30 minute real-tape run path.
 
-## Published Real-Data Report
+## Historical Real-Data Reports
 
-`docs/real_data_runs/raw_1780500354_10m.md` is a report-only artifact generated from a target-window local BTCUSDT public-data tape. The raw NDJSON.GZ is not committed. The run meets the requested 10-30 minute window: duration `609.9587485790253` seconds.
-
-Three numbers to cite:
-
-- Input evidence: `7,098,878` bytes, `75,803` records, SHA-256 `54e37b0b7aad68daece82e2f9c02d1c0c01e9345ff75e3d7d748fc8fab068177`.
-- Replay evidence: `5,954` depth updates, `69,846` public trade-print records, `1,332,621` depth changes applied, one visible book gap.
-- Audit/fill evidence: `7,796` fills from `13,440` arrived quote orders, quote-fill probability `0.5800595238095239`, clean audit over `881,829` event-trace rows and `737,092` queue-consumption rows.
-
-The PnL sign is not the claim. Positive or negative PnL is not evidence of edge here; the value is that the same deterministic replay, queue-fill attribution, source-split markout, inventory/drawdown, gap visibility, audit, and benchmark path runs on public tape and publishes reproducible hashes.
+The committed reports under `docs/real_data_runs/` are retained only as pre-semantic-repair regression history. They predate the current stream-first capture, validity-epoch, arrival-risk, and per-fill provenance gates, so their fill counts, PnL, and throughput-expanded full traces are not reviewer economic evidence and should not be cited in an interview. A replacement claim-ready report requires a schema-v3 capture, a complete validity interval, resolvable `lob_sim.fill_provenance.v1` coverage, and a clean current pack audit.
 
 ## Assumptions Tested
 
 - First diff must cover snapshot update id; later diffs must be continuous.
 - Non-resync replay records gaps and avoids applying gap-affected book mutations.
 - Snapshot visible quantity is queue ahead of strategy orders.
-- Depth decreases and same-price public trade prints consume FIFO visible queue.
+- The selected public-L2 scenario is explicit and mutually exclusive: confirmed trade prints consume synthetic queue in trade mode, while displayed decreases do so only in the optimistic depth sensitivity.
 - Same-side depth/aggTrade overlap is netted before consumption.
 - Cancel latency leaves old quotes fillable until acknowledgement.
 - Same-timestamp cancel acknowledgements are applied before the corresponding market row.
 - Marketable strategy orders are taker fills and cannot self-trade with own resting liquidity.
-- Summary metrics match trace/trade rows and committed artifact hashes.
+- Every fill's scenario, input-record evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, fee model, economics, and artifact hashes agree across summary, trades, and trace outputs.
 - Deterministic fixture runs produce identical summary and event-trace hashes.
 
 ## Not Claimed

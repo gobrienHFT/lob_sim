@@ -151,6 +151,66 @@ def test_futures_pack_audit_rejects_stale_fill_trace_economics(tmp_path: Path) -
     assert any("output_artifacts[event_trace].sha256 is stale" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_rejects_unresolved_fill_evidence(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["fills"][0]["evidence_ids"] = ["input_row:999999"]
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert "summary.fills[0] has unresolved evidence_ids: ['input_row:999999']" in result["issues"]
+
+
+def test_futures_pack_audit_rejects_scenario_drift(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["fills"][0]["scenario_id"] = "public_l2:unknown"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "summary.fills[0] scenario_id='public_l2:unknown' does not match run assumptions" in issue
+        for issue in result["issues"]
+    )
+
+
+def test_futures_pack_audit_rejects_inconsistent_fill_validity(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["fills"][0]["validity"]["execution_valid"] = False
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert "summary.fills[0] validity has inconsistent execution_valid" in result["issues"]
+    assert "summary.fill_provenance.execution_valid does not match summary.fills" in result["issues"]
+
+
+def test_futures_pack_audit_rejects_measured_latency_claim(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["fills"][0]["latency_model"]["measured"] = True
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert "summary.fills[0] latency_model must not claim measurement" in result["issues"]
+
+
 def test_futures_pack_audit_rejects_stale_summary_markout_event(tmp_path: Path) -> None:
     copied_pack = tmp_path / "pack"
     shutil.copytree(SHOWCASE_PACK, copied_pack)

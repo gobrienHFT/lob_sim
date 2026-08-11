@@ -276,6 +276,7 @@ FUTURES_ORDER_LIFECYCLE_KEYS = {
     "self_trade_prevented",
 }
 FUTURES_TRADE_AUDIT_FIELDS = {
+    "provenance_schema_version",
     "fill_source",
     "notional",
     "contract_multiplier",
@@ -284,6 +285,15 @@ FUTURES_TRADE_AUDIT_FIELDS = {
     "fee_currency",
     "spread_capture",
     "spread_capture_value",
+    "created_ts",
+    "scenario_id",
+    "evidence_ids",
+    "validity",
+    "queue_trajectory",
+    "latency_draws_ms",
+    "latency_model",
+    "order_state_at_fill",
+    "fee_model_id",
 }
 FUTURES_EVENT_TRACE_FIELDS = [
     "ts_local",
@@ -380,6 +390,7 @@ FILL_FREQUENCY_REPLACEMENT_FIELDS = {
     "fills_per_arrived_order",
 }
 EXPECTED_FILL_TRACE_FIELDS = {
+    "provenance_schema_version",
     "maker",
     "queue_ahead_lots",
     "created_ts",
@@ -398,7 +409,39 @@ EXPECTED_FILL_TRACE_FIELDS = {
     "regime",
     "book_bid_tick",
     "book_ask_tick",
+    "scenario_id",
+    "evidence_ids",
+    "validity",
+    "queue_trajectory",
+    "latency_draws_ms",
+    "latency_model",
+    "order_state_at_fill",
+    "fee_model_id",
 }
+EXPECTED_FILL_VALIDITY_FIELDS = {
+    "book_valid",
+    "trade_stream_valid",
+    "clock_valid",
+    "capture_valid",
+    "trade_stream_required",
+    "execution_valid",
+    "reason",
+}
+EXPECTED_PASSIVE_QUEUE_TRAJECTORY_FIELDS = {
+    "queue_ahead_before_trigger_lots",
+    "queue_ahead_at_fill_lots",
+    "queue_consumed_before_fill_lots",
+    "public_consumption_trigger_lots",
+    "fill_lots",
+    "remaining_order_lots_after_fill",
+}
+EXPECTED_TAKER_QUEUE_TRAJECTORY_FIELDS = {
+    "visible_level_before_lots",
+    "fill_lots",
+    "visible_level_after_lots",
+    "remaining_order_lots_after_fill",
+}
+EXPECTED_FILL_LATENCY_MODEL_FIELDS = {"mode", "seed", "source", "measured"}
 EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS = 0.125
 EXPECTED_STRATEGY_PROFILE_NAMES = {"baseline", "layered_mm", "research_mm"}
 REQUIRED_DECISION_DIAGNOSTIC_KEYS = {
@@ -1101,7 +1144,11 @@ def _verify_futures_fill_assumption_metadata() -> list[str]:
 
 def _verify_futures_trade_audit_fields() -> list[str]:
     issues: list[str] = []
-    for path in [FUTURES_SHOWCASE_DIR / "trades.csv", RECORDED_CLIP_DIR / "trades.csv"]:
+    for path in [
+        FUTURES_SHOWCASE_DIR / "trades.csv",
+        RECORDED_CLIP_DIR / "trades.csv",
+        FUTURES_STRESS_DIR / "trades.csv",
+    ]:
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             fieldnames = set(reader.fieldnames or [])
@@ -1113,6 +1160,79 @@ def _verify_futures_trade_audit_fields() -> list[str]:
                 for field in FUTURES_TRADE_AUDIT_FIELDS:
                     if row.get(field) in {None, ""}:
                         issues.append(f"{_repo_relative(path)}:{row_index} has empty trade audit field: {field}")
+    return issues
+
+
+def _verify_futures_fill_provenance_coverage() -> list[str]:
+    issues: list[str] = []
+    expected_fields = {
+        "schema_version",
+        "fill_count",
+        "with_provenance_schema",
+        "with_scenario",
+        "with_evidence_ids",
+        "with_validity",
+        "execution_valid",
+        "with_queue_trajectory",
+        "with_latency_draws",
+        "with_latency_model",
+        "with_lifecycle_state",
+        "with_fee_model",
+        "complete",
+    }
+    coverage_fields = {
+        "with_provenance_schema",
+        "with_scenario",
+        "with_evidence_ids",
+        "with_validity",
+        "with_queue_trajectory",
+        "with_latency_draws",
+        "with_latency_model",
+        "with_lifecycle_state",
+        "with_fee_model",
+    }
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        summary = json.loads(_read_text(summary_path))
+        fill_count = summary.get("fill_count")
+        provenance = summary.get("fill_provenance")
+        if not isinstance(fill_count, int) or fill_count < 0:
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill_count")
+            continue
+        if not isinstance(provenance, dict) or set(provenance) != expected_fields:
+            issues.append(f"{_repo_relative(summary_path)} has invalid fill_provenance fields")
+            continue
+        if provenance.get("schema_version") != "lob_sim.fill_provenance_coverage.v1":
+            issues.append(f"{_repo_relative(summary_path)} fill_provenance has unexpected schema_version")
+        if provenance.get("fill_count") != fill_count:
+            issues.append(f"{_repo_relative(summary_path)} fill_provenance fill_count does not match summary")
+        for field in sorted(coverage_fields):
+            if provenance.get(field) != fill_count:
+                issues.append(f"{_repo_relative(summary_path)} fill_provenance {field} does not cover every fill")
+        execution_valid = provenance.get("execution_valid")
+        if (
+            not isinstance(execution_valid, int)
+            or isinstance(execution_valid, bool)
+            or not 0 <= execution_valid <= fill_count
+        ):
+            issues.append(f"{_repo_relative(summary_path)} fill_provenance has invalid execution_valid count")
+        expected_complete = all(provenance.get(field) == fill_count for field in coverage_fields)
+        if provenance.get("complete") is not expected_complete:
+            issues.append(f"{_repo_relative(summary_path)} fill_provenance complete is inconsistent")
+
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "fill_provenance" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing fill_provenance")
+            continue
+        try:
+            csv_provenance = json.loads(rows[0]["fill_provenance"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} fill_provenance is not valid JSON: {exc}")
+        else:
+            if csv_provenance != provenance:
+                issues.append(f"{_repo_relative(summary_csv_path)} fill_provenance does not match summary.json")
     return issues
 
 
@@ -1644,6 +1764,112 @@ def _verify_queue_consumption_trace_details(
     return issues
 
 
+def _verify_fill_provenance_details(
+    path: Path,
+    row_index: int,
+    row: dict[str, str],
+    details: dict[str, object],
+) -> list[str]:
+    issues: list[str] = []
+    prefix = f"{_repo_relative(path)}:{row_index} fill row"
+
+    if details.get("provenance_schema_version") != "lob_sim.fill_provenance.v1":
+        issues.append(f"{prefix} has invalid provenance_schema_version")
+    scenario_id = details.get("scenario_id")
+    if not isinstance(scenario_id, str) or not scenario_id.startswith("public_l2:"):
+        issues.append(f"{prefix} has invalid scenario_id")
+
+    evidence_ids = details.get("evidence_ids")
+    if (
+        not isinstance(evidence_ids, list)
+        or not evidence_ids
+        or any(not isinstance(value, str) or not value for value in evidence_ids)
+        or len(set(evidence_ids)) != len(evidence_ids)
+    ):
+        issues.append(f"{prefix} has invalid evidence_ids")
+
+    validity = details.get("validity")
+    if not isinstance(validity, dict) or set(validity) != EXPECTED_FILL_VALIDITY_FIELDS:
+        issues.append(f"{prefix} has invalid validity")
+    else:
+        for field in EXPECTED_FILL_VALIDITY_FIELDS - {"reason"}:
+            if not isinstance(validity.get(field), bool):
+                issues.append(f"{prefix} validity has non-boolean {field}")
+        reason = validity.get("reason")
+        if reason is not None and (not isinstance(reason, str) or not reason):
+            issues.append(f"{prefix} validity has invalid reason")
+        boolean_fields_valid = all(
+            isinstance(validity.get(field), bool) for field in EXPECTED_FILL_VALIDITY_FIELDS - {"reason"}
+        )
+        if boolean_fields_valid:
+            expected_execution_valid = (
+                validity["book_valid"]
+                and validity["clock_valid"]
+                and validity["capture_valid"]
+                and (validity["trade_stream_valid"] or not validity["trade_stream_required"])
+            )
+            if validity["execution_valid"] is not expected_execution_valid:
+                issues.append(f"{prefix} validity has inconsistent execution_valid")
+        if row.get("fill_source") == "agg_trade" and validity.get("trade_stream_required") is not True:
+            issues.append(f"{prefix} agg_trade validity does not require the trade stream")
+
+    queue_trajectory = details.get("queue_trajectory")
+    expected_queue_fields = (
+        EXPECTED_TAKER_QUEUE_TRAJECTORY_FIELDS
+        if row.get("fill_source") == "taker_order"
+        else EXPECTED_PASSIVE_QUEUE_TRAJECTORY_FIELDS
+    )
+    if not isinstance(queue_trajectory, dict) or set(queue_trajectory) != expected_queue_fields:
+        issues.append(f"{prefix} has invalid queue_trajectory fields")
+    elif any(not isinstance(value, int) or value < 0 for value in queue_trajectory.values()):
+        issues.append(f"{prefix} has invalid queue_trajectory values")
+    else:
+        try:
+            fill_lots = int(row.get("qty_lots", ""))
+        except (TypeError, ValueError):
+            fill_lots = None
+        if fill_lots is not None and queue_trajectory["fill_lots"] != fill_lots:
+            issues.append(f"{prefix} queue_trajectory fill_lots does not match qty_lots")
+        if row.get("fill_source") == "taker_order":
+            if (
+                queue_trajectory["visible_level_after_lots"]
+                != queue_trajectory["visible_level_before_lots"] - queue_trajectory["fill_lots"]
+            ):
+                issues.append(f"{prefix} has inconsistent taker queue_trajectory")
+        else:
+            before = queue_trajectory["queue_ahead_before_trigger_lots"]
+            at_fill = queue_trajectory["queue_ahead_at_fill_lots"]
+            consumed = queue_trajectory["queue_consumed_before_fill_lots"]
+            if at_fill > before or consumed != before - at_fill:
+                issues.append(f"{prefix} has inconsistent passive queue_trajectory")
+
+    latency_draws = details.get("latency_draws_ms")
+    if not isinstance(latency_draws, dict) or set(latency_draws) != {"new_order", "cancel"}:
+        issues.append(f"{prefix} has invalid latency_draws_ms")
+    elif any(
+        value is not None and (not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0)
+        for value in latency_draws.values()
+    ):
+        issues.append(f"{prefix} has non-finite or negative latency draw")
+
+    latency_model = details.get("latency_model")
+    if not isinstance(latency_model, dict) or set(latency_model) != EXPECTED_FILL_LATENCY_MODEL_FIELDS:
+        issues.append(f"{prefix} has invalid latency_model")
+    else:
+        if not isinstance(latency_model.get("mode"), str) or not latency_model.get("mode"):
+            issues.append(f"{prefix} latency_model has invalid mode")
+        if not isinstance(latency_model.get("seed"), int):
+            issues.append(f"{prefix} latency_model has invalid seed")
+        if latency_model.get("source") != "configured_scenario" or latency_model.get("measured") is not False:
+            issues.append(f"{prefix} latency_model makes an unsupported measurement claim")
+
+    if details.get("order_state_at_fill") not in {"live", "pending_cancel"}:
+        issues.append(f"{prefix} has invalid order_state_at_fill")
+    if details.get("fee_model_id") != "static_config_bps":
+        issues.append(f"{prefix} has invalid fee_model_id")
+    return issues
+
+
 def _verify_fill_trace_details(
     path: Path,
     row_index: int,
@@ -1656,7 +1882,6 @@ def _verify_fill_trace_details(
 
     if set(details) != EXPECTED_FILL_TRACE_FIELDS:
         issues.append(f"{_repo_relative(path)}:{row_index} fill details have unexpected fields")
-        return issues
 
     if row.get("fill_source") not in FUTURES_FILL_SOURCES:
         issues.append(f"{_repo_relative(path)}:{row_index} has invalid fill_source: {row.get('fill_source')!r}")
@@ -1729,6 +1954,7 @@ def _verify_fill_trace_details(
         value = details.get(field)
         if value is not None and (not isinstance(value, int) or value <= 0):
             issues.append(f"{_repo_relative(path)}:{row_index} fill row has invalid {field}")
+    issues.extend(_verify_fill_provenance_details(path, row_index, row, details))
     return issues
 
 
@@ -2413,7 +2639,6 @@ def _verify_real_data_runbook_publication() -> list[str]:
         "docs/interview_packet.md",
         "docs/reviewer_results_memo.md",
         "docs/real_data_runbook.md",
-        "docs/real_data_runs/raw_1772633471.md",
     ]:
         if token not in readme[:1200]:
             issues.append(f"README.md top section is missing fast reviewer link: {token}")
@@ -2997,6 +3222,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_futures_fill_assumption_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())
+    issues.extend(_verify_futures_fill_provenance_coverage())
     issues.extend(_verify_futures_fill_source_counts())
     issues.extend(_verify_futures_fill_frequency_metrics())
     issues.extend(_verify_futures_markout_by_source())

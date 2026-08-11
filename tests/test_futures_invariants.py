@@ -593,7 +593,40 @@ def test_schema_v3_trade_outage_has_no_cross_epoch_fill_and_new_epoch_resumes(
     summary.update(engine._summary_annotations())
 
     assert summary["fill_count"] == 1
-    assert summary["fills"][0]["fill_source"] == "agg_trade"
+    fill = summary["fills"][0]
+    assert fill["fill_source"] == "agg_trade"
+    assert fill["provenance_schema_version"] == "lob_sim.fill_provenance.v1"
+    assert fill["scenario_id"] == "public_l2:base:signal=trade:overlap_us=0"
+    assert fill["evidence_ids"] == ["input_row:10:recv:9", "input_row:11:recv:10"]
+    assert fill["validity"] == {
+        "book_valid": True,
+        "trade_stream_valid": True,
+        "clock_valid": True,
+        "capture_valid": True,
+        "trade_stream_required": True,
+        "execution_valid": True,
+        "reason": None,
+    }
+    assert fill["queue_trajectory"]["public_consumption_trigger_lots"] == 2
+    assert fill["latency_draws_ms"]["new_order"] == 0.0
+    assert fill["latency_model"]["measured"] is False
+    assert fill["order_state_at_fill"] == "live"
+    assert fill["fee_model_id"] == "static_config_bps"
+    assert summary["fill_provenance"] == {
+        "schema_version": "lob_sim.fill_provenance_coverage.v1",
+        "fill_count": 1,
+        "with_provenance_schema": 1,
+        "with_scenario": 1,
+        "with_evidence_ids": 1,
+        "with_validity": 1,
+        "execution_valid": 1,
+        "with_queue_trajectory": 1,
+        "with_latency_draws": 1,
+        "with_latency_model": 1,
+        "with_lifecycle_state": 1,
+        "with_fee_model": 1,
+        "complete": True,
+    }
     assert summary["trade_stream_invalidation_count"] == 1
     assert summary["trade_stream_recovery_count"] == 1
     assert summary["book_invalidation_count"] == 0
@@ -615,6 +648,8 @@ def test_schema_v3_trade_outage_has_no_cross_epoch_fill_and_new_epoch_resumes(
     assert len(fills) == 1
     assert fills[0]["order_id"] == arrivals[1]["order_id"]
     assert fills[0]["order_id"] != arrivals[0]["order_id"]
+    assert fills[0]["details"]["evidence_ids"] == fill["evidence_ids"]
+    assert fills[0]["details"]["validity"] == fill["validity"]
 
 
 def test_capture_meta_participates_in_global_receive_sequence_validation(

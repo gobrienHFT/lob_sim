@@ -124,6 +124,8 @@ Inferred:
 - `conservative`, `base`, and `aggressive` fill profiles make the passive-fill assumption explicit; the committed envelope sample is in [sample_outputs/futures_fill_assumption_envelope/README.md](sample_outputs/futures_fill_assumption_envelope/README.md).
 - Queue-ahead state shown to the strategy is an observed copy, not mutable fill-state; refresh checks cannot accidentally add queue ahead.
 - Exported fills carry `fill_source` as `depth_update`, `agg_trade`, or `taker_order`.
+- Every exported fill carries `lob_sim.fill_provenance.v1`: scenario ID, resolvable input-record IDs, source-specific validity, synthetic queue trajectory, configured new/cancel latency draws, lifecycle state, and fee-model identity.
+- The pack auditor resolves those record IDs against the hashed input and rejects inconsistent validity/queue identities or any claim that configured latency is measured latency.
 - Summaries aggregate fill-source counts, so depth-inferred fills are visible without hand-reading `trades.csv`.
 - Summaries split signed markout, adverse samples, and adverse-fill rate by fill source, so fill-quality diagnostics are not blended across modeled passive and explicit taker fills.
 - Event traces emit post-horizon `markout` rows, making the later mid and adverse-selection flag auditable next to the original fill.
@@ -140,7 +142,7 @@ Inferred:
 - Marketable strategy limits and market orders are taker fills against visible depth, not maker fills.
 - Self-trade prevention is conservative: a strategy taker order can consume venue liquidity, but stops before its own opposite-side resting order and expires the crossed remainder.
 - Summaries include `self_trade_prevention_count`, and event traces flag the exact order arrival when prevention occurs.
-- Fill trace rows include notional, fee, spread capture, mid-at-fill, time-in-book, queue, and regime metadata; committed artifact verification checks those fields as structured fill economics.
+- Fill trace rows include notional, fee, spread capture, mid-at-fill, time-in-book, queue, regime, and the complete provenance contract; committed artifact verification checks them as structured, cross-export evidence.
 - Committed artifact verification checks event-trace row counts, contiguous sequence numbers, event-time ordering, structured `details` JSON, fill-row agreement with `summary["fill_count"]`, and order-lifecycle agreement with `summary["order_lifecycle_counts"]`.
 - Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes notional, contract multiplier, fee rate, fee amount, and fee currency.
 - PnL, spread capture, fees, and markout are contract-multiplier adjusted, while inventory remains in normalized quantity units.

@@ -49,6 +49,7 @@ MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD = {
     "depthUpdate": "depth_update",
     "aggTrade": "agg_trade",
 }
+MARKET_RECORD_SOURCES = (*MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD, "captureMeta", "captureEvent")
 ORDER_LIFECYCLE_KEYS = (
     "arrival_scheduled",
     "arrived",
@@ -74,6 +75,7 @@ EVENT_TRACE_FIELDS = (
     "details",
 )
 TRADE_CSV_FIELDS = (
+    "provenance_schema_version",
     "ts_local",
     "symbol",
     "side",
@@ -87,6 +89,7 @@ TRADE_CSV_FIELDS = (
     "fee",
     "fee_currency",
     "order_id",
+    "created_ts",
     "mid_at_fill",
     "spread_capture",
     "spread_capture_value",
@@ -96,7 +99,46 @@ TRADE_CSV_FIELDS = (
     "markout_horizon",
     "book_bid_tick",
     "book_ask_tick",
+    "scenario_id",
+    "evidence_ids",
+    "validity",
+    "queue_trajectory",
+    "latency_draws_ms",
+    "latency_model",
+    "order_state_at_fill",
+    "fee_model_id",
 )
+TRADE_JSON_FIELDS = {
+    "evidence_ids",
+    "validity",
+    "queue_trajectory",
+    "latency_draws_ms",
+    "latency_model",
+}
+FILL_VALIDITY_FIELDS = {
+    "book_valid",
+    "trade_stream_valid",
+    "clock_valid",
+    "capture_valid",
+    "trade_stream_required",
+    "execution_valid",
+    "reason",
+}
+PASSIVE_QUEUE_TRAJECTORY_FIELDS = {
+    "queue_ahead_before_trigger_lots",
+    "queue_ahead_at_fill_lots",
+    "queue_consumed_before_fill_lots",
+    "public_consumption_trigger_lots",
+    "fill_lots",
+    "remaining_order_lots_after_fill",
+}
+TAKER_QUEUE_TRAJECTORY_FIELDS = {
+    "visible_level_before_lots",
+    "fill_lots",
+    "visible_level_after_lots",
+    "remaining_order_lots_after_fill",
+}
+LATENCY_MODEL_FIELDS = {"mode", "seed", "source", "measured"}
 FILL_TRACE_ROW_FIELDS = ("ts_local", "symbol", "side", "order_id", "fill_source")
 FILL_TRACE_DETAIL_FIELDS = tuple(
     field for field in TRADE_CSV_FIELDS if field not in {"ts_local", "symbol", "side", "fill_source", "order_id"}
@@ -157,6 +199,7 @@ SUMMARY_CSV_JSON_FIELDS = (
     "event_counts",
     "book_gap_count_by_symbol",
     "fill_source_counts",
+    "fill_provenance",
     "order_lifecycle_counts",
     "adverse_fill_rate_1s_by_side",
     "markout_by_fill_source",
@@ -186,6 +229,52 @@ def _display_path(path: Path) -> str:
         return path.resolve().relative_to(_repo_root().resolve()).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def _record_evidence_id(record: Any, row_number: int) -> str:
+    capture = record.data.get("_capture")
+    if isinstance(capture, dict):
+        capture_id = capture.get("captureId")
+        recv_seq = capture.get("recvSeq")
+        checksum = capture.get("payloadChecksum")
+        if capture_id is not None and recv_seq is not None and checksum is not None:
+            return f"capture:{capture_id}:recv:{int(recv_seq)}:payload:{checksum}"
+        if recv_seq is not None:
+            return f"input_row:{row_number}:recv:{int(recv_seq)}"
+    return f"input_row:{row_number}"
+
+
+def _expected_fill_scenario_id(summary: dict[str, Any], fill_source: object) -> str | None:
+    if fill_source == "taker_order":
+        return "public_l2:taker_visible_depth"
+    assumption = summary.get("fill_assumption")
+    if not isinstance(assumption, dict):
+        return None
+    profile = assumption.get("profile")
+    trade = assumption.get("agg_trades_consume_queue")
+    depth = assumption.get("depth_reductions_consume_queue")
+    overlap_enabled = assumption.get("overlap_netting_enabled")
+    overlap_seconds = assumption.get("overlap_window_seconds")
+    if not isinstance(profile, str) or not isinstance(trade, bool) or not isinstance(depth, bool):
+        return None
+    if trade and depth:
+        signal = "trade_and_depth"
+    elif trade:
+        signal = "trade"
+    elif depth:
+        signal = "depth"
+    else:
+        signal = "none"
+    overlap_active = overlap_enabled is True and trade and depth
+    if overlap_active:
+        if not isinstance(overlap_seconds, (int, float)) or isinstance(overlap_seconds, bool):
+            return None
+        if not math.isfinite(float(overlap_seconds)) or float(overlap_seconds) < 0:
+            return None
+        overlap_us = round(float(overlap_seconds) * 1_000_000)
+    else:
+        overlap_us = 0
+    return f"public_l2:{profile}:signal={signal}:overlap_us={overlap_us}"
 
 
 def _resolve_artifact_path(raw_path: str, pack_dir: Path) -> Path:
@@ -697,6 +786,7 @@ def _audit_fill_exports(
     fill_records: list[tuple[int, dict[str, str], dict[str, Any]]],
     trades_path: Path,
     trace_path: Path,
+    input_evidence_ids: set[str] | None,
     issues: list[str],
 ) -> None:
     summary_fills = summary.get("fills")
@@ -708,10 +798,141 @@ def _audit_fill_exports(
     if len(summary_fills) != len(fill_records):
         issues.append(f"summary.fills has {len(summary_fills)} row(s), event_trace fill rows has {len(fill_records)}")
 
+    provenance = summary.get("fill_provenance")
+    if not isinstance(provenance, dict):
+        issues.append("summary.json is missing fill_provenance")
+    else:
+        expected_provenance_fields = {
+            "schema_version",
+            "fill_count",
+            "with_provenance_schema",
+            "with_scenario",
+            "with_evidence_ids",
+            "with_validity",
+            "execution_valid",
+            "with_queue_trajectory",
+            "with_latency_draws",
+            "with_latency_model",
+            "with_lifecycle_state",
+            "with_fee_model",
+            "complete",
+        }
+        if set(provenance) != expected_provenance_fields:
+            issues.append("summary.fill_provenance has unexpected fields")
+        if provenance.get("schema_version") != "lob_sim.fill_provenance_coverage.v1":
+            issues.append("summary.fill_provenance has unexpected schema_version")
+        if provenance.get("fill_count") != len(summary_fills):
+            issues.append("summary.fill_provenance.fill_count does not match summary.fills")
+        for field in (
+            "with_provenance_schema",
+            "with_scenario",
+            "with_evidence_ids",
+            "with_validity",
+            "with_queue_trajectory",
+            "with_latency_draws",
+            "with_latency_model",
+            "with_lifecycle_state",
+            "with_fee_model",
+        ):
+            if provenance.get(field) != len(summary_fills):
+                issues.append(f"summary.fill_provenance.{field} does not cover every fill")
+        if provenance.get("complete") is not True:
+            issues.append("summary.fill_provenance.complete must be true")
+
+    execution_valid_count = 0
     for index, summary_fill in enumerate(summary_fills):
         if not isinstance(summary_fill, dict):
             issues.append(f"summary.fills[{index}] must be a JSON object")
             continue
+        if summary_fill.get("provenance_schema_version") != "lob_sim.fill_provenance.v1":
+            issues.append(f"summary.fills[{index}] has unexpected provenance_schema_version")
+        expected_scenario_id = _expected_fill_scenario_id(summary, summary_fill.get("fill_source"))
+        if expected_scenario_id is None or summary_fill.get("scenario_id") != expected_scenario_id:
+            issues.append(
+                f"summary.fills[{index}] scenario_id={summary_fill.get('scenario_id')!r} "
+                f"does not match run assumptions {expected_scenario_id!r}"
+            )
+        evidence_ids = summary_fill.get("evidence_ids")
+        if (
+            not isinstance(evidence_ids, list)
+            or not evidence_ids
+            or any(not isinstance(value, str) or not value for value in evidence_ids)
+            or len(set(evidence_ids)) != len(evidence_ids)
+        ):
+            issues.append(f"summary.fills[{index}] has invalid evidence_ids")
+        elif input_evidence_ids is not None:
+            unresolved = sorted(set(evidence_ids) - input_evidence_ids)
+            if unresolved:
+                issues.append(f"summary.fills[{index}] has unresolved evidence_ids: {unresolved}")
+        validity = summary_fill.get("validity")
+        if not isinstance(validity, dict) or set(validity) != FILL_VALIDITY_FIELDS:
+            issues.append(f"summary.fills[{index}] has invalid validity")
+        else:
+            boolean_fields = FILL_VALIDITY_FIELDS - {"reason"}
+            if any(not isinstance(validity.get(field), bool) for field in boolean_fields):
+                issues.append(f"summary.fills[{index}] validity fields must be boolean")
+            else:
+                expected_execution_valid = (
+                    validity["book_valid"]
+                    and validity["clock_valid"]
+                    and validity["capture_valid"]
+                    and (validity["trade_stream_valid"] or not validity["trade_stream_required"])
+                )
+                if validity["execution_valid"] is not expected_execution_valid:
+                    issues.append(f"summary.fills[{index}] validity has inconsistent execution_valid")
+            reason = validity.get("reason")
+            if reason is not None and (not isinstance(reason, str) or not reason):
+                issues.append(f"summary.fills[{index}] validity has invalid reason")
+            if summary_fill.get("fill_source") == "agg_trade" and validity.get("trade_stream_required") is not True:
+                issues.append(f"summary.fills[{index}] agg_trade validity must require the trade stream")
+            if validity.get("execution_valid") is True:
+                execution_valid_count += 1
+        queue_trajectory = summary_fill.get("queue_trajectory")
+        expected_queue_fields = (
+            TAKER_QUEUE_TRAJECTORY_FIELDS
+            if summary_fill.get("fill_source") == "taker_order"
+            else PASSIVE_QUEUE_TRAJECTORY_FIELDS
+        )
+        if not isinstance(queue_trajectory, dict) or set(queue_trajectory) != expected_queue_fields:
+            issues.append(f"summary.fills[{index}] has invalid queue_trajectory fields")
+        elif any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in queue_trajectory.values()
+        ):
+            issues.append(f"summary.fills[{index}] has invalid queue_trajectory values")
+        elif summary_fill.get("fill_source") == "taker_order":
+            if (
+                queue_trajectory["visible_level_after_lots"]
+                != queue_trajectory["visible_level_before_lots"] - queue_trajectory["fill_lots"]
+            ):
+                issues.append(f"summary.fills[{index}] has inconsistent taker queue_trajectory")
+        else:
+            before = queue_trajectory["queue_ahead_before_trigger_lots"]
+            at_fill = queue_trajectory["queue_ahead_at_fill_lots"]
+            consumed = queue_trajectory["queue_consumed_before_fill_lots"]
+            if at_fill > before or consumed != before - at_fill:
+                issues.append(f"summary.fills[{index}] has inconsistent passive queue_trajectory")
+        latency_draws = summary_fill.get("latency_draws_ms")
+        if not isinstance(latency_draws, dict) or set(latency_draws) != {"new_order", "cancel"}:
+            issues.append(f"summary.fills[{index}] has invalid latency_draws_ms")
+        elif any(
+            value is not None and (not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0)
+            for value in latency_draws.values()
+        ):
+            issues.append(f"summary.fills[{index}] has non-finite latency draw")
+        latency_model = summary_fill.get("latency_model")
+        if not isinstance(latency_model, dict) or set(latency_model) != LATENCY_MODEL_FIELDS:
+            issues.append(f"summary.fills[{index}] has invalid latency_model")
+        else:
+            if not isinstance(latency_model.get("mode"), str) or not latency_model.get("mode"):
+                issues.append(f"summary.fills[{index}] latency_model has invalid mode")
+            if not isinstance(latency_model.get("seed"), int) or isinstance(latency_model.get("seed"), bool):
+                issues.append(f"summary.fills[{index}] latency_model has invalid seed")
+            if latency_model.get("source") != "configured_scenario" or latency_model.get("measured") is not False:
+                issues.append(f"summary.fills[{index}] latency_model must not claim measurement")
+        if summary_fill.get("order_state_at_fill") not in {"live", "pending_cancel"}:
+            issues.append(f"summary.fills[{index}] has invalid order_state_at_fill")
+        if summary_fill.get("fee_model_id") != "static_config_bps":
+            issues.append(f"summary.fills[{index}] has invalid fee_model_id")
         trade_row = trade_rows[index] if index < len(trade_rows) else None
         fill_record = fill_records[index] if index < len(fill_records) else None
 
@@ -720,7 +941,15 @@ def _audit_fill_exports(
             for field in TRADE_CSV_FIELDS:
                 actual = trade_row.get(field)
                 expected = summary_fill.get(field)
-                if not _scalar_matches(actual, expected):
+                if field in TRADE_JSON_FIELDS:
+                    try:
+                        decoded = json.loads(actual or "")
+                    except json.JSONDecodeError:
+                        decoded = object()
+                    matches = decoded == expected
+                else:
+                    matches = _scalar_matches(actual, expected)
+                if not matches:
                     issues.append(
                         f"{_display_path(trades_path)}:{trade_row_number} {field}={actual!r} "
                         f"does not match summary.fills[{index}].{field}={expected!r}"
@@ -729,6 +958,15 @@ def _audit_fill_exports(
         if fill_record is None:
             continue
         trace_row_number, trace_row, details = fill_record
+        if isinstance(queue_trajectory, dict) and isinstance(queue_trajectory.get("fill_lots"), int):
+            try:
+                trace_fill_lots = int(trace_row.get("qty_lots", ""))
+            except (TypeError, ValueError):
+                trace_fill_lots = None
+            if trace_fill_lots is not None and queue_trajectory["fill_lots"] != trace_fill_lots:
+                issues.append(
+                    f"{_display_path(trace_path)}:{trace_row_number} queue_trajectory fill_lots does not match qty_lots"
+                )
         for field in FILL_TRACE_ROW_FIELDS:
             actual = trace_row.get(field)
             expected = summary_fill.get(field)
@@ -740,11 +978,14 @@ def _audit_fill_exports(
         for field in FILL_TRACE_DETAIL_FIELDS:
             actual = details.get(field)
             expected = summary_fill.get(field)
-            if not _scalar_matches(actual, expected):
+            matches = actual == expected if field in TRADE_JSON_FIELDS else _scalar_matches(actual, expected)
+            if not matches:
                 issues.append(
                     f"{_display_path(trace_path)}:{trace_row_number} details.{field}={actual!r} "
                     f"does not match summary.fills[{index}].{field}={expected!r}"
                 )
+    if isinstance(provenance, dict) and provenance.get("execution_valid") != execution_valid_count:
+        issues.append("summary.fill_provenance.execution_valid does not match summary.fills")
 
 
 def _audit_markout_exports(
@@ -801,20 +1042,20 @@ def _audit_replay_event_counts(
     market_record_counts: dict[str, int],
     book_gap_counts_by_symbol: dict[str, int],
     issues: list[str],
-) -> None:
+) -> set[str] | None:
     event_counts = summary.get("event_counts")
     summary_path = pack_dir / "summary.json"
     if not isinstance(event_counts, dict):
         issues.append("summary.json is missing event_counts")
-        return
+        return None
     if set(event_counts) != set(EVENT_COUNT_FIELDS):
         issues.append(f"{_display_path(summary_path)} has unexpected event_counts keys: {sorted(event_counts)}")
-        return
+        return None
     for field in EVENT_COUNT_FIELDS:
         value = event_counts.get(field)
         if not isinstance(value, int) or value < 0:
             issues.append(f"{_display_path(summary_path)} event_counts.{field} must be a non-negative integer")
-            return
+            return None
 
     market_record_total = sum(market_record_counts.values())
     if event_counts["records_processed"] != market_record_total:
@@ -843,13 +1084,15 @@ def _audit_replay_event_counts(
     manifest_input = manifest.get("input")
     if not isinstance(manifest_input, dict) or not isinstance(manifest_input.get("path"), str):
         issues.append(f"{_display_path(pack_dir / 'manifest.json')} is missing input.path")
-        return
+        return None
     input_path = _resolve_artifact_path(manifest_input["path"], pack_dir)
     input_counts = {field: 0 for field in ("exchange_info", "snapshot", "depth_update", "agg_trade")}
     records_processed = 0
+    input_evidence_ids: set[str] = set()
     try:
         for record in iter_records(input_path):
             records_processed += 1
+            input_evidence_ids.add(_record_evidence_id(record, records_processed))
             if record.type == "exchangeInfo":
                 input_counts["exchange_info"] += 1
             elif record.type == "snapshot":
@@ -860,10 +1103,10 @@ def _audit_replay_event_counts(
                 input_counts["agg_trade"] += 1
     except FileNotFoundError:
         issues.append(f"Missing replay input file: {_display_path(input_path)}")
-        return
+        return None
     except (OSError, ValueError, RecordValidationError) as exc:
         issues.append(f"{_display_path(input_path)} could not be read for event-count audit: {exc}")
-        return
+        return None
 
     if event_counts["records_processed"] != records_processed:
         issues.append(
@@ -873,6 +1116,7 @@ def _audit_replay_event_counts(
     for field, observed in input_counts.items():
         if event_counts[field] != observed:
             issues.append(f"event_counts.{field}={event_counts[field]!r} does not match replay input count {observed}")
+    return input_evidence_ids
 
 
 def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
@@ -906,7 +1150,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     fill_rows: list[dict[str, str]] = []
     fill_source_counts = {source: 0 for source in FILL_SOURCES}
     event_type_counts: Counter[str] = Counter()
-    market_record_counts = {source: 0 for source in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD}
+    market_record_counts = {source: 0 for source in MARKET_RECORD_SOURCES}
     book_gap_counts_by_symbol: dict[str, int] = {}
     lifecycle_counts = {key: 0 for key in ORDER_LIFECYCLE_KEYS}
     consumption = {source: {field: 0 for field in PUBLIC_CONSUMPTION_FIELDS} for source in PUBLIC_CONSUMPTION_SOURCES}
@@ -950,7 +1194,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         details = _parse_details(trace_path, row_number, row.get("details", ""), issues)
         if event_type == "market_record":
             source = row.get("source", "")
-            if source not in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD:
+            if source not in MARKET_RECORD_SOURCES:
                 issues.append(f"{_display_path(trace_path)}:{row_number} has invalid market_record source {source!r}")
             else:
                 market_record_counts[source] += 1
@@ -1082,9 +1326,24 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_lifecycle(summary, lifecycle_counts, arrival_queue, issues)
         _audit_public_consumption(summary, consumption, issues)
         _audit_markouts(summary, markouts, markout_row_count, issues)
-        _audit_fill_exports(summary, trade_rows, fill_records, trades_path, trace_path, issues)
+        input_evidence_ids = _audit_replay_event_counts(
+            pack_dir,
+            summary,
+            manifest,
+            market_record_counts,
+            book_gap_counts_by_symbol,
+            issues,
+        )
+        _audit_fill_exports(
+            summary,
+            trade_rows,
+            fill_records,
+            trades_path,
+            trace_path,
+            input_evidence_ids,
+            issues,
+        )
         _audit_markout_exports(summary, markout_records, trace_path, issues)
-        _audit_replay_event_counts(pack_dir, summary, manifest, market_record_counts, book_gap_counts_by_symbol, issues)
 
     return {
         "schema_version": PACK_AUDIT_SCHEMA_VERSION,

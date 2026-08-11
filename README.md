@@ -7,11 +7,9 @@ Fast reviewer links:
 - [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
-- [Short Local Real-Data Report](docs/real_data_runs/raw_1772633471.md): earlier 30s BTCUSDT report retained as a compact historical comparison.
 - [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
 - [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
 - [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
-- [Published Real-Data Report](docs/real_data_runs/raw_1780500354_10m.md): superseded pre-semantic-repair historical artifact; not headline economic evidence.
 
 ## Overview
 

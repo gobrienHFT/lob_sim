@@ -19,22 +19,12 @@ python scripts/run_real_data_report.py --file data/capture_....manifest.json --e
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
-- `docs/real_data_runs/raw_1780500354_10m.md` is the larger local real-data report from a target-window BTCUSDT public tape. It publishes only report artifacts; raw files and the large local audit pack stay local-only.
+- `docs/real_data_runs/raw_1780500354_10m.md` is historical pre-semantic-repair evidence retained for regression comparison only; its fills, PnL, and performance are excluded from reviewer claims.
 - Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
 
-## Published Local Real-Data Reports
+## Historical Local Real-Data Reports
 
-The current target-window report is `docs/real_data_runs/raw_1780500354_10m.md`. It is generated from a local BTCUSDT public-data tape and meets the requested 10-30 minute window: `609.9587485790253` seconds. The raw NDJSON.GZ is not committed; the report publishes the input label, SHA-256, file size, source state, audit result, benchmark context, and exact replay metrics.
-
-Key evidence:
-
-- Input: `7,098,878` bytes, `75,803` records, SHA-256 `54e37b0b7aad68daece82e2f9c02d1c0c01e9345ff75e3d7d748fc8fab068177`.
-- Market-data coverage: `5,954` depth updates, `69,846` replay-compatible public trade-print records, `1,332,621` depth changes applied, one documented book gap. Raw public trade event types inside those records are `{"trade": 69846}`.
-- Fill/audit evidence: `7,796` fills from `13,440` arrived quote orders, quote-fill probability `0.5800595238095239`, clean audit over `881,829` event-trace rows and `737,092` queue-consumption rows.
-
-The earlier `docs/real_data_runs/raw_1772633471.md` remains as a short historical local tape: `30.0871000289917` seconds, `1,997` records, and clean audit over `35,561` event-trace rows. The committed recorded clip, the synthetic stress pack, and the target-window local report serve different jobs: small reproducible real clip, compact rare-mechanics stress coverage, and larger local public-tape scale evidence.
-
-Interpretation: negative or positive PnL is not the point. The report demonstrates replay/audit/fill-source/queue evidence on public tape while preserving the limits: no private fill truth, no alpha claim, no profitability claim, no production latency claim, and no gateway-readiness claim.
+Both files under `docs/real_data_runs/` are preserved as pre-semantic-repair regression history, not current reviewer evidence. They predate stream-first capture, independent validity epochs, repaired arrival-time risk semantics, and resolvable per-fill provenance. Do not cite their fill counts, PnL, or replay throughput as current results. A replacement report must come from a schema-v3 tape with complete validity coverage, pass the current pack auditor, and show `lob_sim.fill_provenance.v1` coverage for every modeled fill.
 
 ## Stress Pack Event Counts
 

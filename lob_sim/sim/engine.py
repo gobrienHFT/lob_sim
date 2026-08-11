@@ -14,6 +14,7 @@ from ..book.local_book import BookInvariantError, LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import DepthUpdateEvent, SymbolSpec
 from ..config import Config
+from ..record.envelope import ValidityState
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
 from ..util import write_summary_csv
@@ -102,6 +103,8 @@ class SimulationEngine:
         self._depth_stream_valid: dict[str, bool] = {}
         self._trade_stream_valid: dict[str, bool] = {}
         self._stream_invalid_reason: dict[tuple[str, str], str] = {}
+        self._latest_book_evidence: dict[str, str] = {}
+        self._latest_trade_evidence: dict[str, str] = {}
 
     @staticmethod
     def _event_time(rec: RecordedEvent) -> float:
@@ -124,6 +127,49 @@ class SimulationEngine:
 
     def _depth_stream_is_valid(self, symbol: str) -> bool:
         return self._depth_stream_valid.get(symbol, self._capture_schema_version < 3)
+
+    @staticmethod
+    def _record_evidence_id(rec: RecordedEvent, row_number: int) -> str:
+        capture = rec.data.get("_capture")
+        if isinstance(capture, dict):
+            capture_id = capture.get("captureId")
+            recv_seq = capture.get("recvSeq")
+            checksum = capture.get("payloadChecksum")
+            if capture_id is not None and recv_seq is not None and checksum is not None:
+                return f"capture:{capture_id}:recv:{int(recv_seq)}:payload:{checksum}"
+            if recv_seq is not None:
+                return f"input_row:{row_number}:recv:{int(recv_seq)}"
+        return f"input_row:{row_number}"
+
+    @staticmethod
+    def _combine_evidence(*groups: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(evidence_id for group in groups for evidence_id in group))
+
+    def _decision_evidence_ids(self, symbol: str) -> tuple[str, ...]:
+        book = (self._latest_book_evidence[symbol],) if symbol in self._latest_book_evidence else ()
+        trade = (self._latest_trade_evidence[symbol],) if symbol in self._latest_trade_evidence else ()
+        return self._combine_evidence(book, trade)
+
+    def _validity_state(self, symbol: str, *, require_trade: bool) -> ValidityState:
+        syncer = self._syncers.get(symbol)
+        book_valid = syncer is not None and syncer.synced and self._depth_stream_is_valid(symbol)
+        trade_valid = self._trade_stream_is_valid(symbol)
+        clock_valid = self._clock_regressions == 0 and (self._capture_schema_version < 3 or self._receive_clock)
+        invalid_reasons: list[str] = []
+        if not book_valid:
+            invalid_reasons.append(self._stream_invalid_reason.get((symbol, "public"), "book_invalid"))
+        if require_trade and not trade_valid:
+            invalid_reasons.append(self._stream_invalid_reason.get((symbol, "market"), "trade_stream_invalid"))
+        if not clock_valid:
+            invalid_reasons.append("clock_invalid")
+        return ValidityState(
+            book_valid=book_valid,
+            trade_stream_valid=trade_valid,
+            clock_valid=clock_valid,
+            capture_valid=True,
+            trade_stream_required=require_trade,
+            reason=";".join(invalid_reasons) or None,
+        )
 
     def _call_strategy_epoch_hook(self, hook_name: str, symbol: str) -> None:
         hook = getattr(self.strategy, hook_name, None)
@@ -154,6 +200,8 @@ class SimulationEngine:
 
     def _invalidate_symbol(self, symbol: str, now: float, reason: str) -> None:
         self._gap_count += 1
+        self._latest_book_evidence.pop(symbol, None)
+        self._latest_trade_evidence.pop(symbol, None)
         self._call_strategy_epoch_hook("invalidate_book_epoch", symbol)
         details = self._clear_symbol_execution_state(symbol)
         self.metrics.on_book_invalidated(symbol, reason)
@@ -187,6 +235,7 @@ class SimulationEngine:
         if self._trade_stream_valid.get(symbol) is False:
             return False
         self._trade_stream_valid[symbol] = False
+        self._latest_trade_evidence.pop(symbol, None)
         self._stream_invalid_reason[(symbol, "market")] = reason
         self._call_strategy_epoch_hook("invalidate_trade_epoch", symbol)
         details: dict[str, Any] = {
@@ -483,6 +532,7 @@ class SimulationEngine:
         cancel_latency_ms = self.latency_model.draw("cancel")
         ack_ts = ts + cancel_latency_ms / 1000.0
         order.mark_pending_cancel()
+        order.cancel_latency_ms = cancel_latency_ms
         self._pending_cancel_ack_ts[order.order_id] = ack_ts
         self.metrics.on_cancel_requested()
         self._schedule(
@@ -619,10 +669,12 @@ class SimulationEngine:
 
         inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
         plan = self.strategy.propose(book, inventory_qty=inventory)
+        decision_evidence_ids = self._decision_evidence_ids(symbol)
         decision_details: dict[str, Any] = {
             "inventory_qty": str(inventory),
             "quote_count": len(plan.quotes),
             "strategy_profile": self.cfg.mm_strategy_profile,
+            "evidence_ids": list(decision_evidence_ids),
             "quotes": [
                 {
                     "side": quote.side,
@@ -744,6 +796,8 @@ class SimulationEngine:
                         "price_tick": target.price_tick,
                         "qty_lots": target.qty_lots,
                         "refresh_key": target.refresh_key,
+                        "decision_evidence_ids": decision_evidence_ids,
+                        "new_order_latency_ms": order_latency_ms,
                     },
                 )
                 self.metrics.on_order_arrival_scheduled()
@@ -826,6 +880,14 @@ class SimulationEngine:
         price_tick = int(payload["price_tick"])
         qty_lots = int(payload["qty_lots"])
         refresh_key = str(payload.get("refresh_key", ""))
+        decision_evidence_ids = tuple(str(value) for value in payload.get("decision_evidence_ids", ()))
+        arrival_market_evidence_ids = self._decision_evidence_ids(symbol)
+        arrival_evidence_ids = self._combine_evidence(decision_evidence_ids, arrival_market_evidence_ids)
+        arrival_validity = self._validity_state(
+            symbol,
+            require_trade=self._trade_stream_required(),
+        ).as_dict()
+        new_order_latency_ms = float(payload.get("new_order_latency_ms", 0.0))
         book = self._books.get(symbol)
         syncer = self._syncers.get(symbol)
         if book is None or syncer is None or not syncer.synced or qty_lots <= 0:
@@ -931,6 +993,10 @@ class SimulationEngine:
             created_ts=now,
             remaining_lots=qty_lots,
             refresh_key=refresh_key,
+            decision_evidence_ids=decision_evidence_ids,
+            arrival_evidence_ids=arrival_evidence_ids,
+            arrival_validity=arrival_validity,
+            new_order_latency_ms=new_order_latency_ms,
         )
         fills = self.fill_model.place_order(order)
         resting_order = self.fill_model.get_order(symbol, side, quote_slot)
@@ -946,6 +1012,10 @@ class SimulationEngine:
             "resting_after_arrival": resting_after_arrival,
             "queue_ahead_lots_after_arrival": queue_ahead_after_arrival,
             "immediate_fills": len(fills),
+            "decision_evidence_ids": list(decision_evidence_ids),
+            "arrival_evidence_ids": list(arrival_evidence_ids),
+            "arrival_validity": arrival_validity,
+            "new_order_latency_ms": new_order_latency_ms,
         }
         self.metrics.on_order_arrival(
             resting_after_arrival=resting_after_arrival,
@@ -998,6 +1068,15 @@ class SimulationEngine:
                     "maker": fill.maker,
                     "queue_ahead_lots": fill.queue_ahead_lots,
                     "created_ts": fill.created_ts,
+                    "provenance_schema_version": fill_audit["provenance_schema_version"],
+                    "scenario_id": fill_audit["scenario_id"],
+                    "evidence_ids": fill_audit["evidence_ids"],
+                    "validity": fill_audit["validity"],
+                    "queue_trajectory": fill_audit["queue_trajectory"],
+                    "latency_draws_ms": fill_audit["latency_draws_ms"],
+                    "latency_model": fill_audit["latency_model"],
+                    "order_state_at_fill": fill_audit["order_state_at_fill"],
+                    "fee_model_id": fill_audit["fee_model_id"],
                     "price": fill_audit["price"],
                     "qty": fill_audit["qty"],
                     "notional": fill_audit["notional"],
@@ -1040,6 +1119,7 @@ class SimulationEngine:
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         for rec in iter_records(file_path):
             records_processed += 1
+            record_evidence_id = self._record_evidence_id(rec, records_processed)
             self.metrics.on_record(rec.type)
             if rec.type == "captureMeta":
                 self._capture_schema_version = int(rec.data.get("schemaVersion", 1))
@@ -1114,8 +1194,15 @@ class SimulationEngine:
                             self._invalidate_symbol(rec.symbol, now, f"snapshot_rejected: {exc}")
                         else:
                             self.fill_model.seed_from_snapshot(rec.symbol, snapshot.bids, snapshot.asks)
+                            self._latest_book_evidence[rec.symbol] = record_evidence_id
                             if changes:
-                                buffered_fills = self.fill_model.apply_depth_changes(rec.symbol, changes, now)
+                                buffered_fills = self.fill_model.apply_depth_changes(
+                                    rec.symbol,
+                                    changes,
+                                    now,
+                                    evidence_ids=(record_evidence_id,),
+                                    validity=self._validity_state(rec.symbol, require_trade=False).as_dict(),
+                                )
                                 self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                                 if buffered_fills:
                                     self._emit_trade_event(now, rec.symbol, buffered_fills)
@@ -1137,9 +1224,17 @@ class SimulationEngine:
                         self._trace_book_gap(now, event)
                         self._invalidate_symbol(rec.symbol, now, str(exc))
                         changes = []
+                    else:
+                        self._latest_book_evidence[rec.symbol] = record_evidence_id
                     self.metrics.on_depth_changes(len(changes))
                     if changes and syncer.synced:
-                        fills = self.fill_model.apply_depth_changes(rec.symbol, changes, now)
+                        fills = self.fill_model.apply_depth_changes(
+                            rec.symbol,
+                            changes,
+                            now,
+                            evidence_ids=(record_evidence_id,),
+                            validity=self._validity_state(rec.symbol, require_trade=False).as_dict(),
+                        )
                         self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                         if fills:
                             self._emit_trade_event(now, rec.symbol, fills)
@@ -1148,8 +1243,14 @@ class SimulationEngine:
                 if self._trade_stream_is_valid(rec.symbol):
                     spec = self._specs[rec.symbol]
                     trade = self.adapter.agg_trade_from_record(rec, spec)
+                    self._latest_trade_evidence[rec.symbol] = record_evidence_id
                     self.strategy.observe_trade(trade)
-                    fills = self.fill_model.apply_agg_trade(trade, now)
+                    fills = self.fill_model.apply_agg_trade(
+                        trade,
+                        now,
+                        evidence_ids=(record_evidence_id,),
+                        validity=self._validity_state(rec.symbol, require_trade=True).as_dict(),
+                    )
                     self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                     if fills:
                         self._emit_trade_event(now, rec.symbol, fills)
@@ -1416,6 +1517,7 @@ class SimulationEngine:
             writer = csv.DictWriter(
                 csv_file,
                 fieldnames=[
+                    "provenance_schema_version",
                     "ts_local",
                     "symbol",
                     "side",
@@ -1429,6 +1531,7 @@ class SimulationEngine:
                     "fee",
                     "fee_currency",
                     "order_id",
+                    "created_ts",
                     "mid_at_fill",
                     "spread_capture",
                     "spread_capture_value",
@@ -1441,11 +1544,25 @@ class SimulationEngine:
                     "scenario_id",
                     "evidence_ids",
                     "validity",
+                    "queue_trajectory",
+                    "latency_draws_ms",
+                    "latency_model",
+                    "order_state_at_fill",
+                    "fee_model_id",
                 ],
             )
             writer.writeheader()
             for row in summary.get("fills", []):
-                writer.writerow(row)
+                exported = dict(row)
+                for field in (
+                    "evidence_ids",
+                    "validity",
+                    "queue_trajectory",
+                    "latency_draws_ms",
+                    "latency_model",
+                ):
+                    exported[field] = json.dumps(exported.get(field), sort_keys=True, separators=(",", ":"))
+                writer.writerow(exported)
         self._write_event_trace(event_trace_path)
 
         manifest = build_run_manifest(

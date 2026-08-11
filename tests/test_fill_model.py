@@ -164,6 +164,56 @@ def test_fill_model_public_consumption_summary_tracks_overlap_netting():
     }
 
 
+def test_passive_fill_carries_trigger_and_order_provenance() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+    order = Order(
+        order_id="strategy-bid",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=10000,
+        qty_lots=2,
+        remaining_lots=2,
+        created_ts=1.0,
+        arrival_evidence_ids=("book:arrival",),
+        new_order_latency_ms=5.0,
+    )
+    model.place_order(order)
+    order.mark_pending_cancel()
+    order.cancel_latency_ms = 7.0
+    validity = {
+        "book_valid": True,
+        "trade_stream_valid": True,
+        "clock_valid": True,
+        "capture_valid": True,
+        "trade_stream_required": True,
+        "execution_valid": True,
+        "reason": None,
+    }
+
+    fills = model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=2, buyer_is_maker=True, ts_local=2.0),
+        2.0,
+        evidence_ids=("trade:trigger",),
+        validity=validity,
+    )
+
+    assert len(fills) == 1
+    fill = fills[0]
+    assert fill.evidence_ids == ("book:arrival", "trade:trigger")
+    assert fill.validity == validity
+    assert fill.order_state_at_fill == "pending_cancel"
+    assert fill.latency_draws_ms == {"new_order": 5.0, "cancel": 7.0}
+    assert fill.queue_trajectory == {
+        "queue_ahead_before_trigger_lots": 1,
+        "queue_ahead_at_fill_lots": 0,
+        "queue_consumed_before_fill_lots": 1,
+        "public_consumption_trigger_lots": 2,
+        "fill_lots": 1,
+        "remaining_order_lots_after_fill": 1,
+    }
+
+
 def test_public_consumption_summary_exposes_unmatched_queue_consumption():
     model = PassiveFillModel()
     model.seed_from_snapshot("BTCUSDT", bids=[], asks=[(10010, 1)])
