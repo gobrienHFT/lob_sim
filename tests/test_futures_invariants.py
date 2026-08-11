@@ -175,6 +175,488 @@ def test_capture_epoch_transition_invalidates_book_orders_and_pending_actions(
     assert engine.metrics.book_invalidation_count == 1
 
 
+def _capture_event(
+    *,
+    ts_local: float,
+    route: str,
+    event: str,
+    recv_seq: int,
+    stream_epoch: int,
+    sync_epoch: int = 1,
+    reason: str | None = None,
+) -> RecordedEvent:
+    capture: dict[str, object] = {
+        "route": route,
+        "streamEpoch": stream_epoch,
+        "syncEpoch": sync_epoch,
+        "recvSeq": recv_seq,
+    }
+    data: dict[str, object] = {"event": event, "route": route, "_capture": capture}
+    if reason is not None:
+        data["reason"] = reason
+        capture["reason"] = reason
+    return RecordedEvent(ts_local=ts_local, symbol="BTCUSDT", type="captureEvent", data=data)
+
+
+def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, SIM_FILL_MODEL="trade"))
+    engine._capture_schema_version = 3
+    engine._specs["BTCUSDT"] = _spec()
+    syncer = engine._get_sync("BTCUSDT")
+    assert syncer is not None
+    syncer.on_snapshot(
+        SnapshotEvent(
+            symbol="BTCUSDT",
+            last_update_id=100,
+            bids=[(1000, 10)],
+            asks=[(1001, 10)],
+        )
+    )
+    syncer.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=100,
+            final_update_id=101,
+            prev_update_id=99,
+            bids=[],
+            asks=[],
+            ts_local=1.0,
+        )
+    )
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=1.0,
+            route="market",
+            event="connect",
+            recv_seq=1,
+            stream_epoch=1,
+        ),
+        1.0,
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-live",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=1000,
+        qty_lots=1,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+    engine._schedule(3.0, "order_arrival", "BTCUSDT", {"side": "bid", "qty_lots": 1})
+    engine.strategy.observe_trade(
+        AggTradeEvent(
+            symbol="BTCUSDT",
+            price_tick=1000,
+            qty_lots=2,
+            buyer_is_maker=False,
+            ts_local=1.5,
+        )
+    )
+    assert engine.strategy._recent_trade_imbalance("BTCUSDT") == Decimal("1")
+
+    disconnect = _capture_event(
+        ts_local=2.0,
+        route="market",
+        event="disconnect",
+        recv_seq=2,
+        stream_epoch=1,
+        reason="OSError",
+    )
+    engine._observe_capture_epoch(disconnect, 2.0)
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=2.1,
+            route="market",
+            event="disconnect",
+            recv_seq=3,
+            stream_epoch=1,
+            reason="OSError",
+        ),
+        2.1,
+    )
+
+    assert syncer.synced is True
+    assert order.state == "epoch_invalidated"
+    assert not engine._actions
+    assert engine.strategy._recent_trade_imbalance("BTCUSDT") == Decimal("0")
+    assert engine._trade_stream_is_valid("BTCUSDT") is False
+    assert engine.metrics.trade_stream_invalidation_count == 1
+    assert engine.metrics.book_invalidation_count == 0
+
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=3.0,
+            route="market",
+            event="connect",
+            recv_seq=4,
+            stream_epoch=2,
+        ),
+        3.0,
+    )
+
+    assert engine._trade_stream_is_valid("BTCUSDT") is True
+    assert engine.metrics.trade_stream_invalidation_count == 1
+    assert engine.metrics.trade_stream_recovery_count == 1
+    assert syncer.synced is True
+
+
+def test_implicit_trade_epoch_jump_fails_closed_before_accepting_new_epoch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, SIM_FILL_MODEL="trade"))
+    engine._capture_schema_version = 3
+    engine._specs["BTCUSDT"] = _spec()
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=1.0,
+            route="market",
+            event="connect",
+            recv_seq=1,
+            stream_epoch=1,
+        ),
+        1.0,
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-old-epoch",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=1000,
+        qty_lots=1,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={
+                "p": "100.0",
+                "q": "0.001",
+                "m": True,
+                "_capture": {
+                    "route": "market",
+                    "streamEpoch": 2,
+                    "syncEpoch": 1,
+                    "recvSeq": 2,
+                },
+            },
+        ),
+        2.0,
+    )
+
+    assert order.state == "epoch_invalidated"
+    assert engine._trade_stream_is_valid("BTCUSDT") is True
+    assert engine.metrics.trade_stream_invalidation_count == 1
+    assert engine.metrics.trade_stream_recovery_count == 1
+
+
+def test_book_only_baseline_keeps_depth_execution_state_on_trade_outage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(
+        _build_config(
+            monkeypatch,
+            tmp_path,
+            SIM_FILL_MODEL="depth",
+            MM_STRATEGY_PROFILE="baseline",
+        )
+    )
+    engine._capture_schema_version = 3
+    engine._specs["BTCUSDT"] = _spec()
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=1.0,
+            route="market",
+            event="connect",
+            recv_seq=1,
+            stream_epoch=1,
+        ),
+        1.0,
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-depth-only",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=1000,
+        qty_lots=1,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+    engine._schedule(3.0, "order_cancel", "BTCUSDT", {"order_id": order.order_id})
+
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=2.0,
+            route="market",
+            event="disconnect",
+            recv_seq=2,
+            stream_epoch=1,
+            reason="ConnectionClosed",
+        ),
+        2.0,
+    )
+
+    assert engine._trade_stream_required() is False
+    assert engine._trade_stream_is_valid("BTCUSDT") is False
+    assert order.state == "live"
+    assert len(engine._actions) == 1
+    assert engine.metrics.trade_stream_invalidation_count == 1
+
+
+def test_regressing_stream_epoch_is_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._capture_schema_version = 3
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=1.0,
+            route="market",
+            event="connect",
+            recv_seq=1,
+            stream_epoch=2,
+        ),
+        1.0,
+    )
+
+    with pytest.raises(ValueError, match="regressing stream epoch"):
+        engine._observe_capture_epoch(
+            _capture_event(
+                ts_local=2.0,
+                route="market",
+                event="connect",
+                recv_seq=2,
+                stream_epoch=1,
+            ),
+            2.0,
+        )
+
+
+def test_schema_v3_trade_outage_has_no_cross_epoch_fill_and_new_epoch_resumes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def captured(
+        data: dict[str, object],
+        *,
+        route: str,
+        recv_seq: int,
+        stream_epoch: int,
+        sync_epoch: int = 1,
+    ) -> dict[str, object]:
+        return {
+            **data,
+            "_capture": {
+                "route": route,
+                "recvSeq": recv_seq,
+                "recvMonotonicNs": recv_seq * 1_000_000,
+                "streamEpoch": stream_epoch,
+                "syncEpoch": sync_epoch,
+            },
+        }
+
+    records = [
+        NDJSONRecord(
+            ts_local=0.1,
+            symbol="*",
+            type="captureMeta",
+            data={"schemaVersion": 3, "clock": "receive_time"},
+        ),
+        NDJSONRecord(
+            ts_local=0.2,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data=captured(
+                {"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+                route="control",
+                recv_seq=1,
+                stream_epoch=0,
+                sync_epoch=0,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.3,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data=captured(
+                {"event": "connect", "route": "public"},
+                route="public",
+                recv_seq=2,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.31,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data=captured(
+                {"event": "connect", "route": "market"},
+                route="market",
+                recv_seq=3,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.4,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=captured(
+                snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.001")]),
+                route="public",
+                recv_seq=4,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data=captured(
+                {"U": 95, "u": 105, "pu": 94, "b": [["100.0", "0.001"]], "a": [["100.1", "0.001"]]},
+                route="public",
+                recv_seq=5,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.6,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data=captured(
+                {"event": "disconnect", "route": "market", "reason": "ConnectionClosed"},
+                route="market",
+                recv_seq=6,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.7,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data=captured(
+                {"p": "100.0", "q": "0.002", "m": True},
+                route="market",
+                recv_seq=7,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.8,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data=captured(
+                {"event": "connect", "route": "market"},
+                route="market",
+                recv_seq=8,
+                stream_epoch=2,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=0.9,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data=captured(
+                {"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.001"]], "a": [["100.1", "0.001"]]},
+                route="public",
+                recv_seq=9,
+                stream_epoch=1,
+            ),
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data=captured(
+                {"p": "100.0", "q": "0.002", "m": True},
+                route="market",
+                recv_seq=10,
+                stream_epoch=2,
+            ),
+        ),
+    ]
+    replay_path = tmp_path / "trade_epoch_outage.ndjson"
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        SIM_FILL_MODEL="trade",
+        MM_REQUOTE_MS="1000",
+        MM_HALF_SPREAD_BPS="0",
+        MM_MAX_POSITION="1",
+    )
+    engine = SimulationEngine(cfg)
+    engine.strategy = _QueueObserveHoldStrategy()
+
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+    summary.update(engine._summary_annotations())
+
+    assert summary["fill_count"] == 1
+    assert summary["fills"][0]["fill_source"] == "agg_trade"
+    assert summary["trade_stream_invalidation_count"] == 1
+    assert summary["trade_stream_recovery_count"] == 1
+    assert summary["book_invalidation_count"] == 0
+    assert summary["integrity"]["book_state"]["BTCUSDT"]["synced_at_end"] is True
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["trade_stream_valid"] is True
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["market_stream_epoch"] == 2
+
+    invalidations = [row for row in engine.event_trace if row["event_type"] == "trade_epoch_invalidated"]
+    ignored = [row for row in engine.event_trace if row["event_type"] == "trade_ignored_invalid_epoch"]
+    recoveries = [row for row in engine.event_trace if row["event_type"] == "trade_stream_recovered"]
+    arrivals = [row for row in engine.event_trace if row["event_type"] == "order_arrival"]
+    fills = [row for row in engine.event_trace if row["event_type"] == "fill"]
+
+    assert len(invalidations) == 1
+    assert invalidations[0]["details"]["invalidated_active_order_count"] == 1
+    assert len(ignored) == 1
+    assert len(recoveries) == 1
+    assert len(arrivals) >= 2
+    assert len(fills) == 1
+    assert fills[0]["order_id"] == arrivals[1]["order_id"]
+    assert fills[0]["order_id"] != arrivals[0]["order_id"]
+
+
+def test_capture_meta_participates_in_global_receive_sequence_validation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    duplicate_capture = {
+        "route": "control",
+        "recvSeq": 1,
+        "recvMonotonicNs": 1,
+        "streamEpoch": 0,
+        "syncEpoch": 0,
+    }
+    records = [
+        NDJSONRecord(
+            ts_local=0.1,
+            symbol="*",
+            type="captureMeta",
+            data={
+                "schemaVersion": 3,
+                "clock": "receive_time",
+                "_capture": duplicate_capture,
+            },
+        ),
+        NDJSONRecord(
+            ts_local=0.2,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={
+                "symbol": "BTCUSDT",
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "_capture": duplicate_capture,
+            },
+        ),
+    ]
+    replay_path = tmp_path / "duplicate_capture_meta_sequence.ndjson"
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-increasing receive sequence"):
+        SimulationEngine(_build_config(monkeypatch, tmp_path)).run(replay_path)
+
+
 def test_fifo_queue_priority_keeps_later_venue_volume_behind_resting_strategy_order() -> None:
     model = PassiveFillModel()
     model.seed_from_snapshot("BTCUSDT", bids=[(10000, 2)], asks=[(10010, 2)])

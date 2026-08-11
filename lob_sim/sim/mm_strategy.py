@@ -40,6 +40,18 @@ class MarketMakingStrategy:
         signed_lots = -trade.qty_lots if trade.buyer_is_maker else trade.qty_lots
         self._recent_trade_signals[trade.symbol].append(signed_lots)
 
+    def invalidate_trade_epoch(self, symbol: str) -> None:
+        """Discard flow signals that cannot cross a trade-stream outage."""
+
+        self._recent_trade_signals.pop(symbol, None)
+
+    def invalidate_book_epoch(self, symbol: str) -> None:
+        """Discard book-derived state at a reconstruction boundary."""
+
+        self._returns.pop(symbol, None)
+        self._prev_mid.pop(symbol, None)
+        self.invalidate_trade_epoch(symbol)
+
     def _update_volatility(self, book: LocalOrderBook) -> None:
         mid = book.mid_price()
         if mid is None:

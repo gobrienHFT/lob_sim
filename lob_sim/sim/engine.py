@@ -41,6 +41,8 @@ EVENT_TRACE_FIELDS = [
     "details",
 ]
 
+STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failure", "overflow"})
+
 
 @dataclass(order=True)
 class _EngineEvent:
@@ -97,7 +99,9 @@ class SimulationEngine:
         self._sync_epoch_transitions = 0
         self._gap_count = 0
         self._snapshot_rejections = 0
+        self._depth_stream_valid: dict[str, bool] = {}
         self._trade_stream_valid: dict[str, bool] = {}
+        self._stream_invalid_reason: dict[tuple[str, str], str] = {}
 
     @staticmethod
     def _event_time(rec: RecordedEvent) -> float:
@@ -109,8 +113,28 @@ class SimulationEngine:
             raise ValueError(f"event timestamp must be finite and non-negative: {value!r}")
         return value
 
-    def _invalidate_symbol(self, symbol: str, now: float, reason: str) -> None:
-        self._gap_count += 1
+    def _trade_stream_required(self) -> bool:
+        return self.cfg.effective_fill_assumption.agg_trades_consume_queue or self.cfg.mm_strategy_profile in {
+            "layered_mm",
+            "research_mm",
+        }
+
+    def _trade_stream_is_valid(self, symbol: str) -> bool:
+        return self._trade_stream_valid.get(symbol, self._capture_schema_version < 3)
+
+    def _depth_stream_is_valid(self, symbol: str) -> bool:
+        return self._depth_stream_valid.get(symbol, self._capture_schema_version < 3)
+
+    def _call_strategy_epoch_hook(self, hook_name: str, symbol: str) -> None:
+        hook = getattr(self.strategy, hook_name, None)
+        if callable(hook):
+            hook(symbol)
+
+    def _clear_symbol_execution_state(self, symbol: str) -> dict[str, int]:
+        active_order_count = sum(len(self.fill_model.get_orders(symbol, side)) for side in ("bid", "ask"))
+        pending_cancel_count = sum(1 for order_id in self._pending_cancel_ack_ts if order_id.startswith(f"{symbol}-"))
+        pending_replacement_count = sum(1 for slot in self._pending_replacement_slots if slot[0] == symbol)
+        pending_action_count = sum(1 for action in self._actions if action.symbol == symbol)
         self.fill_model.invalidate_all_for_symbol(symbol)
         self._pending_cancel_ack_ts = {
             order_id: ts
@@ -120,9 +144,75 @@ class SimulationEngine:
         self._pending_replacement_slots = {slot for slot in self._pending_replacement_slots if slot[0] != symbol}
         self._actions = [action for action in self._actions if action.symbol != symbol]
         heapify(self._actions)
+        self._next_decision.pop(symbol, None)
+        return {
+            "invalidated_active_order_count": active_order_count,
+            "cleared_pending_cancel_count": pending_cancel_count,
+            "cleared_pending_replacement_count": pending_replacement_count,
+            "cleared_pending_action_count": pending_action_count,
+        }
+
+    def _invalidate_symbol(self, symbol: str, now: float, reason: str) -> None:
+        self._gap_count += 1
+        self._call_strategy_epoch_hook("invalidate_book_epoch", symbol)
+        details = self._clear_symbol_execution_state(symbol)
         self.metrics.on_book_invalidated(symbol, reason)
         self.metrics.invalidate_markouts(symbol, reason, ts_local=now)
-        self._trace(now, symbol, "epoch_invalidated", "book_sync", details={"reason": reason})
+        self._trace(now, symbol, "epoch_invalidated", "book_sync", details={"reason": reason, **details})
+
+    def _invalidate_depth_stream(self, symbol: str, now: float, reason: str) -> bool:
+        if self._depth_stream_valid.get(symbol) is False:
+            return False
+        self._depth_stream_valid[symbol] = False
+        self._stream_invalid_reason[(symbol, "public")] = reason
+        syncer = self._syncers.get(symbol)
+        if syncer is not None:
+            syncer.begin_resync(reason)
+        self._invalidate_symbol(symbol, now, reason)
+        return True
+
+    def _recover_depth_stream(self, symbol: str, now: float, epoch: int | None) -> None:
+        previous = self._depth_stream_valid.get(symbol)
+        self._depth_stream_valid[symbol] = True
+        self._stream_invalid_reason.pop((symbol, "public"), None)
+        self._trace(
+            now,
+            symbol,
+            "depth_stream_recovered" if previous is False else "depth_stream_connected",
+            "capture",
+            details={"stream_epoch": epoch},
+        )
+
+    def _invalidate_trade_stream(self, symbol: str, now: float, reason: str) -> bool:
+        if self._trade_stream_valid.get(symbol) is False:
+            return False
+        self._trade_stream_valid[symbol] = False
+        self._stream_invalid_reason[(symbol, "market")] = reason
+        self._call_strategy_epoch_hook("invalidate_trade_epoch", symbol)
+        details: dict[str, Any] = {
+            "reason": reason,
+            "trade_stream_required": self._trade_stream_required(),
+        }
+        if self._trade_stream_required():
+            details.update(self._clear_symbol_execution_state(symbol))
+        self.metrics.on_trade_stream_invalidated(symbol, reason)
+        self._trace(now, symbol, "trade_epoch_invalidated", "trade_stream", details=details)
+        return True
+
+    def _recover_trade_stream(self, symbol: str, now: float, epoch: int | None) -> None:
+        previous = self._trade_stream_valid.get(symbol)
+        self._trade_stream_valid[symbol] = True
+        self._stream_invalid_reason.pop((symbol, "market"), None)
+        recovered = previous is False
+        if recovered:
+            self.metrics.on_trade_stream_recovered(symbol)
+        self._trace(
+            now,
+            symbol,
+            "trade_stream_recovered" if recovered else "trade_stream_connected",
+            "capture",
+            details={"stream_epoch": epoch},
+        )
 
     def _observe_capture_epoch(self, rec: RecordedEvent, now: float) -> None:
         capture = rec.data.get("_capture")
@@ -137,36 +227,67 @@ class SimulationEngine:
                 raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
             self._last_receive_seq = seq
         route = str(capture.get("route", ""))
-        book_epoch_reason: str | None = None
+        event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
+        failure_reason = str(rec.data.get("reason") or capture.get("reason") or event_name or "unspecified")
         stream_epoch = capture.get("streamEpoch")
+        epoch: int | None = None
+        previous: int | None = None
+        epoch_changed = False
         if stream_epoch is not None:
             key = (rec.symbol, route)
             epoch = int(stream_epoch)
+            if epoch < 0:
+                raise ValueError(f"negative stream epoch for {rec.symbol}:{route}: {epoch}")
             previous = self._stream_epochs.get(key)
-            if previous is not None and epoch != previous:
+            if previous is not None and epoch < previous:
+                raise ValueError(f"regressing stream epoch for {rec.symbol}:{route}: {epoch} after {previous}")
+            epoch_changed = previous is not None and epoch != previous
+            if epoch_changed:
                 self._sync_epoch_transitions += 1
-                if route == "public":
-                    book_epoch_reason = "depth_stream_reconnect"
-                elif route == "market":
-                    self._trade_stream_valid[rec.symbol] = False
-                    self.metrics.on_trade_stream_invalidated(rec.symbol)
             self._stream_epochs[key] = epoch
-            if route == "market" and previous is None:
-                self._trade_stream_valid[rec.symbol] = True
+
         capture_sync_epoch = capture.get("syncEpoch")
+        capture_sync_changed = False
         if route == "public" and capture_sync_epoch is not None:
-            epoch = int(capture_sync_epoch)
-            previous = self._capture_sync_epochs.get(rec.symbol)
-            if previous is not None and epoch != previous:
-                if book_epoch_reason is None:
-                    self._sync_epoch_transitions += 1
-                    book_epoch_reason = "capture_sync_epoch_changed"
-            self._capture_sync_epochs[rec.symbol] = epoch
-        if book_epoch_reason is not None:
-            syncer = self._syncers.get(rec.symbol)
-            if syncer is not None:
-                syncer.begin_resync(book_epoch_reason)
-            self._invalidate_symbol(rec.symbol, now, book_epoch_reason)
+            sync_epoch = int(capture_sync_epoch)
+            if sync_epoch < 0:
+                raise ValueError(f"negative sync epoch for {rec.symbol}: {sync_epoch}")
+            previous_sync = self._capture_sync_epochs.get(rec.symbol)
+            if previous_sync is not None and sync_epoch < previous_sync:
+                raise ValueError(f"regressing sync epoch for {rec.symbol}: {sync_epoch} after {previous_sync}")
+            capture_sync_changed = previous_sync is not None and sync_epoch != previous_sync
+            if capture_sync_changed and not epoch_changed:
+                self._sync_epoch_transitions += 1
+            self._capture_sync_epochs[rec.symbol] = sync_epoch
+
+        if route == "public":
+            if event_name in STREAM_FAILURE_EVENTS:
+                self._invalidate_depth_stream(rec.symbol, now, f"depth_stream_{event_name}:{failure_reason}")
+                return
+            if epoch_changed and self._depth_stream_is_valid(rec.symbol):
+                self._invalidate_depth_stream(rec.symbol, now, "depth_stream_reconnect")
+            elif capture_sync_changed:
+                syncer = self._syncers.get(rec.symbol)
+                if syncer is not None and syncer.synced:
+                    syncer.begin_resync("capture_sync_epoch_changed")
+                    self._invalidate_symbol(rec.symbol, now, "capture_sync_epoch_changed")
+            if event_name in {"connect", "reconnect"} or (
+                rec.type in {"snapshot", "depthUpdate"} and (previous is None or epoch_changed)
+            ):
+                self._recover_depth_stream(rec.symbol, now, epoch)
+            return
+
+        if route == "market":
+            if event_name in STREAM_FAILURE_EVENTS:
+                self._invalidate_trade_stream(rec.symbol, now, f"trade_stream_{event_name}:{failure_reason}")
+                return
+            if epoch_changed and self._trade_stream_is_valid(rec.symbol):
+                self._invalidate_trade_stream(rec.symbol, now, "trade_stream_reconnect")
+            should_recover = event_name in {"connect", "reconnect"} or (
+                rec.type == "aggTrade" and (previous is None or epoch_changed)
+            )
+            if should_recover:
+                self._recover_trade_stream(rec.symbol, now, epoch)
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
         heappush(
@@ -218,6 +339,14 @@ class SimulationEngine:
                     "quote_asset": rec.data.get("quoteAsset"),
                 }
             )
+        elif rec.type == "captureMeta":
+            details.update(
+                {
+                    "schema_version": rec.data.get("schemaVersion"),
+                    "clock": rec.data.get("clock"),
+                    "validity": rec.data.get("validity"),
+                }
+            )
         elif rec.type == "snapshot":
             details.update(
                 {
@@ -242,6 +371,21 @@ class SimulationEngine:
                     "price": rec.data.get("p"),
                     "qty": rec.data.get("q"),
                     "buyer_is_maker": rec.data.get("m"),
+                }
+            )
+        elif rec.type == "captureEvent":
+            capture = rec.data.get("_capture", {})
+            details.update(
+                {
+                    "event": rec.data.get("event"),
+                    "route": rec.data.get("route", capture.get("route") if isinstance(capture, dict) else None),
+                    "reason": rec.data.get("reason"),
+                    "stream_epoch": (
+                        capture.get("streamEpoch") if isinstance(capture, dict) else rec.data.get("streamEpoch")
+                    ),
+                    "sync_epoch": (
+                        capture.get("syncEpoch") if isinstance(capture, dict) else rec.data.get("syncEpoch")
+                    ),
                 }
             )
         self._trace(float(rec.ts_local), rec.symbol, "market_record", rec.type, details=details)
@@ -371,6 +515,8 @@ class SimulationEngine:
     def _schedule_decisions_up_to(self, symbol: str, now: float, *, include_now: bool) -> None:
         if self._trading_halted:
             return
+        if self._trade_stream_required() and not self._trade_stream_is_valid(symbol):
+            return
         syncer = self._syncers.get(symbol)
         book = self._books.get(symbol)
         if syncer is None or book is None or not syncer.synced:
@@ -462,6 +608,8 @@ class SimulationEngine:
 
     def _handle_decision(self, symbol: str, ts: float) -> None:
         if self._trading_halted or not self.cfg.mm_enabled:
+            return
+        if self._trade_stream_required() and not self._trade_stream_is_valid(symbol):
             return
 
         syncer = self._syncers.get(symbol)
@@ -897,7 +1045,6 @@ class SimulationEngine:
                 self._capture_schema_version = int(rec.data.get("schemaVersion", 1))
                 market_data_first = self._capture_schema_version >= 3
                 self._receive_clock = rec.data.get("clock") == "receive_time"
-                continue
 
             now = self._event_time(rec)
             if now < last_ts:
@@ -913,7 +1060,7 @@ class SimulationEngine:
             # policy. Schema-v3 captures use market-data-first ties.
             self._drain_events(now, inclusive=not market_data_first)
             self._trace_market_record(rec)
-            if rec.type == "captureEvent":
+            if rec.type in {"captureMeta", "captureEvent"}:
                 continue
             if rec.type == "exchangeInfo":
                 spec = self._parse_exchange_info(rec)
@@ -925,6 +1072,19 @@ class SimulationEngine:
                 continue
 
             if rec.symbol not in self._specs:
+                continue
+
+            if rec.type in {"snapshot", "depthUpdate"} and not self._depth_stream_is_valid(rec.symbol):
+                self._trace(
+                    now,
+                    rec.symbol,
+                    "depth_ignored_invalid_epoch",
+                    "public",
+                    details={
+                        "record_type": rec.type,
+                        "reason": self._stream_invalid_reason.get((rec.symbol, "public")),
+                    },
+                )
                 continue
 
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=False)
@@ -985,7 +1145,7 @@ class SimulationEngine:
                             self._emit_trade_event(now, rec.symbol, fills)
 
             elif rec.type == "aggTrade":
-                if self._trade_stream_valid.get(rec.symbol, True):
+                if self._trade_stream_is_valid(rec.symbol):
                     spec = self._specs[rec.symbol]
                     trade = self.adapter.agg_trade_from_record(rec, spec)
                     self.strategy.observe_trade(trade)
@@ -994,7 +1154,13 @@ class SimulationEngine:
                     if fills:
                         self._emit_trade_event(now, rec.symbol, fills)
                 else:
-                    self._trace(now, rec.symbol, "trade_ignored_invalid_epoch", "market")
+                    self._trace(
+                        now,
+                        rec.symbol,
+                        "trade_ignored_invalid_epoch",
+                        "market",
+                        details={"reason": self._stream_invalid_reason.get((rec.symbol, "market"))},
+                    )
 
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
             self._drain_events(now, inclusive=True)
@@ -1070,6 +1236,31 @@ class SimulationEngine:
             }
             for symbol, syncer in sorted(self._syncers.items())
         }
+        stream_symbols = sorted(
+            set(self._specs)
+            | set(self._depth_stream_valid)
+            | set(self._trade_stream_valid)
+            | {symbol for symbol, route in self._stream_epochs if route in {"public", "market"} and symbol != "*"}
+        )
+        trade_stream_required = self._trade_stream_required()
+        stream_state = {
+            symbol: {
+                "depth_stream_valid": self._depth_stream_is_valid(symbol),
+                "trade_stream_valid": self._trade_stream_is_valid(symbol),
+                "trade_stream_required": trade_stream_required,
+                "public_stream_epoch": self._stream_epochs.get((symbol, "public")),
+                "market_stream_epoch": self._stream_epochs.get((symbol, "market")),
+                "capture_sync_epoch": self._capture_sync_epochs.get(symbol),
+                "public_invalid_reason": self._stream_invalid_reason.get((symbol, "public")),
+                "market_invalid_reason": self._stream_invalid_reason.get((symbol, "market")),
+                "execution_inputs_valid": (
+                    bool(book_state.get(symbol, {}).get("synced_at_end"))
+                    and self._depth_stream_is_valid(symbol)
+                    and (not trade_stream_required or self._trade_stream_is_valid(symbol))
+                ),
+            }
+            for symbol in stream_symbols
+        }
         clock_claim_ready = (
             self._capture_schema_version >= 3
             and self._receive_clock
@@ -1092,6 +1283,7 @@ class SimulationEngine:
                 ),
                 "post_only": True,
                 "historical_fifo_claim": False,
+                "trade_stream_required": trade_stream_required,
             },
             "economic_assumptions": {
                 "order_latency_ms": self.cfg.sim_order_latency_ms,
@@ -1119,8 +1311,11 @@ class SimulationEngine:
                     len(self.fill_model.get_orders(symbol, side)) for symbol in self._books for side in ("bid", "ask")
                 ),
                 "book_state": book_state,
+                "stream_state": stream_state,
                 "all_books_synced_at_end": bool(book_state)
                 and all(state["synced_at_end"] for state in book_state.values()),
+                "all_required_execution_inputs_valid_at_end": bool(stream_state)
+                and all(state["execution_inputs_valid"] for state in stream_state.values()),
                 "feed_completeness": "not proven without venue-side packet-loss telemetry",
             },
             "evidence_quality": {
@@ -1161,6 +1356,19 @@ class SimulationEngine:
                 {"ts": event.ts, "order": event.order, "kind": event.kind, "symbol": event.symbol}
                 for event in sorted(self._actions)
             ],
+            "stream_state": {
+                f"{symbol}:{route}": {
+                    "epoch": epoch,
+                    "valid": (
+                        self._depth_stream_is_valid(symbol)
+                        if route == "public"
+                        else self._trade_stream_is_valid(symbol)
+                    ),
+                    "invalid_reason": self._stream_invalid_reason.get((symbol, route)),
+                }
+                for (symbol, route), epoch in sorted(self._stream_epochs.items())
+                if route in {"public", "market"}
+            },
         }
 
     def state_sha256(self) -> str:
