@@ -40,6 +40,7 @@ class SimulationMetrics:
         self.realized_pnl = Decimal("0")
         self.unrealized_pnl = Decimal("0")
         self.total_fees = Decimal("0")
+        self.missing_mark_symbols: tuple[str, ...] = ()
 
         self.fill_count = 0
         self.fill_qty: Decimal = Decimal("0")
@@ -54,11 +55,18 @@ class SimulationMetrics:
         self.order_rested_after_arrival_count = 0
         self.order_immediate_fill_arrival_count = 0
         self.order_expired_unfilled_arrival_count = 0
+        self.order_rejected_count = 0
+        self.order_rejected_by_reason: dict[str, int] = defaultdict(int)
+        self.order_state_counts: dict[str, int] = defaultdict(int)
         self.records_processed = 0
         self.record_type_counts: dict[str, int] = defaultdict(int)
         self.depth_changes_applied = 0
         self.book_gap_count = 0
         self.book_gap_count_by_symbol: dict[str, int] = defaultdict(int)
+        self.book_invalidation_count = 0
+        self.book_invalidation_by_symbol: dict[str, int] = defaultdict(int)
+        self.book_invalidation_reasons: dict[str, int] = defaultdict(int)
+        self.trade_stream_invalidation_count = 0
         self.spread_capture_sum = Decimal("0")
         self.spread_capture_qty = Decimal("0")
         self.max_abs_inventory = Decimal("0")
@@ -68,6 +76,11 @@ class SimulationMetrics:
         self._inv_mean = Decimal("0")
         self._inv_m2 = Decimal("0")
         self._inv_n = 0
+        self._last_inventory_ts: float | None = None
+        self._last_total_inventory = Decimal("0")
+        self._time_inventory_signed = Decimal("0")
+        self._time_inventory_abs = Decimal("0")
+        self._time_inventory_seconds = Decimal("0")
 
         self.fills_log: List[dict] = []
 
@@ -78,6 +91,8 @@ class SimulationMetrics:
         self.markout_qty = Decimal("0")
         self.markout_count = 0
         self.adverse_markout_count = 0
+        self.markout_invalidated_count = 0
+        self.markout_unresolved_count = 0
         self._markout_by_side: dict[str, int] = defaultdict(int)
         self._markout_adverse_by_side: dict[str, int] = defaultdict(int)
         self._markout_by_source: dict[FillSource, int] = defaultdict(int)
@@ -124,9 +139,12 @@ class SimulationMetrics:
         immediate_fills: int,
         remaining_lots_after_arrival: int,
         queue_ahead_lots_after_arrival: int = 0,
+        state: str = "live",
     ) -> None:
         self.on_quote_requested()
         self.order_arrival_count += 1
+        if state != "rejected":
+            self.order_state_counts[state] += 1
         if resting_after_arrival:
             self.order_rested_after_arrival_count += 1
             queue_ahead = max(0, queue_ahead_lots_after_arrival)
@@ -146,9 +164,15 @@ class SimulationMetrics:
 
     def on_cancel_acknowledged(self) -> None:
         self.cancel_ack_count += 1
+        self.order_state_counts["cancelled"] += 1
 
     def on_self_trade_prevented(self) -> None:
         self.self_trade_prevention_count += 1
+
+    def on_order_rejected(self, reason: str) -> None:
+        self.order_rejected_count += 1
+        self.order_rejected_by_reason[reason] += 1
+        self.order_state_counts["rejected"] += 1
 
     def on_record(self, record_type: str) -> None:
         self.records_processed += 1
@@ -160,6 +184,16 @@ class SimulationMetrics:
     def on_book_gap(self, symbol: str) -> None:
         self.book_gap_count += 1
         self.book_gap_count_by_symbol[symbol] += 1
+
+    def on_book_invalidated(self, symbol: str, reason: str = "unspecified") -> None:
+        self.book_invalidation_count += 1
+        self.book_invalidation_by_symbol[symbol] += 1
+        self.book_invalidation_reasons[reason] += 1
+
+    def on_trade_stream_invalidated(self, symbol: str, reason: str = "trade_stream_reconnect") -> None:
+        del symbol
+        self.trade_stream_invalidation_count += 1
+        self.book_invalidation_reasons[f"trade:{reason}"] += 1
 
     def inventory_lots(self, symbol: str) -> int:
         return self.position.get(symbol, PositionState()).lot_size
@@ -265,6 +299,8 @@ class SimulationMetrics:
                 "ts_local": entry.get("ts_local"),
                 "deadline_ts": entry.get("deadline_ts"),
                 "markout_ts_local": now_ts,
+                "resolution_lag_seconds": max(0.0, float(now_ts - float(entry["ts_local"]))),
+                "status": "resolved",
             }
             self._markout_events.append(markout_event)
             self._new_markout_events.append(markout_event)
@@ -275,6 +311,53 @@ class SimulationMetrics:
         events = self._new_markout_events
         self._new_markout_events = []
         return events
+
+    def invalidate_markouts(
+        self,
+        symbol: str,
+        reason: str,
+        *,
+        ts_local: float | None = None,
+    ) -> int:
+        """Fail closed for pending horizons that cross an invalid epoch."""
+
+        keep: list[dict[str, Any]] = []
+        invalidated = 0
+        for entry in self._pending_markouts:
+            if entry.get("symbol") != symbol:
+                keep.append(entry)
+                continue
+            invalidated += 1
+            invalidation_ts = ts_local if ts_local is not None else float(entry["ts_local"])
+            invalidated_event = {
+                "symbol": str(entry["symbol"]),
+                "side": str(entry["side"]),
+                "fill_source": str(entry.get("fill_source", "depth_update")),
+                "regime": str(entry["regime"]),
+                "fill_price": str(entry["price"]),
+                "price_tick": entry.get("price_tick"),
+                "qty": str(entry["qty"]),
+                "qty_lots": entry.get("qty_lots"),
+                "order_id": entry.get("order_id"),
+                "fill_mid": str(entry["mid_at_fill"]) if entry.get("mid_at_fill") is not None else None,
+                "mid_after": None,
+                "markout": None,
+                "contract_multiplier": str(entry.get("contract_multiplier", "1")),
+                "adverse": None,
+                "horizon": self.cfg.sim_adverse_markout_seconds,
+                "ts_local": entry.get("ts_local"),
+                "deadline_ts": entry.get("deadline_ts"),
+                "markout_ts_local": invalidation_ts,
+                "resolution_lag_seconds": None,
+                "status": "invalidated",
+                "invalid_reason": reason,
+            }
+            self._markout_events.append(invalidated_event)
+            self._new_markout_events.append(invalidated_event)
+        self._pending_markouts = keep
+        self.markout_invalidated_count += invalidated
+        self.markout_unresolved_count += invalidated
+        return invalidated
 
     def _evaluate_risk(self, equity: Decimal) -> None:
         if not self.cfg.sim_kill_switch_enabled or self.kill_switch_triggered:
@@ -340,6 +423,7 @@ class SimulationMetrics:
         self.realized_pnl -= fee.amount
 
         self.fill_count += 1
+        self.order_state_counts["filled"] += 1
         if fill.order_id is not None:
             self._filled_order_ids.add(fill.order_id)
         self.fill_qty += qty
@@ -381,6 +465,9 @@ class SimulationMetrics:
             "contract_multiplier": str(contract_multiplier),
             "maker": fill.maker,
             "fill_source": fill.source,
+            "scenario_id": fill.scenario_id,
+            "evidence_ids": list(fill.evidence_ids),
+            "validity": fill.validity,
             "fee_bps": str(fee.rate_bps),
             "fee": str(fee.amount),
             "fee_currency": fee.currency,
@@ -434,6 +521,7 @@ class SimulationMetrics:
     ) -> None:
         unreal = Decimal("0")
         total_inventory = Decimal("0")
+        missing_mark_symbols: list[str] = []
         mids = dict(mid_override or {})
 
         for symbol, pos in self.position.items():
@@ -443,20 +531,23 @@ class SimulationMetrics:
             if book is None:
                 continue
 
+            qty = book.spec.lot_to_qty(abs(pos.lot_size))
+            sign = Decimal(1) if pos.lot_size > 0 else Decimal("-1")
+            total_inventory += sign * qty
+
             mid = mids.get(symbol)
             if mid is None:
                 mid = book.mid_price()
                 if mid is not None:
                     mids[symbol] = mid
             if mid is None:
+                missing_mark_symbols.append(symbol)
                 continue
 
-            qty = book.spec.lot_to_qty(abs(pos.lot_size))
-            sign = Decimal(1) if pos.lot_size > 0 else Decimal("-1")
             unreal += sign * qty * (mid - pos.avg_cost) * book.spec.contract_multiplier
-            total_inventory += sign * qty
 
         self.unrealized_pnl = unreal
+        self.missing_mark_symbols = tuple(sorted(missing_mark_symbols))
         if abs(total_inventory) > self.max_abs_inventory:
             self.max_abs_inventory = abs(total_inventory)
         equity = self.realized_pnl + self.unrealized_pnl
@@ -467,6 +558,13 @@ class SimulationMetrics:
             self.max_drawdown = max(self.max_drawdown, self.equity_peak - equity)
 
         if now_ts is not None:
+            if self._last_inventory_ts is not None and now_ts >= self._last_inventory_ts:
+                elapsed = Decimal(str(now_ts - self._last_inventory_ts))
+                self._time_inventory_signed += self._last_total_inventory * elapsed
+                self._time_inventory_abs += abs(self._last_total_inventory) * elapsed
+                self._time_inventory_seconds += elapsed
+            self._last_inventory_ts = now_ts
+            self._last_total_inventory = total_inventory
             self._drain_markout_windows(now_ts, mids)
 
         self._evaluate_risk(equity)
@@ -532,6 +630,17 @@ class SimulationMetrics:
         if self._inv_n > 1:
             inv_stdev = Decimal(str(sqrt(float(self._inv_m2 / Decimal(self._inv_n - 1)))))
 
+        time_weighted_inventory = (
+            self._time_inventory_signed / self._time_inventory_seconds
+            if self._time_inventory_seconds > 0
+            else Decimal("0")
+        )
+        time_weighted_abs_inventory = (
+            self._time_inventory_abs / self._time_inventory_seconds
+            if self._time_inventory_seconds > 0
+            else Decimal("0")
+        )
+
         total_inventory = Decimal("0")
         inventory_by_symbol: dict[str, float] = {}
         for symbol, pos in self.position.items():
@@ -592,15 +701,28 @@ class SimulationMetrics:
             "self_trade_prevented": self.self_trade_prevention_count,
         }
 
+        valuation_complete = not self.missing_mark_symbols
+        total_pnl: float | None = float(self.realized_pnl + self.unrealized_pnl) if valuation_complete else None
+        unrealized_pnl: float | None = float(self.unrealized_pnl) if valuation_complete else None
+        gross_realized_pnl = self.realized_pnl + self.total_fees
+        gross_total_pnl: float | None = float(gross_realized_pnl + self.unrealized_pnl) if valuation_complete else None
         summary = {
             "strategy_profile": self.cfg.mm_strategy_profile,
             "fill_assumption_profile": self.cfg.fill_assumption.profile,
             "fill_assumption": self.cfg.fill_assumption.as_dict(),
             "event_counts": event_counts,
             "book_gap_count_by_symbol": dict(sorted(self.book_gap_count_by_symbol.items())),
-            "total_pnl": float(self.realized_pnl + self.unrealized_pnl),
+            "book_invalidation_count": self.book_invalidation_count,
+            "book_invalidation_by_symbol": dict(sorted(self.book_invalidation_by_symbol.items())),
+            "book_invalidation_reasons": dict(sorted(self.book_invalidation_reasons.items())),
+            "trade_stream_invalidation_count": self.trade_stream_invalidation_count,
+            "total_pnl": total_pnl,
             "realized_pnl": float(self.realized_pnl),
-            "unrealized_pnl": float(self.unrealized_pnl),
+            "gross_realized_pnl": float(gross_realized_pnl),
+            "gross_total_pnl": gross_total_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "valuation_complete": valuation_complete,
+            "missing_mark_symbols": list(self.missing_mark_symbols),
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
             "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
@@ -609,14 +731,20 @@ class SimulationMetrics:
             "fills_per_arrived_order": float(fills_per_arrived_order),
             "avg_spread_captured": float(avg_spread),
             "avg_inventory": float(self._inv_mean),
+            "time_weighted_avg_inventory": float(time_weighted_inventory),
+            "time_weighted_abs_inventory": float(time_weighted_abs_inventory),
+            "inventory_observation_basis": "time-weighted between causal market observations",
             "inventory_stdev": float(inv_stdev),
             "total_fees": float(self.total_fees),
+            "fee_drag": float(self.total_fees),
             "total_inventory": float(total_inventory),
             "max_inventory": float(self.max_abs_inventory),
             "quote_count": self.quote_count,
             "cancel_count": self.cancel_count,
             "self_trade_prevention_count": self.self_trade_prevention_count,
             "order_lifecycle_counts": {key: lifecycle_counts[key] for key in ORDER_LIFECYCLE_COUNT_KEYS},
+            "order_rejected_by_reason": dict(sorted(self.order_rejected_by_reason.items())),
+            "order_state_counts": dict(sorted(self.order_state_counts.items())),
             "avg_fill_wait_ms": float(avg_fill_wait_ms),
             "fill_from_top_count": self.fill_from_top_count,
             "fill_from_top_rate": float(fill_from_top_rate),
@@ -632,6 +760,9 @@ class SimulationMetrics:
             "max_arrival_queue_ahead_lots": self.max_arrival_queue_ahead_lots,
             "max_consecutive_loss_count": self.max_consecutive_loss_count,
             "markout_samples_remaining": len(self._pending_markouts),
+            "markout_resolved_count": self.markout_count,
+            "markout_invalidated_count": self.markout_invalidated_count,
+            "markout_unresolved_count": self.markout_unresolved_count + len(self._pending_markouts),
             "avg_markout_1s": float(avg_markout),
             "markout_events": list(self._markout_events),
             "inventory_by_symbol": inventory_by_symbol,

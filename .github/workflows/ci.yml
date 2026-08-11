@@ -29,6 +29,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.82.0 --profile minimal --component rustfmt --component clippy --force --no-self-update
+
       - name: Install package and dev dependencies
         run: |
           python -m pip install --upgrade pip
@@ -40,3 +43,30 @@ jobs:
 
       - name: Run reviewer gate
         run: make reviewer-gate
+
+  windows-smoke:
+    name: Windows reviewer smoke
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.82.0 --profile minimal --component rustfmt --component clippy --force --no-self-update
+
+      - name: Install package and reviewer dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip check
+
+      - name: Run cross-language reviewer smoke
+        run: python scripts/reviewer_gate.py --skip-benchmark

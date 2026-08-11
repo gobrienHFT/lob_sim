@@ -1,13 +1,13 @@
 {
-  "run_id": "1c6a47c869750813",
+  "run_id": "8f9f7edcb6091af1",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-06-08T12:26:53.980303Z",
+  "created_at_utc": "2026-08-11T08:47:03.241147Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "size_bytes": 121067,
     "sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
-    "modified_at_utc": "2026-06-08T12:26:53.659673Z"
+    "modified_at_utc": "2026-08-11T08:47:03.069721Z"
   },
   "config": {
     "symbols": [
@@ -19,7 +19,17 @@
     "sim_seed": 1,
     "sim_order_latency_ms": 0.0,
     "sim_cancel_latency_ms": 0.0,
+    "sim_latency_mode": "fixed",
+    "sim_latency_samples_ms": [],
+    "sim_latency_stress_multiplier": 1.0,
     "sim_adverse_markout_seconds": 1.0,
+    "sim_markout_horizons_ms": [
+      100,
+      1000,
+      5000
+    ],
+    "sim_fill_model": "trade",
+    "capture_schema_version": 3,
     "sim_kill_switch_enabled": false,
     "sim_kill_max_drawdown": "0",
     "sim_kill_max_consecutive_losses": 0,
@@ -43,7 +53,7 @@
     "fill_assumption_profile": "base",
     "fill_assumption": {
       "profile": "base",
-      "depth_reductions_consume_queue": true,
+      "depth_reductions_consume_queue": false,
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
@@ -74,11 +84,11 @@
     }
   },
   "simulation_assumptions": {
-    "schema_version": "lob_sim.simulation_assumptions.v1",
+    "schema_version": "lob_sim.simulation_assumptions.v2",
     "fill_assumption_profile": "base",
     "fill_assumption": {
       "profile": "base",
-      "depth_reductions_consume_queue": true,
+      "depth_reductions_consume_queue": false,
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
@@ -86,23 +96,24 @@
     },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
-    "queue_priority_model": "visible_price_time_fifo",
+    "queue_priority_model": "synthetic_queue_ahead_by_price_level",
     "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
     "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
-    "depth_decrease": "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
-    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side as an additional queue-consumption signal.",
+    "depth_decrease": "Depth reductions consume a synthetic visible queue-ahead; reductions may be trades, cancels, or both, so unmatched public consumption is reported instead of hidden.",
+    "agg_trade_consumption": "Public aggTrade prints consume same-price visible queue on the resting side when the trade-only scenario is selected.",
     "overlap_netting": {
       "enabled": true,
       "window_seconds": 0.125,
       "purpose": "Net recent depth and aggTrade consumption at the same symbol, side, and price to reduce double counting when the selected fill profile enables overlap netting."
     },
     "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
-    "same_timestamp_ordering": "Engine events due at a market-row timestamp are drained before that row; strategy reactions to that row run after the row and any fills it produced.",
+    "same_timestamp_ordering": "Schema-v3 market observations are applied before strategy actions at the same logical time; legacy v1 rows retain action-first ordering for compatibility.",
     "marketable_limits": "Marketable strategy limits execute as taker orders against visible depth and post only any non-crossing remainder.",
     "self_trade_prevention": "Strategy taker orders stop before own resting liquidity; the crossed remainder expires instead of self-trading.",
     "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
     "limitations": [
       "no_private_queue_ids",
+      "synthetic_queue_not_historical_fifo",
       "no_hidden_liquidity",
       "not_private_exchange_fill_truth",
       "public_l2_cannot_distinguish_all_cancels_from_trades"
@@ -113,8 +124,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
-    "git_branch": "master",
+    "git_commit": "dbad4b8dc14560b0022980bb5ba00fe74b0639fd",
+    "git_branch": "codex/hft-market-sim",
     "git_dirty": false
   },
   "outputs": {
@@ -127,36 +138,36 @@
   "output_artifacts": {
     "event_trace": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
-      "size_bytes": 301545,
-      "sha256": "a43fc804f1e454c6af9cde6ffd9fd5d9d9fb50b2c05e61cb984a5b315af32d5e",
-      "modified_at_utc": "2026-06-08T12:26:54.351163Z"
+      "size_bytes": 300769,
+      "sha256": "30143a2d3cf261651a18e34a566e85f83511e5860439586d3aa6deffa86c1674",
+      "modified_at_utc": "2026-08-11T08:47:03.496627Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 8742,
-      "sha256": "091840337f86938ed43b8fd1719d393647c3cf66a109787c1c6b2813871bb7d6",
-      "modified_at_utc": "2026-06-08T12:26:54.334897Z"
+      "size_bytes": 10213,
+      "sha256": "f5e4839fd5edccbd899d75f4eaa706c5a097515b337ec5f56010d4ee5ea36ab2",
+      "modified_at_utc": "2026-08-11T08:47:03.485238Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
-      "size_bytes": 6678,
-      "sha256": "5b4ad0ff4a964ccd8f5b11de4e6e9f99e9f93e080e8d01cdfc58f496cd65e72c",
-      "modified_at_utc": "2026-06-08T12:26:54.340935Z"
+      "size_bytes": 9171,
+      "sha256": "1e1f7c27882eb9925a9ba4c911a63ddef76ef70228f118ce9e33d159aa14b091",
+      "modified_at_utc": "2026-08-11T08:47:03.486473Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
-      "size_bytes": 436,
-      "sha256": "192fcfa03ce5883ee2a35516f43345020b5ff51ca1a942355e8114f6a5ae3414",
-      "modified_at_utc": "2026-06-08T12:26:54.342501Z"
+      "size_bytes": 279,
+      "sha256": "70bdd32fa5d42a27ad6d20874f1c00c6bcf5bdec883ccc4ce0c11862e6b387d0",
+      "modified_at_utc": "2026-08-11T08:47:03.488538Z"
     }
   },
   "fixture_provenance": {
     "data_class": "recorded_public_data",
     "source": "recorded_public_data_clip",
-    "purpose": "small committed public-data clip used as a reproducible real-tape proof point",
+    "purpose": "small committed public-data clip used to prove deterministic reconstruction; zero fills are valid under a mutually exclusive execution scenario",
     "script": "scripts/refresh_futures_recorded_case.py"
   }
 }

@@ -26,6 +26,10 @@ MYPY_TARGETS = (
     "lob_sim/sim/metrics.py",
     "lob_sim/sim/run_manifest.py",
     "lob_sim/sim/mm_strategy.py",
+    "lob_sim/sim/contracts.py",
+    "lob_sim/sim/latency.py",
+    "lob_sim/sim/sinks.py",
+    "lob_sim/sim/synthetic_exchange.py",
 )
 
 
@@ -55,6 +59,8 @@ def build_reviewer_gate_steps(
     determinism_json: Path = DEFAULT_DETERMINISM_JSON,
     benchmark_json: Path = DEFAULT_BENCHMARK_JSON,
     include_benchmark: bool = True,
+    include_rust: bool = True,
+    cargo_executable: str = "cargo",
 ) -> list[GateStep]:
     steps = [
         GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q")),
@@ -64,29 +70,64 @@ def build_reviewer_gate_steps(
         ),
         GateStep("ruff lint", (python_executable, "-m", "ruff", "check", ".")),
         GateStep("ruff format check", (python_executable, "-m", "ruff", "format", "--check", ".")),
-        GateStep(
-            "committed artifact verification",
-            (python_executable, "scripts/verify_committed_artifacts.py"),
-        ),
-        GateStep("whitespace check", ("git", "diff", "--check")),
-        GateStep(
-            "committed fixture determinism",
-            (
-                python_executable,
-                "scripts/check_futures_determinism.py",
-                "--file",
-                _path_arg(fixture),
-                "--env",
-                _path_arg(env_path),
-                "--json-out",
-                _path_arg(determinism_json),
-            ),
-        ),
-        GateStep(
-            "committed futures pack audit",
-            (python_executable, "scripts/audit_futures_pack.py", "--committed-futures"),
-        ),
     ]
+    if include_rust:
+        steps.extend(
+            [
+                GateStep("rust format check", (cargo_executable, "fmt", "--all", "--", "--check")),
+                GateStep("rust kernel tests", (cargo_executable, "test", "--workspace")),
+                GateStep(
+                    "rust clippy all features",
+                    (
+                        cargo_executable,
+                        "clippy",
+                        "--workspace",
+                        "--all-targets",
+                        "--all-features",
+                        "--",
+                        "-D",
+                        "warnings",
+                    ),
+                ),
+                GateStep(
+                    "python/rust primitive parity",
+                    (
+                        python_executable,
+                        "scripts/check_rust_python_parity.py",
+                        "--cargo",
+                        cargo_executable,
+                        "--cases",
+                        "10000",
+                    ),
+                ),
+            ]
+        )
+    steps.extend(
+        [
+            GateStep(
+                "committed artifact verification",
+                (python_executable, "scripts/verify_committed_artifacts.py"),
+            ),
+            GateStep("whitespace check", ("git", "diff", "--check")),
+            GateStep(
+                "committed fixture determinism",
+                (
+                    python_executable,
+                    "scripts/check_futures_determinism.py",
+                    "--file",
+                    _path_arg(fixture),
+                    "--env",
+                    _path_arg(env_path),
+                    "--json-out",
+                    _path_arg(determinism_json),
+                ),
+            ),
+            GateStep(
+                "committed futures pack audit",
+                (python_executable, "scripts/audit_futures_pack.py", "--committed-futures"),
+            ),
+        ]
+    )
     if include_benchmark:
         steps.append(
             GateStep(
@@ -157,6 +198,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Run the non-benchmark evidence path only",
     )
+    parser.add_argument("--cargo", default="cargo", help="Cargo executable used for Rust kernel steps")
+    parser.add_argument("--skip-rust", action="store_true", help="Skip Rust fmt, test, and Clippy steps")
     return parser.parse_args(argv)
 
 
@@ -173,6 +216,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         determinism_json=args.determinism_json,
         benchmark_json=args.benchmark_json,
         include_benchmark=not args.skip_benchmark,
+        include_rust=not args.skip_rust,
+        cargo_executable=args.cargo,
     )
     return run_steps(steps, cwd=REPO_ROOT)
 

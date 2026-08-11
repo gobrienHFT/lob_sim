@@ -22,6 +22,7 @@ PROFILES = ["baseline", "layered_mm", "research_mm"]
 HALF_SPREADS_BPS = [Decimal("0.05"), Decimal("0.10"), Decimal("0.25")]
 QUEUE_REPOST_LOTS = [0, 5, 99]
 REFERENCE_ENV = {
+    "SIM_FILL_MODEL": "trade",
     "SIM_ORDER_LATENCY_MS": "0",
     "SIM_CANCEL_LATENCY_MS": "0",
     "SIM_ADVERSE_MARKOUT_SECONDS": "1.0",

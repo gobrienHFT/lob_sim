@@ -18,7 +18,7 @@ from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter
 from ..replay.inspection import file_sha256
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
-SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
+SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
 SOURCE_STATE_OVERRIDE_ENV = "LOB_SIM_SOURCE_STATE_JSON"
 
 
@@ -98,6 +98,7 @@ def output_artifact_snapshot(
 def config_snapshot(cfg: Config) -> dict[str, Any]:
     """Return the non-secret configuration that affects replay/simulation behavior."""
 
+    effective_fill_assumption = cfg.effective_fill_assumption
     return {
         "symbols": list(cfg.symbols),
         "book_top_n": cfg.book_top_n,
@@ -106,7 +107,13 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "sim_seed": cfg.sim_seed,
         "sim_order_latency_ms": cfg.sim_order_latency_ms,
         "sim_cancel_latency_ms": cfg.sim_cancel_latency_ms,
+        "sim_latency_mode": cfg.sim_latency_mode,
+        "sim_latency_samples_ms": list(cfg.sim_latency_samples_ms),
+        "sim_latency_stress_multiplier": cfg.sim_latency_stress_multiplier,
         "sim_adverse_markout_seconds": cfg.sim_adverse_markout_seconds,
+        "sim_markout_horizons_ms": list(cfg.sim_markout_horizons_ms),
+        "sim_fill_model": cfg.sim_fill_model,
+        "capture_schema_version": cfg.capture_schema_version,
         "sim_kill_switch_enabled": cfg.sim_kill_switch_enabled,
         "sim_kill_max_drawdown": str(cfg.sim_kill_max_drawdown),
         "sim_kill_max_consecutive_losses": cfg.sim_kill_max_consecutive_losses,
@@ -127,8 +134,8 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "mm_microstructure_gate_bps": str(cfg.mm_microstructure_gate_bps),
         "mm_fee_floor_buffer_bps": str(cfg.mm_fee_floor_buffer_bps),
         "mm_toxicity_spread_factor": str(cfg.mm_toxicity_spread_factor),
-        "fill_assumption_profile": cfg.fill_assumption.profile,
-        "fill_assumption": cfg.fill_assumption.as_dict(),
+        "fill_assumption_profile": effective_fill_assumption.profile,
+        "fill_assumption": effective_fill_assumption.as_dict(),
         "fees_maker_bps": str(cfg.fees_maker_bps),
         "fees_taker_bps": str(cfg.fees_taker_bps),
     }
@@ -162,16 +169,16 @@ def simulation_assumptions_snapshot(fill_assumption: FillAssumptionConfig | None
         "fill_assumption": assumption.as_dict(),
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,
-        "queue_priority_model": "visible_price_time_fifo",
+        "queue_priority_model": "synthetic_queue_ahead_by_price_level",
         "snapshot_seed": "Snapshot levels seed visible venue liquidity ahead of strategy orders at each price level.",
         "depth_increase": "Depth increases append later venue liquidity behind existing visible queue at that price.",
         "depth_decrease": (
-            "Depth reductions consume FIFO visible queue ahead of strategy orders; reductions may be trades, "
+            "Depth reductions consume a synthetic visible queue-ahead; reductions may be trades, "
             "cancels, or both, so unmatched public consumption is reported instead of hidden."
         ),
         "agg_trade_consumption": (
-            "Public aggTrade prints consume same-price visible queue on the resting side as an additional "
-            "queue-consumption signal."
+            "Public aggTrade prints consume same-price visible queue on the resting side when the trade-only "
+            "scenario is selected."
         ),
         "overlap_netting": {
             "enabled": overlap_enabled,
@@ -183,8 +190,8 @@ def simulation_assumptions_snapshot(fill_assumption: FillAssumptionConfig | None
         },
         "cancel_model": "Cancel requests take configured latency; resting quotes remain fillable until acknowledgement.",
         "same_timestamp_ordering": (
-            "Engine events due at a market-row timestamp are drained before that row; strategy reactions to "
-            "that row run after the row and any fills it produced."
+            "Schema-v3 market observations are applied before strategy actions at the same logical time; "
+            "legacy v1 rows retain action-first ordering for compatibility."
         ),
         "marketable_limits": (
             "Marketable strategy limits execute as taker orders against visible depth and post only any "
@@ -197,6 +204,7 @@ def simulation_assumptions_snapshot(fill_assumption: FillAssumptionConfig | None
         "markout": "Post-fill adverse selection uses signed mid-price markout over the configured horizon.",
         "limitations": [
             "no_private_queue_ids",
+            "synthetic_queue_not_historical_fifo",
             "no_hidden_liquidity",
             "not_private_exchange_fill_truth",
             "public_l2_cannot_distinguish_all_cancels_from_trades",
@@ -280,7 +288,7 @@ def build_run_manifest(
         config=config_snapshot(cfg),
         feed_adapter=feed_adapter,
         instrument_specs=instrument_specs_snapshot(instrument_specs or {}),
-        simulation_assumptions=simulation_assumptions_snapshot(cfg.fill_assumption),
+        simulation_assumptions=simulation_assumptions_snapshot(cfg.effective_fill_assumption),
         runtime={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

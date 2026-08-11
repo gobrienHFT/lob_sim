@@ -1,0 +1,16 @@
+[package]
+name = "lob_core"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic hot-path primitives for lob_sim"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+python = ["dep:pyo3"]
+
+[dependencies]
+pyo3 = { version = "0.22", optional = true, features = ["extension-module"] }

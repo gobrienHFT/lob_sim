@@ -235,6 +235,55 @@ def test_metrics_split_markout_quality_by_fill_source(
     assert summary["markout_events"][1]["fill_source"] == "taker_order"
 
 
+def test_metrics_emit_null_markout_when_epoch_is_invalidated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=100,
+            qty_lots=1,
+            maker=True,
+            source="agg_trade",
+            order_id="epoch-fill",
+        ),
+        book,
+        book.mid_price(),
+    )
+
+    assert metrics.invalidate_markouts("BTCUSDT", "depth_gap", ts_local=1.5) == 1
+    event = metrics.drain_new_markout_events()[0]
+
+    assert event["status"] == "invalidated"
+    assert event["invalid_reason"] == "depth_gap"
+    assert event["fill_price"] == "100"
+    assert event["fill_mid"] == "101"
+    assert event["mid_after"] is None
+    assert event["markout"] is None
+    assert event["adverse"] is None
+    assert event["horizon"] == 1.0
+    assert event["markout_ts_local"] == 1.5
+    summary = metrics.get_summary({"BTCUSDT": book})
+    assert summary["markout_resolved_count"] == 0
+    assert summary["markout_invalidated_count"] == 1
+    assert summary["markout_unresolved_count"] == 1
+
+
 def test_metrics_apply_contract_multiplier_to_realized_pnl(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

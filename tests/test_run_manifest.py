@@ -43,7 +43,7 @@ def test_simulation_assumptions_snapshot_documents_public_data_limits() -> None:
     assert assumptions["fill_assumption_profile"] == "base"
     assert assumptions["fill_assumption"]["profile"] == "base"
     assert assumptions["private_exchange_execution_reports"] is False
-    assert assumptions["queue_priority_model"] == "visible_price_time_fifo"
+    assert assumptions["queue_priority_model"] == "synthetic_queue_ahead_by_price_level"
     assert assumptions["overlap_netting"]["window_seconds"] == 0.125
     assert "not_private_exchange_fill_truth" in assumptions["limitations"]
     assert "public_l2_cannot_distinguish_all_cancels_from_trades" in assumptions["limitations"]

@@ -46,10 +46,10 @@ def test_committed_futures_pack_collection_audit_passes() -> None:
         "docs/sample_outputs/futures_recorded_clip_case",
         "docs/sample_outputs/futures_stress_case",
     ]
-    assert [pack["counts"]["fill_rows"] for pack in result["packs"]] == [1, 1, 5]
+    assert [pack["counts"]["fill_rows"] for pack in result["packs"]] == [1, 0, 1]
     assert result["packs"][1]["counts"]["queue_consumption_rows"] > 1000
     assert result["packs"][2]["counts"]["event_type_counts"]["cancel_ack"] == 2
-    assert result["packs"][2]["counts"]["event_type_counts"]["markout"] == 5
+    assert result["packs"][2]["counts"]["event_type_counts"]["markout"] == 1
 
 
 def test_futures_pack_collection_audit_rejects_empty_input() -> None:
@@ -296,5 +296,5 @@ def test_futures_pack_audit_rejects_queue_consumption_mismatch(tmp_path: Path) -
 
     assert result["ok"] is False
     assert (
-        "public_consumption_summary.agg_trade.queue_consumed_lots=99 does not match trace value 2" in result["issues"]
+        "public_consumption_summary.agg_trade.queue_consumed_lots=99 does not match trace value 3" in result["issues"]
     )

@@ -219,7 +219,7 @@ def _valid_simulation_assumptions() -> dict:
         "fill_assumption_profile": "base",
         "fill_assumption": {
             "profile": "base",
-            "depth_reductions_consume_queue": True,
+            "depth_reductions_consume_queue": False,
             "agg_trades_consume_queue": True,
             "overlap_netting_enabled": True,
             "overlap_window_seconds": verifier.EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS,
@@ -227,7 +227,7 @@ def _valid_simulation_assumptions() -> dict:
         },
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,
-        "queue_priority_model": "visible_price_time_fifo",
+        "queue_priority_model": "synthetic_queue_ahead_by_price_level",
         "snapshot_seed": "snapshot queue",
         "depth_increase": "depth increases append",
         "depth_decrease": "depth reductions consume",
@@ -859,7 +859,8 @@ def test_futures_event_trace_verifier_rejects_malformed_markout(tmp_path, monkey
                     '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
                     '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
                     '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
-                    '"adverse":"yes","regime":"tight"}'
+                    '"adverse":"yes","regime":"tight","status":"resolved",'
+                    '"invalid_reason":null}'
                 ),
             )
         ],
@@ -882,13 +883,43 @@ def test_futures_event_trace_verifier_rejects_malformed_markout(tmp_path, monkey
     assert f"{showcase / 'event_trace.csv'}:2 markout row has invalid adverse" in issues
 
 
+def test_markout_trace_verifier_accepts_invalidated_null_result(tmp_path) -> None:
+    row = _event_trace_row(
+        event_type="markout",
+        source="metrics",
+        side="bid",
+        price_tick="1000",
+        qty_lots="1",
+        order_id="order-1",
+        fill_source="agg_trade",
+    )
+    details = {
+        "fill_ts_local": 1.0,
+        "deadline_ts": 2.0,
+        "horizon": 1.0,
+        "fill_price": "100",
+        "qty": "0.001",
+        "fill_mid": "100.5",
+        "mid_after": None,
+        "markout": None,
+        "contract_multiplier": "1",
+        "adverse": None,
+        "regime": "tight",
+        "status": "invalidated",
+        "invalid_reason": "depth_gap",
+    }
+
+    assert verifier._verify_markout_trace_details(tmp_path / "event_trace.csv", 2, row, details) == []
+
+
 def test_futures_event_trace_verifier_rejects_markout_summary_mismatch(tmp_path, monkeypatch) -> None:
     showcase, recorded = _point_event_trace_verifier_at_tmp_cases(tmp_path, monkeypatch)
     markout_details = (
         '{"fill_ts_local":1.0,"deadline_ts":2.0,"horizon":1.0,'
         '"fill_price":"100","qty":"0.001","fill_mid":"100.5",'
         '"mid_after":"99","markout":"-1","contract_multiplier":"1",'
-        '"adverse":true,"regime":"tight"}'
+        '"adverse":true,"regime":"tight","status":"resolved",'
+        '"invalid_reason":null}'
     )
     _write_event_trace_case(
         showcase,
@@ -1087,17 +1118,19 @@ def test_futures_stress_pack_covers_reviewer_edge_cases() -> None:
         for key in [
             "queue_ahead",
             "partial_fills",
-            "depth_agg_trade_overlap_netting",
-            "adverse_and_non_adverse_markouts",
+            "exclusive_trade_fill_attribution",
+            "signed_markout_accounting",
             "cancel_latency",
             "same_timestamp_cancel_before_trade",
-            "marketable_taker_fill",
+            "arrival_time_post_only_rejection",
             "self_trade_prevention",
         ]
     )
     assert coverage["book_gap_count"] == 0
-    assert summary["fill_source_counts"] == {"depth_update": 1, "agg_trade": 2, "taker_order": 2}
-    assert summary["public_consumption_summary"]["total_overlap_netted_lots"] > 0
+    assert summary["fill_source_counts"]["depth_update"] == 0
+    assert summary["fill_source_counts"]["agg_trade"] > 0
+    assert summary["fill_source_counts"]["taker_order"] == 0
+    assert summary["public_consumption_summary"]["sources"]["depth_update"]["unmatched_lots"] > 0
     assert summary["order_lifecycle_counts"]["self_trade_prevented"] == 1
 
 
@@ -1311,6 +1344,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "not an alpha or profitability claim" in sweep_reference
     assert "Git dirty at run time: `False`" in sweep_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
+    assert "Public-L2 fill model: `trade`" in sweep_reference
+    assert "zero-fill diagnostic, not economic evidence" in sweep_reference
     latency_reference = FUTURES_LATENCY_SWEEP_REFERENCE.read_text(encoding="utf-8")
     assert COMMITTED_STRATEGY_INPUT in latency_reference
     assert "python scripts/refresh_futures_latency_sweep_reference.py" in latency_reference
@@ -1318,6 +1353,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "not a latency-arbitrage, alpha, or profitability claim" in latency_reference
     assert "Git dirty at run time: `False`" in latency_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in latency_reference
+    assert "Public-L2 fill model: `trade`" in latency_reference
+    assert "zero-fill diagnostic, not economic evidence" in latency_reference
 
     with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -1327,14 +1364,14 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert len(rows) == 27
     assert [int(row["rank"]) for row in rows] == list(range(1, 28))
     assert {"baseline", "layered_mm", "research_mm"} <= {row["strategy_profile"] for row in rows}
-    assert max(int(row["fill_count"]) for row in rows) > 0
+    assert max(int(row["fill_count"]) for row in rows) == 0
     assert "fill_source_counts" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
     assert len(latency_rows) == 9
     assert [int(row["rank"]) for row in latency_rows] == list(range(1, 10))
     assert {float(row["order_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
     assert {float(row["cancel_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
-    assert max(int(row["fill_count"]) for row in latency_rows) > 0
+    assert max(int(row["fill_count"]) for row in latency_rows) == 0
     assert "avg_fill_wait_ms" in latency_rows[0]
     assert "fill_source_counts" in latency_rows[0]
     assert "order_lifecycle_counts" in latency_rows[0]

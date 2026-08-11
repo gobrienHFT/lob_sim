@@ -552,6 +552,7 @@ def _representative_fill_reference(summary: dict[str, Any]) -> str:
 
 
 def format_case_brief(summary: dict[str, Any], worked_examples: dict[str, dict[str, Any] | None]) -> str:
+    stress_example = worked_examples.get("stress")
     takeaways = [
         (
             f"Gross spread capture was {summary['gross_spread_captured']:.2f} while signed markout was "
@@ -666,9 +667,7 @@ def format_case_brief(summary: dict[str, Any], worked_examples: dict[str, dict[s
                     "Stress-case toxic fill",
                     rules["stress"],
                     worked_examples.get("stress"),
-                    _stress_fill_follow_up(worked_examples.get("stress"))
-                    if worked_examples.get("stress") is not None
-                    else None,
+                    _stress_fill_follow_up(stress_example) if stress_example is not None else None,
                 )
             ),
         ]
@@ -698,6 +697,7 @@ def format_demo_report(
     worked_examples: dict[str, dict[str, Any] | None] | None = None,
 ) -> str:
     worked_examples = worked_examples or {"representative": None, "stress": None}
+    stress_example = worked_examples.get("stress")
     lines = [
         "# Options market making case study",
         "",
@@ -826,9 +826,7 @@ def format_demo_report(
                     "Stress-case toxic fill",
                     _worked_fill_rules()["stress"],
                     worked_examples.get("stress"),
-                    _stress_fill_follow_up(worked_examples.get("stress"))
-                    if worked_examples.get("stress") is not None
-                    else None,
+                    _stress_fill_follow_up(stress_example) if stress_example is not None else None,
                 )
             ),
             "",

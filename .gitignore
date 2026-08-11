@@ -1,8 +1,13 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .env
 data/
 outputs/
+target/
+.tooling/
+.cargo-local/
+.rustup-local/
 latest_report.png
 pnl_over_time.png

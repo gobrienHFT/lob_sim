@@ -301,7 +301,7 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
     "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
 }
 EXPECTED_BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
-EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v1"
+EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
 EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "symbol",
     "venue",
@@ -367,6 +367,8 @@ EXPECTED_MARKOUT_TRACE_FIELDS = {
     "contract_multiplier",
     "adverse",
     "regime",
+    "status",
+    "invalid_reason",
 }
 FILL_FREQUENCY_REPLACEMENT_FIELDS = {
     "quote_fill_probability",
@@ -821,7 +823,7 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
         issues.append(
             f"{_repo_relative(path)} simulation_assumptions must not claim private exchange execution reports"
         )
-    if assumptions.get("queue_priority_model") != "visible_price_time_fifo":
+    if assumptions.get("queue_priority_model") != "synthetic_queue_ahead_by_price_level":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected queue priority model")
 
     overlap = assumptions.get("overlap_netting")
@@ -1615,7 +1617,7 @@ def _verify_markout_trace_details(
         if not math.isfinite(value) or value < 0:
             issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
 
-    for field in ["fill_price", "qty", "mid_after", "markout", "contract_multiplier"]:
+    for field in ["fill_price", "qty", "contract_multiplier"]:
         try:
             value = Decimal(str(details.get(field)))
         except (InvalidOperation, TypeError):
@@ -1636,8 +1638,30 @@ def _verify_markout_trace_details(
             if not value.is_finite():
                 issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid fill_mid")
 
-    if not isinstance(details.get("adverse"), bool):
-        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid adverse")
+    status = details.get("status")
+    invalid_reason = details.get("invalid_reason")
+    if status not in {"resolved", "invalidated"}:
+        issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid status")
+    elif status == "resolved":
+        for field in ["mid_after", "markout"]:
+            try:
+                value = Decimal(str(details.get(field)))
+            except (InvalidOperation, TypeError):
+                issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+                continue
+            if not value.is_finite():
+                issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid {field}")
+        if not isinstance(details.get("adverse"), bool):
+            issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid adverse")
+        if invalid_reason is not None:
+            issues.append(f"{_repo_relative(path)}:{row_index} resolved markout has invalid_reason")
+    else:
+        if details.get("mid_after") is not None or details.get("markout") is not None:
+            issues.append(f"{_repo_relative(path)}:{row_index} invalidated markout must have null result fields")
+        if details.get("adverse") is not None:
+            issues.append(f"{_repo_relative(path)}:{row_index} invalidated markout must have null adverse")
+        if not isinstance(invalid_reason, str) or not invalid_reason.strip():
+            issues.append(f"{_repo_relative(path)}:{row_index} invalidated markout is missing invalid_reason")
     if not isinstance(details.get("regime"), str) or not details.get("regime"):
         issues.append(f"{_repo_relative(path)}:{row_index} markout row has invalid regime")
     return issues
@@ -1807,15 +1831,16 @@ def _verify_futures_event_trace_contract() -> list[str]:
                 issue_count_before = len(issues)
                 issues.extend(_verify_markout_trace_details(trace_path, row_index, row, details))
                 if len(issues) == issue_count_before and details is not None:
-                    fill_source = row["fill_source"]
-                    qty = Decimal(str(details["qty"]))
-                    markout = Decimal(str(details["markout"]))
-                    markout_from_trace[fill_source]["samples"] += 1
-                    markout_from_trace[fill_source]["qty"] += qty
-                    markout_from_trace[fill_source]["markout_sum"] += markout * qty
-                    if details.get("adverse") is True:
-                        markout_from_trace[fill_source]["adverse_samples"] += 1
                     markout_row_count += 1
+                    if details.get("status") == "resolved":
+                        fill_source = row["fill_source"]
+                        qty = Decimal(str(details["qty"]))
+                        markout = Decimal(str(details["markout"]))
+                        markout_from_trace[fill_source]["samples"] += 1
+                        markout_from_trace[fill_source]["qty"] += qty
+                        markout_from_trace[fill_source]["markout_sum"] += markout * qty
+                        if details.get("adverse") is True:
+                            markout_from_trace[fill_source]["adverse_samples"] += 1
 
             if event_type == "fill":
                 issues.extend(_verify_fill_trace_details(trace_path, row_index, row, details))
@@ -2366,11 +2391,11 @@ def _verify_futures_stress_pack_publication() -> list[str]:
     required_coverage = {
         "queue_ahead",
         "partial_fills",
-        "depth_agg_trade_overlap_netting",
-        "adverse_and_non_adverse_markouts",
+        "exclusive_trade_fill_attribution",
+        "signed_markout_accounting",
         "cancel_latency",
         "same_timestamp_cancel_before_trade",
-        "marketable_taker_fill",
+        "arrival_time_post_only_rejection",
         "self_trade_prevention",
     }
     if not isinstance(coverage, dict):
@@ -2382,23 +2407,24 @@ def _verify_futures_stress_pack_publication() -> list[str]:
         if coverage.get("book_gap_count") != 0:
             issues.append("futures_stress_case should be a no-gap stress fixture")
     fill_sources = summary.get("fill_source_counts")
-    if not isinstance(fill_sources, dict) or not all(
-        fill_sources.get(source, 0) > 0 for source in FUTURES_FILL_SOURCES
+    if (
+        not isinstance(fill_sources, dict)
+        or fill_sources.get("depth_update", 0) != 0
+        or fill_sources.get("agg_trade", 0) <= 0
+        or fill_sources.get("taker_order", 0) != 0
     ):
-        issues.append("futures_stress_case must include depth_update, agg_trade, and taker_order fills")
+        issues.append("futures_stress_case must isolate agg_trade fills from depth diagnostics and taker fills")
     public = summary.get("public_consumption_summary", {})
-    if not isinstance(public, dict) or public.get("total_overlap_netted_lots", 0) <= 0:
-        issues.append("futures_stress_case must include overlap-netted public consumption")
+    depth_diagnostics = public.get("sources", {}).get("depth_update", {}) if isinstance(public, dict) else {}
+    if depth_diagnostics.get("unmatched_lots", 0) <= 0:
+        issues.append("futures_stress_case must expose unmatched depth diagnostics in trade-only mode")
     markout_by_source = summary.get("markout_by_fill_source", {})
     if not isinstance(markout_by_source, dict):
         issues.append("futures_stress_case is missing markout_by_fill_source")
     else:
-        adverse = sum(int(data.get("adverse_samples", 0)) for data in markout_by_source.values())
-        non_adverse = sum(
-            int(data.get("samples", 0)) - int(data.get("adverse_samples", 0)) for data in markout_by_source.values()
-        )
-        if adverse <= 0 or non_adverse <= 0:
-            issues.append("futures_stress_case must include both adverse and non-adverse markouts")
+        samples = sum(int(data.get("samples", 0)) for data in markout_by_source.values())
+        if samples <= 0:
+            issues.append("futures_stress_case must include signed markout evidence")
 
     text = _read_text(FUTURES_STRESS_DIR / "README.md")
     for token in ["synthetic-but-exchange-shaped", "self-trade prevention", "Same-timestamp"]:
@@ -2484,6 +2510,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md must explain fill-frequency metrics"
             )
+        if "Public-L2 fill model: `trade`" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md must identify the trade-only fill model"
+            )
         if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md still depends on a local-only input"
@@ -2549,8 +2579,16 @@ def _verify_strategy_profile_publication() -> list[str]:
                     "docs/strategy_results/futures_parameter_sweep_reference.csv has invalid fill_count values"
                 )
             else:
-                if max(fill_counts, default=0) <= 0:
-                    issues.append("docs/strategy_results/futures_parameter_sweep_reference.csv has no filled sweep run")
+                if any(fill_count < 0 for fill_count in fill_counts):
+                    issues.append(
+                        "docs/strategy_results/futures_parameter_sweep_reference.csv has negative fill_count values"
+                    )
+                elif (
+                    max(fill_counts, default=0) == 0 and "zero-fill diagnostic, not economic evidence" not in sweep_doc
+                ):
+                    issues.append(
+                        "docs/strategy_results/futures_parameter_sweep_reference.md must label its zero-fill evidence"
+                    )
 
     if FUTURES_LATENCY_SWEEP_REFERENCE.exists() and FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
         latency_doc = _read_text(FUTURES_LATENCY_SWEEP_REFERENCE)
@@ -2577,6 +2615,10 @@ def _verify_strategy_profile_publication() -> list[str]:
         if "quote_fill_probability" not in latency_doc or "fills_per_quote_request" not in latency_doc:
             issues.append(
                 "docs/strategy_results/futures_latency_sweep_reference.md must explain fill-frequency metrics"
+            )
+        if "Public-L2 fill model: `trade`" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md must identify the trade-only fill model"
             )
 
         with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
@@ -2631,8 +2673,17 @@ def _verify_strategy_profile_publication() -> list[str]:
                     issues.append(
                         "docs/strategy_results/futures_latency_sweep_reference.csv must include zero and positive cancel latency"
                     )
-                if max(fill_counts, default=0) <= 0:
-                    issues.append("docs/strategy_results/futures_latency_sweep_reference.csv has no filled sweep run")
+                if any(fill_count < 0 for fill_count in fill_counts):
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.csv has negative fill_count values"
+                    )
+                elif (
+                    max(fill_counts, default=0) == 0
+                    and "zero-fill diagnostic, not economic evidence" not in latency_doc
+                ):
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.md must label its zero-fill evidence"
+                    )
 
     section_expectations = [
         (

@@ -8,18 +8,19 @@
     "total_events": 80
   },
   "memory": {
-    "peak_traced_bytes": 703038,
-    "peak_traced_mib": 0.6704692840576172
+    "peak_traced_bytes": 713500,
+    "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-06-08T12:27:04.829982Z",
+    "benchmark_created_at_utc": "2026-08-11T08:47:10.671367Z",
     "config": {
       "book_top_n": 20,
+      "capture_schema_version": 3,
       "fees_maker_bps": "-0.2",
       "fees_taker_bps": "4.0",
       "fill_assumption": {
         "agg_trades_consume_queue": true,
-        "depth_reductions_consume_queue": true,
+        "depth_reductions_consume_queue": false,
         "overlap_netting_enabled": true,
         "overlap_window_seconds": 0.125,
         "profile": "base",
@@ -46,9 +47,18 @@
       "resync_on_gap": true,
       "sim_adverse_markout_seconds": 1.0,
       "sim_cancel_latency_ms": 10.0,
+      "sim_fill_model": "trade",
       "sim_kill_max_consecutive_losses": 0,
       "sim_kill_max_drawdown": "0",
       "sim_kill_switch_enabled": false,
+      "sim_latency_mode": "fixed",
+      "sim_latency_samples_ms": [],
+      "sim_latency_stress_multiplier": 1.0,
+      "sim_markout_horizons_ms": [
+        100,
+        1000,
+        5000
+      ],
       "sim_order_latency_ms": 10.0,
       "sim_seed": 1,
       "snapshot_limit": 1000,
@@ -56,7 +66,7 @@
         "BTCUSDT"
       ]
     },
-    "config_digest": "abe054016f6e77e13f503089805dbb3882593608ef926b870713ce494bb7bf79",
+    "config_digest": "71e82aca923842ca836f224170cd3f89e67ec0821e6d4bae73a969c3e82b92db",
     "feed_adapter": {
       "name": "binance_usdm",
       "supported_record_types": [
@@ -83,16 +93,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "master",
-      "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
+      "git_branch": "codex/hft-market-sim",
+      "git_commit": "dbad4b8dc14560b0022980bb5ba00fe74b0639fd",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 91.6675986205923,
-    "loop_latency_p50_us": 206.7,
-    "loop_latency_p99_us": 126180.64999999947,
-    "wall_time_seconds": 0.8727183999999397
+    "events_per_second": 118.39016603893046,
+    "loop_latency_p50_us": 216.75,
+    "loop_latency_p99_us": 93633.28199999985,
+    "wall_time_seconds": 0.6757318000018131
   }
 }

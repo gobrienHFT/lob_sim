@@ -1,2 +1,1 @@
-ts_local,symbol,side,price,qty,notional,contract_multiplier,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,spread_capture,spread_capture_value,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick
-1772633474.341,BTCUSDT,ask,71600.10,0.001,71.60010,1,True,depth_update,0,0.00000,USDT,BTCUSDT-ask-1772633474227860-4,71586.55,13.55,0.01355,tight_sell,0,113.13986778259277,1.0,715865,715866
+ts_local,symbol,side,price,qty,notional,contract_multiplier,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,spread_capture,spread_capture_value,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick,scenario_id,evidence_ids,validity

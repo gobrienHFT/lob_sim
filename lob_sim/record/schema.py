@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 RECORD_SCHEMA_VERSION = "lob_sim.record.v1"
-KNOWN_RECORD_TYPES = frozenset({"exchangeInfo", "snapshot", "depthUpdate", "aggTrade"})
+CAPTURE_SCHEMA_VERSION = "lob_sim.record.v3"
+KNOWN_RECORD_TYPES = frozenset({"captureMeta", "captureEvent", "exchangeInfo", "snapshot", "depthUpdate", "aggTrade"})
 
 
 class RecordValidationError(ValueError):
@@ -147,6 +148,31 @@ def _require_level_list(
         _require_numberish(level[1], f"{context}[{index}].quantity", path=path, line_number=line_number)
 
 
+def _validate_capture_metadata(
+    data: Mapping[str, Any],
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    capture = data.get("_capture")
+    if capture is None:
+        return
+    capture_obj = _require_mapping(capture, f"{context}._capture", path=path, line_number=line_number)
+    for key in ("recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"):
+        if key in capture_obj:
+            _require_intish(capture_obj[key], f"{context}._capture.{key}", path=path, line_number=line_number)
+    for key in ("route", "reason", "validationError"):
+        _require_optional_string(capture_obj, key, f"{context}._capture", path=path, line_number=line_number)
+    if "snapshotAccepted" in capture_obj:
+        _require_bool(
+            capture_obj["snapshotAccepted"],
+            f"{context}._capture.snapshotAccepted",
+            path=path,
+            line_number=line_number,
+        )
+
+
 def validate_record_object(
     obj: Any,
     *,
@@ -172,6 +198,17 @@ def validate_record_object(
         )
 
     data = _require_mapping(record["data"], "record.data", path=path, line_number=line_number)
+    _validate_capture_metadata(data, f"{record_type} payload", path=path, line_number=line_number)
+    if record_type in {"captureMeta", "captureEvent"}:
+        if record_type == "captureEvent":
+            _require_keys(data, ("event", "route"), "captureEvent payload", path=path, line_number=line_number)
+            _require_optional_string(data, "event", "captureEvent", path=path, line_number=line_number)
+            _require_optional_string(data, "route", "captureEvent", path=path, line_number=line_number)
+            return
+        if "schemaVersion" in data:
+            _require_intish(data["schemaVersion"], "captureMeta.schemaVersion", path=path, line_number=line_number)
+        _require_optional_string(data, "clock", "captureMeta", path=path, line_number=line_number)
+        return
     if record_type == "exchangeInfo":
         _require_keys(data, ("tickSize", "stepSize"), "exchangeInfo payload", path=path, line_number=line_number)
         _require_numberish(data["tickSize"], "exchangeInfo.tickSize", path=path, line_number=line_number)

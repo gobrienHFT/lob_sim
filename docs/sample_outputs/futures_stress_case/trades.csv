@@ -1,6 +1,2 @@
-ts_local,symbol,side,price,qty,notional,contract_multiplier,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,spread_capture,spread_capture_value,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick
-2.35,BTCUSDT,bid,100.0,0.001,0.1000,1,True,agg_trade,0,0.0000,USDT,BTCUSDT-bid-2000000-3,100.05,0.05,0.00005,normal_buy,0,350.0000000000001,1.0,999,1002
-3.0,BTCUSDT,bid,100.2,0.001,0.1002,1,False,taker_order,0,0.0000,USDT,BTCUSDT-bid-3000000-9,100.05,-0.15,-0.00015,normal_buy,0,0.0,1.0,999,1002
-3.0,BTCUSDT,bid,100.3,0.001,0.1003,1,False,taker_order,0,0.0000,USDT,BTCUSDT-bid-3000000-9,100.05,-0.25,-0.00025,normal_buy,0,0.0,1.0,999,1002
-3.05,BTCUSDT,bid,100.0,0.002,0.2000,1,True,agg_trade,0,0.0000,USDT,BTCUSDT-bid-2000000-3,100.05,0.05,0.00010,normal_buy,0,1049.9999999999998,1.0,999,1002
-4.05,BTCUSDT,ask,100.4,0.001,0.1004,1,True,depth_update,0,0.0000,USDT,BTCUSDT-ask-2000000-4,100.2,0.2,0.0002,wide_mild_buy,0,2050.0,1.0,1000,1004
+ts_local,symbol,side,price,qty,notional,contract_multiplier,maker,fill_source,fee_bps,fee,fee_currency,order_id,mid_at_fill,spread_capture,spread_capture_value,regime,queue_ahead_lots,time_in_book_ms,markout_horizon,book_bid_tick,book_ask_tick,scenario_id,evidence_ids,validity
+3.05,BTCUSDT,bid,100.0,0.001,0.1000,1,True,agg_trade,0,0.0000,USDT,BTCUSDT-bid-2000000-3,100.05,0.05,0.00005,normal_buy,0,1049.9999999999998,1.0,999,1002,public_l2:base,[],

@@ -142,6 +142,7 @@ def build_latency_sweep_metadata(
         "env_path": env_path,
         "base_config_digest": config_digest(cfg_snapshot),
         "feed_adapter": adapter_metadata(adapter),
+        "fill_model": cfg.sim_fill_model,
         "profile": profile,
         "order_latencies_ms": order_latencies_ms,
         "cancel_latencies_ms": cancel_latencies_ms,
@@ -193,6 +194,7 @@ def write_latency_sweep_outputs(
                 f"- Input SHA-256: `{metadata['input_sha256']}`",
                 f"- Base config digest: `{metadata['base_config_digest']}`",
                 f"- Feed adapter: `{metadata['feed_adapter']['name']}` (`{metadata['feed_adapter']['venue_label']}`)",
+                f"- Public-L2 fill model: `{metadata['fill_model']}` (mutually exclusive scenario)",
                 f"- Strategy profile: `{metadata['profile']}`",
                 "- Order latency grid ms: `"
                 + ", ".join(_format_latency(value) for value in metadata["order_latencies_ms"])
@@ -207,6 +209,17 @@ def write_latency_sweep_outputs(
     if command:
         metadata_lines.extend(["", "Exact command:", "", "```bash", command, "```"])
 
+    evidence_notes = [
+        "- Latency values are modeled order-arrival and cancel-ack delays inside the replay simulator, not measured gateway, colocated, or exchange latency.",
+        "- Ranking score is diagnostic only; it is not a latency-arbitrage, alpha, or profitability claim.",
+        "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
+        "- Use this table to inspect how queue position, fill quality, adverse markout, and cancel races respond to explicit latency assumptions on one deterministic fixture.",
+    ]
+    if rows and all(int(row.get("fill_count", 0)) == 0 for row in rows):
+        evidence_notes.append(
+            "- This tiny committed clip produced no confirmed-trade fills; it is a zero-fill diagnostic, not economic evidence."
+        )
+
     md_path.write_text(
         "\n".join(
             [
@@ -214,10 +227,7 @@ def write_latency_sweep_outputs(
                 "",
                 *metadata_lines,
                 "",
-                "- Latency values are modeled order-arrival and cancel-ack delays inside the replay simulator, not measured gateway, colocated, or exchange latency.",
-                "- Ranking score is diagnostic only; it is not a latency-arbitrage, alpha, or profitability claim.",
-                "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
-                "- Use this table to inspect how queue position, fill quality, adverse markout, and cancel races respond to explicit latency assumptions on one deterministic fixture.",
+                *evidence_notes,
                 "",
                 *table,
                 "",

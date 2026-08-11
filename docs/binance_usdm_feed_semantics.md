@@ -49,9 +49,9 @@ Inferred:
 
 - Book reductions are treated as queue consumption at that price level.
 - `aggTrade` prints are treated as an additional observed execution signal at the traded price.
-- Both signals are routed through the FIFO queue model in [`lob_sim/sim/fill_model.py`](../lob_sim/sim/fill_model.py).
+- Both signals can be selected explicitly as mutually-exclusive execution scenarios; they feed a synthetic queue-ahead model in [`lob_sim/sim/fill_model.py`](../lob_sim/sim/fill_model.py).
 - Recent overlapping depth reductions and `aggTrade` prints at the same symbol, side, and price are reconciled before they consume queue again.
-- Simulation summaries report observed lots, overlap-netted lots, lots eligible for modeled queue consumption, actual FIFO queue lots consumed, and unmatched lots when a public signal has no remaining internal level to consume.
+- Simulation summaries report observed lots, overlap-netted lots, lots eligible for modeled queue consumption, synthetic queue lots consumed, and unmatched lots when a public signal has no remaining internal level to consume.
 - Event traces emit one `queue_consumption` row per public consumption signal so those summary totals can be tied back to timestamp, side, price, and source.
 - The model only fills a resting strategy order after the queue in front of it has been consumed.
 - Fill reports preserve the attribution source as `depth_update`, `agg_trade`, or `taker_order` so inferred fills can be audited back to the observed public signal.

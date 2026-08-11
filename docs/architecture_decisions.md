@@ -8,9 +8,9 @@ Replay normalization converts venue prices and quantities into integer ticks and
 
 `ReplayFeedAdapter` is the seam between raw recorded rows and normalized events. Binance USD-M is the working adapter. Future venues should map their metadata into the same `InstrumentSpec`, `SnapshotEvent`, `DepthUpdateEvent`, and `AggTradeEvent` shapes before simulation state is touched.
 
-## FIFO Queue Assumptions
+## Synthetic Queue-Ahead Assumptions
 
-The passive fill model uses visible price-time FIFO queues. Snapshot depth seeds venue liquidity ahead of strategy orders. Later depth increases append behind existing visible queue. Depth decreases and same-price public trade prints consume from the front. This is an assumption over public data, not private exchange matching-engine truth.
+The passive fill model uses a synthetic visible queue-ahead by price level. Snapshot depth seeds venue liquidity ahead of strategy orders. Later depth increases append behind existing visible queue. Selected public signals consume the modeled queue. This is an assumption over market-by-price data, not private exchange matching-engine truth or historical Binance FIFO.
 
 ## Overlap Netting
 

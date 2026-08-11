@@ -118,7 +118,7 @@ def showcase_records() -> list[NDJSONRecord]:
             ts_local=2.4,
             symbol="BTCUSDT",
             type="aggTrade",
-            data={"p": "100.0", "q": "0.002", "m": True},
+            data={"p": "100.0", "q": "0.003", "m": True},
         ),
         NDJSONRecord(
             ts_local=3.6,

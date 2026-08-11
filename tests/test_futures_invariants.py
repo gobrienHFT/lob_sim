@@ -727,7 +727,10 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
             ts_local=3.3,
             symbol="BTCUSDT",
             type="aggTrade",
-            data={"p": "100.0", "q": "0.001", "m": True},
+            # The default execution scenario is trade-only: displayed
+            # decreases are not also counted as executions.  Three lots
+            # consume the two-lot queue ahead and fill the one-lot order.
+            data={"p": "100.0", "q": "0.003", "m": True},
         ),
     ]
     replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
@@ -765,22 +768,22 @@ def test_strategy_queue_observation_does_not_create_extra_fill_queue_ahead(
                 "observed_lots": 2,
                 "modeled_lots": 2,
                 "overlap_netted_lots": 0,
-                "queue_consumed_lots": 2,
-                "unmatched_lots": 0,
+                "queue_consumed_lots": 0,
+                "unmatched_lots": 2,
             },
             "agg_trade": {
-                "observed_lots": 1,
-                "modeled_lots": 1,
+                "observed_lots": 3,
+                "modeled_lots": 3,
                 "overlap_netted_lots": 0,
-                "queue_consumed_lots": 1,
+                "queue_consumed_lots": 3,
                 "unmatched_lots": 0,
             },
         },
-        "total_observed_lots": 3,
-        "total_modeled_lots": 3,
+        "total_observed_lots": 5,
+        "total_modeled_lots": 5,
         "total_overlap_netted_lots": 0,
         "total_queue_consumed_lots": 3,
-        "total_unmatched_lots": 0,
+        "total_unmatched_lots": 2,
     }
 
 
@@ -1150,8 +1153,8 @@ def test_simulation_records_non_resync_gap_without_applying_bad_depth(
     assert summary["event_counts"]["book_gap_count"] == 1
     assert summary["event_counts"]["depth_changes_applied"] == 2
     assert summary["book_gap_count_by_symbol"] == {"BTCUSDT": 1}
-    assert engine._books["BTCUSDT"].bids[1000] == 8
-    assert engine._books["BTCUSDT"].asks[1001] == 9
+    assert engine._books["BTCUSDT"].bids == {}
+    assert engine._books["BTCUSDT"].asks == {}
     assert engine._syncers["BTCUSDT"].synced is False
 
 
