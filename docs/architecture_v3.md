@@ -57,8 +57,14 @@ For schema-v3 replay, the logical priority at equal receipt time is:
 Legacy v1 tapes retain their documented action-first compatibility policy and
 are never mixed into a claim-ready markout report.
 
-`NullSink` and streaming sinks make the trace optional. The kernel must not
-retain an unbounded event list; a CSV trace is an explicit audit choice.
+`NullSink` and streaming sinks make the trace optional. Aggregate-only mode
+retains neither event rows nor resolved fill/markout rows: it maintains
+constant-cardinality aggregates plus domain-separated SHA-256 audit chains.
+Unresolved markouts are capped by `SIM_MAX_PENDING_MARKOUTS`; the next fill
+fails before accounting mutation if that cap is exhausted. The fixture-scale
+CSV export path still opts into in-memory detail explicitly and reports that it
+is not bounded by tape duration. Benchmark and compare paths use aggregate-only
+retention, so their bounded-memory label does not hide an in-memory fill log.
 
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle

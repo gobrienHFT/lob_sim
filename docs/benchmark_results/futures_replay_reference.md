@@ -1,13 +1,13 @@
 # Futures Replay Reference Benchmark
 
-- Benchmark date: `2026-08-11T16:30:38Z`
-- Commit SHA at run time: `f4db27b5353b32473eb0f73b753ab2a99fe83e4d`
+- Benchmark date: `2026-08-11T17:04:02Z`
+- Commit SHA at run time: `f6741171108a91d655da3d4bb4efa90b450c3fbe`
 - Git dirty at run time: `False`
 - OS/platform: `Windows-11-10.0.26200-SP0`
 - Python: `3.13.1`
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
-- Config digest: `71e82aca923842ca836f224170cd3f89e67ec0821e6d4bae73a969c3e82b92db`
+- Config digest: `3a330fa5f77ae1e46f3f4af3f3b30fabc3cf26b2516eea8a815e3983bafa692e`
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Instrument specs: `BTCUSDT` tick `0.10` lot `0.001` unit `BTC` price `USDT` multiplier `1` venue `BINANCE_USDM`
 - Structured JSON: [`futures_replay_reference.json`](futures_replay_reference.json)
@@ -26,10 +26,10 @@ Summary:
 - Depth events: `9`
 - AggTrade events: `69`
 - Gap count: `0`
-- Wall time: `0.494617s`
-- Events/sec: `161.74`
-- Loop latency p50: `133.95us`
-- Loop latency p99: `64577.26us`
+- Wall time: `0.789134s`
+- Events/sec: `101.38`
+- Loop latency p50: `299.75us`
+- Loop latency p99: `113011.45us`
 - Peak traced memory: `0.68 MiB`
 
 This result is specific to this machine, this Python interpreter, and this committed fixture. The fixture is intentionally small, so fixed interpreter and validation overhead dominate.

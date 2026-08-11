@@ -112,6 +112,7 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "sim_latency_stress_multiplier": cfg.sim_latency_stress_multiplier,
         "sim_adverse_markout_seconds": cfg.sim_adverse_markout_seconds,
         "sim_markout_horizons_ms": list(cfg.sim_markout_horizons_ms),
+        "sim_max_pending_markouts": cfg.sim_max_pending_markouts,
         "sim_fill_model": cfg.sim_fill_model,
         "capture_schema_version": cfg.capture_schema_version,
         "sim_kill_switch_enabled": cfg.sim_kill_switch_enabled,

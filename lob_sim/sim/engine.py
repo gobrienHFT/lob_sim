@@ -61,11 +61,21 @@ class SimulationEngine:
         adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
         *,
         event_sink: EventSink | None = None,
+        fill_sink: EventSink | None = None,
+        markout_sink: EventSink | None = None,
         retain_event_trace: bool = True,
+        retain_audit_rows: bool = True,
     ) -> None:
         self.cfg = cfg
         self.adapter = adapter
-        self.metrics = SimulationMetrics(cfg)
+        self._event_sink = event_sink or NullSink()
+        self.metrics = SimulationMetrics(
+            cfg,
+            fill_sink=fill_sink,
+            markout_sink=markout_sink,
+            retain_audit_rows=retain_audit_rows,
+            buffer_markout_trace_events=retain_event_trace or not isinstance(self._event_sink, NullSink),
+        )
         self.fill_model = PassiveFillModel(cfg.effective_fill_assumption)
         self.latency_model = LatencyModel(
             mode=cfg.sim_latency_mode,
@@ -84,7 +94,6 @@ class SimulationEngine:
         self._id_counter = count()
         self._trace_counter = count()
         self.event_trace: list[dict[str, Any]] = []
-        self._event_sink = event_sink or NullSink()
         self._retain_event_trace = retain_event_trace
         self._event_trace_count = 0
         self._trading_halted = False
@@ -105,6 +114,18 @@ class SimulationEngine:
         self._stream_invalid_reason: dict[tuple[str, str], str] = {}
         self._latest_book_evidence: dict[str, str] = {}
         self._latest_trade_evidence: dict[str, str] = {}
+
+    def event_trace_retention(self) -> dict[str, Any]:
+        sink_memory_bounded = bool(getattr(self._event_sink, "memory_bounded", False))
+        return {
+            "schema_version": "lob_sim.event_trace_retention.v1",
+            "retained_in_memory": self._retain_event_trace,
+            "rows_emitted": self._event_trace_count,
+            "rows_retained": len(self.event_trace),
+            "sink": type(self._event_sink).__name__,
+            "sink_memory_bounded": sink_memory_bounded,
+            "memory_bounded_by_tape_duration": not self._retain_event_trace and sink_memory_bounded,
+        }
 
     @staticmethod
     def _event_time(rec: RecordedEvent) -> float:
@@ -1435,6 +1456,7 @@ class SimulationEngine:
                 "latency": "configured_scenario_not_exchange_measurement",
                 "live_profitability": "not_claimed",
             },
+            "event_trace_retention": self.event_trace_retention(),
         }
 
     def _deterministic_state(self) -> dict[str, Any]:
@@ -1449,7 +1471,15 @@ class SimulationEngine:
                 }
                 for symbol, book in sorted(self._books.items())
             },
-            "fills": self.metrics.fills_log,
+            "fill_audit": {
+                "count": self.metrics.fill_count,
+                "sha256": self.metrics.fill_audit_sha256,
+            },
+            "markout_audit": {
+                "count": self.metrics.markout_event_count,
+                "sha256": self.metrics.markout_audit_sha256,
+                "pending": self.metrics.pending_markout_state(),
+            },
             "inventory_lots": {symbol: self.metrics.inventory_lots(symbol) for symbol in sorted(self._books)},
             "realized_pnl": str(self.metrics.realized_pnl),
             "total_fees": str(self.metrics.total_fees),
@@ -1478,6 +1508,10 @@ class SimulationEngine:
         return state_hash(self._deterministic_state())
 
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
+        if not getattr(metrics, "retain_audit_rows", True):
+            raise RuntimeError(
+                "write_outputs requires retained audit rows; use a streaming export path for aggregate-only runs"
+            )
         summary = metrics.get_summary(self._books)
         summary.update(self._summary_annotations())
         summary["state_sha256"] = self.state_sha256()

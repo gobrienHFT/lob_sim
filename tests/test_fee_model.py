@@ -7,10 +7,11 @@ import pytest
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.types import SymbolSpec
-from lob_sim.config import load_config
+from lob_sim.config import ConfigError, load_config
 from lob_sim.sim.fees import StaticFeeModel
-from lob_sim.sim.metrics import SimulationMetrics
+from lob_sim.sim.metrics import MarkoutCapacityError, SimulationMetrics
 from lob_sim.sim.orders import Fill
+from lob_sim.sim.sinks import AggregateMetricsSink
 
 
 def _build_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: str):
@@ -321,3 +322,188 @@ def test_metrics_apply_contract_multiplier_to_realized_pnl(
     assert summary["realized_pnl"] == pytest.approx(80.0)
     assert summary["unrealized_pnl"] == pytest.approx(0.0)
     assert summary["total_pnl"] == pytest.approx(80.0)
+
+
+def test_markouts_resolve_after_round_trip_flattens_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1),
+        book,
+        book.mid_price(),
+    )
+    metrics.on_fill(
+        Fill(ts_local=0.1, symbol="BTCUSDT", side="ask", price_tick=102, qty_lots=1),
+        book,
+        book.mid_price(),
+    )
+    assert metrics.inventory_lots("BTCUSDT") == 0
+
+    book.reset_from_snapshot(2, bids={102: 2}, asks={104: 2})
+    metrics.update_unrealized({"BTCUSDT": book}, now_ts=1.2)
+    summary = metrics.get_summary({"BTCUSDT": book})
+
+    assert summary["markout_resolved_count"] == 2
+    assert summary["markout_samples_remaining"] == 0
+    assert [event["markout"] for event in summary["markout_events"]] == ["3", "-1"]
+
+
+def test_aggregate_only_metrics_discard_detail_rows_but_keep_audit_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="0",
+    )
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+    full = SimulationMetrics(cfg)
+    fill_sink = AggregateMetricsSink()
+    bounded = SimulationMetrics(cfg, fill_sink=fill_sink, retain_audit_rows=False)
+
+    for index in range(1000):
+        side = "bid" if index % 2 == 0 else "ask"
+        price_tick = 100 if side == "bid" else 102
+        fill = Fill(
+            ts_local=float(index),
+            symbol="BTCUSDT",
+            side=side,
+            price_tick=price_tick,
+            qty_lots=1,
+            order_id=f"order-{index}",
+        )
+        full.on_fill(fill, book, book.mid_price())
+        bounded.on_fill(fill, book, book.mid_price())
+
+    bounded_summary = bounded.get_summary({"BTCUSDT": book})
+
+    assert bounded.fills_log == []
+    assert bounded_summary["fills"] is None
+    assert bounded_summary["markout_events"] is None
+    assert bounded_summary["fill_count"] == 1000
+    assert bounded_summary["audit_retention"] == {
+        "schema_version": "lob_sim.audit_retention.v1",
+        "mode": "aggregate_only",
+        "memory_bounded_by_tape_duration": True,
+        "built_in_sinks_memory_bounded": True,
+        "detail_rows_complete_in_summary": False,
+        "fill_rows_emitted": 1000,
+        "fill_rows_retained": 0,
+        "fill_audit_sha256": bounded.fill_audit_sha256,
+        "fill_sink": "AggregateMetricsSink",
+        "markout_rows_emitted": 0,
+        "markout_rows_retained": 0,
+        "markout_audit_sha256": bounded.markout_audit_sha256,
+        "markout_sink": "NullSink",
+        "markout_trace_buffering": False,
+        "pending_markouts": 0,
+        "max_pending_markouts": 100000,
+    }
+    assert fill_sink.count == 1000
+    assert bounded.fill_audit_sha256 == full.fill_audit_sha256
+
+
+def test_pending_markout_capacity_fails_before_fill_accounting_mutates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="10",
+        SIM_MAX_PENDING_MARKOUTS="1",
+    )
+    metrics = SimulationMetrics(cfg, retain_audit_rows=False)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1, order_id="one"),
+        book,
+        book.mid_price(),
+    )
+    before = (metrics.fill_count, metrics.inventory_lots("BTCUSDT"), metrics.realized_pnl)
+
+    with pytest.raises(MarkoutCapacityError, match="SIM_MAX_PENDING_MARKOUTS=1"):
+        metrics.on_fill(
+            Fill(ts_local=0.1, symbol="BTCUSDT", side="ask", price_tick=102, qty_lots=1, order_id="two"),
+            book,
+            book.mid_price(),
+        )
+
+    assert (metrics.fill_count, metrics.inventory_lots("BTCUSDT"), metrics.realized_pnl) == before
+
+
+def test_pending_markout_capacity_must_be_positive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("RECORD_DIR", str(tmp_path))
+    monkeypatch.setenv("SIM_MAX_PENDING_MARKOUTS", "0")
+
+    with pytest.raises(ConfigError, match="SIM_MAX_PENDING_MARKOUTS must be > 0"):
+        load_config(".env.example")
+
+
+def test_quote_fill_probability_needs_no_completed_order_id_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(monkeypatch, tmp_path, SIM_ADVERSE_MARKOUT_SECONDS="0")
+    metrics = SimulationMetrics(cfg, retain_audit_rows=False)
+    metrics.on_order_arrival(resting_after_arrival=True, immediate_fills=0, remaining_lots_after_arrival=2)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(
+            ts_local=0.0,
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=100,
+            qty_lots=1,
+            order_id="partial",
+            is_first_fill_for_order=True,
+        ),
+        book,
+        book.mid_price(),
+    )
+    metrics.on_fill(
+        Fill(
+            ts_local=0.1,
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=100,
+            qty_lots=1,
+            order_id="partial",
+            is_first_fill_for_order=False,
+        ),
+        book,
+        book.mid_price(),
+    )
+    summary = metrics.get_summary({"BTCUSDT": book})
+
+    assert metrics.filled_order_count == 1
+    assert summary["quote_fill_probability"] == 1.0
+    assert summary["fills_per_arrived_order"] == 2.0

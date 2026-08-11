@@ -287,6 +287,7 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]
     assert manifest["config"]["mm_strategy_profile"] == cfg.mm_strategy_profile
+    assert manifest["config"]["sim_max_pending_markouts"] == cfg.sim_max_pending_markouts
     assert manifest["output_artifacts"]["summary"]["sha256"]
     assert manifest["output_artifacts"]["summary"]["size_bytes"] == output_files["summary"].stat().st_size
     assert manifest["output_artifacts"]["summary_csv"]["sha256"]

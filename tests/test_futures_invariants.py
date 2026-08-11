@@ -781,6 +781,7 @@ def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
     )
     assert [fill.qty_lots for fill in first] == [1]
     assert [fill.source for fill in first] == ["agg_trade"]
+    assert [fill.is_first_fill_for_order for fill in first] == [True]
     resting = model.get_order("BTCUSDT", "bid")
     assert resting is not None
     assert resting.remaining_lots == 2
@@ -790,6 +791,7 @@ def test_partial_fills_accumulate_after_queue_ahead_is_consumed() -> None:
         3.0,
     )
     assert [fill.qty_lots for fill in second] == [2]
+    assert [fill.is_first_fill_for_order for fill in second] == [False]
     assert model.get_order("BTCUSDT", "bid") is None
 
 

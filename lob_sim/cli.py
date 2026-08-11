@@ -731,11 +731,18 @@ def cmd_simulate(config: Config, file: str, verbose: bool = False, progress_ever
 
 
 def _deterministic_run(config: Config, file: str) -> dict[str, object]:
-    engine = SimulationEngine(config, event_sink=NullSink(), retain_event_trace=False)
+    engine = SimulationEngine(
+        config,
+        event_sink=NullSink(),
+        retain_event_trace=False,
+        retain_audit_rows=False,
+    )
     metrics = engine.run(file)
     summary = metrics.get_summary(engine._books)
     return {
         "state_sha256": engine.state_sha256(),
+        "fill_audit_sha256": metrics.fill_audit_sha256,
+        "markout_audit_sha256": metrics.markout_audit_sha256,
         "fill_count": summary["fill_count"],
         "total_pnl": summary["total_pnl"],
         "valuation_complete": summary["valuation_complete"],

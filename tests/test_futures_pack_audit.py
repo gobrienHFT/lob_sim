@@ -229,6 +229,23 @@ def test_futures_pack_audit_rejects_stale_summary_markout_event(tmp_path: Path) 
     assert any("output_artifacts[summary].sha256 is stale" in issue for issue in result["issues"])
 
 
+def test_futures_pack_audit_rejects_tampered_audit_chain_identity(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary_path = copied_pack / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["audit_retention"]["fill_audit_sha256"] = "0" * 64
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any(
+        "summary.audit_retention.fill_audit_sha256=" in issue and "does not match expected" in issue
+        for issue in result["issues"]
+    )
+
+
 def test_futures_pack_audit_rejects_stale_markout_trace_event(tmp_path: Path) -> None:
     copied_pack = tmp_path / "pack"
     shutil.copytree(SHOWCASE_PACK, copied_pack)

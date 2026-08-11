@@ -457,6 +457,7 @@ class PassiveFillModel:
                     break
 
             queue_ahead = self.queue_ahead_lots(symbol, head)
+            is_first_fill_for_order = head.remaining_lots == head.qty_lots
             take = min(remaining, head.remaining_lots)
             head.remaining_lots -= take
             remaining -= take
@@ -489,6 +490,7 @@ class PassiveFillModel:
                         },
                         latency_draws_ms=self._latency_draws(head),
                         order_state_at_fill=state_at_fill,
+                        is_first_fill_for_order=is_first_fill_for_order,
                     )
                 )
 
@@ -586,6 +588,7 @@ class PassiveFillModel:
                 visible_level_before = sum(
                     resting.remaining_lots for resting in queue if resting.active and resting.remaining_lots > 0
                 )
+                is_first_fill_for_order = remaining == order.qty_lots
                 take = min(remaining, head.remaining_lots)
                 head.remaining_lots -= take
                 remaining -= take
@@ -612,6 +615,7 @@ class PassiveFillModel:
                         },
                         latency_draws_ms=self._latency_draws(order),
                         order_state_at_fill=order.state,
+                        is_first_fill_for_order=is_first_fill_for_order,
                     )
                 )
 

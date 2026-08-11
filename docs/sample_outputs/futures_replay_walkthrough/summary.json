@@ -56,6 +56,24 @@
     "with_fee_model": 1,
     "complete": true
   },
+  "audit_retention": {
+    "schema_version": "lob_sim.audit_retention.v1",
+    "mode": "in_memory",
+    "memory_bounded_by_tape_duration": false,
+    "built_in_sinks_memory_bounded": true,
+    "detail_rows_complete_in_summary": true,
+    "fill_rows_emitted": 1,
+    "fill_rows_retained": 1,
+    "fill_audit_sha256": "47519b9318090fb9ef002ca4afe60aa7f0fdbcf089b555c574040bd6f19eb7a8",
+    "fill_sink": "NullSink",
+    "markout_rows_emitted": 1,
+    "markout_rows_retained": 1,
+    "markout_audit_sha256": "af78c7df4ce463e5fbba73bfc56b9cf01893deef7ae56a7050228effc3643377",
+    "markout_sink": "NullSink",
+    "markout_trace_buffering": true,
+    "pending_markouts": 0,
+    "max_pending_markouts": 100000
+  },
   "quote_fill_probability": 0.3333333333333333,
   "fills_per_quote_request": 0.3333333333333333,
   "fills_per_arrived_order": 0.3333333333333333,
@@ -333,8 +351,17 @@
     "latency": "configured_scenario_not_exchange_measurement",
     "live_profitability": "not_claimed"
   },
-  "state_sha256": "a2e60dc69fbf10cd14f753088cfbcd2d69f28ed693b5cc303762e6f0744befcc",
-  "run_id": "4bff5f56800c38f7",
+  "event_trace_retention": {
+    "schema_version": "lob_sim.event_trace_retention.v1",
+    "retained_in_memory": true,
+    "rows_emitted": 18,
+    "rows_retained": 18,
+    "sink": "NullSink",
+    "sink_memory_bounded": true,
+    "memory_bounded_by_tape_duration": false
+  },
+  "state_sha256": "27fc9444c50322148539dad6957a1194aa32925453ab8ac19f611f578e556d44",
+  "run_id": "87135ef02e50cf60",
   "input_sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
   "feed_adapter": {
     "name": "binance_usdm",

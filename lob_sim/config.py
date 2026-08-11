@@ -215,6 +215,7 @@ class Config:
     fees_taker_bps: Decimal
     log_level: str
     sim_markout_horizons_ms: tuple[int, ...] = (100, 1000, 5000)
+    sim_max_pending_markouts: int = 100_000
     sim_fill_model: Literal["trade", "depth"] = "trade"
     capture_schema_version: int = 3
     capture_writer_queue_max: int = 65_536
@@ -310,6 +311,8 @@ class Config:
             errs.append("SIM_MARKOUT_HORIZONS_MS must contain positive values")
         if len(set(self.sim_markout_horizons_ms)) != len(self.sim_markout_horizons_ms):
             errs.append("SIM_MARKOUT_HORIZONS_MS values must be unique")
+        if self.sim_max_pending_markouts <= 0:
+            errs.append("SIM_MAX_PENDING_MARKOUTS must be > 0")
         if self.sim_fill_model not in {"trade", "depth"}:
             errs.append("SIM_FILL_MODEL must be trade or depth")
         if self.capture_schema_version < 1:
@@ -436,6 +439,10 @@ def load_config(env_path: str = ".env") -> Config:
         sim_markout_horizons_ms=_parse_positive_int_tuple(
             "SIM_MARKOUT_HORIZONS_MS",
             _get_optional("SIM_MARKOUT_HORIZONS_MS", "100,1000,5000"),
+        ),
+        sim_max_pending_markouts=_parse_int(
+            "SIM_MAX_PENDING_MARKOUTS",
+            _get_optional("SIM_MAX_PENDING_MARKOUTS", "100000"),
         ),
         sim_fill_model=cast(
             Literal["trade", "depth"],
