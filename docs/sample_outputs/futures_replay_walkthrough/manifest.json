@@ -1,13 +1,13 @@
 {
   "run_id": "f8841b54db621a42",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-12T16:03:19.332472Z",
+  "created_at_utc": "2026-08-12T16:23:32.299958Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-12T16:03:19.291671Z"
+    "modified_at_utc": "2026-08-12T16:23:32.240289Z"
   },
   "config": {
     "symbols": [
@@ -69,8 +69,8 @@
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 225,
-    "sha256": "1f0eb1199cef4951a3e483ca8b27a76c74ff75f5448ee2b1d28e540d137808cf"
+    "file_count": 226,
+    "sha256": "0ce33de495b5f1be27970da7ac55342efff74f65b75db5bda875e73f900568f6"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -134,8 +134,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "485002d4823447e1e71f71238ac57f0b52a78c07",
-    "git_branch": "codex/portfolio-notional-risk",
+    "git_commit": "21643818bcde8b695793619d037f7bd13664b41e",
+    "git_branch": "master",
     "git_dirty": false
   },
   "outputs": {
@@ -150,7 +150,7 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 7112,
       "sha256": "2dc39da1e1775fb5fddef30910aae2297436b1fffcf852c7a24152950eb8075e",
-      "modified_at_utc": "2026-08-12T16:03:20.674765Z"
+      "modified_at_utc": "2026-08-12T16:23:33.748324Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
@@ -158,20 +158,20 @@
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
       "size_bytes": 16009,
-      "sha256": "87b20993214ecb2c0cf9df7cf18cc4c0e6955ce8954b6588961510a98f1bf9b6",
-      "modified_at_utc": "2026-08-12T16:03:20.667735Z"
+      "sha256": "29a5e5efc7fad914ac2d583971ed4d02c81258f0c3118b6ecd0eb94668a36473",
+      "modified_at_utc": "2026-08-12T16:23:33.739692Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
       "size_bytes": 12350,
-      "sha256": "110532bc17a284fc8269549eb6e67f664667dcff3d0ccc7216fb1550fc41dfe6",
-      "modified_at_utc": "2026-08-12T16:03:20.671751Z"
+      "sha256": "eb2535dd10ee4edccaa3412d56e4ffcc5bbc933e5526c2eb94ad8acebe2c37bf",
+      "modified_at_utc": "2026-08-12T16:23:33.741713Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 1179,
       "sha256": "a6730cbe10029e9161b710333184a2831d316f1b888f807d0c64da407ea9c378",
-      "modified_at_utc": "2026-08-12T16:03:20.673259Z"
+      "modified_at_utc": "2026-08-12T16:23:33.744699Z"
     }
   },
   "fixture_provenance": {
