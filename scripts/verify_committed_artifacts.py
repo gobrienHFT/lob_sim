@@ -30,6 +30,7 @@ FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_pro
 FUTURES_SHOWCASE_DIR = SAMPLE_ROOT / "futures_replay_walkthrough"
 RECORDED_CLIP_DIR = SAMPLE_ROOT / "futures_recorded_clip_case"
 FUTURES_STRESS_DIR = SAMPLE_ROOT / "futures_stress_case"
+SCHEMA_V3_FIXTURE_DIR = SAMPLE_ROOT / "futures_schema_v3_case"
 FILL_ASSUMPTION_ENVELOPE_DOC = REPO_ROOT / "docs" / "fill_assumption_envelope.md"
 FILL_ASSUMPTION_ENVELOPE_DIR = SAMPLE_ROOT / "futures_fill_assumption_envelope"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
@@ -78,6 +79,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
         "docs/sample_outputs/futures_stress_case/README.md",
+        "docs/sample_outputs/futures_schema_v3_case/README.md",
         "docs/reviewer_results_memo.md",
     ],
     REPO_ROOT / "WALKTHROUGH.md": [
@@ -88,6 +90,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_replay_walkthrough/walkthrough.md",
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
         "docs/sample_outputs/futures_recorded_clip_case/case_notes.md",
+        "docs/sample_outputs/futures_schema_v3_case/README.md",
     ],
     REPO_ROOT / "docs" / "sample_outputs" / "README.md": [
         "futures_replay_walkthrough/README.md",
@@ -108,6 +111,9 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "futures_stress_case/trades.csv",
         "futures_stress_case/event_trace.csv",
         "futures_stress_case/case_notes.md",
+        "futures_schema_v3_case/README.md",
+        "futures_schema_v3_case/input_fixture.ndjson",
+        "futures_schema_v3_case/adversarial_fixture.ndjson",
     ],
 }
 
@@ -222,6 +228,7 @@ MARKDOWN_AUDIT_FILES = [
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "case_notes.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "README.md",
     REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case" / "case_notes.md",
+    SCHEMA_V3_FIXTURE_DIR / "README.md",
     FILL_ASSUMPTION_ENVELOPE_DIR / "README.md",
     FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_report.md",
     REPO_ROOT / "docs" / "options_case_study_notes.md",
@@ -262,6 +269,12 @@ FUTURES_STRESS_CORE_FILES = [
     "manifest.json",
     "trades.csv",
     "event_trace.csv",
+]
+
+SCHEMA_V3_FIXTURE_CORE_FILES = [
+    "README.md",
+    "input_fixture.ndjson",
+    "adversarial_fixture.ndjson",
 ]
 
 FILL_ASSUMPTION_ENVELOPE_CORE_FILES = [
@@ -882,6 +895,7 @@ def _verify_core_files() -> list[str]:
         (FUTURES_SHOWCASE_DIR, FUTURES_SHOWCASE_CORE_FILES),
         (RECORDED_CLIP_DIR, RECORDED_CLIP_CORE_FILES),
         (FUTURES_STRESS_DIR, FUTURES_STRESS_CORE_FILES),
+        (SCHEMA_V3_FIXTURE_DIR, SCHEMA_V3_FIXTURE_CORE_FILES),
         (FILL_ASSUMPTION_ENVELOPE_DIR, FILL_ASSUMPTION_ENVELOPE_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),

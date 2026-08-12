@@ -25,11 +25,12 @@ The options side is a separate controlled dealer-pricing case study. It is there
 4. [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures walkthrough pack.
 5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
 6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
-7. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
-8. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
-9. [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py), [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py), [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md), [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for hash-checked fixture determinism, pack consistency audit, latency sensitivity, and the rerunnable benchmark driver.
-10. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
-11. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
+7. [docs/sample_outputs/futures_schema_v3_case/README.md](docs/sample_outputs/futures_schema_v3_case/README.md) for a clean claim-ready schema-v3 tape and an adversarial fail-closed tape.
+8. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
+9. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
+10. [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py), [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py), [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md), [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for hash-checked fixture determinism, pack consistency audit, latency sensitivity, and the rerunnable benchmark driver.
+11. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
+12. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
 
 ## Core Talking Points
 
@@ -71,6 +72,7 @@ Real data would calibrate the volatility surface, customer flow, toxicity assump
 - Futures trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
 - Futures event trace: [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv)
 - Futures notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
+- Schema-v3 validity fixtures: [docs/sample_outputs/futures_schema_v3_case/README.md](docs/sample_outputs/futures_schema_v3_case/README.md)
 - Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
 - Recorded clip summary: [docs/sample_outputs/futures_recorded_clip_case/summary.json](docs/sample_outputs/futures_recorded_clip_case/summary.json)
 - Recorded clip trades: [docs/sample_outputs/futures_recorded_clip_case/trades.csv](docs/sample_outputs/futures_recorded_clip_case/trades.csv)

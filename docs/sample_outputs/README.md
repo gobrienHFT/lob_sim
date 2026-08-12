@@ -2,6 +2,23 @@
 
 This directory contains committed, deterministic sample artifacts for both the futures replay walkthrough and the controlled dealer-pricing case study.
 
+## Schema-v3 Validity Fixtures
+
+- Fixture notes: [`futures_schema_v3_case/README.md`](futures_schema_v3_case/README.md)
+- Clean claim-ready tape: [`futures_schema_v3_case/input_fixture.ndjson`](futures_schema_v3_case/input_fixture.ndjson)
+- Adversarial fail-closed tape: [`futures_schema_v3_case/adversarial_fixture.ndjson`](futures_schema_v3_case/adversarial_fixture.ndjson)
+
+Run the clean and adversarial audit paths directly:
+
+```bash
+python -m lob_sim.cli audit --file docs/sample_outputs/futures_schema_v3_case/input_fixture.ndjson
+python -m lob_sim.cli audit --file docs/sample_outputs/futures_schema_v3_case/adversarial_fixture.ndjson
+```
+
+The first should report `claim_ready=true`; the second should report
+`claim_ready=false` and show receipt-anchored invalidation boundaries. These
+fixtures are protocol evidence, not economic or venue-side packet-loss evidence.
+
 ## Futures Replay Walkthrough
 
 - Pack entry: [`futures_replay_walkthrough/README.md`](futures_replay_walkthrough/README.md)
