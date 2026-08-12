@@ -70,6 +70,12 @@ SHA-256 audit chains. Unresolved markouts are capped by
 `SIM_MAX_PENDING_MARKOUTS`; the next fill fails before accounting mutation if
 that cap is exhausted.
 
+The legacy detailed markout horizon is `SIM_ADVERSE_MARKOUT_SECONDS`.
+Additional horizons in `SIM_MARKOUT_HORIZONS_MS` share the same causal midpoint
+observations and are reported in the bounded `markout_horizon_summary`, with
+coverage, invalidation and observation-lag fields. They do not create a second
+unbounded trace or imply private exchange execution evidence.
+
 The Python engine also exposes a JSON-only checkpoint contract for long
 replays. `SimulationEngine.run(..., checkpoint_path=..., stop_after_records=N)`
 writes a fsynced, hashed continuation state; a fresh engine can continue it

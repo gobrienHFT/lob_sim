@@ -407,6 +407,84 @@ def test_markouts_resolve_after_round_trip_flattens_inventory(
     assert [event["markout"] for event in summary["markout_events"]] == ["3", "-1"]
 
 
+def test_configured_markout_horizons_report_coverage_and_observation_lag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+        SIM_MARKOUT_HORIZONS_MS="100,1000,5000",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1),
+        book,
+        book.mid_price(),
+    )
+
+    book.reset_from_snapshot(2, bids={101: 2}, asks={103: 2})
+    metrics.update_unrealized({"BTCUSDT": book}, now_ts=0.15)
+    first = metrics.get_summary({"BTCUSDT": book})["markout_horizon_summary"]
+    assert first["100"]["resolved_samples"] == 1
+    assert first["100"]["unresolved_samples"] == 0
+    assert first["100"]["avg_markout"] == pytest.approx(2.0)
+    assert first["100"]["mean_resolution_lag_ms"] == pytest.approx(150.0)
+    assert first["1000"]["resolved_samples"] == 0
+    assert first["1000"]["unresolved_samples"] == 1
+    assert first["5000"]["resolved_samples"] == 0
+    assert first["5000"]["unresolved_samples"] == 1
+
+    book.reset_from_snapshot(3, bids={102: 2}, asks={104: 2})
+    metrics.update_unrealized({"BTCUSDT": book}, now_ts=1.2)
+    book.reset_from_snapshot(4, bids={103: 2}, asks={105: 2})
+    metrics.update_unrealized({"BTCUSDT": book}, now_ts=5.2)
+    horizons = metrics.get_summary({"BTCUSDT": book})["markout_horizon_summary"]
+
+    assert horizons["1000"]["resolved_samples"] == 1
+    assert horizons["5000"]["resolved_samples"] == 1
+    assert horizons["5000"]["coverage"] == pytest.approx(1.0)
+    # The detailed audit remains the legacy configured one-second event;
+    # additional horizons are bounded aggregate evidence.
+    assert len(metrics.get_summary({"BTCUSDT": book})["markout_events"]) == 1
+
+
+def test_configured_markout_horizons_fail_closed_on_epoch_invalidation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+        SIM_ADVERSE_MARKOUT_SECONDS="1.0",
+        SIM_MARKOUT_HORIZONS_MS="100,1000,5000",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    book.reset_from_snapshot(1, bids={100: 2}, asks={102: 2})
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1),
+        book,
+        book.mid_price(),
+    )
+
+    assert metrics.invalidate_markouts("BTCUSDT", "depth_gap", ts_local=0.05) == 1
+    horizons = metrics.get_summary({"BTCUSDT": book})["markout_horizon_summary"]
+    assert {horizons[key]["invalidated_samples"] for key in ("100", "1000", "5000")} == {1}
+    assert {horizons[key]["unresolved_samples"] for key in ("100", "1000", "5000")} == {1}
+    assert {horizons[key]["resolved_samples"] for key in ("100", "1000", "5000")} == {0}
+
+
 def test_aggregate_only_metrics_discard_detail_rows_but_keep_audit_identity(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
