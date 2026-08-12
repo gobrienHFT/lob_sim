@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.replay.reader import iter_records
 from lob_sim.record.schema import RecordValidationError
+from lob_sim.audit.streaming_bundle import STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION, audit_streaming_bundle
 from lob_sim.sim.fill_model import TRADE_DEPTH_OVERLAP_WINDOW_SECONDS
 from lob_sim.sim.metrics import (
     FILL_AUDIT_CHAIN_DOMAIN,
@@ -1199,6 +1200,22 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
     manifest_path = pack_dir / "manifest.json"
     summary = _load_json_object(summary_path, issues)
     manifest = _load_json_object(manifest_path, issues)
+    simulation_export = summary.get("simulation_export")
+    if isinstance(simulation_export, dict) and simulation_export.get("mode") == "bounded_streaming":
+        bounded_result = audit_streaming_bundle(pack_dir)
+        bounded_issues = list(bounded_result.get("issues", []))
+        bounded_issue_count = int(bounded_result.get("issue_count", len(bounded_issues)))
+        bounded_message_count = len(bounded_issues)
+        if summary:
+            _audit_fixture_provenance(pack_dir, summary, manifest, bounded_issues)
+            _audit_fill_assumption_metadata(pack_dir, summary, manifest, bounded_issues)
+            _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), bounded_issues)
+        bounded_result["bundle_audit_schema_version"] = STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION
+        bounded_result["schema_version"] = PACK_AUDIT_SCHEMA_VERSION
+        bounded_result["issues"] = bounded_issues
+        bounded_result["issue_count"] = bounded_issue_count + len(bounded_issues) - bounded_message_count
+        bounded_result["ok"] = not bounded_issues and bool(bounded_result.get("ok"))
+        return bounded_result
     trace_rows = _read_csv_rows(trace_path, EVENT_TRACE_FIELDS, issues)
     trade_rows = _read_csv_rows(trades_path, TRADE_CSV_FIELDS, issues)
 

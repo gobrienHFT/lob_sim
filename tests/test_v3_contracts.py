@@ -45,7 +45,10 @@ def test_event_envelope_round_trip_and_validity_dimensions() -> None:
     assert ValidityState(True, False, True, True, trade_stream_required=False).execution_valid is True
 
 
-def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: Path) -> None:
+def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with SegmentedCaptureWriter(
         tmp_path,
         "capture-1",
@@ -81,6 +84,11 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(tmp_path: 
         "complete": True,
     }
     assert len(manifest["manifest_sha256"]) == 64
+
+    def reject_whole_file_reads(path: Path) -> bytes:
+        raise AssertionError(f"manifest replay must hash segments incrementally, not read_bytes(): {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_whole_file_reads)
     replayed = list(iter_records(tmp_path / "capture-1.manifest.json"))
     assert [record.data["_capture"]["recvSeq"] for record in replayed] == [1, 2]
     assert [record.data["_capture"]["captureId"] for record in replayed] == ["capture-1", "capture-1"]

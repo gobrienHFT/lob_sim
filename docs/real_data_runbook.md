@@ -56,7 +56,7 @@ Generate a local-only evidence pack, audit, benchmark, and Markdown report:
 python scripts/run_real_data_report.py --file data/capture_....manifest.json --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
 ```
 
-The local audit pack is written under `outputs/real_data_runs/<label>/`. The committed publication path writes only `docs/real_data_runs/<label>.md` and `docs/real_data_runs/<label>.json`; raw input, event traces, CSVs, and local packs are not copied into docs. The report states `local-only raw data`, the input SHA-256, file size, symbol, duration, fill-frequency metrics, fill-source mix, markouts, inventory, drawdown, audit result, benchmark context, source state, and whether the tape meets the 10-30 minute target window.
+The input may be a finalized schema-v3 `capture_....manifest.json`, one finalized `.ndjson.zst` segment, or a legacy `.ndjson[.gz]` tape. The local audit pack is written under `outputs/real_data_runs/<label>/`; labels are immutable and an existing `pack` is never overwritten. The generator creates the pack with `_INCOMPLETE.json` first, copies event, fill, and markout audits through fsynced partials, and removes the sentinel only after its independent audit passes. A copy, simulation, or audit failure therefore leaves a visible incomplete pack and any forensic partials. The committed publication path writes only `docs/real_data_runs/<label>.md` and `docs/real_data_runs/<label>.json`; raw input, event traces, CSVs, and local packs are not copied into docs. New JSON reports use `lob_sim.real_data_report.v2` and state the input identity, market/risk metrics, audit memory contract, benchmark context, source state, and target-window status. Historical v1 reports remain labeled as pre-streaming evidence. Keep local-only raw data local; publish only hashes and report-only artifacts.
 
 ## Audit
 
@@ -66,7 +66,7 @@ The report script already audits the generated local pack. To rerun it:
 python scripts/audit_futures_pack.py --pack outputs/real_data_runs/BTCUSDT_30m/pack
 ```
 
-The audit checks the summary JSON/CSV, trades CSV, event trace, manifest, replay input counts, fill metrics, lifecycle counters, public-consumption diagnostics, and provenance labels.
+The bounded audit streams the summary JSON/CSV, trades CSV, markout CSV, and event trace; verifies the manifest file hashes and absence of incomplete/partial artifacts; recomputes fill and markout hash chains; checks trace correspondence, lifecycle and public-consumption aggregates; and resolves fill evidence IDs against the hashed replay input. Exact evidence/order sets live in a temporary SQLite file, diagnostics are capped, and no detail rows are retained in Python memory. This is an implementation memory contract, not a claim of constant disk use or protection from one arbitrarily large CSV row.
 
 ## Benchmark
 

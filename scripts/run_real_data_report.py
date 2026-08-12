@@ -17,17 +17,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from experiments.benchmark_futures_replay import benchmark_reviewer_modes, write_benchmark_json
+from experiments.benchmark_futures_replay import benchmark_reviewer_modes
 from lob_sim.config import load_config
 from lob_sim.replay.inspection import inspect_stream
 from lob_sim.replay.reader import iter_records
-from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim.export import atomic_write_json, atomic_write_summary_csv
+from lob_sim.sim.runner import run_bounded_simulation
 from lob_sim.sim.run_manifest import output_artifact_snapshot
-from lob_sim.util import write_summary_csv
 from scripts.audit_futures_pack import audit_futures_pack
 
 
-REAL_DATA_REPORT_SCHEMA_VERSION = "lob_sim.real_data_report.v1"
+REAL_DATA_REPORT_SCHEMA_VERSION = "lob_sim.real_data_report.v2"
 RAW_DATA_POLICY = "local-only raw data; raw NDJSON is not committed"
 LOCAL_ONLY_NOTE = (
     f"{RAW_DATA_POLICY}; publish the input SHA-256, report, and summary artifacts unless the raw file "
@@ -35,7 +35,7 @@ LOCAL_ONLY_NOTE = (
 )
 TARGET_MIN_DURATION_SECONDS = 10 * 60
 TARGET_MAX_DURATION_SECONDS = 30 * 60
-SUPPORTED_INPUT_SUFFIXES = (".ndjson", ".ndjson.gz")
+SUPPORTED_INPUT_SUFFIXES = (".ndjson", ".ndjson.gz", ".ndjson.zst", ".manifest.json")
 
 
 @contextmanager
@@ -84,7 +84,7 @@ def _validate_input_path(input_path: Path) -> Path:
     if not resolved.is_file():
         raise ValueError(f"Real-data input must be a file, got: {resolved}")
     if not any(resolved.name.endswith(suffix) for suffix in SUPPORTED_INPUT_SUFFIXES):
-        raise ValueError("Real-data input must be an NDJSON or NDJSON.GZ file")
+        raise ValueError("Real-data input must be NDJSON, NDJSON.GZ, NDJSON.ZST, or a capture manifest")
     return resolved
 
 
@@ -112,6 +112,26 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _atomic_copy(source: Path, destination: Path) -> None:
+    partial = destination.with_name(destination.name + ".partial")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with source.open("rb") as source_handle, partial.open("xb") as destination_handle:
+        shutil.copyfileobj(source_handle, destination_handle, length=1024 * 1024)
+        destination_handle.flush()
+        os.fsync(destination_handle.fileno())
+    partial.replace(destination)
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    partial = path.with_name(path.name + ".partial")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with partial.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    partial.replace(path)
+
+
 def _copy_to_local_pack(
     *,
     input_path: Path,
@@ -120,17 +140,29 @@ def _copy_to_local_pack(
     output_dir: Path,
 ) -> Path:
     pack_dir = output_dir / "pack"
-    pack_dir.mkdir(parents=True, exist_ok=True)
-    committed_paths = {
+    if pack_dir.exists():
+        raise FileExistsError(f"Refusing to overwrite an existing real-data pack for this label: {pack_dir}")
+    pack_dir.mkdir(parents=True)
+    final_paths = {
         "event_trace": pack_dir / "event_trace.csv",
+        "markouts": pack_dir / "markouts.csv",
         "summary": pack_dir / "summary.json",
         "summary_csv": pack_dir / "summary.csv",
         "trades": pack_dir / "trades.csv",
         "manifest": pack_dir / "manifest.json",
     }
+    atomic_write_json(
+        pack_dir / "_INCOMPLETE.json",
+        {
+            "schema_version": "lob_sim.incomplete_real_data_pack.v1",
+            "created_at_utc": _utc_now(),
+            "input": str(input_path.resolve()),
+            "reason": "derived pack has not passed final audit",
+        },
+    )
 
-    shutil.copyfile(generated_paths["trades"], committed_paths["trades"])
-    shutil.copyfile(generated_paths["event_trace"], committed_paths["event_trace"])
+    for label_name in ("trades", "event_trace", "markouts"):
+        _atomic_copy(generated_paths[label_name], final_paths[label_name])
 
     provenance = {
         "data_class": "recorded_public_data",
@@ -141,18 +173,22 @@ def _copy_to_local_pack(
     }
     summary = dict(summary)
     summary["fixture_provenance"] = provenance
-    summary["output_files"] = {name: _display_path(path) for name, path in committed_paths.items()}
-    committed_paths["summary"].write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
-    write_summary_csv(committed_paths["summary_csv"], summary, exclude_keys={"fills", "markout_events"})
+    summary["output_files"] = {name: _display_path(path) for name, path in final_paths.items()}
+    atomic_write_json(final_paths["summary"], summary)
+    atomic_write_summary_csv(final_paths["summary_csv"], summary)
 
     manifest = json.loads(generated_paths["manifest"].read_text(encoding="utf-8"))
     manifest["input"]["path"] = str(input_path.resolve())
     manifest["outputs"] = dict(summary["output_files"])
     manifest["fixture_provenance"] = provenance
-    manifest["output_artifacts"] = output_artifact_snapshot(committed_paths, path_formatter=_display_path)
-    committed_paths["manifest"].write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    manifest["output_artifacts"] = output_artifact_snapshot(
+        final_paths,
+        path_formatter=_display_path,
+    )
+    atomic_write_json(final_paths["manifest"], manifest)
 
-    (pack_dir / "README.md").write_text(
+    _atomic_write_text(
+        pack_dir / "README.md",
         "\n".join(
             [
                 "# Local Real Data Pack",
@@ -164,10 +200,9 @@ def _copy_to_local_pack(
                 "",
             ]
         ),
-        encoding="utf-8",
-        newline="\n",
     )
-    (pack_dir / "case_notes.md").write_text(
+    _atomic_write_text(
+        pack_dir / "case_notes.md",
         "\n".join(
             [
                 "# Local Real Data Case Notes",
@@ -180,9 +215,8 @@ def _copy_to_local_pack(
                 "",
             ]
         ),
-        encoding="utf-8",
-        newline="\n",
     )
+    (pack_dir / "_INCOMPLETE.json").unlink()
     return pack_dir
 
 
@@ -328,10 +362,13 @@ def _build_report_payload(
         },
         "audit": {
             "ok": audit_result.get("ok"),
-            "issue_count": len(audit_result.get("issues", [])),
+            "issue_count": audit_result.get("issue_count", len(audit_result.get("issues", []))),
+            "mode": audit_result.get("audit_mode"),
+            "memory_contract": audit_result.get("memory_contract", {}),
             "event_trace_rows": audit_counts.get("event_trace_rows", summary.get("event_trace_count")),
             "queue_consumption_rows": audit_counts.get("queue_consumption_rows"),
         },
+        "simulation_export": summary.get("simulation_export", {}),
         "benchmark": {
             "schema_version": benchmark.get("schema_version"),
             "config_digest": benchmark_metadata.get("config_digest"),
@@ -466,6 +503,8 @@ def _render_report(payload: dict[str, Any]) -> str:
             "",
             f"- Local pack audit ok: `{str(audit.get('ok')).lower()}`",
             f"- Audit issue count: `{audit.get('issue_count')}`",
+            f"- Audit mode: `{audit.get('mode')}`",
+            f"- Audit memory contract: `{_json_line(audit.get('memory_contract', {}))}`",
             f"- Event trace rows audited locally: `{audit.get('event_trace_rows')}`",
             f"- Queue-consumption rows audited locally: `{audit.get('queue_consumption_rows')}`",
             f"- Replay-only wall time seconds: `{benchmark['replay_only'].get('wall_time_seconds')}`",
@@ -474,11 +513,11 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Replay-only p99 loop latency us: `{benchmark['replay_only'].get('loop_latency_p99_us')}`",
             f"- Simulation without export events/sec: `{benchmark['simulation_no_export'].get('events_per_second')}`",
             (
-                "- Simulation with event-trace export events/sec: "
+                "- Simulation with bounded streaming audit export events/sec: "
                 f"`{benchmark['simulation_with_streaming_audit_export'].get('events_per_second')}`"
             ),
             (
-                "- Simulation with event-trace export peak traced MiB: "
+                "- Simulation with bounded streaming audit export peak traced MiB: "
                 f"`{benchmark['simulation_with_streaming_audit_export'].get('peak_traced_mib')}`"
             ),
             f"- Runtime: Python `{benchmark.get('python_version')}`, platform `{benchmark.get('platform')}`",
@@ -510,14 +549,8 @@ def _render_report(payload: dict[str, Any]) -> str:
 
 
 def _write_report_pair(payload: dict[str, Any], *, markdown_path: Path, json_path: Path) -> None:
-    markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-    markdown_path.write_text(_render_report(payload), encoding="utf-8", newline="\n")
+    _atomic_write_text(json_path, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
+    _atomic_write_text(markdown_path, _render_report(payload))
 
 
 def run_report(
@@ -539,9 +572,7 @@ def run_report(
 
     with _temporary_env({"RECORD_DIR": str(output_dir / "record_dir")}):
         cfg = load_config(env_path)
-        engine = SimulationEngine(cfg)
-        metrics = engine.run(input_path)
-        generated_paths, summary = engine.write_outputs(str(input_path), metrics)
+        generated_paths, summary = run_bounded_simulation(cfg, input_path)
 
     pack_dir = _copy_to_local_pack(
         input_path=input_path,
@@ -552,6 +583,18 @@ def run_report(
     audited_summary = json.loads((pack_dir / "summary.json").read_text(encoding="utf-8"))
     manifest = json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
     audit_result = audit_futures_pack(pack_dir)
+    if not audit_result.get("ok"):
+        atomic_write_json(
+            pack_dir / "_INCOMPLETE.json",
+            {
+                "schema_version": "lob_sim.incomplete_real_data_pack.v1",
+                "created_at_utc": _utc_now(),
+                "input": str(input_path.resolve()),
+                "reason": "derived pack failed its independent streaming audit",
+                "audit_issue_count": audit_result.get("issue_count", len(audit_result.get("issues", []))),
+            },
+        )
+        raise RuntimeError(f"Real-data pack audit failed closed: {audit_result.get('issues', [])}")
     benchmark = benchmark_reviewer_modes(input_path, env_path, runs=runs, pack_dir=pack_dir)
     payload = _build_report_payload(
         input_path=input_path,
@@ -570,15 +613,14 @@ def run_report(
     audit_path = output_dir / "audit.json"
     report_md_path = output_dir / "local_real_data_report.md"
 
-    inspection_path.write_text(json.dumps(inspection, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    audit_path.write_text(
-        json.dumps(audit_result, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8", newline="\n"
-    )
-    write_benchmark_json(benchmark, benchmark_path)
+    _atomic_write_text(inspection_path, json.dumps(inspection, indent=2, sort_keys=True) + "\n")
+    _atomic_write_text(audit_path, json.dumps(audit_result, indent=2, sort_keys=True, default=str) + "\n")
+    _atomic_write_text(benchmark_path, json.dumps(benchmark, indent=2, sort_keys=True) + "\n")
     _write_report_pair(payload, markdown_path=report_md_path, json_path=report_json_path)
 
     paths = {
         "output_dir": output_dir,
+        "simulation_run_dir": generated_paths["manifest"].parent,
         "pack_dir": pack_dir,
         "report_md": report_md_path,
         "report_json": report_json_path,
@@ -597,7 +639,12 @@ def run_report(
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate a local-only real-data replay evidence report")
-    parser.add_argument("--file", required=True, type=Path, help="Recorded NDJSON or NDJSON.GZ input")
+    parser.add_argument(
+        "--file",
+        required=True,
+        type=Path,
+        help="Finalized schema-v3 capture manifest/segment or legacy NDJSON input",
+    )
     parser.add_argument("--env", default=".env.example", help="Config source for simulation and benchmark")
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/real_data_runs"), help="Report output root")
     parser.add_argument("--label", help="Optional stable run label under --out-dir")

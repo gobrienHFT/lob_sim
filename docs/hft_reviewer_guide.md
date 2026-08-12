@@ -54,7 +54,7 @@ flowchart LR
 
 ```bash
 python scripts/reviewer_gate.py
-python -m mypy lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/export.py lob_sim/sim/runner.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
+python -m mypy lob_sim/audit lob_sim/book lob_sim/replay lob_sim/record lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/export.py lob_sim/sim/runner.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py
 python -m lob_sim.cli --env .env.example doctor
 python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 python -m lob_sim.cli --env .env.example replay --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
@@ -86,7 +86,7 @@ make latency-sweep-fixture
 make refresh-artifacts
 ```
 
-`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` delegates to that same script. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13: each job installs the package with dev dependencies, runs a CLI smoke test, then runs `make reviewer-gate`. The mypy surface includes the book, replay, record, CLI, independent Python oracle, deterministic simulation kernel, bounded export transaction, runner, metrics, manifests, sinks, and synthetic exchange. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` delegates to that same script. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13: each job installs the package with dev dependencies, runs a CLI smoke test, then runs `make reviewer-gate`. The mypy surface includes the bounded audit oracle, book, replay, record, CLI, independent Python oracle, deterministic simulation kernel, bounded export transaction, runner, metrics, manifests, sinks, and synthetic exchange. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
 
 ## Observed vs Inferred
 
