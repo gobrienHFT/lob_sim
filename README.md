@@ -87,6 +87,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Schema-v3 simulation uses market-data-first logical ties; legacy v1 rows retain an explicitly labeled action-first compatibility policy.
 - `replay` and `audit` expose a separate validity reduction for receipt sequence, monotonic receive-clock, capture lifecycle, stream epochs, rejected snapshots, and per-symbol execution inputs. Audit status explicitly separates structural book validity, selected execution-input validity, and the stricter `claim_ready` evidence gate. `claim_ready` requires a complete schema-v3 trailer and valid execution inputs; legacy tapes remain diagnostic-only even when their books sync.
 - Schema-v3 audit output retains a bounded receipt-anchored validity-boundary timeline. Reconnects, rejected snapshots, clock regressions, and capture failures remain explicit invalidated epochs; recovered final books do not erase the evidence or turn an interrupted tape into claim-ready data.
+- Simulation integrity carries the same finalized-capture boundary: schema-v3 `integrity.claim_ready` stays false until a complete `capture_trailer` is observed, even if receipt clocks and final books are coherent.
 
 Run the futures paths with:
 

@@ -43,6 +43,11 @@ prospectively only after a connect record (or an explicitly handled legacy
 implicit boundary); no queue or order state crosses the outage. Regressing
 stream or sync epochs are rejected.
 
+Simulation summaries carry the same finalized-capture boundary in
+`integrity.capture_trailer_seen` and `integrity.claim_ready`. A schema-v3 run
+without the finalized `capture_trailer` remains diagnostic-only even when its
+receipt clock and final book happen to look coherent.
+
 The live collector applies the same boundary before snapshot recovery: every
 depth failure, including a failed initial connection, clears buffered depth and
 opens a sync epoch. A reconnect callback does not open a second epoch when the
