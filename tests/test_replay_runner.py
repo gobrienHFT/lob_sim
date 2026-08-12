@@ -356,3 +356,91 @@ def test_replay_reconnect_and_rejected_snapshot_clear_book_epoch(tmp_path: Path)
     assert result.validity is not None
     assert result.validity.claim_ready is False
     assert any(boundary.scope == "stream" and boundary.kind == "invalidated" for boundary in result.validity.boundaries)
+
+
+def test_replay_marks_same_epoch_snapshot_replacement_as_invalid_boundary(tmp_path: Path) -> None:
+    path = tmp_path / "snapshot_replacement.ndjson"
+    records = [
+        NDJSONRecord(0.0, "*", "captureMeta", {"schemaVersion": 3, "clock": "receive_time"}),
+        NDJSONRecord(
+            0.1,
+            "BTCUSDT",
+            "exchangeInfo",
+            {
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "_capture": _v3_capture(1, "control", stream_epoch=0, sync_epoch=0),
+            },
+        ),
+        NDJSONRecord(
+            0.2,
+            "BTCUSDT",
+            "captureEvent",
+            {"event": "connect", "route": "public", "_capture": _v3_capture(2, "public")},
+        ),
+        NDJSONRecord(
+            0.3,
+            "BTCUSDT",
+            "captureEvent",
+            {"event": "connect", "route": "market", "_capture": _v3_capture(3, "market")},
+        ),
+        NDJSONRecord(
+            0.4,
+            "BTCUSDT",
+            "snapshot",
+            {**snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.001")]), "_capture": _v3_capture(4, "public")},
+        ),
+        NDJSONRecord(
+            0.5,
+            "BTCUSDT",
+            "depthUpdate",
+            {
+                "U": 95,
+                "u": 105,
+                "pu": 94,
+                "b": [["100.0", "0.001"]],
+                "a": [["100.1", "0.001"]],
+                "_capture": _v3_capture(5, "public"),
+            },
+        ),
+        NDJSONRecord(
+            0.6,
+            "BTCUSDT",
+            "snapshot",
+            {**snapshot_payload(105, [("100.0", "0.001")], [("100.1", "0.001")]), "_capture": _v3_capture(6, "public")},
+        ),
+        NDJSONRecord(
+            0.7,
+            "BTCUSDT",
+            "depthUpdate",
+            {
+                "U": 105,
+                "u": 110,
+                "pu": 104,
+                "b": [["100.0", "0.002"]],
+                "a": [["100.1", "0.002"]],
+                "_capture": _v3_capture(7, "public"),
+            },
+        ),
+        NDJSONRecord(
+            0.8,
+            "*",
+            "captureEvent",
+            {
+                "event": "capture_trailer",
+                "route": "control",
+                "_capture": _v3_capture(8, "control", stream_epoch=0, sync_epoch=0),
+            },
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    result = replay(path, replace(load_config(".env.example"), mm_strategy_profile="baseline"))
+
+    assert result.symbols["BTCUSDT"].synced is True
+    assert result.validity is not None
+    assert result.validity.claim_ready is False
+    assert any(
+        boundary.reason == "snapshot_replaced_synced_book" and boundary.scope == "book"
+        for boundary in result.validity.boundaries
+    )

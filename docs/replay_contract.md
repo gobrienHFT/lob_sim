@@ -87,9 +87,10 @@ Schema-v3 validity also carries a bounded ``boundaries`` timeline.  Each row
 is anchored to the recorded receive sequence/monotonic timestamp and includes
 the route, stream/sync epochs, symbol, transition kind (``recovered`` or
 ``invalidated``), scope, and reason.  A reconnect, rejected snapshot, clock
-regression, or capture failure is therefore an explicit validity boundary,
-not a silent repair.  The timeline is capped at 4,096 rows; truncation is
-reported through ``boundaries_omitted`` and prevents ``claim_ready``.
+regression, capture failure, or replacement of an already-synced book by a
+new snapshot is therefore an explicit validity boundary, not a silent repair.
+The timeline is capped at 4,096 rows; truncation is reported through
+``boundaries_omitted`` and prevents ``claim_ready``.
 
 ## Determinism Check
 

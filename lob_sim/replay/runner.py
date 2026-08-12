@@ -330,6 +330,29 @@ class _ReplayValidityTracker:
             symbol.invalidate(rejection_reason, route="public")
             self._record_boundary(rec, capture, kind="invalidated", scope="book", reason=rejection_reason)
 
+    def note_symbol_boundary(
+        self,
+        rec: RecordedEvent,
+        capture: dict[str, object],
+        *,
+        reason: str,
+        scope: str = "book",
+    ) -> None:
+        """Retain a book boundary detected by the sync state machine.
+
+        Some legacy or hand-authored tapes do not increment ``syncEpoch`` when
+        a new snapshot replaces an already-synced book.  The synchronizer can
+        still recover the next epoch, but the validity reducer must preserve
+        the boundary instead of treating the recovered book as uninterrupted.
+        The stream validity bit is intentionally left unchanged here: a
+        successful subsequent bridge may make the final book usable while the
+        claim gate remains blocked by this recorded boundary.
+        """
+
+        symbol = self._symbol(rec.symbol)
+        symbol.invalidate(reason)
+        self._record_boundary(rec, capture, kind="invalidated", scope=scope, reason=reason)
+
     def observe(self, rec: RecordedEvent) -> None:
         if rec.type == "captureMeta":
             version = self._int_or_none(rec.data.get("schemaVersion"))
@@ -564,14 +587,19 @@ def replay(
             syncers[rec.symbol] = syncer
 
         if rec.type == "snapshot":
-            capture = rec.data.get("_capture", {})
-            if isinstance(capture, dict) and capture.get("snapshotAccepted") is False:
+            capture_value = rec.data.get("_capture", {})
+            capture = capture_value if isinstance(capture_value, dict) else {}
+            if capture.get("snapshotAccepted") is False:
                 if syncer is not None:
                     syncer.begin_resync("snapshot_rejected")
                 continue
             evt = adapter.snapshot_from_record(rec, spec)
             if syncer is not None:
                 try:
+                    if syncer.synced:
+                        reason = "snapshot_replaced_synced_book"
+                        syncer.begin_resync(reason)
+                        validity_tracker.note_symbol_boundary(rec, capture, reason=reason)
                     syncer.on_snapshot(evt)
                 except (BookSyncGapError, BookInvariantError) as exc:
                     logger.warning("Invalid snapshot while replaying %s: %s", rec.symbol, exc)
