@@ -58,6 +58,11 @@ and valid book/trade inputs for every symbol.  Legacy tapes remain replayable
 for compatibility, but their validity output is diagnostic-only and cannot
 become claim-ready evidence by omission.
 
+Receipt-sequence gaps are fail-closed boundaries, not merely counters: the
+replay validity reducer invalidates capture evidence at the first observed gap
+and reports the number of missing sequence values. This catches a missing
+record even when later book events happen to reconstruct cleanly.
+
 ```bash
 python -m lob_sim.cli audit --file data/capture_....manifest.json
 ```
