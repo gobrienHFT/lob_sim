@@ -8,10 +8,21 @@ Use the envelope runner when a replay conclusion depends on passive fills, PnL, 
 python experiments/run_fill_assumption_envelope.py --file <file> --env .env.example --out-dir outputs/fill_envelope
 ```
 
-The runner executes the same replay input and the same normalized simulation config three times. Only the fill-assumption profile changes:
+The runner executes the same replay input and the same normalized simulation config three times. The
+`FILL_PROFILE` value changes the envelope profile. Each individual simulation still uses one
+mutually exclusive public-consumption signal selected by `SIM_FILL_MODEL`:
+
+- `SIM_FILL_MODEL=trade`: `aggTrade` prints are the queue-consumption signal; depth reductions are not independently credited.
+- `SIM_FILL_MODEL=depth`: depth reductions are the queue-consumption signal; `aggTrade` prints are not independently credited.
+
+This separation matters: profile rows are sensitivity cases, not a claim that both signals identify
+the same private FIFO execution. The effective assumption written into each run manifest is the
+post-`SIM_FILL_MODEL` configuration.
+
+At the profile level, the envelope is:
 
 - `conservative`: `aggTrade` prints may consume visible FIFO queue. Depth-only reductions are recorded as unknown/cancel-like public consumption unless same-price trade prints corroborate them inside the overlap window.
-- `base`: current passive-fill model behavior. Depth reductions and `aggTrade` prints both consume visible FIFO queue with the existing overlap-netting window.
+- `base`: enables both observed signals for profile construction with the existing overlap-netting window; the per-run `SIM_FILL_MODEL` filter above still makes the executed scenario mutually exclusive.
 - `aggressive`: depth reductions and `aggTrade` prints can both consume queue without overlap netting. This is an upper-bound model, not truth.
 
 Outputs:

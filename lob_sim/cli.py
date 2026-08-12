@@ -892,30 +892,57 @@ def _deterministic_run(config: Config, file: str) -> dict[str, object]:
     }
 
 
+def _rust_differential_status() -> dict[str, object]:
+    """Describe the Rust check exposed by the lightweight CLI comparison.
+
+    The committed parity report covers a substantially wider set of kernel
+    primitives.  The ``compare`` command intentionally remains a cheap
+    repeated-Python determinism check, so it must not imply whole-engine
+    Python/Rust parity merely because the optional extension is installed.
+    """
+
+    remaining_scope = [
+        "public-L2 execution scenarios",
+        "engine-integrated latency and portfolio-notional risk",
+        "engine-integrated accounting and markouts",
+        "run manifests and streaming audit sinks",
+    ]
+    try:
+        import lob_core  # type: ignore[import-not-found]
+    except ImportError:
+        return {
+            "extension_available": False,
+            "full_event_parity": False,
+            "scope": "not_run",
+            "reason": "lob_core_extension_unavailable",
+            "checked_surfaces": [],
+            "remaining_scope": remaining_scope,
+        }
+
+    return {
+        "extension_available": True,
+        "logical_time_smoke": list(lob_core.logical_time_key(1, 2)),
+        "full_event_parity": False,
+        "scope": "logical_time_smoke_only_for_cli_compare",
+        "checked_surfaces": ["logical_time_key"],
+        "remaining_scope": remaining_scope,
+    }
+
+
 def cmd_compare(config: Config, file: str, repetitions: int = 10) -> None:
     if repetitions < 2:
         raise ValueError("compare repetitions must be at least 2")
     runs = [_deterministic_run(config, file) for _ in range(repetitions)]
     hashes = [str(run["state_sha256"]) for run in runs]
     result: dict[str, object] = {
-        "schema_version": "lob_sim.determinism_comparison.v1",
+        "schema_version": "lob_sim.determinism_comparison.v2",
         "ok": len(set(hashes)) == 1,
         "repetitions": repetitions,
         "state_sha256": hashes[0],
         "python_repeat_parity": len(set(hashes)) == 1,
         "runs": runs,
-        "rust_differential": "not_run_extension_unavailable",
+        "rust_differential": _rust_differential_status(),
     }
-    try:
-        import lob_core  # type: ignore[import-not-found]
-    except ImportError:
-        pass
-    else:
-        result["rust_differential"] = {
-            "extension_available": True,
-            "logical_time_smoke": list(lob_core.logical_time_key(1, 2)),
-            "full_event_parity": "not_yet_implemented",
-        }
     print(json.dumps(result, indent=2))
 
 

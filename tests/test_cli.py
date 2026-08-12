@@ -188,6 +188,41 @@ def test_cli_exposes_reviewer_grade_command_surface() -> None:
         assert command in result.stdout
 
 
+def test_cli_compare_reports_scoped_rust_status(tmp_path: Path) -> None:
+    fixture = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "input_fixture.ndjson"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "lob_sim.cli",
+            "--env",
+            ".env.example",
+            "compare",
+            "--file",
+            str(fixture),
+            "--repetitions",
+            "2",
+        ],
+        cwd=REPO_ROOT,
+        env={**os.environ, "RECORD_DIR": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == "lob_sim.determinism_comparison.v2"
+    assert payload["python_repeat_parity"] is True
+    rust_status = payload["rust_differential"]
+    assert rust_status["full_event_parity"] is False
+    assert rust_status["scope"] in {
+        "not_run",
+        "logical_time_smoke_only_for_cli_compare",
+    }
+    assert "public-L2 execution scenarios" in rust_status["remaining_scope"]
+
+
 def test_cli_demo_separates_public_l2_and_exact_synthetic_ground_truth() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "lob_sim.cli", "--env", ".env.example", "demo"],
