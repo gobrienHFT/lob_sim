@@ -96,6 +96,13 @@ Decision rows include strategy diagnostics in `details`: decision reason when pr
 
 Summaries and manifests include the adapter-normalized `instrument_specs` block for each replayed symbol: venue, price currency, quantity unit, tick size, lot size, and contract multiplier. This makes the units behind inventory, notional, fee, and markout math visible in the generated artifacts.
 
+Valuation is fail-closed. Every non-zero position must have both instrument
+metadata and a current midpoint from its active book before `total_pnl` or
+`unrealized_pnl` is numeric. If the book is absent, stale, uncrossed, or has no
+midpoint, the symbol appears in `missing_mark_symbols`, inventory remains
+visible when its instrument metadata is known, and the PnL fields are `null`
+rather than silently reporting zero.
+
 Trades CSV rows include the same structured fill-provenance fields as the trace plus fill source, normalized quantity, instrument notional, contract multiplier, maker/taker fee rate, fee amount, fee currency, and per-fill spread capture. Nested evidence, validity, queue, and latency fields are canonical JSON rather than Python representations. PnL, spread capture, fees, and markout are multiplier-adjusted; inventory remains in normalized quantity units.
 
 Completed bounded manifests add a content-addressed SHA-256 over the finalized

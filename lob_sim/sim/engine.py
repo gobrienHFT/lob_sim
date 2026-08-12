@@ -1666,7 +1666,7 @@ class SimulationEngine:
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
             self._drain_events(now, inclusive=True)
             if self._books:
-                self.metrics.update_unrealized(self._books, now_ts=now)
+                self.metrics.update_unrealized(self._books, now_ts=now, specs=self._specs)
                 self._trace_markout_events(self.metrics.drain_new_markout_events())
             self._handle_kill_switch(now, rec.symbol, "market_record", verbose)
 
@@ -1721,7 +1721,7 @@ class SimulationEngine:
             # that boundary remain pending rather than being filled against a
             # frozen book.
             mark_ts = last_ts
-        self.metrics.update_unrealized(self._books, now_ts=mark_ts)
+        self.metrics.update_unrealized(self._books, now_ts=mark_ts, specs=self._specs)
         self._trace_markout_events(self.metrics.drain_new_markout_events())
         shutdown_symbol = next(iter(self._books), "")
         self._handle_kill_switch(mark_ts, shutdown_symbol, "shutdown", verbose)
@@ -1947,7 +1947,14 @@ class SimulationEngine:
         export_mode: str,
         manifest_seed: RunManifest | None = None,
     ) -> tuple[dict[str, Any], RunManifest]:
-        summary = metrics.get_summary(self._books)
+        # Keep the output helper compatible with small test/demonstration
+        # metric doubles that implement the original one-argument contract;
+        # the production metrics object receives the authoritative specs so
+        # open positions remain visible even while their book is unavailable.
+        if isinstance(metrics, SimulationMetrics):
+            summary = metrics.get_summary(self._books, specs=self._specs)
+        else:
+            summary = metrics.get_summary(self._books)
         summary.update(self._summary_annotations())
         summary["state_sha256"] = self.state_sha256()
         seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)

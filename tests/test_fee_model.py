@@ -9,7 +9,7 @@ from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.types import SymbolSpec
 from lob_sim.config import ConfigError, load_config
 from lob_sim.sim.fees import StaticFeeModel
-from lob_sim.sim.metrics import MarkoutCapacityError, SimulationMetrics
+from lob_sim.sim.metrics import MarkoutCapacityError, PositionState, SimulationMetrics
 from lob_sim.sim.orders import Fill
 from lob_sim.sim.sinks import AggregateMetricsSink
 
@@ -94,6 +94,52 @@ def test_metrics_records_per_fill_fee_audit_fields(
     assert summary["fills"][0]["fill_source"] == "depth_update"
     assert summary["fills"][0]["notional"] == "200"
     assert summary["fills"][0]["contract_multiplier"] == "1"
+
+
+def test_open_inventory_without_a_book_is_unvalued_not_zero_pnl(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        FEES_MAKER_BPS="0",
+        FEES_TAKER_BPS="0",
+    )
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(
+        symbol="BTCUSDT",
+        tick_size=Decimal("1"),
+        step_size=Decimal("0.001"),
+        price_currency="USDT",
+    )
+    metrics.position["BTCUSDT"] = PositionState(lot_size=2, avg_cost=Decimal("100"))
+
+    summary = metrics.get_summary({}, specs={"BTCUSDT": spec})
+
+    assert summary["valuation_complete"] is False
+    assert summary["missing_mark_symbols"] == ["BTCUSDT"]
+    assert summary["unrealized_pnl"] is None
+    assert summary["total_pnl"] is None
+    assert summary["inventory_by_symbol"] == {"BTCUSDT": pytest.approx(0.002)}
+    assert summary["total_inventory"] == pytest.approx(0.002)
+
+
+def test_open_inventory_without_instrument_metadata_is_explicitly_unpriced(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(monkeypatch, tmp_path, FEES_MAKER_BPS="0", FEES_TAKER_BPS="0")
+    metrics = SimulationMetrics(cfg)
+    metrics.position["UNKNOWN"] = PositionState(lot_size=1, avg_cost=Decimal("100"))
+
+    summary = metrics.get_summary({})
+
+    assert summary["valuation_complete"] is False
+    assert summary["missing_mark_symbols"] == ["UNKNOWN"]
+    assert summary["inventory_missing_spec_symbols"] == ["UNKNOWN"]
+    assert summary["unrealized_pnl"] is None
+    assert summary["total_pnl"] is None
 
 
 def test_metrics_apply_contract_multiplier_to_pnl_spread_and_markout(
