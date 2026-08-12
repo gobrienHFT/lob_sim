@@ -42,6 +42,21 @@ python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_r
 
 The checker runs the same input and config multiple times in memory, computes canonical SHA-256 hashes for the metrics summary and event trace, and exits non-zero if any repeated run differs. Its JSON report includes the input digest, config digest, feed-adapter metadata, normalized instrument specs, runtime/source metadata, per-run hashes, event-trace counts, fill counts, and mismatch details.
 
+For an interrupted long replay, use the engine checkpoint API:
+
+```python
+engine.run(input_path, checkpoint_path="run.checkpoint.json", stop_after_records=100000)
+resumed.run(input_path, resume_from="run.checkpoint.json")
+```
+
+The checkpoint is ordinary JSON with a state hash, input SHA-256, behavioral
+configuration digest, logical time, and the continuation state. Resume rejects
+input or configuration drift and revalidates the skipped prefix. Compare
+`state_sha256()`, `event_trace`, and the final metrics summary against an
+uninterrupted run. Checkpointing is deliberately restricted to `NullSink`
+outputs; a resumed streaming export needs an explicit append/transaction
+protocol and is not silently fabricated.
+
 ## Pack Audit
 
 Use the pack auditor when you want to check a generated futures pack without reading each CSV by hand:

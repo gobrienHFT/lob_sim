@@ -34,6 +34,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 - Explicit public-L2 execution scenarios with synthetic queue-ahead tracking; historical Binance participant FIFO is not claimed.
 - Deterministic artifacts, reproducible runs, and a hash-based replay determinism checker for recorded NDJSON inputs.
+- JSON-only checkpoint/resume for interrupted long replays, including active venue state, pending actions, markouts, accounting, strategy features, seeded latency state, and input/config identity checks.
 - Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
 - Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
 

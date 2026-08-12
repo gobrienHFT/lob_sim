@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from heapq import heapify, heappush, heappop
-from itertools import count
+from itertools import islice
 from pathlib import Path
 from typing import Any, Dict
 
@@ -16,6 +17,7 @@ from ..config import Config
 from ..record.envelope import ValidityState
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
+from ..replay.inspection import file_sha256
 from ..oracle import state_hash
 from .export import (
     EVENT_TRACE_FIELDS,
@@ -32,9 +34,13 @@ from .run_manifest import (
     RunManifest,
     artifact_bundle_snapshot,
     build_run_manifest,
+    config_digest,
+    config_snapshot,
     instrument_specs_snapshot,
     simulation_assumptions_snapshot,
 )
+from ..oracle import Checkpoint, read_checkpoint, write_checkpoint
+from .checkpoint import CHECKPOINT_SCHEMA_VERSION, decode as decode_checkpoint, encode as encode_checkpoint
 from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
 
@@ -87,8 +93,8 @@ class SimulationEngine:
         self._syncers: Dict[str, BookSynchronizer] = {}
         self._next_decision: Dict[str, float] = {}
         self._actions: list[_EngineEvent] = []
-        self._id_counter = count()
-        self._trace_counter = count()
+        self._id_counter = 0
+        self._trace_counter = 0
         self.event_trace: list[dict[str, Any]] = []
         self._retain_event_trace = retain_event_trace
         self._event_trace_count = 0
@@ -111,6 +117,9 @@ class SimulationEngine:
         self._stream_invalid_reason: dict[tuple[str, str], str] = {}
         self._latest_book_evidence: dict[str, str] = {}
         self._latest_trade_evidence: dict[str, str] = {}
+        self._last_ts = 0.0
+        self._last_event_index = 0
+        self._market_data_first = False
 
     def event_trace_retention(self) -> dict[str, Any]:
         sink_memory_bounded = bool(getattr(self._event_sink, "memory_bounded", False))
@@ -368,9 +377,14 @@ class SimulationEngine:
                 self._recover_trade_stream(rec.symbol, now, epoch)
 
     def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
-        heappush(
-            self._actions, _EngineEvent(ts=ts, order=next(self._id_counter), kind=kind, symbol=symbol, payload=payload)
-        )
+        order = self._id_counter
+        self._id_counter += 1
+        heappush(self._actions, _EngineEvent(ts=ts, order=order, kind=kind, symbol=symbol, payload=payload))
+
+    def _next_id(self) -> int:
+        value = self._id_counter
+        self._id_counter += 1
+        return value
 
     def _trace(
         self,
@@ -390,9 +404,11 @@ class SimulationEngine:
         if self._last_trace_ts is not None and ts < self._last_trace_ts:
             raise RuntimeError(f"event trace violated causal order: timestamp {ts!r} followed {self._last_trace_ts!r}")
         self._last_trace_ts = ts
+        sequence = self._trace_counter
+        self._trace_counter += 1
         event = {
             "ts_local": ts,
-            "seq": next(self._trace_counter),
+            "seq": sequence,
             "symbol": symbol,
             "event_type": event_type,
             "source": source,
@@ -1141,7 +1157,7 @@ class SimulationEngine:
                 return
 
         order = Order(
-            order_id=f"{symbol}-{side}-{int(now * 1_000_000)}-{next(self._id_counter)}",
+            order_id=f"{symbol}-{side}-{int(now * 1_000_000)}-{self._next_id()}",
             symbol=symbol,
             side=side,
             price_tick=price_tick,
@@ -1265,17 +1281,240 @@ class SimulationEngine:
             elif event.kind == "trade_execution":
                 self._handle_trades(event.payload.get("fills", []))
 
+    def _checkpoint_mutable_state(self) -> dict[str, Any]:
+        """Capture every mutable input to the deterministic continuation."""
+
+        metric_excluded = {"cfg", "fee_model", "_fill_sink", "_markout_sink"}
+        metric_state = {key: value for key, value in self.metrics.__dict__.items() if key not in metric_excluded}
+        strategy_state = {
+            "returns": dict(self.strategy._returns),
+            "prev_mid": dict(self.strategy._prev_mid),
+            "recent_trade_signals": dict(self.strategy._recent_trade_signals),
+        }
+        return {
+            "id_counter": self._id_counter,
+            "trace_counter": self._trace_counter,
+            "capture_schema_version": self._capture_schema_version,
+            "receive_clock": self._receive_clock,
+            "last_receive_seq": self._last_receive_seq,
+            "clock_regressions": self._clock_regressions,
+            "next_decision": self._next_decision,
+            "actions": self._actions,
+            "event_trace": self.event_trace,
+            "event_trace_count": self._event_trace_count,
+            "last_trace_ts": self._last_trace_ts,
+            "trading_halted": self._trading_halted,
+            "pending_cancel_ack_ts": self._pending_cancel_ack_ts,
+            "pending_replacement_slots": self._pending_replacement_slots,
+            "symbol_time_watermark": self._symbol_time_watermark,
+            "stream_epochs": self._stream_epochs,
+            "capture_sync_epochs": self._capture_sync_epochs,
+            "sync_epoch_transitions": self._sync_epoch_transitions,
+            "gap_count": self._gap_count,
+            "snapshot_rejections": self._snapshot_rejections,
+            "depth_stream_valid": self._depth_stream_valid,
+            "trade_stream_valid": self._trade_stream_valid,
+            "stream_invalid_reason": self._stream_invalid_reason,
+            "latest_book_evidence": self._latest_book_evidence,
+            "latest_trade_evidence": self._latest_trade_evidence,
+            "specs": self._specs,
+            "books": self._books,
+            "syncers": self._syncers,
+            "fill_model": self.fill_model.__dict__,
+            "metrics": metric_state,
+            "strategy": strategy_state,
+            "latency_rng_state": self.latency_model._rng.getstate(),
+        }
+
+    def _restore_checkpoint_mutable_state(self, encoded_state: object) -> None:
+        state = decode_checkpoint(encoded_state)
+        if not isinstance(state, dict):
+            raise ValueError("simulation checkpoint engine state must be an object")
+
+        self._id_counter = int(state["id_counter"])
+        self._trace_counter = int(state["trace_counter"])
+        self._capture_schema_version = int(state["capture_schema_version"])
+        self._receive_clock = bool(state["receive_clock"])
+        raw_receive_seq = state.get("last_receive_seq")
+        self._last_receive_seq = None if raw_receive_seq is None else int(raw_receive_seq)
+        self._clock_regressions = int(state["clock_regressions"])
+        self._next_decision = dict(state["next_decision"])
+        self._actions = list(state["actions"])
+        heapify(self._actions)
+        self.event_trace = list(state["event_trace"])
+        self._event_trace_count = int(state["event_trace_count"])
+        self._last_trace_ts = state["last_trace_ts"]
+        self._trading_halted = bool(state["trading_halted"])
+        self._pending_cancel_ack_ts = dict(state["pending_cancel_ack_ts"])
+        self._pending_replacement_slots = set(state["pending_replacement_slots"])
+        self._symbol_time_watermark = dict(state["symbol_time_watermark"])
+        self._stream_epochs = dict(state["stream_epochs"])
+        self._capture_sync_epochs = dict(state["capture_sync_epochs"])
+        self._sync_epoch_transitions = int(state["sync_epoch_transitions"])
+        self._gap_count = int(state["gap_count"])
+        self._snapshot_rejections = int(state["snapshot_rejections"])
+        self._depth_stream_valid = dict(state["depth_stream_valid"])
+        self._trade_stream_valid = dict(state["trade_stream_valid"])
+        self._stream_invalid_reason = dict(state["stream_invalid_reason"])
+        self._latest_book_evidence = dict(state["latest_book_evidence"])
+        self._latest_trade_evidence = dict(state["latest_trade_evidence"])
+        self._specs = dict(state["specs"])
+        self._books = dict(state["books"])
+        self._syncers = dict(state["syncers"])
+        for symbol, syncer in self._syncers.items():
+            if symbol not in self._books:
+                raise ValueError(f"checkpoint syncer has no matching book: {symbol}")
+            syncer.book = self._books[symbol]
+
+        self.fill_model.__dict__.clear()
+        self.fill_model.__dict__.update(dict(state["fill_model"]))
+
+        metric_sink = self.metrics._fill_sink
+        markout_sink = self.metrics._markout_sink
+        metric_state = dict(state["metrics"])
+        self.metrics.__dict__.update(metric_state)
+        self.metrics.cfg = self.cfg
+        self.metrics._fill_sink = metric_sink
+        self.metrics._markout_sink = markout_sink
+        for field_name in (
+            "book_gap_count_by_symbol",
+            "book_invalidation_by_symbol",
+            "book_invalidation_reasons",
+            "trade_stream_invalidation_by_symbol",
+            "trade_stream_invalidation_reasons",
+            "trade_stream_recovery_by_symbol",
+            "order_rejected_by_reason",
+            "order_state_counts",
+            "record_type_counts",
+            "_markout_by_side",
+            "_markout_adverse_by_side",
+            "_markout_by_source",
+            "_markout_adverse_by_source",
+            "_regime_fill_counts",
+            "_regime_markout_counts",
+            "_regime_adverse_counts",
+        ):
+            setattr(self.metrics, field_name, defaultdict(int, getattr(self.metrics, field_name)))
+        for field_name in (
+            "_markout_qty_by_source",
+            "_markout_sum_by_source",
+            "_regime_fill_qty",
+            "_regime_spread_capture",
+        ):
+            setattr(
+                self.metrics,
+                field_name,
+                defaultdict(lambda: Decimal("0"), getattr(self.metrics, field_name)),
+            )
+
+        strategy_state = dict(state["strategy"])
+        self.strategy._returns.clear()
+        for symbol, returns in dict(strategy_state["returns"]).items():
+            self.strategy._returns[symbol].extend(returns)
+        self.strategy._prev_mid = dict(strategy_state["prev_mid"])
+        self.strategy._recent_trade_signals.clear()
+        for symbol, signals in dict(strategy_state["recent_trade_signals"]).items():
+            self.strategy._recent_trade_signals[symbol].extend(signals)
+        self.latency_model._rng.setstate(state["latency_rng_state"])
+
+    def write_state_checkpoint(
+        self,
+        input_path: str | Path,
+        checkpoint_path: str | Path,
+        *,
+        event_index: int | None = None,
+        last_ts: float | None = None,
+        market_data_first: bool | None = None,
+    ) -> Checkpoint:
+        """Persist a validated JSON checkpoint for deterministic continuation."""
+
+        input_file = Path(input_path)
+        index = self._last_event_index if event_index is None else event_index
+        logical_ts = self._last_ts if last_ts is None else last_ts
+        market_first = self._market_data_first if market_data_first is None else market_data_first
+        state = {
+            "schema_version": CHECKPOINT_SCHEMA_VERSION,
+            "input_path": str(input_file.resolve()),
+            "input_sha256": file_sha256(input_file),
+            "config_sha256": config_digest(config_snapshot(self.cfg)),
+            "event_index": index,
+            "last_ts": logical_ts,
+            "market_data_first": market_first,
+            "engine": encode_checkpoint(self._checkpoint_mutable_state()),
+        }
+        checkpoint = Checkpoint.create(
+            event_index=index,
+            logical_time=(int(round(logical_ts * 1_000_000_000)), int(self._last_receive_seq or index)),
+            state=state,
+            schema_version=CHECKPOINT_SCHEMA_VERSION,
+        )
+        write_checkpoint(checkpoint_path, checkpoint)
+        return checkpoint
+
+    def _load_state_checkpoint(self, input_path: str | Path, checkpoint_path: str | Path) -> Checkpoint:
+        checkpoint = read_checkpoint(checkpoint_path)
+        state = checkpoint.state
+        if state.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+            raise ValueError(f"unsupported simulation checkpoint schema: {state.get('schema_version')!r}")
+        if int(state.get("event_index", -1)) != checkpoint.event_index:
+            raise ValueError("simulation checkpoint event index is inconsistent")
+        input_file = Path(input_path)
+        if state.get("input_sha256") != file_sha256(input_file):
+            raise ValueError("simulation checkpoint input SHA-256 does not match replay input")
+        if state.get("config_sha256") != config_digest(config_snapshot(self.cfg)):
+            raise ValueError("simulation checkpoint configuration digest does not match current config")
+        self._restore_checkpoint_mutable_state(state["engine"])
+        self._last_ts = float(state["last_ts"])
+        self._last_event_index = int(state["event_index"])
+        self._market_data_first = bool(state["market_data_first"])
+        return checkpoint
+
     def run(
         self,
         file_path: str | Path,
         verbose: bool = False,
         progress_every: int = 5000,
+        *,
+        checkpoint_path: str | Path | None = None,
+        checkpoint_every: int = 0,
+        resume_from: str | Path | None = None,
+        stop_after_records: int | None = None,
     ) -> SimulationMetrics:
-        last_ts = 0.0
-        records_processed = 0
-        market_data_first = False
+        if checkpoint_every < 0:
+            raise ValueError("checkpoint_every must be >= 0")
+        if checkpoint_every > 0 and checkpoint_path is None:
+            raise ValueError("checkpoint_path is required when checkpoint_every is positive")
+        if stop_after_records is not None and stop_after_records <= 0:
+            raise ValueError("stop_after_records must be positive")
+        if stop_after_records is not None and checkpoint_path is None:
+            raise ValueError("checkpoint_path is required when stop_after_records is set")
+        if resume_from is not None and any(
+            not isinstance(sink, NullSink)
+            for sink in (self._event_sink, self.metrics._fill_sink, self.metrics._markout_sink)
+        ):
+            raise ValueError("checkpoint resume requires NullSink outputs; resume into a new audit bundle explicitly")
+
+        start_index = 0
+        if resume_from is not None:
+            checkpoint = self._load_state_checkpoint(file_path, resume_from)
+            start_index = checkpoint.event_index
+            last_ts = self._last_ts
+            records_processed = self._last_event_index
+            market_data_first = self._market_data_first
+        else:
+            last_ts = 0.0
+            records_processed = 0
+            market_data_first = False
+            self._last_ts = last_ts
+            self._last_event_index = records_processed
+            self._market_data_first = market_data_first
+
+        records = iter_records(file_path)
+        if start_index:
+            records = islice(records, start_index, None)
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
-        for rec in iter_records(file_path):
+        interrupted = False
+        for rec in records:
             records_processed += 1
             record_evidence_id = self._record_evidence_id(rec, records_processed)
             self.metrics.on_record(rec.type)
@@ -1283,6 +1522,7 @@ class SimulationEngine:
                 self._capture_schema_version = int(rec.data.get("schemaVersion", 1))
                 market_data_first = self._capture_schema_version >= 3
                 self._receive_clock = rec.data.get("clock") == "receive_time"
+                self._market_data_first = market_data_first
 
             observed_ts = self._event_time(rec)
             now = observed_ts
@@ -1427,6 +1667,25 @@ class SimulationEngine:
                 self._trace_markout_events(self.metrics.drain_new_markout_events())
             self._handle_kill_switch(now, rec.symbol, "market_record", verbose)
 
+            self._last_ts = last_ts
+            self._last_event_index = records_processed
+            self._market_data_first = market_data_first
+            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
+            should_stop = stop_after_records is not None and records_processed >= stop_after_records
+            if should_checkpoint or should_stop:
+                if checkpoint_path is None:
+                    raise AssertionError("checkpoint path missing after checkpoint validation")
+                self.write_state_checkpoint(
+                    file_path,
+                    checkpoint_path,
+                    event_index=records_processed,
+                    last_ts=last_ts,
+                    market_data_first=market_data_first,
+                )
+            if should_stop:
+                interrupted = True
+                break
+
             if verbose and progress_every > 0 and records_processed % progress_every == 0:
                 total_pnl = float(self.metrics.realized_pnl + self.metrics.unrealized_pnl)
                 self._verbose(
@@ -1435,6 +1694,10 @@ class SimulationEngine:
                     f"quotes={self.metrics.quote_count} pnl={total_pnl:.6f} pending_events={len(self._actions)} "
                     f"last={rec.symbol}:{rec.type}",
                 )
+
+        if interrupted:
+            self._verbose(verbose, f"[simulate] checkpointed after records={records_processed}")
+            return self.metrics
 
         final_ts = last_ts + max(
             self.cfg.mm_requote_ms / 1000.0,
@@ -1650,6 +1913,21 @@ class SimulationEngine:
                 for (symbol, route), epoch in sorted(self._stream_epochs.items())
                 if route in {"public", "market"}
             },
+            "continuation_state": encode_checkpoint(
+                {
+                    "id_counter": self._id_counter,
+                    "trace_counter": self._trace_counter,
+                    "last_event_index": self._last_event_index,
+                    "actions": self._actions,
+                    "active_fill_model": self.fill_model.__dict__,
+                    "strategy": {
+                        "returns": dict(self.strategy._returns),
+                        "prev_mid": dict(self.strategy._prev_mid),
+                        "recent_trade_signals": dict(self.strategy._recent_trade_signals),
+                    },
+                    "latency_rng_state": self.latency_model._rng.getstate(),
+                }
+            ),
         }
 
     def state_sha256(self) -> str:
