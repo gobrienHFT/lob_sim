@@ -134,6 +134,10 @@ def build_reviewer_gate_steps(
                 "committed futures pack audit",
                 (python_executable, "scripts/audit_futures_pack.py", "--committed-futures"),
             ),
+            GateStep(
+                "fault-injection fail-closed matrix",
+                (python_executable, "scripts/check_fault_injection.py"),
+            ),
         ]
     )
     if include_benchmark:
