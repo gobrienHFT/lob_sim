@@ -2102,3 +2102,36 @@ def test_markout_inventory_and_pnl_sanity(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert summary["adverse_fill_rate_1s"] == pytest.approx(0.0)
     assert summary["total_inventory"] == pytest.approx(1.0)
     assert summary["fill_source_counts"] == {"depth_update": 1, "agg_trade": 0, "taker_order": 0}
+
+
+def test_accounting_partial_and_over_reversals_preserve_residual_position(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cfg = _build_config(monkeypatch, tmp_path)
+    metrics = SimulationMetrics(cfg)
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    metrics.register_symbol("BTCUSDT")
+    book.reset_from_snapshot(1, bids={99: 10}, asks={101: 10})
+
+    metrics.on_fill(
+        Fill(ts_local=0.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=3, maker=True),
+        book,
+        Decimal("100"),
+    )
+    metrics.on_fill(
+        Fill(ts_local=1.0, symbol="BTCUSDT", side="ask", price_tick=110, qty_lots=1, maker=True),
+        book,
+        Decimal("105"),
+    )
+    assert metrics.position["BTCUSDT"] == PositionState(lot_size=2, avg_cost=Decimal("100"))
+    assert metrics.realized_pnl == Decimal("10")
+
+    metrics.on_fill(
+        Fill(ts_local=2.0, symbol="BTCUSDT", side="ask", price_tick=90, qty_lots=3, maker=True),
+        book,
+        Decimal("95"),
+    )
+    assert metrics.position["BTCUSDT"] == PositionState(lot_size=-1, avg_cost=Decimal("90"))
+    assert metrics.realized_pnl == Decimal("-10")

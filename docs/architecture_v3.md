@@ -21,6 +21,12 @@ input-row identity and are labeled as such. These IDs make a modeled fill
 replayable against immutable input; they do not turn public L2 into a private
 execution report or measured latency evidence.
 
+The Python engine's Decimal accounting follows the same reversal contract as
+the fixed-point oracle: a partial close reduces the existing lot count without
+changing its cost basis, and only an over-reversal opens a residual position at
+the incoming fill price. This is an accounting invariant, not an assertion of
+engine-wide Rust parity.
+
 Stream lifecycle records are causal boundaries, not logging decoration.
 Schema-v3 capture records `connect`, `disconnect`, `connect_failure`, and
 `parse_failure` events before retrying, plus a final `capture_trailer` only on
