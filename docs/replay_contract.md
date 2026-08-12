@@ -32,6 +32,15 @@ python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthro
 
 It reports record counts, symbols, event-time span, symbol tick/lot metadata, file size, and a SHA-256 digest of the exact input bytes.
 
+For schema-v3 tapes, inspection also emits bounded `capture_liveness` diagnostics:
+receipt coverage, route counts, receive-sequence gaps/regressions, monotonic-clock
+regressions and maximum observed inter-arrival, capture lifecycle-event counts,
+invalidation-event count, and trailer/completeness state. `receipt_integrity_ok`
+means that the recorded receipt identity is internally coherent; it is not proof
+that the venue delivered every packet, that the writer experienced no loss before
+capture, or that the tape is economically claim-ready. Use replay validity and
+the per-symbol execution-input intersection for that stricter conclusion.
+
 The replay and audit commands add a separate validity reduction.  A schema-v3
 run reports receipt-sequence and monotonic-clock checks, capture invalidation
 reasons, trailer/completeness evidence, public and market stream epochs, and

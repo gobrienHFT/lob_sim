@@ -33,3 +33,14 @@ overflow. A later trailer does not erase those reasons.
 
 These fixtures demonstrate audit semantics only. They are not economic evidence,
 venue-side packet-loss proof, private FIFO evidence, or a profitability claim.
+
+To inspect receipt-side liveness without running the simulator:
+
+```bash
+python -m lob_sim.cli inspect --file docs/sample_outputs/futures_schema_v3_case/input_fixture.ndjson
+```
+
+The JSON includes route coverage, receive-sequence/monotonic-clock diagnostics,
+capture lifecycle counts, trailer state, and `receipt_integrity_ok`. That flag
+only describes internal receipt coherence; replay validity remains the stricter
+gate for claim-ready execution inputs.
