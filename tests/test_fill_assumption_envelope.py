@@ -116,6 +116,12 @@ def test_fill_assumption_envelope_is_deterministic_and_digest_clean(
 
     assert first["audit"]["ok"] is True
     assert first["profiles"] == ["conservative", "base", "aggressive"]
+    assert first["research_registry"]["frozen"] is True
+    assert first["research_registry"]["registry_sha256"]
+    assert {row["name"] for row in first["research_registry"]["variants"]} == set(first["profiles"])
+    assert first["research_registry"] == second["research_registry"]
+    report = (tmp_path / "first" / "fill_envelope_report.md").read_text(encoding="utf-8")
+    assert first["research_registry"]["registry_sha256"] in report
     assert {row["input_digest"] for row in first["runs"]} == {first["audit"]["input_digest"]}
     assert {row["normalized_config_digest"] for row in first["runs"]} == {first["audit"]["normalized_config_digest"]}
     assert [_stable_run(row) for row in first["runs"]] == [_stable_run(row) for row in second["runs"]]
