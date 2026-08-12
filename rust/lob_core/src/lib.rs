@@ -48,6 +48,8 @@ type PythonAccountingTraceRow = (
     i128,
     Option<String>,
 );
+#[cfg(feature = "python")]
+type PythonLatencyTraceRow = (i64, u64);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -58,6 +60,98 @@ use pyo3::types::PyModuleMethods;
 pub struct LogicalTime {
     pub recv_monotonic_ns: u64,
     pub recv_seq: u64,
+}
+
+#[cfg(any(feature = "python", test))]
+const LATENCY_SPLITMIX_GOLDEN: u64 = 0x9E37_79B9_7F4A_7C15;
+#[cfg(any(feature = "python", test))]
+const LATENCY_SPLITMIX_MIX1: u64 = 0xBF58_476D_1CE4_E5B9;
+#[cfg(any(feature = "python", test))]
+const LATENCY_SPLITMIX_MIX2: u64 = 0x94D0_49BB_1331_11EB;
+#[cfg(any(feature = "python", test))]
+const LATENCY_STRESS_SCALE: i64 = 1_000_000;
+
+#[cfg(any(feature = "python", test))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ScenarioLatencySampler {
+    mode: u8,
+    fixed_new_us: i64,
+    fixed_cancel_us: i64,
+    samples_us: Vec<i64>,
+    stress_multiplier_ppm: i64,
+    state: u64,
+}
+
+#[cfg(any(feature = "python", test))]
+impl ScenarioLatencySampler {
+    fn new(
+        mode: u8,
+        fixed_new_us: i64,
+        fixed_cancel_us: i64,
+        samples_us: Vec<i64>,
+        stress_multiplier_ppm: i64,
+        seed: u64,
+    ) -> Result<Self, &'static str> {
+        if mode > 2 {
+            return Err("latency mode must be fixed, empirical, or stress_tail");
+        }
+        if fixed_new_us < 0 || fixed_cancel_us < 0 {
+            return Err("fixed latencies must be >= 0");
+        }
+        if samples_us.iter().any(|sample| *sample < 0) {
+            return Err("latency samples must be >= 0");
+        }
+        if mode != 0 && samples_us.is_empty() {
+            return Err("empirical/stress_tail latency modes require samples");
+        }
+        if stress_multiplier_ppm < LATENCY_STRESS_SCALE {
+            return Err("stress_multiplier_ppm must be >= 1000000");
+        }
+        Ok(Self {
+            mode,
+            fixed_new_us,
+            fixed_cancel_us,
+            samples_us,
+            stress_multiplier_ppm,
+            state: seed,
+        })
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(LATENCY_SPLITMIX_GOLDEN);
+        let mut value = self.state;
+        value = (value ^ (value >> 30)).wrapping_mul(LATENCY_SPLITMIX_MIX1);
+        value = (value ^ (value >> 27)).wrapping_mul(LATENCY_SPLITMIX_MIX2);
+        value ^ (value >> 31)
+    }
+
+    fn draw(&mut self, component: u8) -> Result<i64, &'static str> {
+        if component > 1 {
+            return Err("latency component must be new_order or cancel");
+        }
+        match self.mode {
+            0 => Ok(if component == 0 {
+                self.fixed_new_us
+            } else {
+                self.fixed_cancel_us
+            }),
+            1 => {
+                let index = (self.next_u64() % self.samples_us.len() as u64) as usize;
+                Ok(self.samples_us[index])
+            }
+            2 => {
+                let maximum = self.samples_us.iter().copied().max().unwrap_or(0);
+                let product = (maximum as i128) * (self.stress_multiplier_ppm as i128);
+                let value = product / i128::from(LATENCY_STRESS_SCALE);
+                i64::try_from(value).map_err(|_| "latency stress draw overflow")
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn state(&self) -> u64 {
+        self.state
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1803,6 +1897,41 @@ fn run_accounting_trace(
     Ok(rows)
 }
 
+/// Run the language-neutral SplitMix64 scenario latency sampler.
+///
+/// ``mode`` is 0 for fixed, 1 for empirical, and 2 for stress-tail.  Each
+/// component is 0 for a new order and 1 for a cancel.  Rows contain the
+/// integer-microsecond draw and the sampler state after that operation.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_latency_trace(
+    mode: u8,
+    fixed_new_us: i64,
+    fixed_cancel_us: i64,
+    samples_us: Vec<i64>,
+    stress_multiplier_ppm: i64,
+    seed: u64,
+    components: Vec<u8>,
+) -> pyo3::PyResult<Vec<PythonLatencyTraceRow>> {
+    let mut sampler = ScenarioLatencySampler::new(
+        mode,
+        fixed_new_us,
+        fixed_cancel_us,
+        samples_us,
+        stress_multiplier_ppm,
+        seed,
+    )
+    .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let mut rows = Vec::with_capacity(components.len());
+    for component in components {
+        let draw = sampler
+            .draw(component)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        rows.push((draw, sampler.state()));
+    }
+    Ok(rows)
+}
+
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
@@ -1814,6 +1943,7 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(run_risk_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_portfolio_notional_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_accounting_trace, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_latency_trace, m)?)?;
     Ok(())
 }
 
@@ -1823,8 +1953,8 @@ mod tests {
 
     use super::{
         AccountingMarkoutLedger, BookState, DeterministicScheduler, LogicalTime, OrderState,
-        PortfolioNotionalReservationLedger, RiskReservationLedger, Side, SyntheticExchange,
-        ACCOUNTING_CASH_SCALE,
+        PortfolioNotionalReservationLedger, RiskReservationLedger, ScenarioLatencySampler, Side,
+        SyntheticExchange, ACCOUNTING_CASH_SCALE, LATENCY_STRESS_SCALE,
     };
 
     #[test]
@@ -1838,6 +1968,39 @@ mod tests {
             Err("batch would cross the book")
         );
         assert_eq!(book, before);
+    }
+
+    #[test]
+    fn scenario_latency_sampler_is_reproducible_and_checkpointable() {
+        let components = [0, 1, 0, 1, 1, 0];
+        let mut first =
+            ScenarioLatencySampler::new(1, 10, 20, vec![1, 5, 25], LATENCY_STRESS_SCALE, 17)
+                .expect("valid sampler");
+        let mut second = first.clone();
+        let first_draws: Vec<_> = components
+            .iter()
+            .map(|component| first.draw(*component).expect("draw"))
+            .collect();
+        let second_draws: Vec<_> = components
+            .iter()
+            .map(|component| second.draw(*component).expect("draw"))
+            .collect();
+        assert_eq!(first_draws, second_draws);
+        assert_eq!(first.state(), second.state());
+        let checkpoint = first.state();
+        let next = first.draw(0).expect("draw after checkpoint");
+        let mut resumed = second;
+        resumed.state = checkpoint;
+        assert_eq!(resumed.draw(0).expect("resumed draw"), next);
+    }
+
+    #[test]
+    fn scenario_latency_stress_tail_is_not_random() {
+        let mut sampler =
+            ScenarioLatencySampler::new(2, 0, 0, vec![1_000, 5_000], 3 * LATENCY_STRESS_SCALE, 17)
+                .expect("valid sampler");
+        assert_eq!(sampler.draw(0).expect("stress draw"), 15_000);
+        assert_eq!(sampler.state(), 17);
     }
 
     #[test]

@@ -11,6 +11,7 @@ from lob_sim.book.types import SymbolSpec
 from lob_sim.cli import _EnvelopeRecordWriter, _capture_trailer_record, _write_capture_failure_report, _write_snapshot
 from lob_sim.config import load_config
 from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkpoint
+from lob_sim.oracle_kernel import ScenarioLatencyOracle
 from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
 from lob_sim.record.format import NDJSONRecord
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
@@ -328,6 +329,8 @@ def test_simulation_checkpoint_resume_matches_uninterrupted_replay(
     monkeypatch.setenv("RECORD_DIR", str(tmp_path))
     monkeypatch.setenv("SIM_ORDER_LATENCY_MS", "0")
     monkeypatch.setenv("SIM_CANCEL_LATENCY_MS", "0")
+    monkeypatch.setenv("SIM_LATENCY_MODE", "empirical")
+    monkeypatch.setenv("SIM_LATENCY_SAMPLES_MS", "1,2,5")
     fixture = (
         Path(__file__).resolve().parents[1]
         / "docs"
@@ -378,6 +381,33 @@ def test_latency_draws_are_seeded_scenarios_and_reject_nonfinite_values() -> Non
     )
     with pytest.raises(ValueError, match="finite"):
         LatencyModel(new_order_ms=float("nan"))
+
+
+def test_latency_sampler_state_is_explicit_and_resumable() -> None:
+    first = ScenarioLatencyOracle(
+        mode="empirical",
+        fixed_new_us=1_000,
+        fixed_cancel_us=2_000,
+        samples_us=(1_000, 5_000, 25_000),
+        seed=17,
+    )
+    second = ScenarioLatencyOracle(
+        mode="empirical",
+        fixed_new_us=1_000,
+        fixed_cancel_us=2_000,
+        samples_us=(1_000, 5_000, 25_000),
+        seed=17,
+    )
+    for component in ("new_order", "cancel", "new_order"):
+        assert first.draw(component) == second.draw(component)
+    checkpoint = first.state
+    expected = first.draw("cancel")
+    second.set_state(checkpoint)
+    assert second.draw("cancel") == expected
+    fixed = LatencyModel(new_order_ms=1.25, cancel_ms=2.5)
+    initial_state = fixed.sampler_state()
+    assert fixed.draw("new_order") == 1.25
+    assert fixed.sampler_state() == initial_state
 
 
 def test_validated_manifest_normalizes_to_bounded_arrow_ipc(

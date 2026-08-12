@@ -69,7 +69,8 @@ replays. `SimulationEngine.run(..., checkpoint_path=..., stop_after_records=N)`
 writes a fsynced, hashed continuation state; a fresh engine can continue it
 with `resume_from=...`. The checkpoint includes books, sync epochs, active
 orders, pending actions, markout state, accounting aggregates, strategy
-features, seeded latency RNG state, and input/config digests. Resume
+features, explicit SplitMix64 scenario-latency sampler state, and input/config
+digests. Resume
 revalidates the complete input prefix before continuing, then the uninterrupted
 and resumed paths must produce identical state, trace, and summary hashes.
 Checkpoint resume is currently a kernel/state contract for `NullSink` outputs;
@@ -113,12 +114,12 @@ single Python bytes object merely to produce provenance.
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
 results, an integer-nanosecond action scheduler, per-symbol worst-case
-live-plus-pending lot reservations, and cross-symbol gross-notional
+live-plus-pending lot reservations, cross-symbol gross-notional
 reservations over externally marked inventory, fixed-point fill accounting,
-nullable mark valuation, and signed markouts. Transition results and periodic
+nullable mark valuation, signed markouts, and fixed/empirical/stress-tail
+scenario-latency sampler draws. Transition results and periodic
 full-state hashes agree across the independent Python and Rust implementations.
-These primitives are not yet the engine's end-to-end scheduler or
-engine-integrated portfolio-notional risk path. The public-L2 scenario venue,
-engine integration, accounting, markouts and run manifests remain outside the
-parity claim, so artifacts keep
+These primitives are not yet the engine's end-to-end scheduler, latency path,
+portfolio-notional risk path, or accounting path. The public-L2 scenario venue,
+engine integration, and run manifests remain outside the parity claim, so artifacts keep
 `full_engine_parity=false`.

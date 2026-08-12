@@ -20,9 +20,13 @@ Python oracle and the Rust kernel over:
 - 10,000 generated fixed-point accounting operations covering exact reversals,
   weighted cost-basis allocation, signed fees/rebates, nullable mark valuation,
   mark invalidation, and signed markouts;
+- 10,000 generated scenario-latency component draws across fixed, empirical,
+  and stress-tail modes using an explicit integer-microsecond SplitMix64
+  sampler, including post-draw sampler state;
 - every lifecycle result, fill, drain, reservation decision, position, and
   outstanding reservation total from those operations; and
-- 39 independently computed full-state hash checkpoints per stateful trace.
+- independently computed trace hashes and sampler-state evidence for each
+  latency mode, plus 39 full-state hash checkpoints per stateful trace.
 
 [`rust_python_parity_v2.json`](rust_python_parity_v2.json) is retained as the
 immutable predecessor evidence for the earlier synthetic-exchange boundary.
@@ -40,5 +44,5 @@ This report keeps `full_engine_parity=false`. It does not compare the public-L2
 scenario venue, the engine-integrated latency path, engine-integrated
 portfolio-notional risk, engine-integrated accounting/markouts, or run
 manifests, and it does not claim historical Binance FIFO. Scheduler,
-reservation, and accounting results are kernel-primitive proofs, not a claim
-that the whole Python engine already executes through Rust.
+reservation, accounting, and latency results are kernel-primitive proofs, not
+a claim that the whole Python engine already executes through Rust.

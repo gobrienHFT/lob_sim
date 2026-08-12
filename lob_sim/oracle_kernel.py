@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import heapq
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -19,6 +20,90 @@ from .record.envelope import LogicalTime
 class OracleDecision:
     accepted: bool
     reason: str | None = None
+
+
+# Scenario latency is represented as integer microseconds at the parity
+# boundary.  The sampler is deliberately a tiny, language-neutral SplitMix64
+# stream rather than a host-language PRNG whose output sequence can change
+# between runtimes or releases.
+LATENCY_U64_MASK = (1 << 64) - 1
+LATENCY_SPLITMIX_GOLDEN = 0x9E3779B97F4A7C15
+LATENCY_SPLITMIX_MIX1 = 0xBF58476D1CE4E5B9
+LATENCY_SPLITMIX_MIX2 = 0x94D049BB133111EB
+LATENCY_STRESS_SCALE = 1_000_000
+
+
+def latency_ms_to_us(value: float) -> int:
+    """Convert a finite millisecond scenario value to integer microseconds."""
+
+    if not math.isfinite(value) or value < 0:
+        raise ValueError("latency values must be finite and >= 0")
+    return int(round(value * 1_000.0))
+
+
+class ScenarioLatencyOracle:
+    """Cross-language deterministic latency scenario sampler.
+
+    ``fixed`` returns the component-specific configured value, ``empirical``
+    samples a seeded list using SplitMix64, and ``stress_tail`` returns the
+    maximum sample multiplied by an integer parts-per-million multiplier.  The
+    state is an explicit 64-bit counter so it can be checkpointed and resumed
+    without serializing a runtime-specific random object.
+    """
+
+    def __init__(
+        self,
+        *,
+        mode: Literal["fixed", "empirical", "stress_tail"],
+        fixed_new_us: int,
+        fixed_cancel_us: int,
+        samples_us: tuple[int, ...] = (),
+        stress_multiplier_ppm: int = LATENCY_STRESS_SCALE,
+        seed: int = 1,
+    ) -> None:
+        if mode not in {"fixed", "empirical", "stress_tail"}:
+            raise ValueError("latency mode must be fixed, empirical, or stress_tail")
+        if fixed_new_us < 0 or fixed_cancel_us < 0:
+            raise ValueError("fixed latencies must be >= 0")
+        if any(sample < 0 for sample in samples_us):
+            raise ValueError("latency samples must be >= 0")
+        if mode != "fixed" and not samples_us:
+            raise ValueError("empirical/stress_tail latency modes require samples")
+        if stress_multiplier_ppm < LATENCY_STRESS_SCALE:
+            raise ValueError("stress_multiplier_ppm must be >= 1000000")
+        self.mode = mode
+        self.fixed_new_us = fixed_new_us
+        self.fixed_cancel_us = fixed_cancel_us
+        self.samples_us = tuple(samples_us)
+        self.stress_multiplier_ppm = stress_multiplier_ppm
+        self._state = seed & LATENCY_U64_MASK
+
+    @property
+    def state(self) -> int:
+        """Return the serializable SplitMix64 counter state."""
+
+        return self._state
+
+    def set_state(self, state: int) -> None:
+        if not 0 <= state <= LATENCY_U64_MASK:
+            raise ValueError("latency sampler state must be an unsigned 64-bit integer")
+        self._state = state
+
+    def _next_u64(self) -> int:
+        self._state = (self._state + LATENCY_SPLITMIX_GOLDEN) & LATENCY_U64_MASK
+        value = self._state
+        value = ((value ^ (value >> 30)) * LATENCY_SPLITMIX_MIX1) & LATENCY_U64_MASK
+        value = ((value ^ (value >> 27)) * LATENCY_SPLITMIX_MIX2) & LATENCY_U64_MASK
+        return (value ^ (value >> 31)) & LATENCY_U64_MASK
+
+    def draw(self, component: Literal["new_order", "cancel"]) -> int:
+        if component not in {"new_order", "cancel"}:
+            raise ValueError("latency component must be new_order or cancel")
+        if self.mode == "fixed":
+            return self.fixed_new_us if component == "new_order" else self.fixed_cancel_us
+        if self.mode == "stress_tail":
+            return (max(self.samples_us) * self.stress_multiplier_ppm) // LATENCY_STRESS_SCALE
+        return self.samples_us[self._next_u64() % len(self.samples_us)]
 
 
 @dataclass(frozen=True)

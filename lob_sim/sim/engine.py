@@ -1323,7 +1323,7 @@ class SimulationEngine:
             "fill_model": self.fill_model.__dict__,
             "metrics": metric_state,
             "strategy": strategy_state,
-            "latency_rng_state": self.latency_model._rng.getstate(),
+            "latency_sampler_state": self.latency_model.sampler_state(),
         }
 
     def _restore_checkpoint_mutable_state(self, encoded_state: object) -> None:
@@ -1415,7 +1415,10 @@ class SimulationEngine:
         self.strategy._recent_trade_signals.clear()
         for symbol, signals in dict(strategy_state["recent_trade_signals"]).items():
             self.strategy._recent_trade_signals[symbol].extend(signals)
-        self.latency_model._rng.setstate(state["latency_rng_state"])
+        sampler_state = state.get("latency_sampler_state")
+        if sampler_state is None:
+            raise ValueError("checkpoint is missing deterministic latency sampler state")
+        self.latency_model.restore_sampler_state(int(sampler_state))
 
     def write_state_checkpoint(
         self,
@@ -1925,7 +1928,7 @@ class SimulationEngine:
                         "prev_mid": dict(self.strategy._prev_mid),
                         "recent_trade_signals": dict(self.strategy._recent_trade_signals),
                     },
-                    "latency_rng_state": self.latency_model._rng.getstate(),
+                    "latency_sampler_state": self.latency_model.sampler_state(),
                 }
             ),
         }
