@@ -19,6 +19,7 @@ from ..replay.inspection import file_sha256
 
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
+ARTIFACT_BUNDLE_SCHEMA_VERSION = "lob_sim.artifact_bundle.v1"
 SOURCE_STATE_OVERRIDE_ENV = "LOB_SIM_SOURCE_STATE_JSON"
 
 
@@ -93,6 +94,51 @@ def output_artifact_snapshot(
             )
         artifacts[name] = metadata
     return artifacts
+
+
+def artifact_bundle_snapshot(output_artifacts: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Return a stable content identity for all finalized non-manifest artifacts.
+
+    Paths and modification times are intentionally excluded so the identity is
+    stable when a completed evidence pack is copied to another machine. The
+    manifest carries the path contract and per-file hashes separately.
+    """
+
+    entries: list[dict[str, Any]] = []
+    complete = True
+    for label, metadata in sorted(output_artifacts.items()):
+        if label == "manifest":
+            continue
+        if not isinstance(metadata, Mapping):
+            complete = False
+            continue
+        size_bytes = metadata.get("size_bytes")
+        digest = metadata.get("sha256")
+        if (
+            isinstance(size_bytes, bool)
+            or not isinstance(size_bytes, int)
+            or size_bytes < 0
+            or not isinstance(digest, str)
+            or len(digest) != 64
+        ):
+            complete = False
+            continue
+        entries.append({"label": str(label), "size_bytes": size_bytes, "sha256": digest})
+    payload = {
+        "schema_version": ARTIFACT_BUNDLE_SCHEMA_VERSION,
+        "artifacts": entries,
+    }
+    bundle: dict[str, Any] = {
+        "schema_version": ARTIFACT_BUNDLE_SCHEMA_VERSION,
+        "algorithm": "sha256",
+        "artifact_count": len(entries),
+        "complete": complete,
+        "sha256": None,
+    }
+    if complete:
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        bundle["sha256"] = sha256(encoded).hexdigest()
+    return bundle
 
 
 def config_snapshot(cfg: Config) -> dict[str, Any]:

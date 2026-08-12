@@ -43,7 +43,7 @@ make reviewer-gate
 - `lob_sim/sim/fill_model.py`: synthetic queue-ahead scenarios, passive/taker fills, public consumption, and self-trade prevention.
 - `lob_sim/sim/engine.py`: event-time scheduling for market rows, decisions, arrivals, cancels, fills, and risk halts.
 - `lob_sim/sim/metrics.py`: fill-source metrics, per-fill evidence/validity/queue/latency provenance, markouts, inventory, PnL, lifecycle counts, and public-consumption summaries.
-- `scripts/audit_futures_pack.py`: resolves fill evidence against replay input and cross-checks summary, CSVs, event trace, trades, manifest, validity, queue trajectories, latency labels, provenance, and hashes.
+- `scripts/audit_futures_pack.py`: resolves fill evidence against replay input and cross-checks summary, CSVs, event trace, trades, manifest, validity, queue trajectories, latency labels, provenance, per-file hashes, and the content-addressed bundle digest.
 - `scripts/verify_committed_artifacts.py`: repository-level evidence gate.
 - `docs/sample_outputs/futures_recorded_clip_case/README.md`: small recorded public-data proof point.
 - `docs/sample_outputs/futures_stress_case/README.md`: synthetic stress pack for rare mechanics.

@@ -83,6 +83,12 @@ the trace in order, and resolves evidence IDs exactly through a temporary
 on-disk SQLite index. It caps diagnostics on corrupt input and retains no detail
 rows in Python memory. A failed derived-pack audit recreates `_INCOMPLETE.json`.
 
+Completed bounded manifests also carry `lob_sim.artifact_bundle.v1`: a
+content-addressed SHA-256 over the finalized non-manifest artifact labels,
+sizes, and hashes. The independent auditor recomputes it from the bytes on
+disk, so copying a pack changes paths but not its evidence identity, while any
+post-run edit fails the digest check.
+
 Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
 single Python bytes object merely to produce provenance.

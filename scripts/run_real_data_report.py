@@ -23,7 +23,7 @@ from lob_sim.replay.inspection import inspect_stream
 from lob_sim.replay.reader import iter_records
 from lob_sim.sim.export import atomic_write_json, atomic_write_summary_csv
 from lob_sim.sim.runner import run_bounded_simulation
-from lob_sim.sim.run_manifest import output_artifact_snapshot
+from lob_sim.sim.run_manifest import artifact_bundle_snapshot, output_artifact_snapshot
 from scripts.audit_futures_pack import audit_futures_pack
 
 
@@ -185,6 +185,7 @@ def _copy_to_local_pack(
         final_paths,
         path_formatter=_display_path,
     )
+    manifest["artifact_bundle"] = artifact_bundle_snapshot(manifest["output_artifacts"])
     atomic_write_json(final_paths["manifest"], manifest)
 
     _atomic_write_text(
@@ -365,6 +366,7 @@ def _build_report_payload(
             "issue_count": audit_result.get("issue_count", len(audit_result.get("issues", []))),
             "mode": audit_result.get("audit_mode"),
             "memory_contract": audit_result.get("memory_contract", {}),
+            "artifact_bundle_sha256": audit_result.get("hashes", {}).get("artifact_bundle_sha256"),
             "event_trace_rows": audit_counts.get("event_trace_rows", summary.get("event_trace_count")),
             "queue_consumption_rows": audit_counts.get("queue_consumption_rows"),
         },

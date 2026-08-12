@@ -79,6 +79,7 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert payload["audit"]["ok"] is True
     assert payload["audit"]["mode"] == "bounded_streaming"
     assert payload["audit"]["memory_contract"]["memory_bounded_by_tape_duration"] is True
+    assert len(payload["audit"]["artifact_bundle_sha256"]) == 64
     assert payload["simulation_export"]["mode"] == "bounded_streaming"
     assert payload["benchmark"]["schema_version"] == "lob_sim.reviewer_benchmark.v2"
 
@@ -94,6 +95,9 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert "_INCOMPLETE.json" not in pack_files
     assert not any(path.name.endswith(".partial") for path in paths["pack_dir"].iterdir())
     pack_summary = json.loads((paths["pack_dir"] / "summary.json").read_text(encoding="utf-8"))
+    pack_manifest = json.loads((paths["pack_dir"] / "manifest.json").read_text(encoding="utf-8"))
+    assert pack_manifest["artifact_bundle"]["complete"] is True
+    assert len(pack_manifest["artifact_bundle"]["sha256"]) == 64
     assert pack_summary["simulation_export"]["mode"] == "bounded_streaming"
     assert pack_summary["audit_retention"]["memory_bounded_by_tape_duration"] is True
     assert pack_summary["event_trace_retention"]["memory_bounded_by_tape_duration"] is True

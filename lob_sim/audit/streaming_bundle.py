@@ -33,6 +33,7 @@ from ..sim.run_manifest import RUN_MANIFEST_SCHEMA_VERSION
 
 STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION = "lob_sim.streaming_bundle_audit.v1"
 SIMULATION_EXPORT_SCHEMA_VERSION = "lob_sim.simulation_export.v1"
+ARTIFACT_BUNDLE_SCHEMA_VERSION = "lob_sim.artifact_bundle.v1"
 AUDIT_RETENTION_SCHEMA_VERSION = "lob_sim.audit_retention.v1"
 EVENT_TRACE_RETENTION_SCHEMA_VERSION = "lob_sim.event_trace_retention.v1"
 FILL_PROVENANCE_SCHEMA_VERSION = "lob_sim.fill_provenance.v1"
@@ -747,6 +748,44 @@ def _artifact_path(pack_dir: Path, label: str) -> Path:
     return pack_dir / EXPECTED_FILES[label]
 
 
+def _artifact_bundle_snapshot(output_artifacts: Mapping[str, Any]) -> dict[str, Any]:
+    """Independently recompute the content identity of non-manifest outputs."""
+
+    entries: list[dict[str, Any]] = []
+    complete = True
+    for label, metadata in sorted(output_artifacts.items()):
+        if label == "manifest":
+            continue
+        if not isinstance(metadata, Mapping):
+            complete = False
+            continue
+        size_bytes = metadata.get("size_bytes")
+        digest = metadata.get("sha256")
+        if (
+            isinstance(size_bytes, bool)
+            or not isinstance(size_bytes, int)
+            or size_bytes < 0
+            or not isinstance(digest, str)
+            or len(digest) != 64
+        ):
+            complete = False
+            continue
+        entries.append({"label": str(label), "size_bytes": size_bytes, "sha256": digest})
+    payload = {"schema_version": ARTIFACT_BUNDLE_SCHEMA_VERSION, "artifacts": entries}
+    bundle: dict[str, Any] = {
+        "schema_version": ARTIFACT_BUNDLE_SCHEMA_VERSION,
+        "algorithm": "sha256",
+        "artifact_count": len(entries),
+        "complete": complete,
+        "sha256": None,
+    }
+    if complete:
+        bundle["sha256"] = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+    return bundle
+
+
 def _audit_bundle_boundaries(pack_dir: Path, issues: _Issues) -> None:
     incomplete = pack_dir / "_INCOMPLETE.json"
     if incomplete.exists():
@@ -795,6 +834,7 @@ def _audit_manifest_and_artifacts(
     if not isinstance(artifacts, dict) or set(artifacts) != set(EXPECTED_FILES):
         issues.add(f"{_display(manifest_path)} output_artifacts does not match the bounded bundle contract")
         return
+    actual_artifacts: dict[str, Any] = {}
     for label, filename in EXPECTED_FILES.items():
         artifact = artifacts.get(label)
         target = pack_dir / filename
@@ -809,11 +849,21 @@ def _audit_manifest_and_artifacts(
                 issues.add(f"{_display(manifest_path)} must not self-hash its manifest artifact")
             continue
         if not target.is_file():
+            actual_artifacts[label] = {}
             continue
-        if artifact.get("size_bytes") != target.stat().st_size:
+        actual_size = target.stat().st_size
+        actual_sha = file_sha256(target)
+        actual_artifacts[label] = {"size_bytes": actual_size, "sha256": actual_sha}
+        if artifact.get("size_bytes") != actual_size:
             issues.add(f"{_display(manifest_path)} output_artifacts[{label}].size_bytes is stale")
-        if artifact.get("sha256") != file_sha256(target):
+        if artifact.get("sha256") != actual_sha:
             issues.add(f"{_display(manifest_path)} output_artifacts[{label}].sha256 is stale")
+
+    export = summary.get("simulation_export")
+    if isinstance(export, dict) and export.get("mode") == "bounded_streaming":
+        expected_bundle = _artifact_bundle_snapshot(actual_artifacts)
+        if manifest.get("artifact_bundle") != expected_bundle:
+            issues.add(f"{_display(manifest_path)} artifact_bundle does not match output_artifacts")
 
 
 def _audit_streaming_contract(summary: Mapping[str, Any], manifest: Mapping[str, Any], issues: _Issues) -> None:
@@ -1542,6 +1592,11 @@ def audit_streaming_bundle(pack_dir: Path, *, max_issues: int = 250) -> dict[str
         "hashes": {
             "fill_audit_sha256": fill_state.chain.hexdigest,
             "markout_audit_sha256": markout_state.chain.hexdigest,
+            "artifact_bundle_sha256": (
+                manifest.get("artifact_bundle", {}).get("sha256")
+                if isinstance(manifest.get("artifact_bundle"), dict)
+                else None
+            ),
         },
         "summary": {
             "run_id": summary.get("run_id"),

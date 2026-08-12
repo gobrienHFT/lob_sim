@@ -60,6 +60,7 @@ def test_streaming_bundle_audit_recomputes_exact_contract_without_detail_retenti
     assert result["counts"]["markout_rows"] == summary["audit_retention"]["markout_rows_emitted"]
     assert result["hashes"]["fill_audit_sha256"] == summary["audit_retention"]["fill_audit_sha256"]
     assert result["hashes"]["markout_audit_sha256"] == summary["audit_retention"]["markout_audit_sha256"]
+    assert len(result["hashes"]["artifact_bundle_sha256"]) == 64
 
 
 def test_streaming_bundle_audit_fails_closed_on_incomplete_or_partial_bundle(
@@ -98,6 +99,7 @@ def test_streaming_bundle_audit_detects_serialized_fill_tampering(
     assert any("invalid fee_model_id" in issue for issue in result["issues"])
     assert any("fill_audit_sha256" in issue for issue in result["issues"])
     assert any("output_artifacts[trades].sha256 is stale" in issue for issue in result["issues"])
+    assert any("artifact_bundle" in issue for issue in result["issues"])
 
 
 def test_streaming_bundle_audit_caps_corruption_diagnostics(
