@@ -141,6 +141,24 @@ class SimulationMetrics:
         self._fill_provenance_counts: dict[str, int] = {key: 0 for key in FILL_PROVENANCE_COUNT_KEYS}
 
         self._pending_markouts: list[dict[str, Any]] = []
+        # The legacy detailed audit retains one configured horizon (the
+        # historical SIM_ADVERSE_MARKOUT_SECONDS contract).  Additional
+        # configured horizons use this bounded aggregate-only queue so a
+        # normal run can report 100/1,000/5,000 ms coverage without multiplying
+        # the CSV trace or retaining one row per horizon in memory.
+        self._pending_markout_horizons: list[dict[str, Any]] = []
+        self._markout_horizon_stats: dict[int, dict[str, Any]] = {
+            horizon_ms: {
+                "resolved_samples": 0,
+                "invalidated_samples": 0,
+                "qty": Decimal("0"),
+                "markout_sum": Decimal("0"),
+                "adverse_samples": 0,
+                "resolution_lag_ms_sum": Decimal("0"),
+                "resolution_lag_ms_max": Decimal("0"),
+            }
+            for horizon_ms in self._active_markout_horizons_ms()
+        }
         self._markout_events: list[dict[str, Any]] = []
         self._new_markout_events: list[dict[str, Any]] = []
         self._markout_event_count = 0
@@ -186,6 +204,23 @@ class SimulationMetrics:
         return self._retain_audit_rows
 
     @property
+    def _primary_markout_horizon_ms(self) -> int | None:
+        if self.cfg.sim_adverse_markout_seconds <= 0:
+            return None
+        return int((Decimal(str(self.cfg.sim_adverse_markout_seconds)) * Decimal("1000")).to_integral_value())
+
+    def _active_markout_horizons_ms(self) -> tuple[int, ...]:
+        """Return the configured horizon set while preserving the legacy gate."""
+
+        if self.cfg.sim_adverse_markout_seconds <= 0:
+            return ()
+        horizons = set(int(value) for value in self.cfg.sim_markout_horizons_ms)
+        primary = self._primary_markout_horizon_ms
+        if primary is not None:
+            horizons.add(primary)
+        return tuple(sorted(horizons))
+
+    @property
     def fill_audit_sha256(self) -> str:
         return self._fill_audit_digest.hex()
 
@@ -200,7 +235,9 @@ class SimulationMetrics:
     def pending_markout_state(self) -> list[dict[str, Any]]:
         """Return the bounded unresolved state used by deterministic hashing."""
 
-        return [dict(entry) for entry in self._pending_markouts]
+        return [dict(entry) for entry in self._pending_markouts] + [
+            dict(entry) for entry in self._pending_markout_horizons
+        ]
 
     def register_symbol(self, symbol: str) -> None:
         self.position.setdefault(symbol, PositionState())
@@ -352,6 +389,53 @@ class SimulationMetrics:
         if self._buffer_markout_trace_events:
             self._new_markout_events.append(markout_event)
 
+    def _record_horizon_resolution(
+        self,
+        entry: Mapping[str, Any],
+        horizon_ms: int,
+        markout: Decimal,
+        qty: Decimal,
+        now_ts: float,
+    ) -> None:
+        stats = self._markout_horizon_stats[horizon_ms]
+        lag_ms = max(Decimal("0"), (Decimal(str(now_ts)) - Decimal(str(entry["ts_local"]))) * Decimal("1000"))
+        stats["resolved_samples"] += 1
+        stats["qty"] += qty
+        stats["markout_sum"] += markout * qty
+        stats["adverse_samples"] += int(markout < 0)
+        stats["resolution_lag_ms_sum"] += lag_ms
+        if lag_ms > stats["resolution_lag_ms_max"]:
+            stats["resolution_lag_ms_max"] = lag_ms
+
+    def _record_horizon_invalidation(self, horizon_ms: int) -> None:
+        self._markout_horizon_stats[horizon_ms]["invalidated_samples"] += 1
+
+    @staticmethod
+    def _horizon_markout(entry: Mapping[str, Any], mid: Decimal) -> tuple[Decimal, Decimal]:
+        side = str(entry["side"])
+        price = Decimal(str(entry["price"]))
+        qty = Decimal(str(entry["qty"]))
+        contract_multiplier = Decimal(str(entry.get("contract_multiplier", "1")))
+        side_sign = Decimal("1") if side == "bid" else Decimal("-1")
+        return (mid - price) * side_sign * contract_multiplier, qty
+
+    def _drain_additional_markout_windows(self, now_ts: float, mids: Dict[str, Decimal]) -> None:
+        if not self._pending_markout_horizons:
+            return
+
+        keep: list[dict[str, Any]] = []
+        for entry in self._pending_markout_horizons:
+            if entry["deadline_ts"] > now_ts:
+                keep.append(entry)
+                continue
+            mid = mids.get(str(entry["symbol"]))
+            if mid is None:
+                keep.append(entry)
+                continue
+            markout, qty = self._horizon_markout(entry, mid)
+            self._record_horizon_resolution(entry, int(entry["horizon_ms"]), markout, qty, now_ts)
+        self._pending_markout_horizons = keep
+
     def _drain_markout_windows(self, now_ts: float, mids: Dict[str, Decimal]) -> None:
         if not self._pending_markouts:
             return
@@ -377,6 +461,10 @@ class SimulationMetrics:
             contract_multiplier = Decimal(str(entry.get("contract_multiplier", "1")))
             side_sign = Decimal("1") if side == "bid" else Decimal("-1")
             markout = (mid - price) * side_sign * contract_multiplier
+
+            primary_horizon_ms = self._primary_markout_horizon_ms
+            if primary_horizon_ms is not None:
+                self._record_horizon_resolution(entry, primary_horizon_ms, markout, qty, now_ts)
 
             adverse = markout < 0
             self.markout_sum += markout * qty
@@ -467,7 +555,18 @@ class SimulationMetrics:
                 "invalid_reason": reason,
             }
             self._record_markout_audit(invalidated_event)
+            primary_horizon_ms = self._primary_markout_horizon_ms
+            if primary_horizon_ms is not None:
+                self._record_horizon_invalidation(primary_horizon_ms)
         self._pending_markouts = keep
+
+        additional_keep: list[dict[str, Any]] = []
+        for entry in self._pending_markout_horizons:
+            if entry.get("symbol") != symbol:
+                additional_keep.append(entry)
+                continue
+            self._record_horizon_invalidation(int(entry["horizon_ms"]))
+        self._pending_markout_horizons = additional_keep
         self.markout_invalidated_count += invalidated
         self.markout_unresolved_count += invalidated
         return invalidated
@@ -494,13 +593,17 @@ class SimulationMetrics:
             )
 
     def on_fill(self, fill: Fill, book: LocalOrderBook, mid: Decimal | None) -> dict[str, Any]:
-        if (
-            self.cfg.sim_adverse_markout_seconds > 0
-            and len(self._pending_markouts) >= self.cfg.sim_max_pending_markouts
-        ):
+        active_horizons = self._active_markout_horizons_ms()
+        primary_pending_limit_reached = len(self._pending_markouts) >= self.cfg.sim_max_pending_markouts
+        additional_horizons = max(0, len(active_horizons) - int(self._primary_markout_horizon_ms is not None))
+        additional_pending_limit_reached = additional_horizons > 0 and len(self._pending_markout_horizons) >= (
+            self.cfg.sim_max_pending_markouts * additional_horizons
+        )
+        if active_horizons and (primary_pending_limit_reached or additional_pending_limit_reached):
             raise MarkoutCapacityError(
                 "pending markout capacity reached before fill "
-                f"{fill.order_id or '<unknown>'}: {len(self._pending_markouts)} >= "
+                f"{fill.order_id or '<unknown>'}: primary={len(self._pending_markouts)}, "
+                f"additional={len(self._pending_markout_horizons)} >= "
                 f"SIM_MAX_PENDING_MARKOUTS={self.cfg.sim_max_pending_markouts}"
             )
         pos = self.position.setdefault(fill.symbol, PositionState())
@@ -645,6 +748,28 @@ class SimulationMetrics:
                     "order_id": fill.order_id,
                 }
             )
+            primary_horizon_ms = self._primary_markout_horizon_ms
+            for horizon_ms in active_horizons:
+                if horizon_ms == primary_horizon_ms:
+                    continue
+                self._pending_markout_horizons.append(
+                    {
+                        "symbol": fill.symbol,
+                        "side": fill.side,
+                        "price": str(price),
+                        "price_tick": fill.price_tick,
+                        "qty": str(qty),
+                        "qty_lots": fill.qty_lots,
+                        "contract_multiplier": str(contract_multiplier),
+                        "regime": regime,
+                        "ts_local": fill.ts_local,
+                        "deadline_ts": fill.ts_local + (horizon_ms / 1000.0),
+                        "mid_at_fill": str(mid) if mid is not None else None,
+                        "fill_source": fill.source,
+                        "order_id": fill.order_id,
+                        "horizon_ms": horizon_ms,
+                    }
+                )
 
         if realized_delta < 0:
             self.consecutive_loss_count += 1
@@ -699,8 +824,10 @@ class SimulationMetrics:
         # Markout sampling is independent of whether the net position remains
         # open. A round trip can leave inventory flat while both fill horizons
         # still need the first eligible post-fill midpoint.
-        if now_ts is not None and self._pending_markouts:
-            pending_symbols = sorted({str(entry["symbol"]) for entry in self._pending_markouts})
+        if now_ts is not None and (self._pending_markouts or self._pending_markout_horizons):
+            pending_symbols = sorted(
+                {str(entry["symbol"]) for entry in [*self._pending_markouts, *self._pending_markout_horizons]}
+            )
             for symbol in pending_symbols:
                 if symbol in mids:
                     continue
@@ -731,6 +858,7 @@ class SimulationMetrics:
             self._last_inventory_ts = now_ts
             self._last_total_inventory = total_inventory
             self._drain_markout_windows(now_ts, mids)
+            self._drain_additional_markout_windows(now_ts, mids)
 
         self._evaluate_risk(equity)
 
@@ -809,6 +937,33 @@ class SimulationMetrics:
             if self._time_inventory_seconds > 0
             else Decimal("0")
         )
+
+        markout_horizon_summary: dict[str, dict[str, float | int | None]] = {}
+        primary_horizon_ms = self._primary_markout_horizon_ms
+        for horizon_ms in self._active_markout_horizons_ms():
+            stats = self._markout_horizon_stats[horizon_ms]
+            pending = sum(1 for entry in self._pending_markout_horizons if entry["horizon_ms"] == horizon_ms)
+            if horizon_ms == primary_horizon_ms:
+                pending += len(self._pending_markouts)
+            resolved = int(stats["resolved_samples"])
+            invalidated = int(stats["invalidated_samples"])
+            unresolved = invalidated + pending
+            total_outcomes = resolved + unresolved
+            qty = Decimal(stats["qty"])
+            lag_sum = Decimal(stats["resolution_lag_ms_sum"])
+            markout_horizon_summary[str(horizon_ms)] = {
+                "horizon_ms": horizon_ms,
+                "resolved_samples": resolved,
+                "invalidated_samples": invalidated,
+                "unresolved_samples": unresolved,
+                "resolved_qty": float(qty),
+                "avg_markout": float(stats["markout_sum"] / qty) if qty > 0 else 0.0,
+                "adverse_samples": int(stats["adverse_samples"]),
+                "adverse_rate": float(Decimal(stats["adverse_samples"]) / Decimal(resolved)) if resolved else 0.0,
+                "coverage": float(Decimal(resolved) / Decimal(total_outcomes)) if total_outcomes else 0.0,
+                "mean_resolution_lag_ms": float(lag_sum / Decimal(resolved)) if resolved else None,
+                "max_resolution_lag_ms": float(stats["resolution_lag_ms_max"]) if resolved else None,
+            }
 
         total_inventory = Decimal("0")
         inventory_by_symbol: dict[str, float] = {}
@@ -992,6 +1147,7 @@ class SimulationMetrics:
             "markout_invalidated_count": self.markout_invalidated_count,
             "markout_unresolved_count": self.markout_unresolved_count + len(self._pending_markouts),
             "avg_markout_1s": float(avg_markout),
+            "markout_horizon_summary": markout_horizon_summary,
             "markout_events": list(self._markout_events) if self._retain_audit_rows else None,
             "inventory_by_symbol": inventory_by_symbol,
             "kill_switch_triggered": self.kill_switch_triggered,

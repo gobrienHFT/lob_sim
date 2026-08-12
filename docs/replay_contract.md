@@ -111,6 +111,17 @@ each file.
 
 Summaries include `markout_by_fill_source`, splitting markout sample count, adverse sample count, quantity, average signed markout, and adverse-fill rate across `depth_update`, `agg_trade`, and `taker_order` fills. This makes it easier to audit whether a run's fill-quality story is coming from inferred passive fills or explicit taker execution.
 
+When `SIM_ADVERSE_MARKOUT_SECONDS` is enabled, the configured
+`SIM_MARKOUT_HORIZONS_MS` set is resolved independently at the first eligible
+post-fill midpoint observed at or after each deadline. Summary
+`markout_horizon_summary` reports resolved, invalidated, unresolved and covered
+samples, signed markout, adverse rate, and actual observation lag in
+milliseconds for each horizon. The historical one-second markout remains the
+detailed CSV/trace audit surface; additional horizons are aggregate-only and
+are bounded by the configured pending-markout capacity times the finite
+horizon count. A gap or stream epoch invalidation removes every affected
+horizon from claimable coverage.
+
 Committed event traces are semantically checked by `scripts/verify_committed_artifacts.py`: row counts must match `summary["event_trace_count"]`, sequence numbers must be contiguous, rows must stay in event-time order, `details` must be JSON objects, fill rows must match `summary["fill_count"]` with a recognized fill source, and order lifecycle counters must agree with the trace rows.
 
 The manifest records:
