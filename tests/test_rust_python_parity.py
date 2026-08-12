@@ -6,11 +6,13 @@ import random
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 from scripts.check_rust_python_parity import (
     _generated_portfolio_operations,
+    _generated_accounting_operations,
     _generated_risk_operations,
     _generated_scheduler_operations,
     _generated_synthetic_operations,
     _python_risk_trace,
     _python_portfolio_trace,
+    _python_accounting_trace,
     _python_scheduler_trace,
     _python_synthetic_trace,
     _synthetic_state_sha256,
@@ -106,6 +108,33 @@ def test_python_portfolio_trace_is_gross_and_checkpointed() -> None:
     assert trace[5][0] is True
     assert trace[6][2:5] == (50, 0, 50)
     assert [index for index, row in enumerate(trace, start=1) if row[5] is not None] == [3, 6, 7]
+
+
+def test_generated_accounting_operations_are_seeded_and_mixed() -> None:
+    first = _generated_accounting_operations(random.Random(47), 500)
+    second = _generated_accounting_operations(random.Random(47), 500)
+
+    assert first == second
+    assert len(first) == 500
+    assert {operation[0] for operation in first} == {0, 1, 2, 3}
+
+
+def test_python_accounting_trace_reports_nullable_marks_and_signed_markouts() -> None:
+    operations = [
+        (0, 1, True, 100, 3, 7),
+        (0, 1, False, 110, 1, -2),
+        (3, 1, True, 100, 2, 98),
+        (1, 1, False, 105, 0, 0),
+    ]
+
+    trace = _python_accounting_trace(operations, checkpoint_interval=2)
+
+    assert trace[1][2:6] == (2, 2, 10_000_000, 5)
+    assert trace[1][6] is None
+    assert trace[2][8:10] == (-4_000_000, 2)
+    assert trace[3][6] == 10_000_000
+    assert trace[3][7] is True
+    assert [index for index, row in enumerate(trace, start=1) if row[10] is not None] == [2, 4]
 
 
 def test_python_scheduler_trace_proves_exact_time_boundary_and_checkpoints() -> None:

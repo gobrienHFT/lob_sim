@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from lob_sim.oracle_kernel import (
+    ACCOUNTING_CASH_SCALE,
+    AccountingMarkoutOracle,
     DeterministicSchedulerOracle,
     PortfolioNotionalReservationOracle,
     RiskReservationOracle,
@@ -123,3 +125,33 @@ def test_portfolio_notional_mark_updates_and_invalid_transitions_are_atomic() ->
     assert ledger.invalidate_epoch().accepted
     assert ledger.reserved_order_units == 0
     assert ledger.total_reserved_units == 4
+
+
+def test_accounting_handles_reversals_fees_missing_marks_and_markouts() -> None:
+    accounting = AccountingMarkoutOracle()
+    assert accounting.fill(1, is_bid=True, price_tick=100, qty_lots=3, fee_cash_units=7).accepted
+    assert accounting.fill(1, is_bid=False, price_tick=110, qty_lots=1, fee_cash_units=-2).accepted
+    assert accounting.realized_pnl_cash_units == 10 * ACCOUNTING_CASH_SCALE
+    assert accounting.total_fees_cash_units == 5
+    assert accounting.unrealized_pnl_cash_units is None
+    assert accounting.mark(1, 105).accepted
+    assert accounting.unrealized_pnl_cash_units == 10 * ACCOUNTING_CASH_SCALE
+    assert accounting.markout(
+        is_bid=True,
+        fill_price_tick=100,
+        qty_lots=2,
+        mark_price_tick=98,
+    ).accepted
+    assert accounting.markout_cash_units == -4 * ACCOUNTING_CASH_SCALE
+
+
+def test_accounting_overfill_reversal_is_atomic_and_state_is_hashable() -> None:
+    accounting = AccountingMarkoutOracle()
+    before = accounting.state_sha256()
+    rejected = accounting.fill(1, is_bid=True, price_tick=0, qty_lots=1)
+    assert rejected == type(rejected)(False, "invalid_fill_price")
+    assert accounting.state_sha256() == before
+    assert accounting.fill(1, is_bid=False, price_tick=100, qty_lots=2).accepted
+    assert accounting.fill(1, is_bid=True, price_tick=90, qty_lots=3).accepted
+    assert accounting.position_lots == 1
+    assert accounting.unrealized_pnl_cash_units is None

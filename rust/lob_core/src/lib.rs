@@ -32,6 +32,22 @@ type PythonRiskTraceRow = (bool, Option<String>, i64, i128, i128, Option<String>
 type PythonPortfolioOperation = (u8, u64, u32, bool, i64);
 #[cfg(feature = "python")]
 type PythonPortfolioTraceRow = (bool, Option<String>, i128, i128, i128, Option<String>);
+#[cfg(feature = "python")]
+type PythonAccountingOperation = (u8, u32, bool, i64, i64, i64);
+#[cfg(feature = "python")]
+type PythonAccountingTraceRow = (
+    bool,
+    Option<String>,
+    i128,
+    i128,
+    i128,
+    i128,
+    Option<i128>,
+    bool,
+    i128,
+    i128,
+    Option<String>,
+);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -686,6 +702,237 @@ impl PortfolioNotionalReservationLedger {
                 if order.is_bid { "bid" } else { "ask" },
                 order.remaining_notional_units,
                 order.state.as_str()
+            ));
+        }
+        state.into_bytes()
+    }
+
+    #[must_use]
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
+    }
+}
+
+const ACCOUNTING_CASH_SCALE: i128 = 1_000_000;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AccountingPosition {
+    lots: i128,
+    cost_basis_cash_units: i128,
+}
+
+/// Fixed-point fill accounting and signed markout primitive.
+///
+/// Prices and quantities are integer ticks/lots. Cash is represented in
+/// micro-units per tick-lot, and partial reversal cost is allocated with Rust's
+/// integer division (toward zero), leaving the remainder with the open lot.
+/// No floating point or venue-specific execution claim is made here.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AccountingMarkoutLedger {
+    positions: BTreeMap<u32, AccountingPosition>,
+    marks: BTreeMap<u32, i64>,
+    realized_pnl_cash_units: i128,
+    total_fees_cash_units: i128,
+    markout_cash_units: i128,
+    markout_qty_lots: i128,
+}
+
+impl AccountingMarkoutLedger {
+    fn cash_notional(price_tick: i64, qty_lots: i128) -> Option<i128> {
+        i128::from(price_tick)
+            .checked_mul(qty_lots)
+            .and_then(|value| value.checked_mul(ACCOUNTING_CASH_SCALE))
+    }
+
+    pub fn mark(&mut self, symbol_id: u32, price_tick: i64) -> ReservationDecision {
+        if price_tick <= 0 {
+            return ReservationDecision::rejected("invalid_mark_price");
+        }
+        self.marks.insert(symbol_id, price_tick);
+        ReservationDecision::accepted()
+    }
+
+    pub fn clear_mark(&mut self, symbol_id: u32) -> ReservationDecision {
+        self.marks.remove(&symbol_id);
+        ReservationDecision::accepted()
+    }
+
+    pub fn fill(
+        &mut self,
+        symbol_id: u32,
+        is_bid: bool,
+        price_tick: i64,
+        qty_lots: i64,
+        fee_cash_units: i64,
+    ) -> ReservationDecision {
+        if price_tick <= 0 {
+            return ReservationDecision::rejected("invalid_fill_price");
+        }
+        if qty_lots <= 0 {
+            return ReservationDecision::rejected("invalid_fill_quantity");
+        }
+        let qty = i128::from(qty_lots);
+        if Self::cash_notional(price_tick, qty).is_none() {
+            return ReservationDecision::rejected("notional_overflow");
+        }
+        let signed_qty = if is_bid { qty } else { -qty };
+        let position = self
+            .positions
+            .entry(symbol_id)
+            .or_insert(AccountingPosition {
+                lots: 0,
+                cost_basis_cash_units: 0,
+            });
+        if position.lots == 0 {
+            position.lots = signed_qty;
+            position.cost_basis_cash_units =
+                Self::cash_notional(price_tick, qty).expect("validated notional");
+        } else if position.lots.signum() == signed_qty.signum() {
+            let Some(new_cost) = position
+                .cost_basis_cash_units
+                .checked_add(Self::cash_notional(price_tick, qty).expect("validated notional"))
+            else {
+                return ReservationDecision::rejected("cost_basis_overflow");
+            };
+            let Some(new_lots) = position.lots.checked_add(signed_qty) else {
+                return ReservationDecision::rejected("position_overflow");
+            };
+            position.cost_basis_cash_units = new_cost;
+            position.lots = new_lots;
+        } else {
+            let close_lots = position.lots.abs().min(qty);
+            let allocated_cost = position.cost_basis_cash_units * close_lots / position.lots.abs();
+            let fill_cash =
+                Self::cash_notional(price_tick, close_lots).expect("validated notional");
+            let realized_delta = if position.lots > 0 {
+                fill_cash - allocated_cost
+            } else {
+                allocated_cost - fill_cash
+            };
+            self.realized_pnl_cash_units = self
+                .realized_pnl_cash_units
+                .checked_add(realized_delta)
+                .expect("realized PnL overflow");
+            position.cost_basis_cash_units -= allocated_cost;
+            let remaining_position = position.lots.abs() - close_lots;
+            let remaining_incoming = qty - close_lots;
+            if remaining_position > 0 {
+                position.lots = if position.lots > 0 {
+                    remaining_position
+                } else {
+                    -remaining_position
+                };
+            } else if remaining_incoming > 0 {
+                position.lots = if is_bid {
+                    remaining_incoming
+                } else {
+                    -remaining_incoming
+                };
+                position.cost_basis_cash_units =
+                    Self::cash_notional(price_tick, remaining_incoming)
+                        .expect("validated notional");
+            } else {
+                position.lots = 0;
+                position.cost_basis_cash_units = 0;
+            }
+        }
+        self.total_fees_cash_units = self
+            .total_fees_cash_units
+            .checked_add(i128::from(fee_cash_units))
+            .expect("fee overflow");
+        if self
+            .positions
+            .get(&symbol_id)
+            .is_some_and(|position| position.lots == 0)
+        {
+            self.positions.remove(&symbol_id);
+        }
+        ReservationDecision::accepted()
+    }
+
+    pub fn markout(
+        &mut self,
+        is_bid: bool,
+        fill_price_tick: i64,
+        qty_lots: i64,
+        mark_price_tick: i64,
+    ) -> ReservationDecision {
+        if fill_price_tick <= 0 || mark_price_tick <= 0 {
+            return ReservationDecision::rejected("invalid_markout_price");
+        }
+        if qty_lots <= 0 {
+            return ReservationDecision::rejected("invalid_markout_quantity");
+        }
+        let delta = i128::from(mark_price_tick - fill_price_tick);
+        let signed_delta = if is_bid { delta } else { -delta };
+        let Some(markout_delta) = signed_delta
+            .checked_mul(i128::from(qty_lots))
+            .and_then(|value| value.checked_mul(ACCOUNTING_CASH_SCALE))
+        else {
+            return ReservationDecision::rejected("markout_overflow");
+        };
+        self.markout_cash_units = self
+            .markout_cash_units
+            .checked_add(markout_delta)
+            .expect("markout overflow");
+        self.markout_qty_lots += i128::from(qty_lots);
+        ReservationDecision::accepted()
+    }
+
+    #[must_use]
+    pub fn unrealized_pnl_cash_units(&self) -> Option<i128> {
+        let mut unrealized = 0_i128;
+        for (symbol_id, position) in &self.positions {
+            if position.lots == 0 {
+                continue;
+            }
+            let mark = *self.marks.get(symbol_id)?;
+            let mark_value = Self::cash_notional(mark, position.lots.abs())?;
+            let delta = if position.lots > 0 {
+                mark_value - position.cost_basis_cash_units
+            } else {
+                position.cost_basis_cash_units - mark_value
+            };
+            unrealized = unrealized.checked_add(delta)?;
+        }
+        Some(unrealized)
+    }
+
+    #[must_use]
+    pub fn totals(&self) -> (i128, i128, i128, i128, Option<i128>, bool) {
+        let position_lots = self.positions.values().map(|position| position.lots).sum();
+        let gross_position_lots = self
+            .positions
+            .values()
+            .map(|position| position.lots.abs())
+            .sum();
+        let unrealized = self.unrealized_pnl_cash_units();
+        (
+            position_lots,
+            gross_position_lots,
+            self.realized_pnl_cash_units,
+            self.total_fees_cash_units,
+            unrealized,
+            unrealized.is_some(),
+        )
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut state = format!(
+            "realized:{};fees:{};markout:{}:{};",
+            self.realized_pnl_cash_units,
+            self.total_fees_cash_units,
+            self.markout_cash_units,
+            self.markout_qty_lots
+        );
+        for (symbol_id, price_tick) in &self.marks {
+            state.push_str(&format!("mark:{symbol_id}:{price_tick};"));
+        }
+        for (symbol_id, position) in &self.positions {
+            state.push_str(&format!(
+                "position:{symbol_id}:{}:{};",
+                position.lots, position.cost_basis_cash_units
             ));
         }
         state.into_bytes()
@@ -1491,6 +1738,71 @@ fn run_portfolio_notional_trace(
     Ok(rows)
 }
 
+/// Run fixed-point fill accounting and signed markout operations.
+///
+/// Operations are `(kind, symbol_id, is_bid, price_or_fill_tick, qty_lots,
+/// fee_or_mark_tick)`: kind 0 is fill (the final field is a signed fee in cash
+/// units), kind 1 is mark (price in the fourth field), kind 2 clears a mark,
+/// and kind 3 is markout (the final field is the mark tick).
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_accounting_trace(
+    operations: Vec<PythonAccountingOperation>,
+    checkpoint_interval: usize,
+) -> pyo3::PyResult<Vec<PythonAccountingTraceRow>> {
+    if checkpoint_interval == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "checkpoint_interval must be positive",
+        ));
+    }
+    let operation_count = operations.len();
+    let mut ledger = AccountingMarkoutLedger::default();
+    let mut rows = Vec::with_capacity(operation_count);
+    for (index, (kind, symbol_id, is_bid, price_tick, qty_lots, fee_or_mark_tick)) in
+        operations.into_iter().enumerate()
+    {
+        let decision = match kind {
+            0 => ledger.fill(symbol_id, is_bid, price_tick, qty_lots, fee_or_mark_tick),
+            1 => ledger.mark(symbol_id, price_tick),
+            2 => ledger.clear_mark(symbol_id),
+            3 => ledger.markout(is_bid, price_tick, qty_lots, fee_or_mark_tick),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported accounting operation kind: {kind}"
+                )))
+            }
+        };
+        let (
+            position_lots,
+            gross_position_lots,
+            realized_pnl,
+            fees,
+            unrealized_pnl,
+            valuation_complete,
+        ) = ledger.totals();
+        let ordinal = index + 1;
+        let checkpoint = if ordinal % checkpoint_interval == 0 || ordinal == operation_count {
+            Some(ledger.state_sha256())
+        } else {
+            None
+        };
+        rows.push((
+            decision.accepted,
+            decision.reason.map(str::to_owned),
+            position_lots,
+            gross_position_lots,
+            realized_pnl,
+            fees,
+            unrealized_pnl,
+            valuation_complete,
+            ledger.markout_cash_units,
+            ledger.markout_qty_lots,
+            checkpoint,
+        ));
+    }
+    Ok(rows)
+}
+
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
@@ -1501,6 +1813,7 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(run_scheduler_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_risk_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_portfolio_notional_trace, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_accounting_trace, m)?)?;
     Ok(())
 }
 
@@ -1509,8 +1822,9 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::{
-        BookState, DeterministicScheduler, LogicalTime, OrderState,
+        AccountingMarkoutLedger, BookState, DeterministicScheduler, LogicalTime, OrderState,
         PortfolioNotionalReservationLedger, RiskReservationLedger, Side, SyntheticExchange,
+        ACCOUNTING_CASH_SCALE,
     };
 
     #[test]
@@ -1707,5 +2021,30 @@ mod tests {
         );
         assert!(ledger.invalidate_epoch().accepted);
         assert_eq!(ledger.totals(), (4, 0, 4));
+    }
+
+    #[test]
+    fn accounting_handles_reversals_fees_marks_and_markouts() {
+        let mut accounting = AccountingMarkoutLedger::default();
+        assert!(accounting.fill(1, true, 100, 3, 7).accepted);
+        assert!(accounting.fill(1, false, 110, 1, -2).accepted);
+        assert_eq!(accounting.totals().2, 10 * ACCOUNTING_CASH_SCALE);
+        assert_eq!(accounting.totals().3, 5);
+        assert!(accounting.totals().4.is_none());
+        assert!(accounting.mark(1, 105).accepted);
+        assert_eq!(accounting.totals().4, Some(10 * ACCOUNTING_CASH_SCALE));
+        assert!(accounting.markout(true, 100, 2, 98).accepted);
+        assert_eq!(accounting.markout_cash_units, -4 * ACCOUNTING_CASH_SCALE);
+    }
+
+    #[test]
+    fn accounting_invalid_fill_is_atomic() {
+        let mut accounting = AccountingMarkoutLedger::default();
+        let before = accounting.state_sha256();
+        assert_eq!(
+            accounting.fill(1, true, 0, 1, 0).reason,
+            Some("invalid_fill_price")
+        );
+        assert_eq!(accounting.state_sha256(), before);
     }
 }
