@@ -85,7 +85,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Diff continuity is enforced with Binance USD-M `U`, `u`, and `pu` semantics; gap handling is explicit rather than patched over.
 - With `RESYNC_ON_GAP=1`, live collection re-snapshots on continuity failure. Offline replay and simulation do not fabricate missing updates.
 - Schema-v3 simulation uses market-data-first logical ties; legacy v1 rows retain an explicitly labeled action-first compatibility policy.
-- `replay` and `audit` expose a separate validity reduction for receipt sequence, monotonic receive-clock, capture lifecycle, stream epochs, rejected snapshots, and per-symbol execution inputs. `claim_ready` requires a complete schema-v3 trailer and valid execution inputs; legacy tapes remain diagnostic-only even when their books sync.
+- `replay` and `audit` expose a separate validity reduction for receipt sequence, monotonic receive-clock, capture lifecycle, stream epochs, rejected snapshots, and per-symbol execution inputs. Audit status explicitly separates structural book validity, selected execution-input validity, and the stricter `claim_ready` evidence gate. `claim_ready` requires a complete schema-v3 trailer and valid execution inputs; legacy tapes remain diagnostic-only even when their books sync.
 - Schema-v3 audit output retains a bounded receipt-anchored validity-boundary timeline. Reconnects, rejected snapshots, clock regressions, and capture failures remain explicit invalidated epochs; recovered final books do not erase the evidence or turn an interrupted tape into claim-ready data.
 
 Run the futures paths with:

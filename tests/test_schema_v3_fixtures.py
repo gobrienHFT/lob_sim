@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from lob_sim.cli import cmd_validate
+from lob_sim.cli import cmd_audit, cmd_validate
+from lob_sim.config import load_config
 from lob_sim.replay.runner import replay
 from lob_sim.replay.inspection import inspect_stream
 
@@ -81,3 +82,17 @@ def test_validate_reports_schema_v3_receipt_status_and_exit_code(capsys) -> None
     assert adversarial_report["ok"] is False
     assert adversarial_report["receipt_integrity_ok"] is False
     assert adversarial_report["capture_invalidation_event_count"] == 1
+
+
+def test_audit_separates_structural_execution_and_claim_status(capsys) -> None:
+    cmd_audit(load_config(".env.example"), str(FIXTURE_DIR / "input_fixture.ndjson"))
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["ok"] is True
+    assert report["status"] == {
+        "structurally_valid": True,
+        "execution_inputs_valid": True,
+        "claim_ready": True,
+        "ok_definition": "reconstructed_books_and_selected_execution_inputs",
+        "claim_ready_definition": "schema_v3_receipt_complete_without_invalid_boundaries_and_valid_execution_inputs",
+    }
