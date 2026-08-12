@@ -222,6 +222,10 @@ class Config:
     sim_latency_mode: Literal["fixed", "empirical", "stress_tail"] = "fixed"
     sim_latency_samples_ms: tuple[float, ...] = ()
     sim_latency_stress_multiplier: float = 1.0
+    # Gross marked notional reserved by inventory plus live and pending orders.
+    # Zero keeps the legacy per-symbol-only policy; positive values enable the
+    # portfolio guard at modeled order arrival.
+    mm_max_portfolio_notional: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
         errs = []
@@ -262,6 +266,8 @@ class Config:
             errs.append("MM_ORDER_QTY must be > 0")
         if self.mm_max_position <= 0:
             errs.append("MM_MAX_POSITION must be > 0")
+        if not self.mm_max_portfolio_notional.is_finite() or self.mm_max_portfolio_notional < 0:
+            errs.append("MM_MAX_PORTFOLIO_NOTIONAL must be finite and >= 0")
         if self.mm_strategy_profile not in {"baseline", "layered_mm", "research_mm"}:
             errs.append("MM_STRATEGY_PROFILE must be baseline, layered_mm, or research_mm")
         if self.mm_half_spread_bps < 0:
@@ -467,6 +473,10 @@ def load_config(env_path: str = ".env") -> Config:
         sim_latency_stress_multiplier=_parse_float(
             "SIM_LATENCY_STRESS_MULTIPLIER",
             _get_optional("SIM_LATENCY_STRESS_MULTIPLIER", "1.0"),
+        ),
+        mm_max_portfolio_notional=_parse_decimal(
+            "MM_MAX_PORTFOLIO_NOTIONAL",
+            _get_optional("MM_MAX_PORTFOLIO_NOTIONAL", "0"),
         ),
     )
     return cfg

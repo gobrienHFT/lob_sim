@@ -15,7 +15,7 @@ from lob_sim.record.format import NDJSONRecord, snapshot_payload
 from lob_sim.replay.reader import RecordedEvent
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.fill_model import PassiveFillModel
-from lob_sim.sim.metrics import SimulationMetrics
+from lob_sim.sim.metrics import PositionState, SimulationMetrics
 from lob_sim.sim.mm_strategy import QuoteTarget, StrategyDecision
 from lob_sim.sim.orders import Fill, Order
 
@@ -80,6 +80,98 @@ def _write_replay_file(path: Path) -> Path:
             handle.write(record.to_json())
             handle.write("\n")
     return path
+
+
+def _prime_synced_symbol(engine: SimulationEngine, symbol: str) -> SymbolSpec:
+    spec = SymbolSpec(symbol=symbol, tick_size=Decimal("1"), step_size=Decimal("1"))
+    engine._specs[symbol] = spec
+    syncer = engine._get_sync(symbol)
+    assert syncer is not None
+    syncer.on_snapshot(
+        SnapshotEvent(
+            symbol=symbol,
+            last_update_id=100,
+            bids=[(100, 10)],
+            asks=[(102, 10)],
+        )
+    )
+    syncer.on_depth_update(
+        DepthUpdateEvent(
+            symbol=symbol,
+            first_update_id=95,
+            final_update_id=101,
+            prev_update_id=94,
+            bids=[(100, 10)],
+            asks=[(102, 10)],
+            ts_local=1.0,
+        )
+    )
+    assert syncer.synced
+    return spec
+
+
+def test_portfolio_notional_cap_reserves_cross_symbol_live_and_arriving_risk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_MAX_POSITION="10",
+        MM_MAX_PORTFOLIO_NOTIONAL="150",
+    )
+    engine = SimulationEngine(cfg)
+    btc_spec = _prime_synced_symbol(engine, "BTCUSDT")
+    _prime_synced_symbol(engine, "ETHUSDT")
+
+    engine.fill_model.place_order(
+        Order(
+            order_id="BTCUSDT-bid-live",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=99,
+            qty_lots=1,
+            created_ts=1.0,
+            remaining_lots=1,
+        )
+    )
+    engine._handle_arrival(
+        "ETHUSDT",
+        {"side": "bid", "quote_slot": "base", "price_tick": 101, "qty_lots": 1},
+        2.0,
+    )
+
+    rejection = [row for row in engine.event_trace if row["event_type"] == "order_rejected"]
+    assert len(rejection) == 1
+    assert rejection[0]["details"]["reason"] == "portfolio_notional_limit"
+    assert rejection[0]["details"]["projected_reserved_notional"] == "200"
+    assert engine.fill_model.get_order("ETHUSDT", "bid") is None
+    assert btc_spec.contract_multiplier == Decimal("1")
+
+
+def test_portfolio_notional_cap_fails_closed_when_an_existing_exposure_lacks_a_mark(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _build_config(
+        monkeypatch,
+        tmp_path,
+        MM_MAX_POSITION="10",
+        MM_MAX_PORTFOLIO_NOTIONAL="1000",
+    )
+    engine = SimulationEngine(cfg)
+    _prime_synced_symbol(engine, "BTCUSDT")
+    eth_spec = SymbolSpec(symbol="ETHUSDT", tick_size=Decimal("1"), step_size=Decimal("1"))
+    engine._specs["ETHUSDT"] = eth_spec
+    engine.metrics.position["ETHUSDT"] = PositionState(lot_size=1, avg_cost=Decimal("100"))
+
+    engine._handle_arrival(
+        "BTCUSDT",
+        {"side": "bid", "quote_slot": "base", "price_tick": 101, "qty_lots": 1},
+        2.0,
+    )
+
+    rejection = [row for row in engine.event_trace if row["event_type"] == "order_rejected"]
+    assert rejection[-1]["details"]["reason"] == "portfolio_mark_unavailable"
+    assert rejection[-1]["details"]["missing_mark_symbols"] == ["ETHUSDT"]
 
 
 def test_first_depth_event_must_cover_snapshot_id() -> None:
