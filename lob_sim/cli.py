@@ -924,9 +924,13 @@ def cmd_audit(config: Config, file: str) -> None:
     replay_result = replay(file, config)
     deterministic = _deterministic_run(config, file)
     validity = replay_result.validity
-    ok = (
-        replay_result.gap_count == 0
+    structurally_valid = (
+        bool(replay_result.symbols)
+        and replay_result.gap_count == 0
         and all(symbol.synced for symbol in replay_result.symbols.values())
+    )
+    execution_inputs_valid = (
+        bool(replay_result.symbols)
         and validity is not None
         and validity.capture_valid
         and validity.clock_valid
@@ -935,11 +939,22 @@ def cmd_audit(config: Config, file: str) -> None:
             for result in replay_result.symbols.values()
         )
     )
+    ok = structurally_valid and execution_inputs_valid
+    claim_ready = bool(validity is not None and validity.claim_ready)
     print(
         json.dumps(
             {
                 "schema_version": "lob_sim.capture_audit.v2",
                 "ok": ok,
+                "status": {
+                    "structurally_valid": structurally_valid,
+                    "execution_inputs_valid": execution_inputs_valid,
+                    "claim_ready": claim_ready,
+                    "ok_definition": "reconstructed_books_and_selected_execution_inputs",
+                    "claim_ready_definition": (
+                        "schema_v3_receipt_complete_without_invalid_boundaries_and_valid_execution_inputs"
+                    ),
+                },
                 "inspection": inspection.as_dict(),
                 "replay": {
                     "events_processed": replay_result.events_processed,

@@ -67,10 +67,21 @@ record even when later book events happen to reconstruct cleanly.
 python -m lob_sim.cli audit --file data/capture_....manifest.json
 ```
 
-The audit report uses ``lob_sim.capture_audit.v2``.  ``ok`` means that the
-reconstructed books and currently selected execution inputs are valid; the
-separate ``replay.validity.claim_ready`` field prevents a clean legacy replay
-from being mistaken for a claim-ready capture.
+The audit report uses ``lob_sim.capture_audit.v2``.  ``ok`` remains a
+backward-compatible convenience flag meaning that the reconstructed books and
+currently selected execution inputs are valid.  The top-level ``status`` object
+now makes the three different outcomes explicit:
+
+- ``structurally_valid`` means at least one symbol was reconstructed, every
+  reconstructed symbol is synced, and no book continuity gap was observed;
+- ``execution_inputs_valid`` means the selected capture, clock, stream, and
+  trade inputs are valid for the configured scenario;
+- ``claim_ready`` is the stricter evidence gate: schema-v3 receipt identity,
+  complete trailer, no invalidated boundaries, and valid execution inputs.
+
+This prevents a clean legacy replay (or a structurally valid but invalidated
+capture) from being mistaken for claim-ready evidence.  The nested
+``replay.validity`` object remains the detailed source of truth.
 
 Schema-v3 validity also carries a bounded ``boundaries`` timeline.  Each row
 is anchored to the recorded receive sequence/monotonic timestamp and includes

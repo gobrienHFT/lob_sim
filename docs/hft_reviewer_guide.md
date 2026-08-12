@@ -168,10 +168,12 @@ Inferred:
 - Event-time replay discipline.
 - Feed-specific sequence handling and gap policy.
 - Non-resync mode still records continuity gaps and skips gap-affected diffs instead of mutating the book.
-- Queue mechanics implemented with explicit FIFO queues.
+- Synthetic queue-ahead mechanics are implemented explicitly at each visible
+  price level; this is not historical Binance participant FIFO.
 - Risk and fill-quality metrics beyond PnL.
 - Run diagnostics that expose record counts and gap handling instead of hiding bad feed continuity.
-- Public-feed diagnostics that expose how much depth/print consumption was modeled, consumed from FIFO queue, left unmatched, or netted away.
+- Public-feed diagnostics expose how much depth/print consumption was modeled,
+  consumed from the synthetic queue-ahead, left unmatched, or netted away.
 - Event traces that make order/cancel/fill sequencing inspectable without a debugger.
 - Risk-control traces that show when configured kill switches halt trading instead of silently suppressing later decisions.
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
