@@ -110,6 +110,7 @@ class SimulationEngine:
         self._clock_regressions = 0
         self._clock_invalidated = False
         self._receive_clock_regressions = 0
+        self._receive_sequence_gaps = 0
         self._last_receive_monotonic_ns: int | None = None
         self._capture_valid = True
         self._capture_invalidations = 0
@@ -408,6 +409,9 @@ class SimulationEngine:
             return True
         if self._last_receive_seq is not None and seq <= self._last_receive_seq:
             raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
+        if self._last_receive_seq is not None and seq > self._last_receive_seq + 1:
+            self._receive_sequence_gaps += seq - self._last_receive_seq - 1
+            self._invalidate_capture(now, "receive_sequence_gap")
         self._last_receive_seq = seq
 
         raw_monotonic_ns = capture.get("recvMonotonicNs")
@@ -470,6 +474,9 @@ class SimulationEngine:
                 return
             if self._last_receive_seq is not None and seq <= self._last_receive_seq:
                 raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
+            if self._last_receive_seq is not None and seq > self._last_receive_seq + 1:
+                self._receive_sequence_gaps += seq - self._last_receive_seq - 1
+                self._invalidate_capture(now, "receive_sequence_gap")
             self._last_receive_seq = seq
         if self._capture_schema_version >= 3 and not receipt_checked:
             raw_monotonic_ns = capture.get("recvMonotonicNs")
@@ -1494,6 +1501,7 @@ class SimulationEngine:
             "clock_regressions": self._clock_regressions,
             "clock_invalidated": self._clock_invalidated,
             "receive_clock_regressions": self._receive_clock_regressions,
+            "receive_sequence_gaps": self._receive_sequence_gaps,
             "last_receive_monotonic_ns": self._last_receive_monotonic_ns,
             "capture_valid": self._capture_valid,
             "capture_invalidations": self._capture_invalidations,
@@ -1540,6 +1548,7 @@ class SimulationEngine:
         self._clock_regressions = int(state["clock_regressions"])
         self._clock_invalidated = bool(state.get("clock_invalidated", self._clock_regressions > 0))
         self._receive_clock_regressions = int(state.get("receive_clock_regressions", 0))
+        self._receive_sequence_gaps = int(state.get("receive_sequence_gaps", 0))
         raw_receive_monotonic_ns = state.get("last_receive_monotonic_ns")
         self._last_receive_monotonic_ns = None if raw_receive_monotonic_ns is None else int(raw_receive_monotonic_ns)
         self._capture_valid = bool(state.get("capture_valid", True))
@@ -2057,6 +2066,7 @@ class SimulationEngine:
                 "clock": "receive_time" if self._receive_clock else "legacy_exchange_or_local_time",
                 "clock_regressions_clamped": self._clock_regressions,
                 "receive_clock_regressions": self._receive_clock_regressions,
+                "receive_sequence_gaps": self._receive_sequence_gaps,
                 "last_receive_monotonic_ns": self._last_receive_monotonic_ns,
                 "clock_invalidated": self._clock_invalidated,
                 "capture_valid": self._capture_valid,
@@ -2171,6 +2181,7 @@ class SimulationEngine:
                 "valid": self._capture_valid,
                 "invalidations": self._capture_invalidations,
                 "invalid_reason": self._capture_invalid_reason,
+                "receive_sequence_gaps": self._receive_sequence_gaps,
             },
             "continuation_state": encode_checkpoint(
                 {

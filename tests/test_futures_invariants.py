@@ -476,6 +476,40 @@ def test_schema_v3_receipt_monotonic_regression_invalidates_clock_state(
     assert clock_rows[0]["details"]["previous_monotonic_ns"] == 10
 
 
+def test_schema_v3_receipt_sequence_gap_invalidates_capture_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._capture_schema_version = 3
+    engine._receive_clock = True
+    for sequence in (1, 3):
+        engine._observe_capture_epoch(
+            RecordedEvent(
+                ts_local=float(sequence),
+                symbol="BTCUSDT",
+                type="captureEvent",
+                data={
+                    "event": "connect",
+                    "route": "control",
+                    "_capture": {
+                        "route": "control",
+                        "recvSeq": sequence,
+                        "recvMonotonicNs": sequence,
+                        "streamEpoch": 0,
+                        "syncEpoch": 0,
+                    },
+                },
+            ),
+            float(sequence),
+        )
+
+    assert engine._capture_valid is False
+    assert engine._receive_sequence_gaps == 1
+    assert engine._capture_invalid_reason == "receive_sequence_gap"
+    assert engine._summary_annotations()["integrity"]["receive_sequence_gaps"] == 1
+    assert engine._summary_annotations()["integrity"]["stream_state"] == {}
+
+
 def test_economic_simulation_rejects_visible_partial_capture_tail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
