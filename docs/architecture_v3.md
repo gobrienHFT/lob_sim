@@ -50,7 +50,11 @@ types and writer counters. Normal shutdown drains the queue, persists the
 capture trailer, closes the writer, and only then finalizes segments and a
 manifest containing queue capacity, queue/outstanding high-water, maximum
 enqueue-to-write lag, counts, and completion state. These mechanics do not establish a zero-drop or
-24-hour-soak claim by themselves.
+24-hour-soak claim by themselves. If a replayed tape contains a capture
+parse/overflow failure boundary, the independent capture-validity dimension is
+set false, all live/pending execution state is cleared, and strategy actions
+halt; downstream fills and markouts cannot be execution-valid after that
+boundary.
 
 For schema-v3 replay, the logical priority at equal receipt time is:
 
