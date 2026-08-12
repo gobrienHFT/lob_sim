@@ -83,6 +83,10 @@ the trace in order, and resolves evidence IDs exactly through a temporary
 on-disk SQLite index. It caps diagnostics on corrupt input and retains no detail
 rows in Python memory. A failed derived-pack audit recreates `_INCOMPLETE.json`.
 
+Capture-segment and normalized-Arrow file digests use the same incremental
+hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
+single Python bytes object merely to produce provenance.
+
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
 results, an integer-nanosecond action scheduler, and per-symbol worst-case

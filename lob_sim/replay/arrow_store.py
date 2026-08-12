@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -117,7 +116,7 @@ def normalize_to_arrow(
         "input_path": str(source),
         "input_sha256": file_sha256(source),
         "output_path": str(target),
-        "output_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        "output_sha256": file_sha256(target),
         "records": count,
         "format": "arrow_ipc_file",
     }
