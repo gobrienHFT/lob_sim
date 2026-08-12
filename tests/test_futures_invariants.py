@@ -267,6 +267,40 @@ def test_capture_epoch_transition_invalidates_book_orders_and_pending_actions(
     assert engine.metrics.book_invalidation_count == 1
 
 
+def test_clock_regression_invalidates_pending_markouts_and_live_execution_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, SIM_ADVERSE_MARKOUT_SECONDS="1.0"))
+    _prime_synced_symbol(engine, "BTCUSDT")
+    book = engine._books["BTCUSDT"]
+    engine.metrics.on_fill(
+        Fill(ts_local=1.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1, order_id="fill-1"),
+        book,
+        book.mid_price(),
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-live",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=99,
+        qty_lots=1,
+        created_ts=1.0,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+
+    engine._invalidate_clock(2.0, 1.0)
+
+    assert engine._trading_halted is True
+    assert engine._clock_invalidated is True
+    assert engine.fill_model.get_order("BTCUSDT", "bid") is None
+    assert engine.metrics.pending_markout_state() == []
+    assert engine.metrics.markout_invalidated_count == 1
+    clock_rows = [row for row in engine.event_trace if row["event_type"] == "clock_invalidated"]
+    assert len(clock_rows) == 1
+    assert clock_rows[0]["details"]["invalidated_markout_count"] == 1
+
+
 def _capture_event(
     *,
     ts_local: float,

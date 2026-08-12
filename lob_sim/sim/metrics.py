@@ -571,6 +571,12 @@ class SimulationMetrics:
         self.markout_unresolved_count += invalidated
         return invalidated
 
+    def invalidate_all_pending_markouts(self, reason: str, *, ts_local: float | None = None) -> int:
+        """Invalidate every unresolved horizon at a global causal boundary."""
+
+        symbols = sorted({str(entry["symbol"]) for entry in [*self._pending_markouts, *self._pending_markout_horizons]})
+        return sum(self.invalidate_markouts(symbol, reason, ts_local=ts_local) for symbol in symbols)
+
     def _evaluate_risk(self, equity: Decimal) -> None:
         if not self.cfg.sim_kill_switch_enabled or self.kill_switch_triggered:
             return
