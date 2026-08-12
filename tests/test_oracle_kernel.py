@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from lob_sim.oracle_kernel import DeterministicSchedulerOracle, RiskReservationOracle
+from lob_sim.oracle_kernel import (
+    DeterministicSchedulerOracle,
+    PortfolioNotionalReservationOracle,
+    RiskReservationOracle,
+)
 from lob_sim.record.envelope import LogicalTime
 
 
@@ -80,3 +84,42 @@ def test_risk_reservation_totals_support_extreme_valid_integer_limits() -> None:
     assert risk.reserve(2, is_bid=True, qty_lots=limit).accepted
     assert risk.reserve(3, is_bid=True, qty_lots=limit).accepted
     assert risk.reserved_buy_lots == limit * 2
+
+
+def test_portfolio_notional_reservation_is_gross_and_cross_symbol() -> None:
+    ledger = PortfolioNotionalReservationOracle(max_notional_units=100)
+    assert ledger.set_inventory(1, 30).accepted
+    assert ledger.reserve(1, symbol_id=2, is_bid=True, notional_units=40).accepted
+    assert ledger.total_reserved_units == 70
+
+    assert ledger.request_cancel(1).accepted
+    rejected = ledger.reserve(2, symbol_id=3, is_bid=False, notional_units=31)
+    assert rejected == type(rejected)(False, "portfolio_notional_limit")
+    assert ledger.fill(1, 20).accepted
+    assert ledger.inventory_by_symbol == {1: 30, 2: 20}
+    assert ledger.reserved_order_units == 20
+    assert ledger.total_reserved_units == 70
+    assert ledger.cancel_ack(1).accepted
+    assert ledger.total_reserved_units == 50
+    assert ledger.reserve(3, symbol_id=3, is_bid=False, notional_units=50).accepted
+    assert ledger.total_reserved_units == 100
+
+
+def test_portfolio_notional_mark_updates_and_invalid_transitions_are_atomic() -> None:
+    ledger = PortfolioNotionalReservationOracle(max_notional_units=10)
+    assert ledger.set_inventory(7, -4).accepted
+    assert ledger.reserve(1, symbol_id=7, is_bid=True, notional_units=6).accepted
+    before = ledger.state_sha256()
+
+    overfill = ledger.fill(1, 7)
+    assert overfill.accepted is False
+    assert overfill.reason == "fill_exceeds_remaining"
+    assert ledger.state_sha256() == before
+
+    unavailable = ledger.set_inventory(8, 5)
+    assert unavailable.accepted is False
+    assert unavailable.reason == "portfolio_notional_limit"
+    assert ledger.inventory_by_symbol == {7: -4}
+    assert ledger.invalidate_epoch().accepted
+    assert ledger.reserved_order_units == 0
+    assert ledger.total_reserved_units == 4

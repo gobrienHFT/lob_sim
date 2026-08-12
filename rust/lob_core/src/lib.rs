@@ -28,6 +28,10 @@ type PythonSchedulerTraceRow = (bool, Option<String>, Vec<u64>, usize, Option<St
 type PythonRiskOperation = (u8, u64, bool, i64);
 #[cfg(feature = "python")]
 type PythonRiskTraceRow = (bool, Option<String>, i64, i128, i128, Option<String>);
+#[cfg(feature = "python")]
+type PythonPortfolioOperation = (u8, u64, u32, bool, i64);
+#[cfg(feature = "python")]
+type PythonPortfolioTraceRow = (bool, Option<String>, i128, i128, i128, Option<String>);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -431,6 +435,256 @@ impl RiskReservationLedger {
                 "order:{order_id}:{}:{}:{};",
                 if order.is_bid { "bid" } else { "ask" },
                 order.remaining_lots,
+                order.state.as_str()
+            ));
+        }
+        state.into_bytes()
+    }
+
+    #[must_use]
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PortfolioReservedOrder {
+    symbol_id: u32,
+    is_bid: bool,
+    remaining_notional_units: i64,
+    state: ReservationState,
+}
+
+/// Conservative gross-notional reservation ledger across all symbols.
+///
+/// Inventory is supplied as externally marked fixed-point notional units. The
+/// ledger deliberately does not net symbols, sides, or live versus pending
+/// orders: every active order remains reserved until a cancel acknowledgement,
+/// fill, or epoch invalidation is observed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PortfolioNotionalReservationLedger {
+    max_notional_units: i64,
+    inventory_by_symbol: BTreeMap<u32, i64>,
+    orders: BTreeMap<u64, PortfolioReservedOrder>,
+    seen_order_ids: BTreeSet<u64>,
+}
+
+impl PortfolioNotionalReservationLedger {
+    pub fn new(max_notional_units: i64) -> Result<Self, &'static str> {
+        if max_notional_units <= 0 {
+            return Err("max_notional_units must be positive");
+        }
+        Ok(Self {
+            max_notional_units,
+            inventory_by_symbol: BTreeMap::new(),
+            orders: BTreeMap::new(),
+            seen_order_ids: BTreeSet::new(),
+        })
+    }
+
+    fn gross_inventory_units(&self) -> i128 {
+        self.inventory_by_symbol
+            .values()
+            .map(|value| i128::from(*value).abs())
+            .sum()
+    }
+
+    fn reserved_order_units(&self) -> i128 {
+        self.orders
+            .values()
+            .filter(|order| order.state.reserves())
+            .map(|order| i128::from(order.remaining_notional_units))
+            .sum()
+    }
+
+    fn within_limit(&self, gross_inventory_units: i128, reserved_order_units: i128) -> bool {
+        gross_inventory_units + reserved_order_units <= i128::from(self.max_notional_units)
+    }
+
+    fn debug_assert_invariants(&self) {
+        debug_assert!(self.within_limit(self.gross_inventory_units(), self.reserved_order_units()));
+        debug_assert!(self
+            .orders
+            .values()
+            .all(|order| order.remaining_notional_units >= 0));
+    }
+
+    pub fn set_inventory(
+        &mut self,
+        symbol_id: u32,
+        marked_notional_units: i64,
+    ) -> ReservationDecision {
+        let mut candidate = self.inventory_by_symbol.clone();
+        if marked_notional_units == 0 {
+            candidate.remove(&symbol_id);
+        } else {
+            candidate.insert(symbol_id, marked_notional_units);
+        }
+        let gross_inventory_units: i128 = candidate
+            .values()
+            .map(|value| i128::from(*value).abs())
+            .sum();
+        if !self.within_limit(gross_inventory_units, self.reserved_order_units()) {
+            return ReservationDecision::rejected("portfolio_notional_limit");
+        }
+        self.inventory_by_symbol = candidate;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn reserve(
+        &mut self,
+        order_id: u64,
+        symbol_id: u32,
+        is_bid: bool,
+        notional_units: i64,
+    ) -> ReservationDecision {
+        if self.seen_order_ids.contains(&order_id) {
+            return ReservationDecision::rejected("duplicate_order_id");
+        }
+        self.seen_order_ids.insert(order_id);
+        if notional_units <= 0 {
+            return ReservationDecision::rejected("invalid_notional");
+        }
+        if !self.within_limit(
+            self.gross_inventory_units(),
+            self.reserved_order_units() + i128::from(notional_units),
+        ) {
+            return ReservationDecision::rejected("portfolio_notional_limit");
+        }
+        self.orders.insert(
+            order_id,
+            PortfolioReservedOrder {
+                symbol_id,
+                is_bid,
+                remaining_notional_units: notional_units,
+                state: ReservationState::Live,
+            },
+        );
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn request_cancel(&mut self, order_id: u64) -> ReservationDecision {
+        let Some(order) = self.orders.get_mut(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if order.state != ReservationState::Live {
+            return ReservationDecision::rejected("order_not_live");
+        }
+        order.state = ReservationState::PendingCancel;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn cancel_ack(&mut self, order_id: u64) -> ReservationDecision {
+        let Some(order) = self.orders.get_mut(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if order.state != ReservationState::PendingCancel {
+            return ReservationDecision::rejected("cancel_not_pending");
+        }
+        order.state = ReservationState::Cancelled;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn fill(&mut self, order_id: u64, qty_notional_units: i64) -> ReservationDecision {
+        let Some(order) = self.orders.get(&order_id) else {
+            return ReservationDecision::rejected("unknown_order");
+        };
+        if !order.state.reserves() {
+            return ReservationDecision::rejected("order_not_fillable");
+        }
+        if qty_notional_units <= 0 {
+            return ReservationDecision::rejected("invalid_fill_quantity");
+        }
+        if qty_notional_units > order.remaining_notional_units {
+            return ReservationDecision::rejected("fill_exceeds_remaining");
+        }
+        let symbol_id = order.symbol_id;
+        let is_bid = order.is_bid;
+        let previous_inventory = self
+            .inventory_by_symbol
+            .get(&symbol_id)
+            .copied()
+            .unwrap_or(0);
+        let next_inventory = if is_bid {
+            previous_inventory.checked_add(qty_notional_units)
+        } else {
+            previous_inventory.checked_sub(qty_notional_units)
+        };
+        let Some(next_inventory) = next_inventory else {
+            return ReservationDecision::rejected("inventory_overflow");
+        };
+        let mut candidate = self.inventory_by_symbol.clone();
+        if next_inventory == 0 {
+            candidate.remove(&symbol_id);
+        } else {
+            candidate.insert(symbol_id, next_inventory);
+        }
+        let gross_inventory_units: i128 = candidate
+            .values()
+            .map(|value| i128::from(*value).abs())
+            .sum();
+        let reserved_order_units = self.reserved_order_units() - i128::from(qty_notional_units);
+        if !self.within_limit(gross_inventory_units, reserved_order_units) {
+            return ReservationDecision::rejected("portfolio_notional_limit");
+        }
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .expect("validated order must exist");
+        order.remaining_notional_units -= qty_notional_units;
+        if order.remaining_notional_units == 0 {
+            order.state = ReservationState::Filled;
+        }
+        self.inventory_by_symbol = candidate;
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    pub fn invalidate_epoch(&mut self) -> ReservationDecision {
+        for order in self.orders.values_mut() {
+            if order.state.reserves() {
+                order.state = ReservationState::EpochInvalidated;
+            }
+        }
+        self.debug_assert_invariants();
+        ReservationDecision::accepted()
+    }
+
+    #[must_use]
+    pub fn totals(&self) -> (i128, i128, i128) {
+        let gross_inventory_units = self.gross_inventory_units();
+        let reserved_order_units = self.reserved_order_units();
+        (
+            gross_inventory_units,
+            reserved_order_units,
+            gross_inventory_units + reserved_order_units,
+        )
+    }
+
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut state = format!("max:{};", self.max_notional_units);
+        for (symbol_id, inventory_units) in &self.inventory_by_symbol {
+            state.push_str(&format!("inventory:{symbol_id}:{inventory_units};"));
+        }
+        state.push_str("seen:");
+        for (index, order_id) in self.seen_order_ids.iter().enumerate() {
+            if index > 0 {
+                state.push(',');
+            }
+            state.push_str(&order_id.to_string());
+        }
+        state.push(';');
+        for (order_id, order) in &self.orders {
+            state.push_str(&format!(
+                "order:{order_id}:{}:{}:{}:{};",
+                order.symbol_id,
+                if order.is_bid { "bid" } else { "ask" },
+                order.remaining_notional_units,
                 order.state.as_str()
             ));
         }
@@ -1180,6 +1434,63 @@ fn run_risk_trace(
     Ok(rows)
 }
 
+/// Run conservative gross-notional reservation operations for differential proof.
+///
+/// Operations are `(kind, order_id, symbol_id, is_bid, notional_units)`, where
+/// kinds are reserve, request-cancel, cancel-ack, fill, epoch-invalidate, and
+/// set-inventory respectively. Inventory values are externally marked fixed-
+/// point notional units; the ledger never infers marks from prices.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_portfolio_notional_trace(
+    operations: Vec<PythonPortfolioOperation>,
+    max_notional_units: i64,
+    checkpoint_interval: usize,
+) -> pyo3::PyResult<Vec<PythonPortfolioTraceRow>> {
+    if checkpoint_interval == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "checkpoint_interval must be positive",
+        ));
+    }
+    let operation_count = operations.len();
+    let mut ledger = PortfolioNotionalReservationLedger::new(max_notional_units)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let mut rows = Vec::with_capacity(operation_count);
+    for (index, (kind, order_id, symbol_id, is_bid, notional_units)) in
+        operations.into_iter().enumerate()
+    {
+        let decision = match kind {
+            0 => ledger.reserve(order_id, symbol_id, is_bid, notional_units),
+            1 => ledger.request_cancel(order_id),
+            2 => ledger.cancel_ack(order_id),
+            3 => ledger.fill(order_id, notional_units),
+            4 => ledger.invalidate_epoch(),
+            5 => ledger.set_inventory(symbol_id, notional_units),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported portfolio operation kind: {kind}"
+                )))
+            }
+        };
+        let (gross_inventory_units, reserved_order_units, total_reserved_units) = ledger.totals();
+        let ordinal = index + 1;
+        let checkpoint = if ordinal % checkpoint_interval == 0 || ordinal == operation_count {
+            Some(ledger.state_sha256())
+        } else {
+            None
+        };
+        rows.push((
+            decision.accepted,
+            decision.reason.map(str::to_owned),
+            gross_inventory_units,
+            reserved_order_units,
+            total_reserved_units,
+            checkpoint,
+        ));
+    }
+    Ok(rows)
+}
+
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
@@ -1189,6 +1500,7 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(run_synthetic_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_scheduler_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_risk_trace, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_portfolio_notional_trace, m)?)?;
     Ok(())
 }
 
@@ -1197,8 +1509,8 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::{
-        BookState, DeterministicScheduler, LogicalTime, OrderState, RiskReservationLedger, Side,
-        SyntheticExchange,
+        BookState, DeterministicScheduler, LogicalTime, OrderState,
+        PortfolioNotionalReservationLedger, RiskReservationLedger, Side, SyntheticExchange,
     };
 
     #[test]
@@ -1360,5 +1672,40 @@ mod tests {
         assert!(ledger.reserve(2, true, limit).accepted);
         assert!(ledger.reserve(3, true, limit).accepted);
         assert_eq!(ledger.reservation_totals(), (i128::from(limit) * 2, 0));
+    }
+
+    #[test]
+    fn portfolio_notional_reservation_is_gross_across_symbols() {
+        let mut ledger = PortfolioNotionalReservationLedger::new(100).expect("valid limit");
+        assert!(ledger.set_inventory(1, 30).accepted);
+        assert!(ledger.reserve(1, 2, true, 40).accepted);
+        assert_eq!(ledger.totals(), (30, 40, 70));
+        assert!(ledger.request_cancel(1).accepted);
+        assert_eq!(
+            ledger.reserve(2, 3, false, 31).reason,
+            Some("portfolio_notional_limit")
+        );
+        assert!(ledger.fill(1, 20).accepted);
+        assert_eq!(ledger.totals(), (50, 20, 70));
+        assert!(ledger.cancel_ack(1).accepted);
+        assert_eq!(ledger.totals(), (50, 0, 50));
+        assert!(ledger.reserve(3, 3, false, 50).accepted);
+        assert_eq!(ledger.totals(), (50, 50, 100));
+    }
+
+    #[test]
+    fn portfolio_notional_invalid_transitions_are_atomic() {
+        let mut ledger = PortfolioNotionalReservationLedger::new(10).expect("valid limit");
+        assert!(ledger.set_inventory(7, -4).accepted);
+        assert!(ledger.reserve(1, 7, true, 6).accepted);
+        let before = ledger.state_sha256();
+        assert_eq!(ledger.fill(1, 7).reason, Some("fill_exceeds_remaining"));
+        assert_eq!(ledger.state_sha256(), before);
+        assert_eq!(
+            ledger.set_inventory(8, 5).reason,
+            Some("portfolio_notional_limit")
+        );
+        assert!(ledger.invalidate_epoch().accepted);
+        assert_eq!(ledger.totals(), (4, 0, 4));
     }
 }

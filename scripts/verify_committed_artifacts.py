@@ -639,6 +639,19 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "risk_operation_corpus_sha256",
         "risk_trace_sha256",
         "risk_final_state_sha256",
+        "portfolio_notional_operations",
+        "portfolio_notional_operation_kind_counts",
+        "portfolio_notional_accepted_operation_kind_counts",
+        "portfolio_notional_accepted_operations",
+        "portfolio_notional_rejected_operations",
+        "portfolio_notional_checkpoint_count",
+        "portfolio_notional_max_units",
+        "portfolio_notional_final_gross_inventory_units",
+        "portfolio_notional_final_reserved_order_units",
+        "portfolio_notional_final_total_reserved_units",
+        "portfolio_notional_operation_corpus_sha256",
+        "portfolio_notional_trace_sha256",
+        "portfolio_notional_final_state_sha256",
         "remaining_full_engine_scope",
         "full_engine_parity",
     }
@@ -694,6 +707,33 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity accepted risk kind counts do not reconcile")
     elif any(risk_accepted_kind_counts[kind] <= 0 for kind in expected_risk_kinds):
         issues.append("Rust/Python parity generated trace did not accept every risk operation kind")
+    if report["portfolio_notional_operations"] != (
+        report["portfolio_notional_accepted_operations"] + report["portfolio_notional_rejected_operations"]
+    ):
+        issues.append("Rust/Python parity portfolio-notional operation counts do not reconcile")
+    portfolio_kind_counts = report["portfolio_notional_operation_kind_counts"]
+    expected_portfolio_kinds = {
+        "reserve",
+        "request_cancel",
+        "cancel_ack",
+        "fill",
+        "epoch_invalidate",
+        "set_inventory",
+    }
+    if not isinstance(portfolio_kind_counts, dict) or set(portfolio_kind_counts) != expected_portfolio_kinds:
+        issues.append("Rust/Python parity report has invalid portfolio-notional operation kind counts")
+    elif report["portfolio_notional_operations"] != sum(portfolio_kind_counts.values()):
+        issues.append("Rust/Python parity portfolio-notional operation kind counts do not reconcile")
+    portfolio_accepted_kind_counts = report["portfolio_notional_accepted_operation_kind_counts"]
+    if (
+        not isinstance(portfolio_accepted_kind_counts, dict)
+        or set(portfolio_accepted_kind_counts) != expected_portfolio_kinds
+    ):
+        issues.append("Rust/Python parity report has invalid accepted portfolio-notional kind counts")
+    elif report["portfolio_notional_accepted_operations"] != sum(portfolio_accepted_kind_counts.values()):
+        issues.append("Rust/Python parity accepted portfolio-notional kind counts do not reconcile")
+    elif any(portfolio_accepted_kind_counts[kind] <= 0 for kind in expected_portfolio_kinds):
+        issues.append("Rust/Python parity generated trace did not accept every portfolio-notional operation kind")
     scheduler_schedule_count = (
         scheduler_kind_counts.get("schedule", 0) if isinstance(scheduler_kind_counts, dict) else 0
     )
@@ -712,7 +752,12 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity final long reservation exceeds its worst-case limit")
     if risk_position - report["risk_final_reserved_sell_lots"] < -risk_limit:
         issues.append("Rust/Python parity final short reservation exceeds its worst-case limit")
-    for field in ("synthetic_checkpoint_count", "scheduler_checkpoint_count", "risk_checkpoint_count"):
+    for field in (
+        "synthetic_checkpoint_count",
+        "scheduler_checkpoint_count",
+        "risk_checkpoint_count",
+        "portfolio_notional_checkpoint_count",
+    ):
         if report[field] <= 0:
             issues.append(f"Rust/Python parity report has invalid {field}")
     for field in (
@@ -725,13 +770,16 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "risk_operation_corpus_sha256",
         "risk_trace_sha256",
         "risk_final_state_sha256",
+        "portfolio_notional_operation_corpus_sha256",
+        "portfolio_notional_trace_sha256",
+        "portfolio_notional_final_state_sha256",
     ):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
             issues.append(f"Rust/Python parity report has invalid {field}")
     expected_remaining = {
         "public-L2 execution scenarios",
-        "engine-integrated latency and portfolio risk",
+        "engine-integrated latency and portfolio-notional risk",
         "accounting and markouts",
         "run manifests",
     }
