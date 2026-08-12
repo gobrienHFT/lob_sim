@@ -274,7 +274,7 @@
     "sink_memory_bounded": true,
     "memory_bounded_by_tape_duration": false
   },
-  "state_sha256": "f13fdf5f02cc6120a1207e03c24a7be30cdcd526448b1211416011060952129f",
+  "state_sha256": "e192f9e3538450c5df6b1560ae09d562d1666133faa6b08b1c109db6e115acfa",
   "run_id": "4a79ebf2a85c60a6",
   "input_sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
   "config_sha256": "4d8842df89542ea87ee93f2d71979a49a18771be8314cabe506c881295c587bf",
@@ -282,8 +282,8 @@
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 225,
-    "sha256": "70189735ba5d428cc6bf7a38c40cd8fd0303f69a9f216b9e30f157b9a72f187f"
+    "file_count": 226,
+    "sha256": "8ac37812f8d33a45c186569b894c3ffaba1bbc3bf3f30408027cefe13370f148"
   },
   "feed_adapter": {
     "name": "binance_usdm",

@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-12T16:03:35.860038Z",
+    "benchmark_created_at_utc": "2026-08-12T16:23:48.285126Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -95,16 +95,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "codex/portfolio-notional-risk",
-      "git_commit": "485002d4823447e1e71f71238ac57f0b52a78c07",
+      "git_branch": "master",
+      "git_commit": "21643818bcde8b695793619d037f7bd13664b41e",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 116.82812800751043,
-    "loop_latency_p50_us": 157.55,
-    "loop_latency_p99_us": 95919.40999999964,
-    "wall_time_seconds": 0.6847665999994206
+    "events_per_second": 115.08820791836024,
+    "loop_latency_p50_us": 174.7,
+    "loop_latency_p99_us": 87593.9079999995,
+    "wall_time_seconds": 0.695118999999977
   }
 }

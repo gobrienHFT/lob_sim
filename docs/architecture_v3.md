@@ -64,6 +64,18 @@ SHA-256 audit chains. Unresolved markouts are capped by
 `SIM_MAX_PENDING_MARKOUTS`; the next fill fails before accounting mutation if
 that cap is exhausted.
 
+The Python engine also exposes a JSON-only checkpoint contract for long
+replays. `SimulationEngine.run(..., checkpoint_path=..., stop_after_records=N)`
+writes a fsynced, hashed continuation state; a fresh engine can continue it
+with `resume_from=...`. The checkpoint includes books, sync epochs, active
+orders, pending actions, markout state, accounting aggregates, strategy
+features, seeded latency RNG state, and input/config digests. Resume
+revalidates the complete input prefix before continuing, then the uninterrupted
+and resumed paths must produce identical state, trace, and summary hashes.
+Checkpoint resume is currently a kernel/state contract for `NullSink` outputs;
+streaming audit files are intentionally not appended implicitly because doing
+so without an explicit sink-transaction protocol would risk duplicate rows.
+
 Ordinary simulation uses a unique run directory and three fixed-schema CSV
 sinks for the causal event trace, fills, and markouts. They write `.partial`
 files, flush and fsync in a prepare phase, and promote only after every sink has

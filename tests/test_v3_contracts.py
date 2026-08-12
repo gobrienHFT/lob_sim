@@ -321,6 +321,49 @@ def test_checkpoint_round_trip_and_tamper_detection(tmp_path: Path) -> None:
         read_checkpoint(path)
 
 
+def test_simulation_checkpoint_resume_matches_uninterrupted_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECORD_DIR", str(tmp_path))
+    monkeypatch.setenv("SIM_ORDER_LATENCY_MS", "0")
+    monkeypatch.setenv("SIM_CANCEL_LATENCY_MS", "0")
+    fixture = (
+        Path(__file__).resolve().parents[1]
+        / "docs"
+        / "sample_outputs"
+        / "futures_replay_walkthrough"
+        / "input_fixture.ndjson"
+    )
+    cfg = load_config(".env.example")
+
+    uninterrupted = SimulationEngine(cfg)
+    uninterrupted.run(fixture)
+
+    checkpoint_path = tmp_path / "simulation.checkpoint.json"
+    paused = SimulationEngine(cfg)
+    paused.run(fixture, checkpoint_path=checkpoint_path, stop_after_records=3)
+    checkpoint = read_checkpoint(checkpoint_path)
+    assert checkpoint.schema_version == "lob_sim.simulation_checkpoint.v1"
+    assert checkpoint.event_index == 3
+
+    resumed = SimulationEngine(cfg)
+    resumed.run(fixture, resume_from=checkpoint_path)
+
+    assert resumed.state_sha256() == uninterrupted.state_sha256()
+    assert resumed.event_trace == uninterrupted.event_trace
+    assert resumed.metrics.get_summary(resumed._books) == uninterrupted.metrics.get_summary(uninterrupted._books)
+
+    monkeypatch.setenv("MM_MAX_POSITION", "0.02")
+    with pytest.raises(ValueError, match="configuration digest"):
+        SimulationEngine(load_config(".env.example")).run(fixture, resume_from=checkpoint_path)
+
+    altered_fixture = tmp_path / "altered.ndjson"
+    altered_fixture.write_bytes(fixture.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="input SHA-256"):
+        SimulationEngine(cfg).run(altered_fixture, resume_from=checkpoint_path)
+
+
 def test_latency_draws_are_seeded_scenarios_and_reject_nonfinite_values() -> None:
     first = LatencyModel(mode="empirical", samples_ms=(1.0, 5.0, 25.0), seed=17)
     second = LatencyModel(mode="empirical", samples_ms=(1.0, 5.0, 25.0), seed=17)
