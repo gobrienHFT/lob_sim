@@ -65,6 +65,8 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert payload["input"]["sha256"] == file_sha256(FIXTURE)
     assert payload["input"]["file_size_bytes"] == FIXTURE.stat().st_size
     assert payload["input"]["symbol"] == "BTCUSDT"
+    assert len(payload["provenance"]["config_sha256"]) == 64
+    assert payload["provenance"]["code_identity"]["complete"] is True
     assert payload["event_counts"]["records_processed"] == 6
     assert payload["public_trade_source_counts"] == {"unknown": 1}
     assert payload["fills"]["fill_count"] == 1
