@@ -112,6 +112,10 @@ def test_bounded_simulation_streams_complete_hashed_audits(tmp_path: Path, monke
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     assert manifest["run_id"] == summary["run_id"]
     assert manifest["input"]["sha256"] == file_sha256(input_path)
+    assert manifest["artifact_bundle"]["schema_version"] == "lob_sim.artifact_bundle.v1"
+    assert manifest["artifact_bundle"]["complete"] is True
+    assert manifest["artifact_bundle"]["artifact_count"] == 5
+    assert len(manifest["artifact_bundle"]["sha256"]) == 64
     for label, path in output_files.items():
         if label == "manifest":
             assert manifest["output_artifacts"][label] == {"path": str(path)}

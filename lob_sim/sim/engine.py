@@ -27,7 +27,13 @@ from .fill_model import PassiveFillModel, PublicConsumptionEvent
 from .metrics import SimulationMetrics
 from .mm_strategy import MarketMakingStrategy, QuoteTarget
 from .orders import Order
-from .run_manifest import RunManifest, build_run_manifest, instrument_specs_snapshot, simulation_assumptions_snapshot
+from .run_manifest import (
+    RunManifest,
+    artifact_bundle_snapshot,
+    build_run_manifest,
+    instrument_specs_snapshot,
+    simulation_assumptions_snapshot,
+)
 from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
 
@@ -1538,6 +1544,8 @@ class SimulationEngine:
         file_path: str | Path,
         output_files: dict[str, Path],
         manifest_seed: RunManifest,
+        *,
+        include_artifact_bundle: bool = False,
     ) -> None:
         manifest = build_run_manifest(
             file_path,
@@ -1550,7 +1558,10 @@ class SimulationEngine:
         )
         if manifest.run_id != manifest_seed.run_id:
             raise RuntimeError(f"run identity changed during export: {manifest_seed.run_id!r} -> {manifest.run_id!r}")
-        atomic_write_json(output_files["manifest"], manifest.as_dict())
+        payload = manifest.as_dict()
+        if include_artifact_bundle:
+            payload["artifact_bundle"] = artifact_bundle_snapshot(payload["output_artifacts"])
+        atomic_write_json(output_files["manifest"], payload)
 
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
         """Write the fixture-scale, full-retention compatibility artifact set."""
@@ -1633,5 +1644,5 @@ class SimulationEngine:
         )
         atomic_write_json(output_files["summary"], summary)
         atomic_write_summary_csv(output_files["summary_csv"], summary)
-        self._write_manifest(file_path, output_files, seed)
+        self._write_manifest(file_path, output_files, seed, include_artifact_bundle=True)
         return output_files, summary

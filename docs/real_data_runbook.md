@@ -66,7 +66,7 @@ The report script already audits the generated local pack. To rerun it:
 python scripts/audit_futures_pack.py --pack outputs/real_data_runs/BTCUSDT_30m/pack
 ```
 
-The bounded audit streams the summary JSON/CSV, trades CSV, markout CSV, and event trace; verifies the manifest file hashes and absence of incomplete/partial artifacts; recomputes fill and markout hash chains; checks trace correspondence, lifecycle and public-consumption aggregates; and resolves fill evidence IDs against the hashed replay input. Exact evidence/order sets live in a temporary SQLite file, diagnostics are capped, and no detail rows are retained in Python memory. This is an implementation memory contract, not a claim of constant disk use or protection from one arbitrarily large CSV row.
+The bounded audit streams the summary JSON/CSV, trades CSV, markout CSV, and event trace; verifies the manifest file hashes and absence of incomplete/partial artifacts; recomputes the fill and markout hash chains plus the content-addressed `lob_sim.artifact_bundle.v1` digest; checks trace correspondence, lifecycle and public-consumption aggregates; and resolves fill evidence IDs against the hashed replay input. Exact evidence/order sets live in a temporary SQLite file, diagnostics are capped, and no detail rows are retained in Python memory. This is an implementation memory contract, not a claim of constant disk use or protection from one arbitrarily large CSV row.
 
 ## Benchmark
 
