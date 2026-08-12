@@ -769,11 +769,20 @@ def cmd_replay(config: Config, file: str, verbose: bool = False, progress_every:
         f"gap count: {res.gap_count}, elapsed: {res.elapsed_seconds:.2f}s"
     )
     print(f"Rate: {res.events_per_sec:.2f} events/sec")
+    if res.validity is not None:
+        print(
+            "Validity: "
+            f"schema={res.validity.schema_version}, capture_valid={res.validity.capture_valid}, "
+            f"clock_valid={res.validity.clock_valid}, trailer={'yes' if res.validity.capture_trailer_seen else 'no'}, "
+            f"claim_ready={res.validity.claim_ready}"
+        )
     for symbol, result in res.symbols.items():
+        validity = result.validity
         print(
             f"{symbol}: snapshot={'yes' if result.snapshot_seen else 'no'}, "
             f"synced={'yes' if result.synced else 'no'}, gaps={result.gap_count}, "
-            f"levels={result.total_levels}, last_update_id={result.last_update_id}"
+            f"levels={result.total_levels}, last_update_id={result.last_update_id}, "
+            f"execution_inputs_valid={validity.execution_inputs_valid if validity else False}"
         )
 
 
@@ -890,21 +899,34 @@ def cmd_audit(config: Config, file: str) -> None:
     inspection = inspect_stream(file)
     replay_result = replay(file, config)
     deterministic = _deterministic_run(config, file)
-    ok = replay_result.gap_count == 0 and all(symbol.synced for symbol in replay_result.symbols.values())
+    validity = replay_result.validity
+    ok = (
+        replay_result.gap_count == 0
+        and all(symbol.synced for symbol in replay_result.symbols.values())
+        and validity is not None
+        and validity.capture_valid
+        and validity.clock_valid
+        and all(
+            result.validity is not None and result.validity.execution_inputs_valid
+            for result in replay_result.symbols.values()
+        )
+    )
     print(
         json.dumps(
             {
-                "schema_version": "lob_sim.capture_audit.v1",
+                "schema_version": "lob_sim.capture_audit.v2",
                 "ok": ok,
                 "inspection": inspection.as_dict(),
                 "replay": {
                     "events_processed": replay_result.events_processed,
                     "gap_count": replay_result.gap_count,
+                    "validity": validity.as_dict() if validity is not None else None,
                     "symbols": {
                         symbol: {
                             "synced": result.synced,
                             "gaps": result.gap_count,
                             "last_update_id": result.last_update_id,
+                            "validity": result.validity.as_dict() if result.validity is not None else None,
                         }
                         for symbol, result in sorted(replay_result.symbols.items())
                     },
