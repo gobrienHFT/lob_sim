@@ -51,6 +51,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py).
 - Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract. Ordinary `simulate` runs stream event, fill, and markout audits without retaining those rows, publish deterministic audit-chain hashes, and fail before a fill if the configured pending-markout cap is exhausted. The old full-detail path is available only through the explicit `--in-memory-export` fixture compatibility flag.
+- Risk can optionally enforce `MM_MAX_PORTFOLIO_NOTIONAL` at modeled order arrival. A positive cap reserves absolute marked inventory plus every live and pending order across symbols, uses limit prices for order reservations, and fails closed when an existing exposure cannot be marked. The default `0` keeps the per-symbol lot cap only; the reservation is deliberately conservative and is not a margin model.
 - `rust/lob_core` is the pinned, unsafe-free kernel boundary. The independent Python oracle and Rust agree on generated fixed-point book batches, exact-synthetic new/cancel/replace lifecycles, integer-nanosecond scheduler transitions, and per-symbol live-plus-pending lot reservations; the [committed report](docs/differential_results/rust_python_parity_v3.json) explicitly keeps full-engine parity false.
 - Extension notes for future adapters and asset metadata in [`docs/extension_points.md`](docs/extension_points.md) and [`docs/tokenized_assets_roadmap.md`](docs/tokenized_assets_roadmap.md).
 
@@ -131,6 +132,7 @@ The strategy layer is deliberately baseline logic on top of a stronger replay an
 - Inventory skew moves quotes away from accumulating too much position.
 - Queue-based refresh logic reposts when queue-ahead deterioration or price movement makes the current quote stale.
 - Max-position and kill-switch controls are explicit constraints, not optimization claims.
+- The per-symbol lot cap is supplemented by an optional gross portfolio-notional reservation, so multi-symbol runs can bound inventory and outstanding quote risk without assuming offsetting fills.
 - Event traces include queue-ahead-at-arrival and cancel reasons so queue-driven replacements can be audited without stepping through the simulator.
 - Decision trace rows include quote diagnostics such as mid, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
 

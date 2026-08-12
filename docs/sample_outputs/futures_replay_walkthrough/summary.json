@@ -299,6 +299,8 @@
     "requote_ms": 1000.0,
     "order_quantity": "0.001",
     "max_position_per_symbol": "0.01",
+    "max_portfolio_notional": "0",
+    "portfolio_notional_basis": "absolute_marked_inventory_plus_live_and_pending_order_notional; positive cap is enforced at modeled arrival",
     "half_spread_bps": "0.05",
     "skew_bps_per_base_unit": "0",
     "inventory_observation_basis": "time-weighted between causal market observations"
@@ -337,7 +339,12 @@
     },
     "all_books_synced_at_end": true,
     "all_required_execution_inputs_valid_at_end": true,
-    "feed_completeness": "not proven without venue-side packet-loss telemetry"
+    "feed_completeness": "not proven without venue-side packet-loss telemetry",
+    "portfolio_risk": {
+      "enabled": false,
+      "max_portfolio_notional": "0",
+      "basis": "absolute_marked_inventory_plus_live_and_pending_order_notional"
+    }
   },
   "evidence_quality": {
     "markouts": "diagnostic_only",
@@ -361,8 +368,16 @@
     "memory_bounded_by_tape_duration": false
   },
   "state_sha256": "27fc9444c50322148539dad6957a1194aa32925453ab8ac19f611f578e556d44",
-  "run_id": "87135ef02e50cf60",
+  "run_id": "f8841b54db621a42",
   "input_sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+  "config_sha256": "4d8842df89542ea87ee93f2d71979a49a18771be8314cabe506c881295c587bf",
+  "code_identity": {
+    "schema_version": "lob_sim.code_identity.v1",
+    "algorithm": "sha256",
+    "complete": true,
+    "file_count": 225,
+    "sha256": "1f0eb1199cef4951a3e483ca8b27a76c74ff75f5448ee2b1d28e540d137808cf"
+  },
   "feed_adapter": {
     "name": "binance_usdm",
     "venue_label": "BINANCE_USDM",
@@ -428,7 +443,14 @@
     "overlap_window_seconds": 0.125,
     "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
     "corroborated_depth_reduction_lots": 0,
-    "uncorroborated_depth_reduction_lots": 1
+    "uncorroborated_depth_reduction_lots": 1,
+    "overlap_credit_state": {
+      "active_credit_keys": 1,
+      "active_credits": 1,
+      "expiry_entries": 1,
+      "memory_bounded_by_overlap_window": true,
+      "overlap_window_seconds": 0.125
+    }
   },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",

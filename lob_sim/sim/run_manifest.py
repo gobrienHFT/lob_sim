@@ -206,6 +206,7 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "mm_requote_ms": cfg.mm_requote_ms,
         "mm_order_qty": str(cfg.mm_order_qty),
         "mm_max_position": str(cfg.mm_max_position),
+        "mm_max_portfolio_notional": str(cfg.mm_max_portfolio_notional),
         "mm_half_spread_bps": str(cfg.mm_half_spread_bps),
         "mm_layered_inner_spread_bps": str(cfg.mm_layered_inner_spread_bps),
         "mm_layered_outer_spread_bps": str(cfg.mm_layered_outer_spread_bps),

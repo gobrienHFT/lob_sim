@@ -1,13 +1,13 @@
 {
-  "run_id": "66ac5b8a577bd618",
+  "run_id": "4a79ebf2a85c60a6",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T17:44:22.341212Z",
+  "created_at_utc": "2026-08-12T16:03:21.092541Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "size_bytes": 121067,
     "sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
-    "modified_at_utc": "2026-08-11T17:44:21.949912Z"
+    "modified_at_utc": "2026-08-12T16:03:20.771656Z"
   },
   "config": {
     "symbols": [
@@ -39,6 +39,7 @@
     "mm_requote_ms": 1000.0,
     "mm_order_qty": "0.001",
     "mm_max_position": "0.01",
+    "mm_max_portfolio_notional": "0",
     "mm_half_spread_bps": "0.05",
     "mm_layered_inner_spread_bps": "0.05",
     "mm_layered_outer_spread_bps": "0.15",
@@ -62,6 +63,14 @@
     },
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
+  },
+  "config_sha256": "4d8842df89542ea87ee93f2d71979a49a18771be8314cabe506c881295c587bf",
+  "code_identity": {
+    "schema_version": "lob_sim.code_identity.v1",
+    "algorithm": "sha256",
+    "complete": true,
+    "file_count": 225,
+    "sha256": "70189735ba5d428cc6bf7a38c40cd8fd0303f69a9f216b9e30f157b9a72f187f"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -125,8 +134,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
-    "git_branch": "codex/hft-streaming-simulation-export",
+    "git_commit": "485002d4823447e1e71f71238ac57f0b52a78c07",
+    "git_branch": "codex/portfolio-notional-risk",
     "git_dirty": false
   },
   "outputs": {
@@ -141,28 +150,28 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
       "size_bytes": 289222,
       "sha256": "db46a65db0e6ea9f3e6295a386c439917d87976f0063fc5d26b812b410ecc4b5",
-      "modified_at_utc": "2026-08-11T17:44:22.878064Z"
+      "modified_at_utc": "2026-08-12T16:03:23.700893Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
-      "size_bytes": 12650,
-      "sha256": "b4149df1e53fef0019f2d341e2e9a5639b528d8d49ee26de66e2336accbe073d",
-      "modified_at_utc": "2026-08-11T17:44:22.862495Z"
+      "size_bytes": 13524,
+      "sha256": "2b3cac7321f1917a1c293a29ec77e7ff4bde075307e5d94dd325087d97ecea54",
+      "modified_at_utc": "2026-08-12T16:03:23.665936Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
-      "size_bytes": 11412,
-      "sha256": "e352c122138bc8c84d7d4b64faa3f5c13342050225e7c7fa20952f19ea1fc9d7",
-      "modified_at_utc": "2026-08-11T17:44:22.868031Z"
+      "size_bytes": 12222,
+      "sha256": "2a9f0c792491eda760b82f6e068662e3efb0c8fcb619469a2d0f53ef9c8c301c",
+      "modified_at_utc": "2026-08-12T16:03:23.681529Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 397,
       "sha256": "f85ed9999581c52797f28d042ee2ea9cc98c73fbd11496fe29e1505fd0ca6579",
-      "modified_at_utc": "2026-08-11T17:44:22.872558Z"
+      "modified_at_utc": "2026-08-12T16:03:23.690636Z"
     }
   },
   "fixture_provenance": {

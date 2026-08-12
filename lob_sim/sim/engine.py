@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from heapq import heapify, heappush, heappop
 from itertools import count
 from pathlib import Path
@@ -903,6 +904,89 @@ class SimulationEngine:
             },
         )
 
+    def _portfolio_notional_reservation(
+        self,
+        *,
+        extra_symbol: str | None = None,
+        extra_price_tick: int | None = None,
+        extra_qty_lots: int = 0,
+    ) -> tuple[Decimal | None, dict[str, Decimal], tuple[str, ...]]:
+        """Return gross marked inventory plus live/pending order notional.
+
+        This is deliberately conservative: bid and ask reservations are both
+        counted instead of assuming that an offsetting fill will arrive first.
+        Inventory is marked at the current book midpoint; live and pending
+        orders use their limit price.  A missing mark makes the reservation
+        unavailable rather than silently treating exposure as zero.
+        """
+
+        symbols = set(self._specs) | set(self._books) | set(self.metrics.position)
+        symbols.update(action.symbol for action in self._actions if action.kind == "order_arrival")
+        if extra_symbol is not None:
+            symbols.add(extra_symbol)
+
+        reserved_by_symbol: dict[str, Decimal] = {}
+        missing_marks: list[str] = []
+        for symbol in sorted(symbols):
+            spec = self._specs.get(symbol)
+            if spec is None:
+                continue
+            inventory_lots = self.metrics.inventory_lots(symbol)
+            live_orders = [
+                order
+                for side in ("bid", "ask")
+                for order in self.fill_model.get_orders(symbol, side)
+                if order.remaining_lots > 0 and order.price_tick is not None
+            ]
+            pending_orders = [
+                action
+                for action in self._actions
+                if action.kind == "order_arrival"
+                and action.symbol == symbol
+                and int(action.payload.get("qty_lots", 0)) > 0
+            ]
+            extra_applies = extra_symbol == symbol and extra_qty_lots > 0 and extra_price_tick is not None
+            has_exposure = bool(inventory_lots or live_orders or pending_orders or extra_applies)
+            if not has_exposure:
+                continue
+
+            book = self._books.get(symbol)
+            mid = book.mid_price() if book is not None else None
+            if mid is None:
+                missing_marks.append(symbol)
+                continue
+
+            subtotal = abs(spec.lot_to_qty(inventory_lots)) * mid * spec.contract_multiplier
+            subtotal += sum(
+                (
+                    spec.lot_to_qty(order.remaining_lots)
+                    * spec.tick_to_price(order.price_tick)
+                    * spec.contract_multiplier
+                    for order in live_orders
+                    if order.price_tick is not None
+                ),
+                Decimal("0"),
+            )
+            subtotal += sum(
+                (
+                    spec.lot_to_qty(int(action.payload.get("qty_lots", 0)))
+                    * spec.tick_to_price(int(action.payload["price_tick"]))
+                    * spec.contract_multiplier
+                    for action in pending_orders
+                ),
+                Decimal("0"),
+            )
+            if extra_applies:
+                assert extra_price_tick is not None
+                subtotal += (
+                    spec.lot_to_qty(extra_qty_lots) * spec.tick_to_price(extra_price_tick) * spec.contract_multiplier
+                )
+            reserved_by_symbol[symbol] = subtotal
+
+        if missing_marks:
+            return None, reserved_by_symbol, tuple(missing_marks)
+        return sum(reserved_by_symbol.values(), Decimal("0")), reserved_by_symbol, ()
+
     def _handle_arrival(self, symbol: str, payload: Dict[str, Any], now: float) -> None:
         side = payload["side"]
         quote_slot = str(payload.get("quote_slot", "base"))
@@ -1014,6 +1098,47 @@ class SimulationEngine:
                 extra_details={"capacity_lots": max(0, capacity)},
             )
             return
+
+        if self.cfg.mm_max_portfolio_notional > 0:
+            reserved_notional, reserved_by_symbol, missing_marks = self._portfolio_notional_reservation(
+                extra_symbol=symbol,
+                extra_price_tick=price_tick,
+                extra_qty_lots=qty_lots,
+            )
+            if reserved_notional is None:
+                self._reject_arrival(
+                    now=now,
+                    symbol=symbol,
+                    side=side,
+                    quote_slot=quote_slot,
+                    price_tick=price_tick,
+                    qty_lots=qty_lots,
+                    reason="portfolio_mark_unavailable",
+                    source="risk",
+                    extra_details={
+                        "max_portfolio_notional": str(self.cfg.mm_max_portfolio_notional),
+                        "missing_mark_symbols": list(missing_marks),
+                    },
+                )
+                return
+            if reserved_notional > self.cfg.mm_max_portfolio_notional:
+                self._reject_arrival(
+                    now=now,
+                    symbol=symbol,
+                    side=side,
+                    quote_slot=quote_slot,
+                    price_tick=price_tick,
+                    qty_lots=qty_lots,
+                    reason="portfolio_notional_limit",
+                    source="risk",
+                    extra_details={
+                        "max_portfolio_notional": str(self.cfg.mm_max_portfolio_notional),
+                        "projected_reserved_notional": str(reserved_notional),
+                        "reserved_notional_by_symbol": {key: str(value) for key, value in reserved_by_symbol.items()},
+                        "reservation_basis": "absolute_marked_inventory_plus_live_and_pending_order_notional",
+                    },
+                )
+                return
 
         order = Order(
             order_id=f"{symbol}-{side}-{int(now * 1_000_000)}-{next(self._id_counter)}",
@@ -1417,6 +1542,11 @@ class SimulationEngine:
                 "requote_ms": self.cfg.mm_requote_ms,
                 "order_quantity": str(self.cfg.mm_order_qty),
                 "max_position_per_symbol": str(self.cfg.mm_max_position),
+                "max_portfolio_notional": str(self.cfg.mm_max_portfolio_notional),
+                "portfolio_notional_basis": (
+                    "absolute_marked_inventory_plus_live_and_pending_order_notional; "
+                    "positive cap is enforced at modeled arrival"
+                ),
                 "half_spread_bps": str(self.cfg.mm_half_spread_bps),
                 "skew_bps_per_base_unit": str(self.cfg.mm_skew_bps_per_unit),
                 "inventory_observation_basis": "time-weighted between causal market observations",
@@ -1440,6 +1570,7 @@ class SimulationEngine:
                 "all_required_execution_inputs_valid_at_end": bool(stream_state)
                 and all(state["execution_inputs_valid"] for state in stream_state.values()),
                 "feed_completeness": "not proven without venue-side packet-loss telemetry",
+                "portfolio_risk": self._portfolio_risk_summary(),
             },
             "evidence_quality": {
                 "markouts": "claim_ready" if clock_claim_ready else "diagnostic_only",
@@ -1458,6 +1589,24 @@ class SimulationEngine:
                 "live_profitability": "not_claimed",
             },
             "event_trace_retention": self.event_trace_retention(),
+        }
+
+    def _portfolio_risk_summary(self) -> dict[str, Any]:
+        if self.cfg.mm_max_portfolio_notional <= 0:
+            return {
+                "enabled": False,
+                "max_portfolio_notional": str(self.cfg.mm_max_portfolio_notional),
+                "basis": "absolute_marked_inventory_plus_live_and_pending_order_notional",
+            }
+        reserved_notional, reserved_by_symbol, missing_marks = self._portfolio_notional_reservation()
+        return {
+            "enabled": True,
+            "max_portfolio_notional": str(self.cfg.mm_max_portfolio_notional),
+            "reserved_notional": None if reserved_notional is None else str(reserved_notional),
+            "reserved_notional_by_symbol": {key: str(value) for key, value in reserved_by_symbol.items()},
+            "missing_mark_symbols": list(missing_marks),
+            "basis": "absolute_marked_inventory_plus_live_and_pending_order_notional",
+            "fail_closed_on_missing_mark": True,
         }
 
     def _deterministic_state(self) -> dict[str, Any]:
