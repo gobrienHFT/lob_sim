@@ -6,7 +6,7 @@ BENCHMARK_JSON ?= outputs/futures_benchmark.json
 DETERMINISM_JSON ?= outputs/futures_determinism.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
-MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record lob_sim/binance/ws.py lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/export.py lob_sim/sim/runner.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py lob_sim/sim/contracts.py lob_sim/sim/latency.py lob_sim/sim/sinks.py lob_sim/sim/synthetic_exchange.py lob_sim/sim/synthetic_demo.py lob_sim/audit
+MYPY_TARGETS ?= lob_sim/book lob_sim/replay lob_sim/record lob_sim/binance/ws.py lob_sim/cli.py lob_sim/config.py lob_sim/oracle_kernel.py lob_sim/util.py lob_sim/sim/fill_model.py lob_sim/sim/engine.py lob_sim/sim/export.py lob_sim/sim/runner.py lob_sim/sim/metrics.py lob_sim/sim/run_manifest.py lob_sim/sim/mm_strategy.py lob_sim/sim/contracts.py lob_sim/sim/latency.py lob_sim/sim/sinks.py lob_sim/sim/synthetic_exchange.py lob_sim/sim/synthetic_demo.py lob_sim/audit lob_sim/research
 
 .PHONY: setup test type-check lint format-check verify-artifacts check-whitespace ci reviewer-gate inspect-fixture replay-fixture simulate-fixture audit-fixture audit-futures-packs benchmark-fixture determinism-fixture sweep-fixture latency-sweep-fixture refresh-artifacts
 
