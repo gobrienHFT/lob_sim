@@ -76,6 +76,43 @@ def config_digest(config: dict[str, Any]) -> str:
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
+def code_identity() -> dict[str, Any]:
+    """Return a streamed identity for tracked source files in this checkout."""
+
+    root = _repo_root()
+    tracked = _git_output(["ls-files", "-z"])
+    if tracked is None:
+        return {"schema_version": "lob_sim.code_identity.v1", "algorithm": "sha256", "complete": False}
+    digest = sha256()
+    count = 0
+    for relative_name in tracked.split("\0"):
+        if not relative_name:
+            continue
+        path = root / relative_name
+        if not path.is_file():
+            return {
+                "schema_version": "lob_sim.code_identity.v1",
+                "algorithm": "sha256",
+                "complete": False,
+                "file_count": count,
+            }
+        encoded_name = relative_name.replace("\\", "/").encode("utf-8")
+        digest.update(len(encoded_name).to_bytes(8, "big"))
+        digest.update(encoded_name)
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(len(chunk).to_bytes(8, "big"))
+                digest.update(chunk)
+        count += 1
+    return {
+        "schema_version": "lob_sim.code_identity.v1",
+        "algorithm": "sha256",
+        "complete": True,
+        "file_count": count,
+        "sha256": digest.hexdigest(),
+    }
+
+
 def output_artifact_snapshot(
     output_files: dict[str, Path],
     path_formatter: Callable[[Path], str] | None = None,
@@ -282,6 +319,8 @@ class RunManifest:
     lob_sim_version: str
     input: dict[str, Any]
     config: dict[str, Any]
+    config_sha256: str
+    code_identity: dict[str, Any]
     feed_adapter: dict[str, Any]
     instrument_specs: dict[str, dict[str, str]]
     simulation_assumptions: dict[str, Any]
@@ -298,6 +337,8 @@ class RunManifest:
             "lob_sim_version": self.lob_sim_version,
             "input": self.input,
             "config": self.config,
+            "config_sha256": self.config_sha256,
+            "code_identity": self.code_identity,
             "feed_adapter": self.feed_adapter,
             "instrument_specs": self.instrument_specs,
             "simulation_assumptions": self.simulation_assumptions,
@@ -321,6 +362,7 @@ def build_run_manifest(
     path = Path(input_path)
     input_sha = file_sha256(path)
     feed_adapter = adapter_metadata(adapter)
+    config = config_snapshot(cfg)
     return RunManifest(
         run_id=_run_id(input_sha, cfg, feed_adapter),
         schema_version=RUN_MANIFEST_SCHEMA_VERSION,
@@ -332,7 +374,9 @@ def build_run_manifest(
             "sha256": input_sha,
             "modified_at_utc": _mtime_utc(path),
         },
-        config=config_snapshot(cfg),
+        config=config,
+        config_sha256=config_digest(config),
+        code_identity=code_identity(),
         feed_adapter=feed_adapter,
         instrument_specs=instrument_specs_snapshot(instrument_specs or {}),
         simulation_assumptions=simulation_assumptions_snapshot(cfg.effective_fill_assumption),

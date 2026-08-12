@@ -61,3 +61,14 @@ def test_source_state_rejects_non_object_override(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(ValueError, match=run_manifest.SOURCE_STATE_OVERRIDE_ENV):
         run_manifest.source_state()
+
+
+def test_code_identity_is_streamed_and_self_describing() -> None:
+    identity = run_manifest.code_identity()
+
+    assert identity["schema_version"] == "lob_sim.code_identity.v1"
+    assert identity["algorithm"] == "sha256"
+    assert identity["complete"] is True
+    assert identity["file_count"] > 0
+    assert isinstance(identity["sha256"], str)
+    assert len(identity["sha256"]) == 64

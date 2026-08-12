@@ -28,7 +28,7 @@ from ..record.schema import RecordValidationError
 from ..replay.inspection import file_sha256
 from ..replay.reader import iter_records
 from ..sim.metrics import FILL_AUDIT_CHAIN_DOMAIN, MARKOUT_AUDIT_CHAIN_DOMAIN
-from ..sim.run_manifest import RUN_MANIFEST_SCHEMA_VERSION
+from ..sim.run_manifest import RUN_MANIFEST_SCHEMA_VERSION, config_digest
 
 
 STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION = "lob_sim.streaming_bundle_audit.v1"
@@ -807,7 +807,14 @@ def _audit_manifest_and_artifacts(
     manifest_path = _artifact_path(pack_dir, "manifest")
     if manifest.get("schema_version") != RUN_MANIFEST_SCHEMA_VERSION:
         issues.add(f"{_display(manifest_path)} has unexpected schema_version")
-    for field_name in ("run_id", "feed_adapter", "instrument_specs", "simulation_assumptions"):
+    for field_name in (
+        "run_id",
+        "feed_adapter",
+        "instrument_specs",
+        "simulation_assumptions",
+        "config_sha256",
+        "code_identity",
+    ):
         if manifest.get(field_name) != summary.get(field_name):
             issues.add(f"{_display(manifest_path)} {field_name} does not match summary.json")
     manifest_input = manifest.get("input")
@@ -819,6 +826,9 @@ def _audit_manifest_and_artifacts(
     if not isinstance(manifest_config, dict):
         issues.add(f"{_display(manifest_path)} is missing config")
     else:
+        observed_config_digest = manifest.get("config_sha256")
+        if observed_config_digest != config_digest(manifest_config):
+            issues.add(f"{_display(manifest_path)} config_sha256 does not match config")
         for field_name in ("fill_assumption_profile", "fill_assumption"):
             if manifest_config.get(field_name) != summary.get(field_name):
                 issues.add(f"{_display(manifest_path)} {field_name} does not match summary.json")
@@ -943,7 +953,7 @@ def _audit_summary_csv(pack_dir: Path, summary: Mapping[str, Any], issues: _Issu
     if first is None or second is not None:
         issues.add(f"{_display(path)} must contain exactly one summary row")
         return
-    for field_name in ("strategy_profile", "fill_assumption_profile", "run_id", "input_sha256"):
+    for field_name in ("strategy_profile", "fill_assumption_profile", "run_id", "input_sha256", "config_sha256"):
         if first.get(field_name) != str(summary.get(field_name)):
             issues.add(f"{_display(path)} {field_name} does not match summary.json")
     for field_name in ("fill_count", "quote_count", "cancel_count", "self_trade_prevention_count", "event_trace_count"):
@@ -969,6 +979,7 @@ def _audit_summary_csv(pack_dir: Path, summary: Mapping[str, Any], issues: _Issu
         "feed_adapter",
         "instrument_specs",
         "simulation_assumptions",
+        "code_identity",
         "output_files",
         "simulation_export",
     ):

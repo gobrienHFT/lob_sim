@@ -1512,6 +1512,8 @@ class SimulationEngine:
         seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
         summary["run_id"] = seed.run_id
         summary["input_sha256"] = seed.input["sha256"]
+        summary["config_sha256"] = seed.config_sha256
+        summary["code_identity"] = seed.code_identity
         summary["feed_adapter"] = seed.feed_adapter
         summary["instrument_specs"] = instrument_specs_snapshot(self._specs)
         summary["simulation_assumptions"] = simulation_assumptions_snapshot(self.fill_model.fill_assumption)

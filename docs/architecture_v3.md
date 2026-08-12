@@ -89,6 +89,11 @@ sizes, and hashes. The independent auditor recomputes it from the bytes on
 disk, so copying a pack changes paths but not its evidence identity, while any
 post-run edit fails the digest check.
 
+Run manifests also publish a SHA-256 of the non-secret behavioral configuration
+and a streamed `lob_sim.code_identity.v1` over tracked repository files. These
+are provenance identities, not a claim that a clean Git label alone proves
+semantic equivalence or that the repository contains proprietary venue code.
+
 Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
 single Python bytes object merely to produce provenance.

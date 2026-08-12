@@ -321,6 +321,11 @@ def _build_report_payload(
             "last_ts_local": inspection.get("last_ts_local"),
         },
         "source": source,
+        "provenance": {
+            "config_sha256": summary.get("config_sha256"),
+            "code_identity": summary.get("code_identity", {}),
+            "artifact_bundle_sha256": audit_result.get("hashes", {}).get("artifact_bundle_sha256"),
+        },
         "local_artifacts": {
             "output_dir": _display_path(output_dir),
             "pack_dir": _display_path(pack_dir),
@@ -460,6 +465,8 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Target window: `{target.get('requested')}`; observed label: `{target.get('label')}`",
             f"- Meets 10-30 minute target: `{str(target.get('meets_target')).lower()}`",
             f"- Source state: `{_json_line(payload.get('source', {}))}`",
+            f"- Behavioral config SHA-256: `{payload.get('provenance', {}).get('config_sha256')}`",
+            f"- Code identity: `{_json_line(payload.get('provenance', {}).get('code_identity', {}))}`",
             "",
             "## Event Counts",
             "",
@@ -507,6 +514,7 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Audit issue count: `{audit.get('issue_count')}`",
             f"- Audit mode: `{audit.get('mode')}`",
             f"- Audit memory contract: `{_json_line(audit.get('memory_contract', {}))}`",
+            f"- Artifact bundle SHA-256: `{audit.get('artifact_bundle_sha256')}`",
             f"- Event trace rows audited locally: `{audit.get('event_trace_rows')}`",
             f"- Queue-consumption rows audited locally: `{audit.get('queue_consumption_rows')}`",
             f"- Replay-only wall time seconds: `{benchmark['replay_only'].get('wall_time_seconds')}`",
