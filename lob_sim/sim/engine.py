@@ -109,6 +109,8 @@ class SimulationEngine:
         self._symbol_time_watermark: Dict[str, float] = {}
         self._clock_regressions = 0
         self._clock_invalidated = False
+        self._receive_clock_regressions = 0
+        self._last_receive_monotonic_ns: int | None = None
         self._capture_valid = True
         self._capture_invalidations = 0
         self._capture_invalid_reason: str | None = None
@@ -189,7 +191,12 @@ class SimulationEngine:
         syncer = self._syncers.get(symbol)
         book_valid = syncer is not None and syncer.synced and self._depth_stream_is_valid(symbol)
         trade_valid = self._trade_stream_is_valid(symbol)
-        clock_valid = self._clock_regressions == 0 and (self._capture_schema_version < 3 or self._receive_clock)
+        clock_valid = (
+            not self._clock_invalidated
+            and self._clock_regressions == 0
+            and self._receive_clock_regressions == 0
+            and (self._capture_schema_version < 3 or self._receive_clock)
+        )
         invalid_reasons: list[str] = []
         if not book_valid:
             invalid_reasons.append(self._stream_invalid_reason.get((symbol, "public"), "book_invalid"))
@@ -245,7 +252,15 @@ class SimulationEngine:
         self.metrics.invalidate_markouts(symbol, reason, ts_local=now)
         self._trace(now, symbol, "epoch_invalidated", "book_sync", details={"reason": reason, **details})
 
-    def _invalidate_clock(self, now: float, observed_ts: float) -> None:
+    def _invalidate_clock(
+        self,
+        now: float,
+        observed_ts: float,
+        *,
+        reason: str = "clock_regression",
+        observed_monotonic_ns: int | None = None,
+        previous_monotonic_ns: int | None = None,
+    ) -> None:
         """Fail closed once the replay clock regresses."""
 
         if self._clock_invalidated:
@@ -253,7 +268,7 @@ class SimulationEngine:
         self._clock_invalidated = True
         symbols = sorted(set(self._specs) | set(self._books) | set(self.metrics.position))
         cleared_by_symbol = {symbol: self._clear_symbol_execution_state(symbol) for symbol in symbols}
-        invalidated_markouts = self.metrics.invalidate_all_pending_markouts("clock_regression", ts_local=now)
+        invalidated_markouts = self.metrics.invalidate_all_pending_markouts(reason, ts_local=now)
         self._trading_halted = True
         self._trace(
             now,
@@ -261,9 +276,11 @@ class SimulationEngine:
             "clock_invalidated",
             "clock",
             details={
-                "reason": "clock_regression",
+                "reason": reason,
                 "observed_ts_local": observed_ts,
                 "logical_ts_local": now,
+                "observed_monotonic_ns": observed_monotonic_ns,
+                "previous_monotonic_ns": previous_monotonic_ns,
                 "invalidated_markout_count": invalidated_markouts,
                 "cleared_execution_state_by_symbol": cleared_by_symbol,
             },
@@ -356,13 +373,50 @@ class SimulationEngine:
         if capture is None and rec.type == "captureEvent":
             capture = rec.data
         if not isinstance(capture, dict):
+            if self._capture_schema_version >= 3 and rec.type != "captureMeta":
+                self._invalidate_capture(now, "missing_capture_metadata")
             return
+        if self._capture_schema_version >= 3 and rec.type != "captureMeta":
+            missing_fields = [field for field in ("recvSeq", "recvMonotonicNs", "route") if capture.get(field) is None]
+            if missing_fields:
+                self._invalidate_capture(now, "missing_capture_metadata:" + ",".join(missing_fields))
+                return
         recv_seq = capture.get("recvSeq")
         if recv_seq is not None:
-            seq = int(recv_seq)
+            try:
+                seq = int(str(recv_seq))
+            except (TypeError, ValueError):
+                self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
+                return
+            if seq < 0:
+                self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
+                return
             if self._last_receive_seq is not None and seq <= self._last_receive_seq:
                 raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
             self._last_receive_seq = seq
+        if self._capture_schema_version >= 3:
+            raw_monotonic_ns = capture.get("recvMonotonicNs")
+            if raw_monotonic_ns is not None:
+                try:
+                    monotonic_ns = int(str(raw_monotonic_ns))
+                except (TypeError, ValueError):
+                    self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
+                    return
+                if monotonic_ns < 0:
+                    self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
+                    return
+                previous_monotonic_ns = self._last_receive_monotonic_ns
+                if previous_monotonic_ns is not None and monotonic_ns < previous_monotonic_ns:
+                    self._receive_clock_regressions += 1
+                    self._invalidate_clock(
+                        now,
+                        now,
+                        reason="receive_monotonic_regression",
+                        observed_monotonic_ns=monotonic_ns,
+                        previous_monotonic_ns=previous_monotonic_ns,
+                    )
+                if previous_monotonic_ns is None or monotonic_ns >= previous_monotonic_ns:
+                    self._last_receive_monotonic_ns = monotonic_ns
         route = str(capture.get("route", ""))
         event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
         failure_reason = str(
@@ -1362,6 +1416,8 @@ class SimulationEngine:
             "last_receive_seq": self._last_receive_seq,
             "clock_regressions": self._clock_regressions,
             "clock_invalidated": self._clock_invalidated,
+            "receive_clock_regressions": self._receive_clock_regressions,
+            "last_receive_monotonic_ns": self._last_receive_monotonic_ns,
             "capture_valid": self._capture_valid,
             "capture_invalidations": self._capture_invalidations,
             "capture_invalid_reason": self._capture_invalid_reason,
@@ -1406,6 +1462,9 @@ class SimulationEngine:
         self._last_receive_seq = None if raw_receive_seq is None else int(raw_receive_seq)
         self._clock_regressions = int(state["clock_regressions"])
         self._clock_invalidated = bool(state.get("clock_invalidated", self._clock_regressions > 0))
+        self._receive_clock_regressions = int(state.get("receive_clock_regressions", 0))
+        raw_receive_monotonic_ns = state.get("last_receive_monotonic_ns")
+        self._last_receive_monotonic_ns = None if raw_receive_monotonic_ns is None else int(raw_receive_monotonic_ns)
         self._capture_valid = bool(state.get("capture_valid", True))
         self._capture_invalidations = int(state.get("capture_invalidations", 0))
         raw_capture_reason = state.get("capture_invalid_reason")
@@ -1837,7 +1896,12 @@ class SimulationEngine:
             | {symbol for symbol, route in self._stream_epochs if route in {"public", "market"} and symbol != "*"}
         )
         trade_stream_required = self._trade_stream_required()
-        clock_valid = self._clock_regressions == 0 and (self._capture_schema_version < 3 or self._receive_clock)
+        clock_valid = (
+            not self._clock_invalidated
+            and self._clock_regressions == 0
+            and self._receive_clock_regressions == 0
+            and (self._capture_schema_version < 3 or self._receive_clock)
+        )
         stream_state = {
             symbol: {
                 "depth_stream_valid": self._depth_stream_is_valid(symbol),
@@ -1864,6 +1928,8 @@ class SimulationEngine:
             self._capture_schema_version >= 3
             and self._receive_clock
             and self._clock_regressions == 0
+            and self._receive_clock_regressions == 0
+            and not self._clock_invalidated
             and self._last_receive_seq is not None
             and self._capture_valid
         )
@@ -1907,6 +1973,8 @@ class SimulationEngine:
                 "capture_schema_version": self._capture_schema_version,
                 "clock": "receive_time" if self._receive_clock else "legacy_exchange_or_local_time",
                 "clock_regressions_clamped": self._clock_regressions,
+                "receive_clock_regressions": self._receive_clock_regressions,
+                "last_receive_monotonic_ns": self._last_receive_monotonic_ns,
                 "clock_invalidated": self._clock_invalidated,
                 "capture_valid": self._capture_valid,
                 "capture_invalidations": self._capture_invalidations,
@@ -1935,6 +2003,8 @@ class SimulationEngine:
                     if clock_claim_ready
                     else f"capture integrity invalidated: {self._capture_invalid_reason}"
                     if not self._capture_valid
+                    else "receipt monotonic clock regression invalidated execution"
+                    if self._receive_clock_regressions
                     else "legacy/exchange clock or invalid intervals make subsecond horizons non-claimable"
                 ),
                 "pnl": "model_output_not_a_live_or_counterfactual_trading_result",
@@ -2011,6 +2081,8 @@ class SimulationEngine:
             "clock_state": {
                 "regressions": self._clock_regressions,
                 "invalidated": self._clock_invalidated,
+                "receive_clock_regressions": self._receive_clock_regressions,
+                "last_receive_monotonic_ns": self._last_receive_monotonic_ns,
             },
             "capture_state": {
                 "valid": self._capture_valid,
