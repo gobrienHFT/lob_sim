@@ -6,9 +6,11 @@ behind PyO3 bindings. The reviewer gate differentially compares the independent
 Python oracle and Rust for generated book batches, synthetic new/cancel/replace
 lifecycles, integer-nanosecond scheduler transitions, per-symbol
 live-plus-pending lot reservations, cross-symbol gross-notional reservations,
-and periodic full-state hashes.
+fixed-point fill accounting, nullable mark valuation, signed markouts, and
+periodic full-state hashes.
 
 This is not full-engine parity. The scheduler and reservation ledgers are proven
 kernel primitives, not yet the engine-integrated latency path or
 engine-integrated portfolio-notional risk system. Public-L2 execution scenarios,
-accounting/markouts, and manifests remain named explicitly in the parity report.
+engine-integrated accounting/markouts, and manifests remain named explicitly in
+the parity report.

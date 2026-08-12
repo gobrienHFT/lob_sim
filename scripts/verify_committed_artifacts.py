@@ -652,6 +652,23 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "portfolio_notional_operation_corpus_sha256",
         "portfolio_notional_trace_sha256",
         "portfolio_notional_final_state_sha256",
+        "accounting_operations",
+        "accounting_operation_kind_counts",
+        "accounting_accepted_operation_kind_counts",
+        "accounting_accepted_operations",
+        "accounting_rejected_operations",
+        "accounting_checkpoint_count",
+        "accounting_final_position_lots",
+        "accounting_final_gross_position_lots",
+        "accounting_final_realized_pnl_cash_units",
+        "accounting_final_fees_cash_units",
+        "accounting_final_unrealized_pnl_cash_units",
+        "accounting_final_valuation_complete",
+        "accounting_final_markout_cash_units",
+        "accounting_final_markout_qty_lots",
+        "accounting_operation_corpus_sha256",
+        "accounting_trace_sha256",
+        "accounting_final_state_sha256",
         "remaining_full_engine_scope",
         "full_engine_parity",
     }
@@ -734,6 +751,27 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity accepted portfolio-notional kind counts do not reconcile")
     elif any(portfolio_accepted_kind_counts[kind] <= 0 for kind in expected_portfolio_kinds):
         issues.append("Rust/Python parity generated trace did not accept every portfolio-notional operation kind")
+    if (
+        report["accounting_operations"]
+        != report["accounting_accepted_operations"] + report["accounting_rejected_operations"]
+    ):
+        issues.append("Rust/Python parity accounting operation counts do not reconcile")
+    accounting_kind_counts = report["accounting_operation_kind_counts"]
+    expected_accounting_kinds = {"fill", "mark", "clear_mark", "markout"}
+    if not isinstance(accounting_kind_counts, dict) or set(accounting_kind_counts) != expected_accounting_kinds:
+        issues.append("Rust/Python parity report has invalid accounting operation kind counts")
+    elif report["accounting_operations"] != sum(accounting_kind_counts.values()):
+        issues.append("Rust/Python parity accounting operation kind counts do not reconcile")
+    accounting_accepted_kind_counts = report["accounting_accepted_operation_kind_counts"]
+    if (
+        not isinstance(accounting_accepted_kind_counts, dict)
+        or set(accounting_accepted_kind_counts) != expected_accounting_kinds
+    ):
+        issues.append("Rust/Python parity report has invalid accepted accounting kind counts")
+    elif report["accounting_accepted_operations"] != sum(accounting_accepted_kind_counts.values()):
+        issues.append("Rust/Python parity accepted accounting kind counts do not reconcile")
+    elif any(accounting_accepted_kind_counts[kind] <= 0 for kind in expected_accounting_kinds):
+        issues.append("Rust/Python parity generated trace did not accept every accounting operation kind")
     scheduler_schedule_count = (
         scheduler_kind_counts.get("schedule", 0) if isinstance(scheduler_kind_counts, dict) else 0
     )
@@ -757,6 +795,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "scheduler_checkpoint_count",
         "risk_checkpoint_count",
         "portfolio_notional_checkpoint_count",
+        "accounting_checkpoint_count",
     ):
         if report[field] <= 0:
             issues.append(f"Rust/Python parity report has invalid {field}")
@@ -773,6 +812,9 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "portfolio_notional_operation_corpus_sha256",
         "portfolio_notional_trace_sha256",
         "portfolio_notional_final_state_sha256",
+        "accounting_operation_corpus_sha256",
+        "accounting_trace_sha256",
+        "accounting_final_state_sha256",
     ):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
@@ -780,7 +822,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
     expected_remaining = {
         "public-L2 execution scenarios",
         "engine-integrated latency and portfolio-notional risk",
-        "accounting and markouts",
+        "engine-integrated accounting and markouts",
         "run manifests",
     }
     if set(report["remaining_full_engine_scope"]) != expected_remaining:
