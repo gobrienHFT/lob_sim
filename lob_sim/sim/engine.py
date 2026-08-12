@@ -294,7 +294,14 @@ class SimulationEngine:
             self._last_receive_seq = seq
         route = str(capture.get("route", ""))
         event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
-        failure_reason = str(rec.data.get("reason") or capture.get("reason") or event_name or "unspecified")
+        failure_reason = str(
+            rec.data.get("validationError")
+            or capture.get("validationError")
+            or rec.data.get("reason")
+            or capture.get("reason")
+            or event_name
+            or "unspecified"
+        )
         stream_epoch = capture.get("streamEpoch")
         epoch: int | None = None
         previous: int | None = None
@@ -329,6 +336,10 @@ class SimulationEngine:
         if route == "public":
             if event_name in STREAM_FAILURE_EVENTS:
                 self._invalidate_depth_stream(rec.symbol, now, f"depth_stream_{event_name}:{failure_reason}")
+                return
+            if event_name == "snapshot_rejected":
+                self._snapshot_rejections += 1
+                self._invalidate_symbol(rec.symbol, now, f"snapshot_rejected: {failure_reason}")
                 return
             if epoch_changed and self._depth_stream_is_valid(rec.symbol):
                 self._invalidate_depth_stream(rec.symbol, now, "depth_stream_reconnect")

@@ -37,7 +37,7 @@ from .options.demo import (
 from .record.async_writer import BoundedCaptureWriter
 from .record.envelope import EventEnvelope, SCHEMA_V3
 from .record.format import NDJSONRecord, snapshot_payload
-from .record.schema import RECORD_SCHEMA_VERSION
+from .record.schema import RECORD_SCHEMA_VERSION, validate_record_object
 from .record.segmented import SegmentedCaptureWriter
 from .record.writer import NDJSONWriter
 from .replay.inspection import inspect_stream
@@ -197,6 +197,8 @@ def _capture_metadata(writer_queue_capacity: int) -> dict[str, object]:
             "disconnect",
             "connect_failure",
             "parse_failure",
+            "snapshot_attempt",
+            "snapshot_rejected",
             "capture_trailer",
         ],
         "writerQueueCapacity": writer_queue_capacity,
@@ -256,12 +258,46 @@ async def _write_snapshot(
     validation_error: str | None = None,
     next_receive_seq: Callable[[], int] | None = None,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
-    bids = [
-        (spec.price_to_tick_exact(level[0]), spec.qty_to_lot_exact(level[1])) for level in snapshot_data.get("bids", [])
-    ]
-    asks = [
-        (spec.price_to_tick_exact(level[0]), spec.qty_to_lot_exact(level[1])) for level in snapshot_data.get("asks", [])
-    ]
+    if accepted:
+        normalized_bids = [
+            (spec.price_to_tick_exact(level[0]), spec.qty_to_lot_exact(level[1]))
+            for level in snapshot_data.get("bids", [])
+        ]
+        normalized_asks = [
+            (spec.price_to_tick_exact(level[0]), spec.qty_to_lot_exact(level[1]))
+            for level in snapshot_data.get("asks", [])
+        ]
+        payload = snapshot_payload(
+            int(snapshot_data["lastUpdateId"]),
+            _snapshot_level_payload(spec, normalized_bids),
+            _snapshot_level_payload(spec, normalized_asks),
+        )
+    else:
+        # A rejected REST snapshot is still evidence. Preserve its raw levels
+        # rather than rounding them into a seemingly valid book. This path is
+        # only used for structurally valid payloads; malformed payloads are
+        # represented by a captureEvent rejection at the caller.
+        raw_bids = snapshot_data.get("bids")
+        raw_asks = snapshot_data.get("asks")
+        if not isinstance(raw_bids, list) or not isinstance(raw_asks, list):
+            raise ValueError("rejected snapshot is missing bids/asks lists")
+        normalized_bids = []
+        normalized_asks = []
+        raw_bid_levels: list[tuple[str, str]] = []
+        raw_ask_levels: list[tuple[str, str]] = []
+        for level in raw_bids:
+            if not isinstance(level, (list, tuple)) or len(level) < 2:
+                raise ValueError("rejected snapshot contains an invalid bid level")
+            raw_bid_levels.append((str(level[0]), str(level[1])))
+        for level in raw_asks:
+            if not isinstance(level, (list, tuple)) or len(level) < 2:
+                raise ValueError("rejected snapshot contains an invalid ask level")
+            raw_ask_levels.append((str(level[0]), str(level[1])))
+        payload = snapshot_payload(int(snapshot_data["lastUpdateId"]), raw_bid_levels, raw_ask_levels)
+
+    # Validate before enqueueing so a bad rejection cannot poison a finalized
+    # segment and only fail much later during replay.
+    validate_record_object({"ts_local": time.time(), "symbol": symbol, "type": "snapshot", "data": payload})
     capture = {
         "recvSeq": next_receive_seq() if next_receive_seq is not None else None,
         "recvMonotonicNs": time.monotonic_ns(),
@@ -273,11 +309,6 @@ async def _write_snapshot(
     }
     if validation_error is not None:
         capture["validationError"] = validation_error
-    payload = snapshot_payload(
-        int(snapshot_data["lastUpdateId"]),
-        _snapshot_level_payload(spec, bids),
-        _snapshot_level_payload(spec, asks),
-    )
     payload["_capture"] = capture
     writer.write(
         NDJSONRecord(
@@ -287,7 +318,7 @@ async def _write_snapshot(
             data=payload,
         )
     )
-    return bids, asks
+    return normalized_bids, normalized_asks
 
 
 def _add_capture_metadata(
@@ -357,6 +388,8 @@ async def _collect_symbol(
         stream_epoch: int,
         reason: str | None = None,
         receipt: ReceiveIdentity | None = None,
+        snapshot_accepted: bool | None = None,
+        validation_error: str | None = None,
     ) -> None:
         recv_seq = receipt.recv_seq if receipt is not None else receive_sequence()
         recv_monotonic_ns = receipt.recv_monotonic_ns if receipt is not None else time.monotonic_ns()
@@ -370,6 +403,10 @@ async def _collect_symbol(
         }
         if reason is not None:
             capture["reason"] = reason
+        if snapshot_accepted is not None:
+            capture["snapshotAccepted"] = snapshot_accepted
+        if validation_error is not None:
+            capture["validationError"] = validation_error
         data = {
             "event": event,
             "route": route,
@@ -381,6 +418,10 @@ async def _collect_symbol(
         }
         if reason is not None:
             data["reason"] = reason
+        if snapshot_accepted is not None:
+            data["snapshotAccepted"] = snapshot_accepted
+        if validation_error is not None:
+            data["validationError"] = validation_error
         writer.write(
             NDJSONRecord(
                 ts_local=recv_wall_ts,
@@ -475,6 +516,13 @@ async def _collect_symbol(
             while not stop_event.is_set() and not sync.ready:
                 requested_epoch = sync.epoch
                 requested_reason = snapshot_reason
+                await _record_stream_event(
+                    "snapshot_attempt",
+                    "public",
+                    last_depth_stream_epoch or 0,
+                    requested_reason,
+                )
+                snapshot_data: dict | None = None
                 try:
                     snapshot_data = await rest.get_depth_snapshot(symbol, config.snapshot_limit)
                     bids = [
@@ -496,23 +544,66 @@ async def _collect_symbol(
                         )
                     )
                 except BookSyncGapError as exc:
-                    await _write_snapshot(
-                        symbol,
-                        spec,
-                        snapshot_data,
-                        writer,
-                        sync_epoch=requested_epoch,
-                        stream_epoch=last_depth_stream_epoch or 0,
-                        reason=requested_reason,
-                        accepted=False,
-                        validation_error=str(exc),
-                        next_receive_seq=receive_sequence,
-                    )
+                    assert snapshot_data is not None
+                    try:
+                        await _write_snapshot(
+                            symbol,
+                            spec,
+                            snapshot_data,
+                            writer,
+                            sync_epoch=requested_epoch,
+                            stream_epoch=last_depth_stream_epoch or 0,
+                            reason=requested_reason,
+                            accepted=False,
+                            validation_error=str(exc),
+                            next_receive_seq=receive_sequence,
+                        )
+                    except (KeyError, TypeError, ValueError) as write_error:
+                        await _record_stream_event(
+                            "snapshot_rejected",
+                            "public",
+                            last_depth_stream_epoch or 0,
+                            requested_reason,
+                            snapshot_accepted=False,
+                            validation_error=f"{type(write_error).__name__}",
+                        )
                     snapshot_reason = "snapshot_retry"
                     await _wait_for_retry(stop_event, min(config.ws_reconnect_max_sec, retry_delay))
                     retry_delay = min(config.ws_reconnect_max_sec, retry_delay * 2.0)
                     continue
-                except (RuntimeError, ValueError) as exc:
+                except (RuntimeError, ValueError, TypeError, KeyError) as exc:
+                    if snapshot_data is not None:
+                        try:
+                            await _write_snapshot(
+                                symbol,
+                                spec,
+                                snapshot_data,
+                                writer,
+                                sync_epoch=requested_epoch,
+                                stream_epoch=last_depth_stream_epoch or 0,
+                                reason=requested_reason,
+                                accepted=False,
+                                validation_error=f"{type(exc).__name__}",
+                                next_receive_seq=receive_sequence,
+                            )
+                        except (KeyError, TypeError, ValueError):
+                            await _record_stream_event(
+                                "snapshot_rejected",
+                                "public",
+                                last_depth_stream_epoch or 0,
+                                requested_reason,
+                                snapshot_accepted=False,
+                                validation_error=f"{type(exc).__name__}",
+                            )
+                    else:
+                        await _record_stream_event(
+                            "snapshot_rejected",
+                            "public",
+                            last_depth_stream_epoch or 0,
+                            requested_reason,
+                            snapshot_accepted=False,
+                            validation_error=f"{type(exc).__name__}",
+                        )
                     logger.warning("Snapshot request/validation failed for %s: %s", symbol, exc)
                     await _wait_for_retry(stop_event, min(config.ws_reconnect_max_sec, retry_delay))
                     retry_delay = min(config.ws_reconnect_max_sec, retry_delay * 2.0)

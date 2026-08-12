@@ -77,13 +77,19 @@ def _require_numberish(
     line_number: int | None,
 ) -> None:
     try:
-        Decimal(str(value))
+        parsed = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise RecordValidationError(
             f"{context} must be numeric, got {value!r}",
             path=path,
             line_number=line_number,
         ) from exc
+    if not parsed.is_finite():
+        raise RecordValidationError(
+            f"{context} must be finite, got {value!r}",
+            path=path,
+            line_number=line_number,
+        )
 
 
 def _require_intish(

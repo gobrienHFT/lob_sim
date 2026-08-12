@@ -52,6 +52,54 @@ def test_iter_records_rejects_fractional_sequence_ids(tmp_path: Path) -> None:
     assert "depthUpdate.U must be an integer" in str(exc.value)
 
 
+@pytest.mark.parametrize(
+    ("record_type", "data", "field"),
+    [
+        ("exchangeInfo", {"tickSize": "NaN", "stepSize": "0.001"}, "exchangeInfo.tickSize"),
+        ("snapshot", snapshot_payload(100, [("Infinity", "0.001")], [("100.1", "0.001")]), "snapshot.bids[0].price"),
+        (
+            "depthUpdate",
+            {"U": 100, "u": 100, "pu": 99, "b": [["100.0", "-Infinity"]], "a": []},
+            "depthUpdate.b[0].quantity",
+        ),
+        ("aggTrade", {"p": "100.0", "q": "NaN", "m": True}, "aggTrade.q"),
+    ],
+)
+def test_iter_records_rejects_nonfinite_numeric_fields(
+    tmp_path: Path,
+    record_type: str,
+    data: dict,
+    field: str,
+) -> None:
+    path = tmp_path / f"nonfinite_{record_type}.ndjson"
+    path.write_text(
+        NDJSONRecord(ts_local=1.0, symbol="BTCUSDT", type=record_type, data=data).to_json() + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RecordValidationError) as exc:
+        list(iter_records(path))
+
+    assert field in str(exc.value)
+
+
+def test_iter_records_rejects_nonfinite_record_timestamp(tmp_path: Path) -> None:
+    path = tmp_path / "nonfinite_timestamp.ndjson"
+    path.write_text(
+        NDJSONRecord(
+            ts_local=float("nan"),
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"tickSize": "0.1", "stepSize": "0.001"},
+        ).to_json()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RecordValidationError, match="record.ts_local must be finite"):
+        list(iter_records(path))
+
+
 def test_inspect_stream_reports_counts_and_digest(tmp_path: Path) -> None:
     path = tmp_path / "stream.ndjson"
     records = [
