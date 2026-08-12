@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from heapq import heapify, heappop, heappush
 from typing import Any, Deque, Literal, cast
 
 from ..book.types import AggTradeEvent, LevelChange
@@ -53,6 +54,10 @@ class PassiveFillModel:
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
         self._synthetic_queue_ahead: dict[str, int] = {}
         self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
+        self._public_consumption_expiry_heap: list[
+            tuple[float, int, tuple[str, OrderSide, int], _ConsumptionCredit]
+        ] = []
+        self._public_consumption_credit_sequence = 0
         self._public_consumption_stats: dict[FillSource, dict[str, int]] = {
             source: {
                 "observed_lots": 0,
@@ -201,6 +206,42 @@ class PassiveFillModel:
             return "depth_update"
         return None
 
+    def _expire_public_consumption_credits(self, ts_local: float) -> None:
+        """Drop overlap credits once their reconciliation window has elapsed.
+
+        Credits are indexed by price, so pruning only when the same price is
+        observed again leaks one deque per historical price on one-sided tapes.
+        An expiry heap keeps the hot path logarithmic while bounding retained
+        state by the configured overlap window rather than tape duration.
+        """
+
+        overlap_window_seconds = self.fill_assumption.overlap_window_seconds
+        if overlap_window_seconds <= 0:
+            self._public_consumption_credits.clear()
+            self._public_consumption_expiry_heap.clear()
+            return
+
+        while self._public_consumption_expiry_heap:
+            expiry, _sequence, key, credit = self._public_consumption_expiry_heap[0]
+            if expiry >= ts_local:
+                break
+            heappop(self._public_consumption_expiry_heap)
+            credits = self._public_consumption_credits.get(key)
+            if not credits:
+                continue
+            if credits and credits[0] is credit:
+                credits.popleft()
+            else:
+                # A credit may already have been netted or removed while its
+                # heap entry remains. Removal is rare and only touches one
+                # price-level deque.
+                try:
+                    credits.remove(credit)
+                except ValueError:
+                    pass
+            if not credits:
+                self._public_consumption_credits.pop(key, None)
+
     def _net_recent_public_consumption(
         self,
         symbol: str,
@@ -210,6 +251,7 @@ class PassiveFillModel:
         ts_local: float,
         source: FillSource,
     ) -> int:
+        self._expire_public_consumption_credits(ts_local)
         opposite_source = self._opposite_public_source(source)
         if (
             opposite_source is None
@@ -263,12 +305,24 @@ class PassiveFillModel:
             or self.fill_assumption.overlap_window_seconds <= 0
         ):
             return
+        self._expire_public_consumption_credits(ts_local)
         key = self._credit_key(symbol, side, price_tick)
         credits = self._public_consumption_credits.setdefault(key, deque())
         overlap_window_seconds = self.fill_assumption.overlap_window_seconds
         while credits and ts_local - credits[0].ts_local > overlap_window_seconds:
             credits.popleft()
-        credits.append(_ConsumptionCredit(ts_local=ts_local, lots=lots, source=source))
+        credit = _ConsumptionCredit(ts_local=ts_local, lots=lots, source=source)
+        credits.append(credit)
+        heappush(
+            self._public_consumption_expiry_heap,
+            (
+                ts_local + overlap_window_seconds,
+                self._public_consumption_credit_sequence,
+                key,
+                credit,
+            ),
+        )
+        self._public_consumption_credit_sequence += 1
 
     def _record_public_consumption_stats(
         self,
@@ -340,6 +394,18 @@ class PassiveFillModel:
         return {
             **self.fill_assumption.as_dict(),
             **self._fill_assumption_stats,
+            "overlap_credit_state": self.overlap_credit_state(),
+        }
+
+    def overlap_credit_state(self) -> dict[str, object]:
+        """Expose the bounded state used for depth/trade overlap netting."""
+
+        return {
+            "active_credit_keys": len(self._public_consumption_credits),
+            "active_credits": sum(len(credits) for credits in self._public_consumption_credits.values()),
+            "expiry_entries": len(self._public_consumption_expiry_heap),
+            "memory_bounded_by_overlap_window": True,
+            "overlap_window_seconds": self.fill_assumption.overlap_window_seconds,
         }
 
     def queue_position(self, order: Order) -> int:
@@ -678,6 +744,10 @@ class PassiveFillModel:
         self._public_consumption_credits = {
             key: credits for key, credits in self._public_consumption_credits.items() if key[0] != symbol
         }
+        self._public_consumption_expiry_heap = [
+            entry for entry in self._public_consumption_expiry_heap if entry[2][0] != symbol
+        ]
+        heapify(self._public_consumption_expiry_heap)
 
         for price, qty in bids:
             self._add_venue_order(symbol=symbol, side="bid", price_tick=price, lots=qty)
