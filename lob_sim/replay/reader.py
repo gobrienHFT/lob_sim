@@ -87,6 +87,11 @@ def _iter_manifest(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
     ).hexdigest()
     if claimed_hash != actual_hash:
         raise RecordValidationError("capture manifest checksum mismatch", path=path)
+    runtime = value.get("capture_runtime")
+    if isinstance(runtime, dict):
+        writer = runtime.get("writer")
+        if isinstance(writer, dict) and writer.get("complete") is False:
+            raise RecordValidationError("capture manifest writer is incomplete", path=path)
     previous_seq: int | None = None
     segments = value.get("segments")
     if not isinstance(segments, list):

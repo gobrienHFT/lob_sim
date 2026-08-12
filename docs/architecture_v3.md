@@ -136,6 +136,11 @@ Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
 single Python bytes object merely to produce provenance.
 
+The reader can recover the fully checksummed prefix of a visible `.partial`
+segment for forensic inspection. The economic simulator rejects that path
+before processing any records; only finalized capture segments/manifests are
+eligible for claim-bearing simulation.
+
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
 results, an integer-nanosecond action scheduler, per-symbol worst-case

@@ -1622,6 +1622,11 @@ class SimulationEngine:
             raise ValueError("stop_after_records must be positive")
         if stop_after_records is not None and checkpoint_path is None:
             raise ValueError("checkpoint_path is required when stop_after_records is set")
+        input_file = Path(file_path)
+        if input_file.name.endswith(".partial"):
+            raise ValueError(
+                "economic simulation requires a finalized capture; visible .partial tails are recovery inputs only"
+            )
         if resume_from is not None and any(
             not isinstance(sink, NullSink)
             for sink in (self._event_sink, self.metrics._fill_sink, self.metrics._markout_sink)
