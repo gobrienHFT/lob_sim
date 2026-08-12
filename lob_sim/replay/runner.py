@@ -134,6 +134,7 @@ class ReplayValidity:
     capture_trailer_seen: bool
     last_receive_seq: int | None
     last_receive_monotonic_ns: int | None
+    receive_sequence_gaps: int
     receive_sequence_regressions: int
     receive_clock_regressions: int
     capture_invalidations: int
@@ -152,6 +153,7 @@ class ReplayValidity:
             "capture_trailer_seen": self.capture_trailer_seen,
             "last_receive_seq": self.last_receive_seq,
             "last_receive_monotonic_ns": self.last_receive_monotonic_ns,
+            "receive_sequence_gaps": self.receive_sequence_gaps,
             "receive_sequence_regressions": self.receive_sequence_regressions,
             "receive_clock_regressions": self.receive_clock_regressions,
             "capture_invalidations": self.capture_invalidations,
@@ -177,6 +179,7 @@ class _ReplayValidityTracker:
         self.capture_trailer_seen = False
         self.last_receive_seq: int | None = None
         self.last_receive_monotonic_ns: int | None = None
+        self.receive_sequence_gaps = 0
         self.receive_sequence_regressions = 0
         self.receive_clock_regressions = 0
         self.capture_invalidations = 0
@@ -262,6 +265,9 @@ class _ReplayValidityTracker:
             self.receive_sequence_regressions += 1
             self._invalidate_capture("non_increasing_receive_sequence", rec, capture)
         else:
+            if self.last_receive_seq is not None and sequence > self.last_receive_seq + 1:
+                self.receive_sequence_gaps += sequence - self.last_receive_seq - 1
+                self._invalidate_capture("receive_sequence_gap", rec, capture)
             self.last_receive_seq = sequence
 
         monotonic_ns = self._int_or_none(capture.get("recvMonotonicNs"))
@@ -423,6 +429,7 @@ class _ReplayValidityTracker:
             capture_trailer_seen=self.capture_trailer_seen,
             last_receive_seq=self.last_receive_seq,
             last_receive_monotonic_ns=self.last_receive_monotonic_ns,
+            receive_sequence_gaps=self.receive_sequence_gaps,
             receive_sequence_regressions=self.receive_sequence_regressions,
             receive_clock_regressions=self.receive_clock_regressions,
             capture_invalidations=self.capture_invalidations,
