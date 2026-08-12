@@ -10,7 +10,7 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from itertools import count
 from pathlib import Path
 from typing import Any, Protocol
@@ -183,6 +183,34 @@ class _EnvelopeRecordWriter:
                 payload=record.data,
             )
         )
+
+
+@dataclass
+class _DepthCaptureState:
+    """Keep depth reconnects from reusing a pre-failure buffer or epoch."""
+
+    last_stream_epoch: int | None = None
+    resynced_failure_epoch: int | None = None
+    snapshot_reason: str = "bootstrap"
+
+    def on_connect(self, stream_epoch: int, sync: BookSynchronizer) -> None:
+        previous_epoch = self.last_stream_epoch
+        if previous_epoch is not None and stream_epoch != previous_epoch:
+            # A failure callback normally opened the epoch already.  If the
+            # socket disappeared without a callback, the epoch change itself
+            # is still a hard validity boundary and must clear buffered depth.
+            if self.resynced_failure_epoch != previous_epoch:
+                sync.begin_resync("depth_stream_reconnect")
+            self.snapshot_reason = "reconnect"
+        self.last_stream_epoch = stream_epoch
+        self.resynced_failure_epoch = None
+
+    def on_failure(self, stream_epoch: int, event: str, sync: BookSynchronizer) -> None:
+        # This includes connect_failure: an initial failed attempt must not
+        # leave any buffered state eligible for a later socket epoch.
+        sync.begin_resync(f"depth_stream_{event}")
+        self.resynced_failure_epoch = stream_epoch
+        self.snapshot_reason = event
 
 
 def _capture_metadata(writer_queue_capacity: int) -> dict[str, object]:
@@ -380,8 +408,7 @@ async def _collect_symbol(
     local_sequence = count(1)
     receive_sequence = next_receive_seq or (lambda: next(local_sequence))
     snapshot_requested = asyncio.Event()
-    snapshot_reason = "bootstrap"
-    last_depth_stream_epoch: int | None = None
+    depth_state = _DepthCaptureState()
 
     async def _record_stream_event(
         event: str,
@@ -433,15 +460,7 @@ async def _collect_symbol(
         )
 
     async def on_depth_connect(stream_epoch: int) -> None:
-        nonlocal last_depth_stream_epoch, snapshot_reason
-        if last_depth_stream_epoch is not None and stream_epoch != last_depth_stream_epoch:
-            # A recorded disconnect has already opened a fresh sync epoch.
-            # Retain compatibility with tapes where only the reconnect was
-            # observable by invalidating here when the old book is still live.
-            if sync.ready:
-                sync.begin_resync("depth_stream_reconnect")
-            snapshot_reason = "reconnect"
-        last_depth_stream_epoch = stream_epoch
+        depth_state.on_connect(stream_epoch, sync)
         await _record_stream_event("connect", "public", stream_epoch)
         snapshot_requested.set()
 
@@ -454,10 +473,7 @@ async def _collect_symbol(
         reason: str,
         receipt: ReceiveIdentity | None,
     ) -> None:
-        nonlocal snapshot_reason
-        if event != "connect_failure" and sync.ready:
-            sync.begin_resync(f"depth_stream_{event}")
-            snapshot_reason = event
+        depth_state.on_failure(stream_epoch, event, sync)
         await _record_stream_event(event, "public", stream_epoch, reason, receipt)
 
     async def on_trade_failure(
@@ -469,11 +485,10 @@ async def _collect_symbol(
         await _record_stream_event(event, "market", stream_epoch, reason, receipt)
 
     async def on_depth(evt, raw):
-        nonlocal snapshot_reason
         try:
             sync.on_depth_update(evt)
         except BookSyncGapError as exc:
-            snapshot_reason = sync.invalid_reason or "gap"
+            depth_state.snapshot_reason = sync.invalid_reason or "gap"
             if config.resync_on_gap:
                 snapshot_requested.set()
             logger.warning("Book sync invalidated for %s: %s", symbol, exc)
@@ -508,7 +523,6 @@ async def _collect_symbol(
         )
 
     async def snapshot_worker() -> None:
-        nonlocal snapshot_reason
         while not stop_event.is_set():
             if not await _wait_for_signal_or_stop(snapshot_requested, stop_event):
                 return
@@ -516,11 +530,11 @@ async def _collect_symbol(
             retry_delay = 0.25
             while not stop_event.is_set() and not sync.ready:
                 requested_epoch = sync.epoch
-                requested_reason = snapshot_reason
+                requested_reason = depth_state.snapshot_reason
                 await _record_stream_event(
                     "snapshot_attempt",
                     "public",
-                    last_depth_stream_epoch or 0,
+                    depth_state.last_stream_epoch or 0,
                     requested_reason,
                 )
                 snapshot_data: dict | None = None
@@ -553,7 +567,7 @@ async def _collect_symbol(
                             snapshot_data,
                             writer,
                             sync_epoch=requested_epoch,
-                            stream_epoch=last_depth_stream_epoch or 0,
+                            stream_epoch=depth_state.last_stream_epoch or 0,
                             reason=requested_reason,
                             accepted=False,
                             validation_error=str(exc),
@@ -563,12 +577,12 @@ async def _collect_symbol(
                         await _record_stream_event(
                             "snapshot_rejected",
                             "public",
-                            last_depth_stream_epoch or 0,
+                            depth_state.last_stream_epoch or 0,
                             requested_reason,
                             snapshot_accepted=False,
                             validation_error=f"{type(write_error).__name__}",
                         )
-                    snapshot_reason = "snapshot_retry"
+                    depth_state.snapshot_reason = "snapshot_retry"
                     await _wait_for_retry(stop_event, min(config.ws_reconnect_max_sec, retry_delay))
                     retry_delay = min(config.ws_reconnect_max_sec, retry_delay * 2.0)
                     continue
@@ -581,7 +595,7 @@ async def _collect_symbol(
                                 snapshot_data,
                                 writer,
                                 sync_epoch=requested_epoch,
-                                stream_epoch=last_depth_stream_epoch or 0,
+                                stream_epoch=depth_state.last_stream_epoch or 0,
                                 reason=requested_reason,
                                 accepted=False,
                                 validation_error=f"{type(exc).__name__}",
@@ -591,7 +605,7 @@ async def _collect_symbol(
                             await _record_stream_event(
                                 "snapshot_rejected",
                                 "public",
-                                last_depth_stream_epoch or 0,
+                                depth_state.last_stream_epoch or 0,
                                 requested_reason,
                                 snapshot_accepted=False,
                                 validation_error=f"{type(exc).__name__}",
@@ -600,7 +614,7 @@ async def _collect_symbol(
                         await _record_stream_event(
                             "snapshot_rejected",
                             "public",
-                            last_depth_stream_epoch or 0,
+                            depth_state.last_stream_epoch or 0,
                             requested_reason,
                             snapshot_accepted=False,
                             validation_error=f"{type(exc).__name__}",
@@ -615,7 +629,7 @@ async def _collect_symbol(
                     snapshot_data,
                     writer,
                     sync_epoch=requested_epoch,
-                    stream_epoch=last_depth_stream_epoch or 0,
+                    stream_epoch=depth_state.last_stream_epoch or 0,
                     reason=requested_reason,
                     accepted=True,
                     next_receive_seq=receive_sequence,

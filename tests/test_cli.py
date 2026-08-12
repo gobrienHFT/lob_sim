@@ -5,18 +5,60 @@ import json
 import os
 import subprocess
 import sys
+from decimal import Decimal
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from lob_sim.cli import cmd_collect
+from lob_sim.book.local_book import LocalOrderBook
+from lob_sim.book.sync import BookSynchronizer
+from lob_sim.book.types import DepthUpdateEvent, SymbolSpec
+from lob_sim.cli import _DepthCaptureState, cmd_collect
 from lob_sim.config import load_config
 from lob_sim.record.format import NDJSONRecord
 from lob_sim.replay.reader import iter_records
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_depth_capture_state_clears_pre_failure_buffer_and_handles_unobserved_reconnect() -> None:
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("0.1"), step_size=Decimal("0.001"))
+    sync = BookSynchronizer(book=LocalOrderBook(symbol="BTCUSDT", spec=spec), resync_on_gap=True)
+    state = _DepthCaptureState()
+    buffered = DepthUpdateEvent(
+        symbol="BTCUSDT",
+        first_update_id=101,
+        final_update_id=101,
+        prev_update_id=100,
+        bids=[(1000, 1)],
+        asks=[],
+        ts_local=1.0,
+    )
+
+    state.on_connect(1, sync)
+    sync.on_depth_update(buffered)
+    assert len(sync.buffer) == 1
+
+    state.on_failure(1, "disconnect", sync)
+    assert len(sync.buffer) == 0
+    assert state.snapshot_reason == "disconnect"
+    failure_epoch = sync.epoch
+
+    # The normal failure callback already opened this epoch; reconnect must
+    # not increment it again or reuse the old buffered observations.
+    state.on_connect(2, sync)
+    assert sync.epoch == failure_epoch
+    assert state.snapshot_reason == "reconnect"
+
+    # If the failure boundary was not observed, the stream epoch change alone
+    # still opens a fresh epoch and clears any pre-reconnect buffer.
+    sync.on_depth_update(buffered)
+    assert len(sync.buffer) == 1
+    state.on_connect(3, sync)
+    assert sync.epoch == failure_epoch + 1
+    assert len(sync.buffer) == 0
 
 
 class _CaptureRESTClient:

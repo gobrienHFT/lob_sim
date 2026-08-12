@@ -43,6 +43,13 @@ prospectively only after a connect record (or an explicitly handled legacy
 implicit boundary); no queue or order state crosses the outage. Regressing
 stream or sync epochs are rejected.
 
+The live collector applies the same boundary before snapshot recovery: every
+depth failure, including a failed initial connection, clears buffered depth and
+opens a sync epoch. A reconnect callback does not open a second epoch when the
+failure callback already did; if the failure callback was not observed, the
+stream-epoch change itself opens one. This prevents pre-outage observations
+from bridging a later REST snapshot.
+
 Disk and compression work is serialized on one dedicated writer thread. The
 producer uses a non-blocking queue with a configured hard capacity. A full queue
 or sink exception is an integrity failure: collection stops, no success manifest
