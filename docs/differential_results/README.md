@@ -46,3 +46,8 @@ portfolio-notional risk, engine-integrated accounting/markouts, or run
 manifests, and it does not claim historical Binance FIFO. Scheduler,
 reservation, accounting, and latency results are kernel-primitive proofs, not
 a claim that the whole Python engine already executes through Rust.
+
+The CLI `compare` command has the same intentionally narrow Rust surface: its
+`rust_differential` object reports only an optional `logical_time_key` smoke
+check and explicitly lists the remaining scope. The command's repeated-run
+`python_repeat_parity` result is not whole-engine Python/Rust parity.
