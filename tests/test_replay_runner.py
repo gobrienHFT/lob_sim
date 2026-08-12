@@ -186,6 +186,10 @@ def test_replay_reports_claim_ready_schema_v3_validity(tmp_path: Path) -> None:
     assert result.validity.capture_valid is True
     assert result.validity.clock_valid is True
     assert result.validity.last_receive_seq == 8
+    assert result.validity.boundary_count == 2
+    assert result.validity.boundaries_omitted == 0
+    assert {boundary.kind for boundary in result.validity.boundaries} == {"recovered"}
+    assert {boundary.reason for boundary in result.validity.boundaries} == {"public_connected", "market_connected"}
     assert result.symbols["BTCUSDT"].validity is not None
     assert result.symbols["BTCUSDT"].validity.execution_inputs_valid is True
 
@@ -229,6 +233,12 @@ def test_replay_fails_closed_on_schema_v3_receive_clock_regression(tmp_path: Pat
     assert result.validity.claim_ready is False
     assert result.validity.receive_clock_regressions == 1
     assert "receive_monotonic_regression" in result.validity.invalid_reasons
+    assert result.validity.boundary_count == 2
+    boundary = next(item for item in result.validity.boundaries if item.scope == "clock")
+    assert boundary.kind == "invalidated"
+    assert boundary.scope == "clock"
+    assert boundary.recv_seq == 3
+    assert boundary.recv_monotonic_ns == 10
     assert result.symbols["BTCUSDT"].validity is not None
     assert result.symbols["BTCUSDT"].validity.execution_inputs_valid is False
 
@@ -267,3 +277,4 @@ def test_replay_reconnect_and_rejected_snapshot_clear_book_epoch(tmp_path: Path)
     assert symbol.validity.execution_inputs_valid is False
     assert result.validity is not None
     assert result.validity.claim_ready is False
+    assert any(boundary.scope == "stream" and boundary.kind == "invalidated" for boundary in result.validity.boundaries)
