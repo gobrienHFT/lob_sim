@@ -307,8 +307,6 @@ class _ReplayValidityTracker:
             or event_name
             or "unspecified"
         )
-        if event_name in _CAPTURE_INVALIDATION_EVENTS:
-            self._invalidate_capture(f"{event_name}: {reason}", rec, capture)
         if route in {"public", "market"}:
             if event_name in _STREAM_FAILURE_EVENTS:
                 failure_reason = f"{route}_stream_{event_name}: {reason}"
@@ -344,6 +342,16 @@ class _ReplayValidityTracker:
             capture = {key: rec.data[key] for key in ("recvSeq", "recvMonotonicNs", "route") if key in rec.data}
         if self.schema_version >= 3:
             self._observe_receipt(rec, capture)
+        if rec.type == "captureEvent" and rec.data.get("event") in _CAPTURE_INVALIDATION_EVENTS:
+            event_name = str(rec.data.get("event"))
+            reason = str(
+                rec.data.get("validationError")
+                or capture.get("validationError")
+                or rec.data.get("reason")
+                or capture.get("reason")
+                or event_name
+            )
+            self._invalidate_capture(f"{event_name}: {reason}", rec, capture)
         if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
             self.capture_trailer_seen = True
 

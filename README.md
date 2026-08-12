@@ -10,6 +10,7 @@ Fast reviewer links:
 - [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
 - [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
 - [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
+- [Schema-v3 Validity Fixtures](docs/sample_outputs/futures_schema_v3_case/README.md): one clean claim-ready tape and one adversarial fail-closed tape.
 
 ## Overview
 
