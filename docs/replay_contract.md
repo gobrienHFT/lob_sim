@@ -51,6 +51,14 @@ reconstructed books and currently selected execution inputs are valid; the
 separate ``replay.validity.claim_ready`` field prevents a clean legacy replay
 from being mistaken for a claim-ready capture.
 
+Schema-v3 validity also carries a bounded ``boundaries`` timeline.  Each row
+is anchored to the recorded receive sequence/monotonic timestamp and includes
+the route, stream/sync epochs, symbol, transition kind (``recovered`` or
+``invalidated``), scope, and reason.  A reconnect, rejected snapshot, clock
+regression, or capture failure is therefore an explicit validity boundary,
+not a silent repair.  The timeline is capped at 4,096 rows; truncation is
+reported through ``boundaries_omitted`` and prevents ``claim_ready``.
+
 ## Determinism Check
 
 Use the determinism checker when you want one command that proves a replay fixture is stable across repeated simulator runs:

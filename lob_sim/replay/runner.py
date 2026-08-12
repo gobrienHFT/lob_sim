@@ -85,6 +85,38 @@ class ReplaySymbolValidity:
 
 
 @dataclass(frozen=True)
+class ReplayValidityBoundary:
+    """One receipt-anchored validity transition in the replay timeline."""
+
+    kind: str
+    scope: str
+    event: str
+    symbol: str
+    route: str | None
+    reason: str
+    ts_local: float
+    recv_seq: int | None
+    recv_monotonic_ns: int | None
+    stream_epoch: int | None
+    sync_epoch: int | None
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "scope": self.scope,
+            "event": self.event,
+            "symbol": self.symbol,
+            "route": self.route,
+            "reason": self.reason,
+            "ts_local": self.ts_local,
+            "recv_seq": self.recv_seq,
+            "recv_monotonic_ns": self.recv_monotonic_ns,
+            "stream_epoch": self.stream_epoch,
+            "sync_epoch": self.sync_epoch,
+        }
+
+
+@dataclass(frozen=True)
 class ReplayValidity:
     """Capture-level integrity observed during a diagnostic replay.
 
@@ -106,6 +138,9 @@ class ReplayValidity:
     receive_clock_regressions: int
     capture_invalidations: int
     invalid_reasons: tuple[str, ...]
+    boundaries: tuple[ReplayValidityBoundary, ...]
+    boundary_count: int
+    boundaries_omitted: int
     claim_ready: bool
 
     def as_dict(self) -> dict[str, object]:
@@ -121,12 +156,17 @@ class ReplayValidity:
             "receive_clock_regressions": self.receive_clock_regressions,
             "capture_invalidations": self.capture_invalidations,
             "invalid_reasons": list(self.invalid_reasons),
+            "boundaries": [boundary.as_dict() for boundary in self.boundaries],
+            "boundary_count": self.boundary_count,
+            "boundaries_omitted": self.boundaries_omitted,
             "claim_ready": self.claim_ready,
         }
 
 
 class _ReplayValidityTracker:
     """Small independent validity reducer for replay/audit diagnostics."""
+
+    _MAX_BOUNDARIES = 4096
 
     def __init__(self, *, trade_stream_required: bool) -> None:
         self.trade_stream_required = trade_stream_required
@@ -141,6 +181,9 @@ class _ReplayValidityTracker:
         self.receive_clock_regressions = 0
         self.capture_invalidations = 0
         self.invalid_reasons: list[str] = []
+        self.boundaries: list[ReplayValidityBoundary] = []
+        self.boundary_count = 0
+        self.boundaries_omitted = 0
         self.symbols: dict[str, _MutableSymbolValidity] = {}
 
     def _symbol(self, symbol: str) -> _MutableSymbolValidity:
@@ -152,17 +195,49 @@ class _ReplayValidityTracker:
             ),
         )
 
-    def _invalidate_capture(self, reason: str) -> None:
+    def _record_boundary(
+        self,
+        rec: RecordedEvent,
+        capture: dict[str, object],
+        *,
+        kind: str,
+        scope: str,
+        reason: str,
+        symbol: str | None = None,
+    ) -> None:
+        self.boundary_count += 1
+        if len(self.boundaries) >= self._MAX_BOUNDARIES:
+            self.boundaries_omitted += 1
+            return
+        self.boundaries.append(
+            ReplayValidityBoundary(
+                kind=kind,
+                scope=scope,
+                event=str(rec.data.get("event") or rec.type),
+                symbol=rec.symbol if symbol is None else symbol,
+                route=(str(capture.get("route")) if capture.get("route") is not None else None),
+                reason=reason,
+                ts_local=rec.ts_local,
+                recv_seq=self._int_or_none(capture.get("recvSeq")),
+                recv_monotonic_ns=self._int_or_none(capture.get("recvMonotonicNs")),
+                stream_epoch=self._int_or_none(capture.get("streamEpoch")),
+                sync_epoch=self._int_or_none(capture.get("syncEpoch")),
+            )
+        )
+
+    def _invalidate_capture(self, reason: str, rec: RecordedEvent, capture: dict[str, object]) -> None:
         if self.capture_valid:
             self.capture_invalidations += 1
         self.capture_valid = False
         if reason not in self.invalid_reasons:
             self.invalid_reasons.append(reason)
+        self._record_boundary(rec, capture, kind="invalidated", scope="capture", reason=reason)
 
-    def _invalidate_clock(self, reason: str) -> None:
+    def _invalidate_clock(self, reason: str, rec: RecordedEvent, capture: dict[str, object]) -> None:
         self.clock_valid = False
         if reason not in self.invalid_reasons:
             self.invalid_reasons.append(reason)
+        self._record_boundary(rec, capture, kind="invalidated", scope="clock", reason=reason)
 
     @staticmethod
     def _int_or_none(value: object) -> int | None:
@@ -177,24 +252,24 @@ class _ReplayValidityTracker:
             return
         missing = [key for key in ("recvSeq", "recvMonotonicNs", "route") if capture.get(key) is None]
         if missing:
-            self._invalidate_capture("missing_capture_metadata:" + ",".join(missing))
+            self._invalidate_capture("missing_capture_metadata:" + ",".join(missing), rec, capture)
             return
 
         sequence = self._int_or_none(capture.get("recvSeq"))
         if sequence is None or sequence < 0:
-            self._invalidate_capture("invalid_capture_metadata:recvSeq")
+            self._invalidate_capture("invalid_capture_metadata:recvSeq", rec, capture)
         elif self.last_receive_seq is not None and sequence <= self.last_receive_seq:
             self.receive_sequence_regressions += 1
-            self._invalidate_capture("non_increasing_receive_sequence")
+            self._invalidate_capture("non_increasing_receive_sequence", rec, capture)
         else:
             self.last_receive_seq = sequence
 
         monotonic_ns = self._int_or_none(capture.get("recvMonotonicNs"))
         if monotonic_ns is None or monotonic_ns < 0:
-            self._invalidate_capture("invalid_capture_metadata:recvMonotonicNs")
+            self._invalidate_capture("invalid_capture_metadata:recvMonotonicNs", rec, capture)
         elif self.last_receive_monotonic_ns is not None and monotonic_ns < self.last_receive_monotonic_ns:
             self.receive_clock_regressions += 1
-            self._invalidate_clock("receive_monotonic_regression")
+            self._invalidate_clock("receive_monotonic_regression", rec, capture)
         else:
             self.last_receive_monotonic_ns = monotonic_ns
 
@@ -208,16 +283,22 @@ class _ReplayValidityTracker:
             if stream_epoch is not None:
                 symbol.public_stream_epoch = stream_epoch
                 if previous_epoch is not None and stream_epoch != previous_epoch:
-                    symbol.invalidate("public_stream_epoch_changed", route=route)
+                    reason = "public_stream_epoch_changed"
+                    symbol.invalidate(reason, route=route)
+                    self._record_boundary(rec, capture, kind="invalidated", scope="stream", reason=reason)
             if sync_epoch is not None:
                 if symbol.capture_sync_epoch is not None and sync_epoch != symbol.capture_sync_epoch:
-                    symbol.invalidate("capture_sync_epoch_changed", route=route)
+                    reason = "capture_sync_epoch_changed"
+                    symbol.invalidate(reason, route=route)
+                    self._record_boundary(rec, capture, kind="invalidated", scope="sync", reason=reason)
                 symbol.capture_sync_epoch = sync_epoch
         elif route == "market" and stream_epoch is not None:
             previous_epoch = symbol.market_stream_epoch
             symbol.market_stream_epoch = stream_epoch
             if previous_epoch is not None and stream_epoch != previous_epoch:
-                symbol.invalidate("market_stream_epoch_changed", route=route)
+                reason = "market_stream_epoch_changed"
+                symbol.invalidate(reason, route=route)
+                self._record_boundary(rec, capture, kind="invalidated", scope="stream", reason=reason)
         reason = str(
             rec.data.get("validationError")
             or capture.get("validationError")
@@ -227,27 +308,34 @@ class _ReplayValidityTracker:
             or "unspecified"
         )
         if event_name in _CAPTURE_INVALIDATION_EVENTS:
-            self._invalidate_capture(f"{event_name}: {reason}")
+            self._invalidate_capture(f"{event_name}: {reason}", rec, capture)
         if route in {"public", "market"}:
             if event_name in _STREAM_FAILURE_EVENTS:
-                symbol.invalidate(f"{route}_stream_{event_name}: {reason}", route=route)
+                failure_reason = f"{route}_stream_{event_name}: {reason}"
+                symbol.invalidate(failure_reason, route=route)
+                self._record_boundary(rec, capture, kind="invalidated", scope="stream", reason=failure_reason)
             elif event_name in {"connect", "reconnect"}:
+                was_valid = symbol.depth_stream_valid if route == "public" else symbol.trade_stream_valid
                 symbol.recover(route)
+                if not was_valid:
+                    self._record_boundary(rec, capture, kind="recovered", scope="stream", reason=f"{route}_connected")
 
         if rec.type == "snapshot" and capture.get("snapshotAccepted") is False:
             symbol.snapshot_rejections += 1
-            symbol.invalidate(f"snapshot_rejected: {reason}", route="public")
+            rejection_reason = f"snapshot_rejected: {reason}"
+            symbol.invalidate(rejection_reason, route="public")
+            self._record_boundary(rec, capture, kind="invalidated", scope="book", reason=rejection_reason)
 
     def observe(self, rec: RecordedEvent) -> None:
         if rec.type == "captureMeta":
             version = self._int_or_none(rec.data.get("schemaVersion"))
             if version is None or version < 1:
-                self._invalidate_capture("invalid_capture_schema_version")
+                self._invalidate_capture("invalid_capture_schema_version", rec, {})
                 return
             self.schema_version = version
             self.receive_clock = rec.data.get("clock") == "receive_time"
             if version >= 3 and not self.receive_clock:
-                self._invalidate_clock("schema_v3_without_receive_clock")
+                self._invalidate_clock("schema_v3_without_receive_clock", rec, {})
             return
 
         capture_value = rec.data.get("_capture")
@@ -270,9 +358,13 @@ class _ReplayValidityTracker:
             if rec.type in {"depthUpdate", "snapshot"} and capture.get("snapshotAccepted") is not False:
                 if depth_was_valid or not had_public_epoch:
                     symbol.recover("public")
+                    if not depth_was_valid:
+                        self._record_boundary(rec, capture, kind="recovered", scope="stream", reason="public_observed")
             elif rec.type == "aggTrade":
                 if trade_was_valid or not had_market_epoch:
                     symbol.recover("market")
+                    if not trade_was_valid:
+                        self._record_boundary(rec, capture, kind="recovered", scope="stream", reason="market_observed")
 
     def symbol_validity(self, symbol: str, *, synced: bool, gap_count: int) -> ReplaySymbolValidity:
         state = self.symbols.get(symbol, _MutableSymbolValidity(self.schema_version < 3, self.schema_version < 3))
@@ -312,6 +404,8 @@ class _ReplayValidityTracker:
             and bool(symbol_validities)
             and all(value.execution_inputs_valid for value in symbol_validities.values())
             and all(not value.invalid_reasons for value in symbol_validities.values())
+            and not any(boundary.kind == "invalidated" for boundary in self.boundaries)
+            and self.boundaries_omitted == 0
         )
         return ReplayValidity(
             schema_version=self.schema_version,
@@ -325,6 +419,9 @@ class _ReplayValidityTracker:
             receive_clock_regressions=self.receive_clock_regressions,
             capture_invalidations=self.capture_invalidations,
             invalid_reasons=tuple(self.invalid_reasons),
+            boundaries=tuple(self.boundaries),
+            boundary_count=self.boundary_count,
+            boundaries_omitted=self.boundaries_omitted,
             claim_ready=claim_ready,
         )
 

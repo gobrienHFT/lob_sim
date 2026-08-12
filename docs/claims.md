@@ -19,5 +19,7 @@ public evidence should be read using this matrix:
 | Research | Paired scenario/latency studies can report markouts, uncertainty and robustness. | Alpha after an underpowered or holdout-tuned study. |
 | Performance | Benchmarks document a pinned build, corpus and host. | Trading latency, Jane Street equivalence, or production readiness. |
 
-Any report lacking a complete validity interval or a self-describing manifest is
-diagnostic only.
+Any report lacking a complete validity interval, an explicit replay validity
+boundary timeline, or a self-describing manifest is diagnostic only. A final
+book that resynchronizes after an invalidated epoch does not erase that
+boundary.
