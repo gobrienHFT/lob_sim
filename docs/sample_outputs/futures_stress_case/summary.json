@@ -304,6 +304,8 @@
     "requote_ms": 1000.0,
     "order_quantity": "0.001",
     "max_position_per_symbol": "0.05",
+    "max_portfolio_notional": "0",
+    "portfolio_notional_basis": "absolute_marked_inventory_plus_live_and_pending_order_notional; positive cap is enforced at modeled arrival",
     "half_spread_bps": "0.05",
     "skew_bps_per_base_unit": "0",
     "inventory_observation_basis": "time-weighted between causal market observations"
@@ -342,7 +344,12 @@
     },
     "all_books_synced_at_end": true,
     "all_required_execution_inputs_valid_at_end": true,
-    "feed_completeness": "not proven without venue-side packet-loss telemetry"
+    "feed_completeness": "not proven without venue-side packet-loss telemetry",
+    "portfolio_risk": {
+      "enabled": false,
+      "max_portfolio_notional": "0",
+      "basis": "absolute_marked_inventory_plus_live_and_pending_order_notional"
+    }
   },
   "evidence_quality": {
     "markouts": "diagnostic_only",
@@ -366,8 +373,16 @@
     "memory_bounded_by_tape_duration": false
   },
   "state_sha256": "e03ec8be96d6e4803b44aea108ce177938f3d94c20e73c668af47583ecb405d2",
-  "run_id": "dc48635cef3dea0f",
+  "run_id": "a37841f327a8910f",
   "input_sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
+  "config_sha256": "a0105103e02b386015e2c903e1b9a0d4c13d47b51a1130dc78ea76f3ea6214f9",
+  "code_identity": {
+    "schema_version": "lob_sim.code_identity.v1",
+    "algorithm": "sha256",
+    "complete": true,
+    "file_count": 225,
+    "sha256": "dc2825adc3b507fcacca1df22aec15bce3d7d206925fa8ed58c4e1c329fcb28b"
+  },
   "feed_adapter": {
     "name": "binance_usdm",
     "venue_label": "BINANCE_USDM",
@@ -433,7 +448,14 @@
     "overlap_window_seconds": 0.125,
     "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
     "corroborated_depth_reduction_lots": 0,
-    "uncorroborated_depth_reduction_lots": 14
+    "uncorroborated_depth_reduction_lots": 14,
+    "overlap_credit_state": {
+      "active_credit_keys": 1,
+      "active_credits": 1,
+      "expiry_entries": 1,
+      "memory_bounded_by_overlap_window": true,
+      "overlap_window_seconds": 0.125
+    }
   },
   "output_files": {
     "event_trace": "docs/sample_outputs/futures_stress_case/event_trace.csv",

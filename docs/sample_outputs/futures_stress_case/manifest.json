@@ -1,13 +1,13 @@
 {
-  "run_id": "dc48635cef3dea0f",
+  "run_id": "a37841f327a8910f",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-11T17:44:23.165952Z",
+  "created_at_utc": "2026-08-12T16:03:23.941575Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_stress_case/input_stress.ndjson",
     "size_bytes": 1856,
     "sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-    "modified_at_utc": "2026-08-11T17:44:23.096329Z"
+    "modified_at_utc": "2026-08-12T16:03:23.888415Z"
   },
   "config": {
     "symbols": [
@@ -39,6 +39,7 @@
     "mm_requote_ms": 1000.0,
     "mm_order_qty": "0.001",
     "mm_max_position": "0.05",
+    "mm_max_portfolio_notional": "0",
     "mm_half_spread_bps": "0.05",
     "mm_layered_inner_spread_bps": "0.05",
     "mm_layered_outer_spread_bps": "0.15",
@@ -62,6 +63,14 @@
     },
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
+  },
+  "config_sha256": "a0105103e02b386015e2c903e1b9a0d4c13d47b51a1130dc78ea76f3ea6214f9",
+  "code_identity": {
+    "schema_version": "lob_sim.code_identity.v1",
+    "algorithm": "sha256",
+    "complete": true,
+    "file_count": 225,
+    "sha256": "dc2825adc3b507fcacca1df22aec15bce3d7d206925fa8ed58c4e1c329fcb28b"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -125,8 +134,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
-    "git_branch": "codex/hft-streaming-simulation-export",
+    "git_commit": "485002d4823447e1e71f71238ac57f0b52a78c07",
+    "git_branch": "codex/portfolio-notional-risk",
     "git_dirty": false
   },
   "outputs": {
@@ -141,28 +150,28 @@
       "path": "docs/sample_outputs/futures_stress_case/event_trace.csv",
       "size_bytes": 13526,
       "sha256": "0069dad5e707f505067231569e004138dc7a5cb6d380a2171bae8e7ce11028b0",
-      "modified_at_utc": "2026-08-11T17:44:23.565612Z"
+      "modified_at_utc": "2026-08-12T16:03:26.011219Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_stress_case/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_stress_case/summary.json",
-      "size_bytes": 15525,
-      "sha256": "0eab61a6a080971aca9fe7033b79c11098ce864afa43a0c566642483636fc217",
-      "modified_at_utc": "2026-08-11T17:44:23.545726Z"
+      "size_bytes": 16399,
+      "sha256": "c03eccf5119db96fe69f41e88d43fdb80f7a74c2c84c33d67223da059978f90b",
+      "modified_at_utc": "2026-08-12T16:03:26.000369Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_stress_case/summary.csv",
-      "size_bytes": 11896,
-      "sha256": "9789302e43e30ff8e6a23d1a5c08771334184472048c2d6550d9da61a2dece14",
-      "modified_at_utc": "2026-08-11T17:44:23.552374Z"
+      "size_bytes": 12706,
+      "sha256": "96194e0acb5d5b3d5512202e0b40d05dbdd796b75a9ea2f15a7dbb760ed7a480",
+      "modified_at_utc": "2026-08-12T16:03:26.005698Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_stress_case/trades.csv",
       "size_bytes": 1191,
       "sha256": "dc06e246992f6a6ad65f51aef12be9e6e5ba6160cb19a505fece97a87bb0e744",
-      "modified_at_utc": "2026-08-11T17:44:23.559582Z"
+      "modified_at_utc": "2026-08-12T16:03:26.009119Z"
     }
   },
   "fixture_provenance": {

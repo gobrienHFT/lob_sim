@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-11T17:44:37.946585Z",
+    "benchmark_created_at_utc": "2026-08-12T16:03:35.860038Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -32,6 +32,7 @@
       "mm_half_spread_bps": "0.05",
       "mm_layered_inner_spread_bps": "0.05",
       "mm_layered_outer_spread_bps": "0.15",
+      "mm_max_portfolio_notional": "0",
       "mm_max_position": "0.05",
       "mm_microstructure_gate_bps": "0.10",
       "mm_microstructure_gate_threshold": "0.20",
@@ -67,7 +68,7 @@
         "BTCUSDT"
       ]
     },
-    "config_digest": "3a330fa5f77ae1e46f3f4af3f3b30fabc3cf26b2516eea8a815e3983bafa692e",
+    "config_digest": "2f43f17299bcdc1226c8a0d2faf2db33aa073ca969484a86300ec239b7aca811",
     "feed_adapter": {
       "name": "binance_usdm",
       "supported_record_types": [
@@ -94,16 +95,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "codex/hft-streaming-simulation-export",
-      "git_commit": "d71ea90d219122556941b1ca88dd3241b926ba2f",
+      "git_branch": "codex/portfolio-notional-risk",
+      "git_commit": "485002d4823447e1e71f71238ac57f0b52a78c07",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 95.50518002096216,
-    "loop_latency_p50_us": 306.85,
-    "loop_latency_p99_us": 114563.62999999938,
-    "wall_time_seconds": 0.8376509000081569
+    "events_per_second": 116.82812800751043,
+    "loop_latency_p50_us": 157.55,
+    "loop_latency_p99_us": 95919.40999999964,
+    "wall_time_seconds": 0.6847665999994206
   }
 }
