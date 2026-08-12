@@ -9,7 +9,9 @@ global receipt sequence, wall and monotonic receipt clocks, optional exchange
 timestamps, stream/sync epochs, payload checksum and raw payload. Validity is
 tracked independently for book, trade stream, clock and capture; execution is
 valid only at the intersection required by the selected venue and strategy
-scenario.
+scenario. Schema-v3 replay rejects missing receipt identity and fails closed on
+a regressing receipt-monotonic clock; logical receipt order is never inferred
+from exchange timestamps.
 
 Every exported fill uses `lob_sim.fill_provenance.v1`. The record includes the
 public-L2 scenario ID, the order-decision/arrival and triggering market-record
@@ -103,11 +105,12 @@ timestamp as explicit trace evidence. The fixture-scale compatibility exporter
 requires `--in-memory-export`, declares linear retention, and remains available
 for small committed packs. Benchmark export mode exercises the bounded path.
 
-A schema-v3 clock regression is an integrity boundary, not a recoverable
-execution condition: the first regression invalidates all pending markout
-horizons, clears live and scheduled execution state, and halts further
-strategy actions. Legacy tapes retain their compatibility replay trace, but
-their clock-dependent fills and markouts remain diagnostic-only.
+A schema-v3 clock regression, including a receipt-monotonic regression, is an
+integrity boundary, not a recoverable execution condition: the first
+regression invalidates all pending markout horizons, clears live and scheduled
+execution state, and halts further strategy actions. Legacy tapes retain their
+compatibility replay trace, but their clock-dependent fills and markouts remain
+diagnostic-only.
 
 The real-data evidence path preserves that property end to end. It accepts a
 schema-v3 capture manifest (or a legacy NDJSON tape), runs the bounded exporter,

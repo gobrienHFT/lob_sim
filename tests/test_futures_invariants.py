@@ -317,6 +317,7 @@ def _capture_event(
         "streamEpoch": stream_epoch,
         "syncEpoch": sync_epoch,
         "recvSeq": recv_seq,
+        "recvMonotonicNs": recv_seq,
     }
     data: dict[str, object] = {"event": event, "route": route, "_capture": capture}
     if reason is not None:
@@ -391,6 +392,88 @@ def test_capture_integrity_failure_invalidates_execution_state_and_provenance(
     assert resumed._capture_invalidations == 1
     assert resumed._capture_invalid_reason == "parse_failure: malformed payload"
     assert resumed.state_sha256() == engine.state_sha256()
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {},
+        {"_capture": {"recvSeq": 1, "recvMonotonicNs": 1}},
+    ],
+)
+def test_schema_v3_records_require_receipt_identity(
+    data: dict[str, object], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._capture_schema_version = 3
+    engine._receive_clock = True
+    engine._observe_capture_epoch(
+        RecordedEvent(ts_local=1.0, symbol="BTCUSDT", type="depthUpdate", data=data),
+        1.0,
+    )
+
+    assert engine._capture_valid is False
+    assert engine._trading_halted is True
+    expected_reason = "missing_capture_metadata" if not data else "missing_capture_metadata:route"
+    assert engine._capture_invalid_reason == expected_reason
+
+
+def test_schema_v3_receipt_monotonic_regression_invalidates_clock_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._capture_schema_version = 3
+    engine._receive_clock = True
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={
+                "event": "connect",
+                "route": "control",
+                "_capture": {
+                    "route": "control",
+                    "recvSeq": 1,
+                    "recvMonotonicNs": 10,
+                    "streamEpoch": 0,
+                    "syncEpoch": 0,
+                },
+            },
+        ),
+        1.0,
+    )
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={
+                "event": "connect",
+                "route": "control",
+                "_capture": {
+                    "route": "control",
+                    "recvSeq": 2,
+                    "recvMonotonicNs": 9,
+                    "streamEpoch": 0,
+                    "syncEpoch": 0,
+                },
+            },
+        ),
+        2.0,
+    )
+
+    assert engine._capture_valid is True
+    assert engine._clock_invalidated is True
+    assert engine._receive_clock_regressions == 1
+    assert engine._last_receive_monotonic_ns == 10
+    assert engine._summary_annotations()["integrity"]["receive_clock_regressions"] == 1
+    assert engine._summary_annotations()["integrity"]["stream_state"] == {}
+    clock_rows = [row for row in engine.event_trace if row["event_type"] == "clock_invalidated"]
+    assert len(clock_rows) == 1
+    assert clock_rows[0]["details"]["reason"] == "receive_monotonic_regression"
+    assert clock_rows[0]["details"]["observed_monotonic_ns"] == 9
+    assert clock_rows[0]["details"]["previous_monotonic_ns"] == 10
 
 
 def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(
@@ -537,6 +620,7 @@ def test_implicit_trade_epoch_jump_fails_closed_before_accepting_new_epoch(
                     "streamEpoch": 2,
                     "syncEpoch": 1,
                     "recvSeq": 2,
+                    "recvMonotonicNs": 2,
                 },
             },
         ),
