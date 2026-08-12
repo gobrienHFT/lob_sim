@@ -24,6 +24,16 @@ except ImportError:  # pragma: no cover - exercised only on minimal installs
     zstd = None  # type: ignore[assignment]
 
 
+def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    """Hash a finalized segment without materializing it in memory."""
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class SegmentIntegrityError(RuntimeError):
     """Raised when a segment cannot be finalized without losing evidence."""
 
@@ -189,7 +199,7 @@ class SegmentedCaptureWriter:
                 "first_recv_seq": self._first_seq,
                 "last_recv_seq": self._last_seq,
                 "content_sha256": self._content_hash.hexdigest(),
-                "file_sha256": hashlib.sha256(finalized.read_bytes()).hexdigest(),
+                "file_sha256": _file_sha256(finalized),
                 "size_bytes": finalized.stat().st_size,
             }
         )

@@ -49,6 +49,10 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def reject_whole_file_reads(path: Path) -> bytes:
+        raise AssertionError(f"capture hashing must stream files, not read_bytes(): {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_whole_file_reads)
     with SegmentedCaptureWriter(
         tmp_path,
         "capture-1",
@@ -85,10 +89,6 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(
     }
     assert len(manifest["manifest_sha256"]) == 64
 
-    def reject_whole_file_reads(path: Path) -> bytes:
-        raise AssertionError(f"manifest replay must hash segments incrementally, not read_bytes(): {path}")
-
-    monkeypatch.setattr(Path, "read_bytes", reject_whole_file_reads)
     replayed = list(iter_records(tmp_path / "capture-1.manifest.json"))
     assert [record.data["_capture"]["recvSeq"] for record in replayed] == [1, 2]
     assert [record.data["_capture"]["captureId"] for record in replayed] == ["capture-1", "capture-1"]
@@ -262,12 +262,20 @@ def test_latency_draws_are_seeded_scenarios_and_reject_nonfinite_values() -> Non
         LatencyModel(new_order_ms=float("nan"))
 
 
-def test_validated_manifest_normalizes_to_bounded_arrow_ipc(tmp_path: Path) -> None:
+def test_validated_manifest_normalizes_to_bounded_arrow_ipc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
         writer.write(_envelope(1))
         writer.write(_envelope(2))
 
     arrow_path = tmp_path / "normalized.arrow"
+
+    def reject_whole_file_reads(path: Path) -> bytes:
+        raise AssertionError(f"Arrow normalization must hash files incrementally, not read_bytes(): {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_whole_file_reads)
     report = normalize_to_arrow(tmp_path / "capture-1.manifest.json", arrow_path, batch_size=1)
     rows = list(iter_arrow_rows(arrow_path))
 
