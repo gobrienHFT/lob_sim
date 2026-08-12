@@ -107,6 +107,7 @@ flowchart LR
 - Depth increases append new venue liquidity to the back of the queue at that price.
 - `aggTrade` prints are used as an additional observed signal that queue was consumed at the traded price.
 - Recent depth reductions and `aggTrade` prints at the same symbol, side, and price are netted before queue consumption so one public execution signal is not counted twice.
+- Overlap-reconciliation credits expire through a global time-ordered heap, so one-sided tapes with ever-changing prices do not retain one stale queue per historical price. The run's `fill_assumption_diagnostics.overlap_credit_state` exposes the active bounded state.
 - `--fill-profile conservative|base|aggressive` and `SIM_FILL_MODEL=trade|depth` make the public-L2 execution scenario explicit and mutually exclusive.
 - Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, synthetic queue lots consumed, and unmatched lots for both public sources.
 - Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.

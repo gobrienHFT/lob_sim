@@ -383,3 +383,27 @@ def test_base_profile_matches_default_fill_model_behavior():
     assert [(fill.qty_lots, fill.source) for fill in default_fills] == [(1, "agg_trade")]
     assert [(fill.qty_lots, fill.source) for fill in base_fills] == [(1, "agg_trade")]
     assert default_model.public_consumption_summary() == base_model.public_consumption_summary()
+
+
+def test_overlap_credit_state_is_bounded_on_one_sided_new_prices() -> None:
+    model = PassiveFillModel()
+
+    for index in range(1_000):
+        model.apply_agg_trade(
+            AggTradeEvent(
+                symbol="BTCUSDT",
+                price_tick=10_000 + index,
+                qty_lots=1,
+                buyer_is_maker=True,
+                ts_local=float(index),
+            ),
+            float(index),
+        )
+
+    assert model.overlap_credit_state() == {
+        "active_credit_keys": 1,
+        "active_credits": 1,
+        "expiry_entries": 1,
+        "memory_bounded_by_overlap_window": True,
+        "overlap_window_seconds": 0.125,
+    }
