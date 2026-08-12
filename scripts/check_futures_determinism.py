@@ -24,6 +24,7 @@ from lob_sim.sim.run_manifest import (
     instrument_specs_snapshot,
     source_state,
 )
+from lob_sim.sim.sinks import CanonicalJsonListHashSink
 
 
 DETERMINISM_SCHEMA_VERSION = "lob_sim.futures_determinism.v1"
@@ -45,34 +46,55 @@ def _run_once(
     cfg: Any,
     adapter: ReplayFeedAdapter,
 ) -> dict[str, Any]:
-    engine = SimulationEngine(cfg, adapter=adapter)
+    # Determinism is also a long-tape reliability check.  Keep the exact
+    # historical list hash, but feed it from a bounded sink instead of
+    # materializing every trace row in Python.
+    trace_sink = CanonicalJsonListHashSink()
+    engine = SimulationEngine(
+        cfg,
+        adapter=adapter,
+        event_sink=trace_sink,
+        retain_event_trace=False,
+        retain_audit_rows=False,
+    )
     metrics = engine.run(input_file)
     summary = metrics.get_summary(engine._books)
-    event_trace = list(engine.event_trace)
     return {
         "summary": summary,
-        "event_trace": event_trace,
         "summary_sha256": canonical_sha256(summary),
-        "event_trace_sha256": canonical_sha256(event_trace),
+        "event_trace_sha256": trace_sink.hexdigest(),
+        "event_trace_count": trace_sink.count,
+        "event_trace_type_counts": dict(sorted(trace_sink.by_event_type.items())),
         "instrument_specs": instrument_specs_snapshot(engine._specs),
     }
 
 
 def _run_report(index: int, run: dict[str, Any]) -> dict[str, Any]:
     summary = run["summary"]
-    event_trace = run["event_trace"]
-    markout_events = summary.get("markout_events", [])
+    event_trace = run.get("event_trace")
+    if isinstance(event_trace, list):
+        event_trace_count = len(event_trace)
+        event_trace_type_counts = _trace_event_counts(event_trace)
+    else:
+        event_trace_count = int(run.get("event_trace_count", 0))
+        event_trace_type_counts = dict(run.get("event_trace_type_counts", {}))
+    markout_events = summary.get("markout_events")
+    if isinstance(markout_events, list):
+        markout_event_count = len(markout_events)
+    else:
+        retention = summary.get("audit_retention", {})
+        markout_event_count = int(retention.get("markout_rows_emitted", 0)) if isinstance(retention, dict) else 0
     return {
         "run_index": index,
         "summary_sha256": run["summary_sha256"],
         "event_trace_sha256": run["event_trace_sha256"],
         "fill_count": summary.get("fill_count", 0),
         "quote_count": summary.get("quote_count", 0),
-        "event_trace_count": len(event_trace),
-        "markout_event_count": len(markout_events) if isinstance(markout_events, list) else 0,
+        "event_trace_count": event_trace_count,
+        "markout_event_count": markout_event_count,
         "fill_source_counts": summary.get("fill_source_counts", {}),
         "order_lifecycle_counts": summary.get("order_lifecycle_counts", {}),
-        "event_trace_type_counts": _trace_event_counts(event_trace),
+        "event_trace_type_counts": event_trace_type_counts,
     }
 
 

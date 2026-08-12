@@ -100,7 +100,7 @@ Use the determinism checker when you want one command that proves a replay fixtu
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
 ```
 
-The checker runs the same input and config multiple times in memory, computes canonical SHA-256 hashes for the metrics summary and event trace, and exits non-zero if any repeated run differs. Its JSON report includes the input digest, config digest, feed-adapter metadata, normalized instrument specs, runtime/source metadata, per-run hashes, event-trace counts, fill counts, and mismatch details.
+The checker runs the same input and config multiple times, computes canonical SHA-256 hashes for the metrics summary and event trace, and exits non-zero if any repeated run differs. The event-trace hash is streamed incrementally while retaining only counters and a digest; it preserves the historical canonical JSON-list hash without keeping every row in memory. Its JSON report includes the input digest, config digest, feed-adapter metadata, normalized instrument specs, runtime/source metadata, per-run hashes, event-trace counts, fill counts, and mismatch details.
 
 For an interrupted long replay, use the engine checkpoint API:
 

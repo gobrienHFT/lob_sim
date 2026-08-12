@@ -61,7 +61,7 @@ Validation in this repo is about invariants, deterministic behavior, and assumpt
 - The same input file and config should produce the same replay and simulation outputs.
 - Tests cover deterministic behavior on a fixed synthetic event stream.
 - Seeded generated event-stream tests cover non-negative lot/count invariants, lifecycle sanity, deterministic summary/trace hashes, gap-skip behavior, self-trade prevention, and non-crossed strategy state after cancellation.
-- `scripts/check_futures_determinism.py` reruns a replay fixture multiple times in memory and compares canonical SHA-256 hashes of the metrics summary and event trace:
+- `scripts/check_futures_determinism.py` reruns a replay fixture multiple times and compares canonical SHA-256 hashes of the metrics summary and event trace. The event-trace hash is produced incrementally by a bounded sink, so the checker does not retain a tape-sized trace in memory; use a streaming audit export when row-level inspection is required:
 
 ```bash
 python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 from collections import Counter
@@ -62,6 +63,56 @@ class AggregateMetricsSink:
 
     def close(self) -> None:
         return None
+
+
+class CanonicalJsonListHashSink:
+    """Hash a canonical JSON list incrementally without retaining its rows.
+
+    ``canonical_sha256(events)`` historically serialized the complete event
+    list in one call.  This sink preserves that exact byte representation for
+    lists of mapping rows while keeping only a digest, counters, and no
+    tape-sized trace in memory.  It is intended for determinism checks, not
+    as an audit export: use a streaming file sink when individual rows must
+    be inspected later.
+    """
+
+    memory_bounded = True
+
+    def __init__(self) -> None:
+        self._digest = hashlib.sha256(b"[")
+        self._closed = False
+        self.count = 0
+        self.by_event_type: Counter[str] = Counter()
+        self.by_symbol: Counter[str] = Counter()
+
+    def write(self, event: Mapping[str, Any]) -> None:
+        if self._closed:
+            raise RuntimeError("cannot write to a closed hash sink")
+        if self.count:
+            self._digest.update(b",")
+        encoded = json.dumps(dict(event), sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+        self._digest.update(encoded)
+        self.count += 1
+        self.by_event_type[str(event.get("event_type", event.get("event", "unknown")))] += 1
+        self.by_symbol[str(event.get("symbol", "*"))] += 1
+
+    def hexdigest(self) -> str:
+        """Return the SHA-256 of the canonical JSON list represented so far."""
+
+        digest = self._digest.copy()
+        digest.update(b"]")
+        return digest.hexdigest()
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "count": self.count,
+            "sha256": self.hexdigest(),
+            "by_event_type": dict(sorted(self.by_event_type.items())),
+            "by_symbol": dict(sorted(self.by_symbol.items())),
+        }
+
+    def close(self) -> None:
+        self._closed = True
 
 
 class StreamingJsonlSink:

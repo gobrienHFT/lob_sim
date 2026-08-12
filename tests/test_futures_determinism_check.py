@@ -8,6 +8,7 @@ import pytest
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
 from lob_sim.replay.inspection import file_sha256
 from scripts import check_futures_determinism as determinism
+from lob_sim.sim.sinks import CanonicalJsonListHashSink
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,22 @@ def test_canonical_sha256_is_key_order_stable() -> None:
 
     assert determinism.canonical_sha256(left) == determinism.canonical_sha256(right)
     assert determinism.canonical_sha256(left) != determinism.canonical_sha256({"a": {"x": 2}, "b": [2, 1]})
+
+
+def test_hash_sink_matches_legacy_list_hash_without_retaining_rows() -> None:
+    events = [
+        {"event_type": "market_record", "symbol": "BTCUSDT", "details": {"b": 2, "a": 1}},
+        {"event_type": "fill", "symbol": "BTCUSDT", "qty_lots": 3},
+    ]
+    sink = CanonicalJsonListHashSink()
+    for event in events:
+        sink.write(event)
+
+    assert sink.hexdigest() == determinism.canonical_sha256(events)
+    assert sink.count == len(events)
+    assert sink.by_event_type == {"fill": 1, "market_record": 1}
+    assert sink.by_symbol == {"BTCUSDT": 2}
+    assert sink.memory_bounded is True
 
 
 def test_check_determinism_hashes_repeated_simulation_runs(

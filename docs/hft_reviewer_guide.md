@@ -178,7 +178,7 @@ Inferred:
 - Risk-control traces that show when configured kill switches halt trading instead of silently suppressing later decisions.
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible artifacts with input/config/feed-adapter/source manifests.
-- A CI-covered determinism checker that proves repeated in-memory fixture runs produce identical summary and event-trace hashes.
+- A CI-covered determinism checker that proves repeated fixture runs produce identical summary and event-trace hashes with bounded incremental trace hashing.
 - A JSON-only simulation checkpoint contract that revalidates input/config identity and proves an interrupted continuation matches an uninterrupted replay; streaming sinks are not implicitly appended on resume.
 - A futures pack auditor that checks replay input, summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
 - A synthetic-but-exchange-shaped stress pack that intentionally covers queue ahead, partial fills, overlap netting, adverse/non-adverse markouts, cancel latency, same-timestamp cancel/trade ordering, marketable taker fills, self-trade prevention, and no-gap continuity.
