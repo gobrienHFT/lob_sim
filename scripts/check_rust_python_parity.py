@@ -13,7 +13,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Sequence
 
-from lob_sim.oracle_kernel import DeterministicSchedulerOracle, OracleDecision, RiskReservationOracle
+from lob_sim.oracle_kernel import (
+    DeterministicSchedulerOracle,
+    OracleDecision,
+    PortfolioNotionalReservationOracle,
+    RiskReservationOracle,
+)
 from lob_sim.record.envelope import LogicalTime
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 
@@ -24,6 +29,7 @@ SYNTHETIC_CHECKPOINT_INTERVAL = 257
 SyntheticOperation = tuple[int, int, int, bool, int | None, int, bool, bool]
 SchedulerOperation = tuple[int, int, int, int, bool]
 RiskOperation = tuple[int, int, bool, int]
+PortfolioOperation = tuple[int, int, int, bool, int]
 
 
 def _python_apply_batch(
@@ -370,6 +376,114 @@ def _python_risk_trace(
     return rows
 
 
+def _generated_portfolio_operations(rng: random.Random, cases: int) -> list[PortfolioOperation]:
+    operations: list[PortfolioOperation] = []
+    attempted_order_ids: list[int] = []
+    next_order_id = 1
+    structured_target = cases // 2
+    while len(operations) + 8 <= structured_target:
+        symbol_id = rng.randrange(4)
+        bid_id = next_order_id
+        ask_id = next_order_id + 1
+        next_order_id += 2
+        attempted_order_ids.extend((bid_id, ask_id))
+        operations.extend(
+            [
+                (5, 0, symbol_id, False, rng.choice((-8, 0, 8))),
+                (0, bid_id, symbol_id, True, 10),
+                (1, bid_id, symbol_id, False, 0),
+                (3, bid_id, symbol_id, False, 4),
+                (2, bid_id, symbol_id, False, 0),
+                (0, ask_id, (symbol_id + 1) % 4, False, 8),
+                (3, ask_id, (symbol_id + 1) % 4, False, 8),
+                (4, 0, 0, False, 0),
+            ]
+        )
+    while len(operations) < cases:
+        draw = rng.randrange(100)
+        if draw < 45:
+            if attempted_order_ids and rng.randrange(100) < 14:
+                order_id = rng.choice(attempted_order_ids)
+            else:
+                order_id = next_order_id
+                next_order_id += 1
+                attempted_order_ids.append(order_id)
+            quantity_draw = rng.randrange(100)
+            notional_units = 0 if quantity_draw < 5 else (-1 if quantity_draw < 7 else rng.randrange(1, 31))
+            operations.append((0, order_id, rng.randrange(4), bool(rng.randrange(2)), notional_units))
+        elif draw < 60:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 82
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            operations.append((1, order_id, rng.randrange(4), False, 0))
+        elif draw < 73:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 82
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            operations.append((2, order_id, rng.randrange(4), False, 0))
+        elif draw < 94:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 86
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            quantity_draw = rng.randrange(100)
+            notional_units = 0 if quantity_draw < 5 else (-1 if quantity_draw < 7 else rng.randrange(1, 31))
+            operations.append((3, order_id, rng.randrange(4), False, notional_units))
+        elif draw < 97:
+            operations.append((4, 0, 0, False, 0))
+        else:
+            operations.append((5, 0, rng.randrange(4), False, rng.randrange(-41, 42)))
+    return operations
+
+
+def _python_portfolio_trace(
+    operations: list[PortfolioOperation],
+    *,
+    max_notional_units: int,
+    checkpoint_interval: int,
+) -> list[tuple[bool, str | None, int, int, int, str | None]]:
+    ledger = PortfolioNotionalReservationOracle(max_notional_units)
+    rows: list[tuple[bool, str | None, int, int, int, str | None]] = []
+    for index, (kind, order_id, symbol_id, is_bid, notional_units) in enumerate(operations):
+        if kind == 0:
+            decision = ledger.reserve(
+                order_id,
+                symbol_id=symbol_id,
+                is_bid=is_bid,
+                notional_units=notional_units,
+            )
+        elif kind == 1:
+            decision = ledger.request_cancel(order_id)
+        elif kind == 2:
+            decision = ledger.cancel_ack(order_id)
+        elif kind == 3:
+            decision = ledger.fill(order_id, notional_units)
+        elif kind == 4:
+            decision = ledger.invalidate_epoch()
+        elif kind == 5:
+            decision = ledger.set_inventory(symbol_id, notional_units)
+        else:
+            raise ValueError(f"unsupported portfolio operation kind: {kind}")
+        ordinal = index + 1
+        checkpoint = ledger.state_sha256() if ordinal % checkpoint_interval == 0 or ordinal == len(operations) else None
+        rows.append(
+            (
+                decision.accepted,
+                decision.reason,
+                ledger.gross_inventory_units,
+                ledger.reserved_order_units,
+                ledger.total_reserved_units,
+                checkpoint,
+            )
+        )
+    return rows
+
+
 def _build_extension(cargo: str, directory: Path) -> Path:
     environment = dict(os.environ)
     cargo_path = Path(cargo)
@@ -488,11 +602,14 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         raise AssertionError(
             f"scheduler trace length differs: python={len(python_scheduler_trace)}, rust={len(rust_scheduler_trace)}"
         )
-    for index, (python_row, rust_row) in enumerate(zip(python_scheduler_trace, rust_scheduler_trace, strict=True)):
-        if python_row != rust_row:
+    for scheduler_index, (scheduler_python_row, scheduler_rust_row) in enumerate(
+        zip(python_scheduler_trace, rust_scheduler_trace, strict=True)
+    ):
+        if scheduler_python_row != scheduler_rust_row:
             raise AssertionError(
                 "scheduler divergence at operation "
-                f"{index}: operation={scheduler_operations[index]!r}, python={python_row!r}, rust={rust_row!r}"
+                f"{scheduler_index}: operation={scheduler_operations[scheduler_index]!r}, "
+                f"python={scheduler_python_row!r}, rust={scheduler_rust_row!r}"
             )
     scheduler_accepted = sum(1 for row in python_scheduler_trace if row[0])
     scheduler_drained = sum(len(row[2]) for row in python_scheduler_trace)
@@ -533,11 +650,12 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     )
     if len(rust_risk_trace) != len(python_risk_trace):
         raise AssertionError(f"risk trace length differs: python={len(python_risk_trace)}, rust={len(rust_risk_trace)}")
-    for index, (python_row, rust_row) in enumerate(zip(python_risk_trace, rust_risk_trace, strict=True)):
-        if python_row != rust_row:
+    for risk_index, (risk_python_row, risk_rust_row) in enumerate(zip(python_risk_trace, rust_risk_trace, strict=True)):
+        if risk_python_row != risk_rust_row:
             raise AssertionError(
                 "risk reservation divergence at operation "
-                f"{index}: operation={risk_operations[index]!r}, python={python_row!r}, rust={rust_row!r}"
+                f"{risk_index}: operation={risk_operations[risk_index]!r}, "
+                f"python={risk_python_row!r}, rust={risk_rust_row!r}"
             )
     risk_accepted = sum(1 for row in python_risk_trace if row[0])
     risk_checkpoint_count = sum(1 for row in python_risk_trace if row[5] is not None)
@@ -563,6 +681,68 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
             ("cancel_ack", 2),
             ("fill", 3),
             ("epoch_invalidate", 4),
+        )
+    }
+
+    portfolio_max_notional_units = 100
+    portfolio_operations = _generated_portfolio_operations(random.Random(31), cases)
+    portfolio_corpus_sha256 = hashlib.sha256(
+        json.dumps(portfolio_operations, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    python_portfolio_trace = _python_portfolio_trace(
+        portfolio_operations,
+        max_notional_units=portfolio_max_notional_units,
+        checkpoint_interval=SYNTHETIC_CHECKPOINT_INTERVAL,
+    )
+    rust_portfolio_trace = list(
+        lob_core.run_portfolio_notional_trace(
+            portfolio_operations,
+            portfolio_max_notional_units,
+            SYNTHETIC_CHECKPOINT_INTERVAL,
+        )
+    )
+    if len(rust_portfolio_trace) != len(python_portfolio_trace):
+        raise AssertionError(
+            "portfolio-notional trace length differs: "
+            f"python={len(python_portfolio_trace)}, rust={len(rust_portfolio_trace)}"
+        )
+    for portfolio_index, (portfolio_python_row, portfolio_rust_row) in enumerate(
+        zip(python_portfolio_trace, rust_portfolio_trace, strict=True)
+    ):
+        if portfolio_python_row != portfolio_rust_row:
+            raise AssertionError(
+                "portfolio-notional reservation divergence at operation "
+                f"{portfolio_index}: operation={portfolio_operations[portfolio_index]!r}, "
+                f"python={portfolio_python_row!r}, rust={portfolio_rust_row!r}"
+            )
+    portfolio_accepted = sum(1 for row in python_portfolio_trace if row[0])
+    portfolio_checkpoint_count = sum(1 for row in python_portfolio_trace if row[5] is not None)
+    portfolio_final_hash = python_portfolio_trace[-1][5]
+    assert portfolio_final_hash is not None
+    portfolio_trace_sha256 = hashlib.sha256(
+        json.dumps(python_portfolio_trace, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    portfolio_operation_kind_counts = {
+        "reserve": sum(1 for operation in portfolio_operations if operation[0] == 0),
+        "request_cancel": sum(1 for operation in portfolio_operations if operation[0] == 1),
+        "cancel_ack": sum(1 for operation in portfolio_operations if operation[0] == 2),
+        "fill": sum(1 for operation in portfolio_operations if operation[0] == 3),
+        "epoch_invalidate": sum(1 for operation in portfolio_operations if operation[0] == 4),
+        "set_inventory": sum(1 for operation in portfolio_operations if operation[0] == 5),
+    }
+    portfolio_accepted_operation_kind_counts = {
+        name: sum(
+            1
+            for operation, row in zip(portfolio_operations, python_portfolio_trace, strict=True)
+            if operation[0] == kind and row[0]
+        )
+        for name, kind in (
+            ("reserve", 0),
+            ("request_cancel", 1),
+            ("cancel_ack", 2),
+            ("fill", 3),
+            ("epoch_invalidate", 4),
+            ("set_inventory", 5),
         )
     }
 
@@ -609,14 +789,28 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "risk_final_reserved_buy_lots": python_risk_trace[-1][3],
         "risk_final_reserved_sell_lots": python_risk_trace[-1][4],
         "risk_final_state_sha256": risk_final_hash,
+        "portfolio_notional_operations": len(portfolio_operations),
+        "portfolio_notional_operation_kind_counts": portfolio_operation_kind_counts,
+        "portfolio_notional_accepted_operation_kind_counts": portfolio_accepted_operation_kind_counts,
+        "portfolio_notional_operation_corpus_sha256": portfolio_corpus_sha256,
+        "portfolio_notional_trace_sha256": portfolio_trace_sha256,
+        "portfolio_notional_accepted_operations": portfolio_accepted,
+        "portfolio_notional_rejected_operations": len(portfolio_operations) - portfolio_accepted,
+        "portfolio_notional_checkpoint_count": portfolio_checkpoint_count,
+        "portfolio_notional_max_units": portfolio_max_notional_units,
+        "portfolio_notional_final_gross_inventory_units": python_portfolio_trace[-1][2],
+        "portfolio_notional_final_reserved_order_units": python_portfolio_trace[-1][3],
+        "portfolio_notional_final_total_reserved_units": python_portfolio_trace[-1][4],
+        "portfolio_notional_final_state_sha256": portfolio_final_hash,
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
             "MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol "
-            "live-plus-pending lot reservations, with transition traces and periodic full-state hashes"
+            "live-plus-pending lot reservations, cross-symbol gross-notional reservations, with transition "
+            "traces and periodic full-state hashes"
         ),
         "remaining_full_engine_scope": [
             "public-L2 execution scenarios",
-            "engine-integrated latency and portfolio risk",
+            "engine-integrated latency and portfolio-notional risk",
             "accounting and markouts",
             "run manifests",
         ],

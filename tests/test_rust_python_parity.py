@@ -5,10 +5,12 @@ import random
 
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 from scripts.check_rust_python_parity import (
+    _generated_portfolio_operations,
     _generated_risk_operations,
     _generated_scheduler_operations,
     _generated_synthetic_operations,
     _python_risk_trace,
+    _python_portfolio_trace,
     _python_scheduler_trace,
     _python_synthetic_trace,
     _synthetic_state_sha256,
@@ -75,6 +77,35 @@ def test_generated_scheduler_and_risk_operations_are_seeded_and_mixed() -> None:
     assert first_risk == second_risk
     assert {operation[0] for operation in first_scheduler} == {0, 1, 2}
     assert {operation[0] for operation in first_risk} == {0, 1, 2, 3, 4}
+
+
+def test_generated_portfolio_operations_are_seeded_and_mixed() -> None:
+    first = _generated_portfolio_operations(random.Random(31), 500)
+    second = _generated_portfolio_operations(random.Random(31), 500)
+
+    assert first == second
+    assert len(first) == 500
+    assert {operation[0] for operation in first} == {0, 1, 2, 3, 4, 5}
+
+
+def test_python_portfolio_trace_is_gross_and_checkpointed() -> None:
+    operations = [
+        (5, 0, 1, False, 30),
+        (0, 1, 2, True, 40),
+        (1, 1, 2, False, 0),
+        (3, 1, 2, False, 20),
+        (2, 1, 2, False, 0),
+        (0, 2, 3, False, 50),
+        (4, 0, 0, False, 0),
+    ]
+
+    trace = _python_portfolio_trace(operations, max_notional_units=100, checkpoint_interval=3)
+
+    assert trace[1][2:5] == (30, 40, 70)
+    assert trace[3][2:5] == (50, 20, 70)
+    assert trace[5][0] is True
+    assert trace[6][2:5] == (50, 0, 50)
+    assert [index for index, row in enumerate(trace, start=1) if row[5] is not None] == [3, 6, 7]
 
 
 def test_python_scheduler_trace_proves_exact_time_boundary_and_checkpoints() -> None:

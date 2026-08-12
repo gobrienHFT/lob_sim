@@ -237,3 +237,170 @@ class RiskReservationOracle:
 
     def state_sha256(self) -> str:
         return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+
+@dataclass
+class _PortfolioReservedOrder:
+    order_id: int
+    symbol_id: int
+    is_bid: bool
+    remaining_notional_units: int
+    state: ReservationState = "live"
+
+
+class PortfolioNotionalReservationOracle:
+    """Conservative fixed-point gross-notional reservation ledger.
+
+    The engine marks inventory externally and supplies that marked value here
+    as integer ``notional_units``.  The ledger then reserves both sides of all
+    live and pending orders, without netting offsetting symbols or directions.
+    This deliberately small state machine is the Python specification for the
+    equivalent Rust kernel primitive; it is not a replacement for the engine's
+    Decimal pricing and mark calculation.
+    """
+
+    def __init__(self, max_notional_units: int) -> None:
+        if max_notional_units <= 0:
+            raise ValueError("max_notional_units must be positive")
+        self.max_notional_units = max_notional_units
+        self._inventory_by_symbol: dict[int, int] = {}
+        self._orders: dict[int, _PortfolioReservedOrder] = {}
+        self._seen_order_ids: set[int] = set()
+
+    @property
+    def inventory_by_symbol(self) -> dict[int, int]:
+        return dict(self._inventory_by_symbol)
+
+    @property
+    def gross_inventory_units(self) -> int:
+        return sum(abs(value) for value in self._inventory_by_symbol.values())
+
+    @property
+    def reserved_order_units(self) -> int:
+        return sum(
+            order.remaining_notional_units
+            for order in self._orders.values()
+            if order.state in {"live", "pending_cancel"}
+        )
+
+    @property
+    def total_reserved_units(self) -> int:
+        return self.gross_inventory_units + self.reserved_order_units
+
+    def _assert_invariants(self) -> None:
+        if self.total_reserved_units > self.max_notional_units:
+            raise AssertionError("portfolio reservation ledger exceeded its notional limit")
+        if any(order.remaining_notional_units < 0 for order in self._orders.values()):
+            raise AssertionError("portfolio reservation ledger contains a negative remaining notional")
+
+    def set_inventory(self, symbol_id: int, marked_notional_units: int) -> OracleDecision:
+        candidate = dict(self._inventory_by_symbol)
+        if marked_notional_units == 0:
+            candidate.pop(symbol_id, None)
+        else:
+            candidate[symbol_id] = marked_notional_units
+        candidate_gross = sum(abs(value) for value in candidate.values())
+        if candidate_gross + self.reserved_order_units > self.max_notional_units:
+            return OracleDecision(False, "portfolio_notional_limit")
+        self._inventory_by_symbol = candidate
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def reserve(
+        self,
+        order_id: int,
+        *,
+        symbol_id: int,
+        is_bid: bool,
+        notional_units: int,
+    ) -> OracleDecision:
+        if order_id < 0:
+            return OracleDecision(False, "invalid_order_id")
+        if order_id in self._seen_order_ids:
+            return OracleDecision(False, "duplicate_order_id")
+        self._seen_order_ids.add(order_id)
+        if notional_units <= 0:
+            return OracleDecision(False, "invalid_notional")
+        if self.total_reserved_units + notional_units > self.max_notional_units:
+            return OracleDecision(False, "portfolio_notional_limit")
+        self._orders[order_id] = _PortfolioReservedOrder(
+            order_id,
+            symbol_id,
+            is_bid,
+            notional_units,
+        )
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def request_cancel(self, order_id: int) -> OracleDecision:
+        order = self._orders.get(order_id)
+        if order is None:
+            return OracleDecision(False, "unknown_order")
+        if order.state != "live":
+            return OracleDecision(False, "order_not_live")
+        order.state = "pending_cancel"
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def cancel_ack(self, order_id: int) -> OracleDecision:
+        order = self._orders.get(order_id)
+        if order is None:
+            return OracleDecision(False, "unknown_order")
+        if order.state != "pending_cancel":
+            return OracleDecision(False, "cancel_not_pending")
+        order.state = "cancelled"
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def fill(self, order_id: int, qty_notional_units: int) -> OracleDecision:
+        order = self._orders.get(order_id)
+        if order is None:
+            return OracleDecision(False, "unknown_order")
+        if order.state not in {"live", "pending_cancel"}:
+            return OracleDecision(False, "order_not_fillable")
+        if qty_notional_units <= 0:
+            return OracleDecision(False, "invalid_fill_quantity")
+        if qty_notional_units > order.remaining_notional_units:
+            return OracleDecision(False, "fill_exceeds_remaining")
+        previous_inventory = self._inventory_by_symbol.get(order.symbol_id, 0)
+        next_inventory = previous_inventory + (qty_notional_units if order.is_bid else -qty_notional_units)
+        candidate = dict(self._inventory_by_symbol)
+        if next_inventory == 0:
+            candidate.pop(order.symbol_id, None)
+        else:
+            candidate[order.symbol_id] = next_inventory
+        candidate_gross = sum(abs(value) for value in candidate.values())
+        remaining_orders = (
+            self.reserved_order_units
+            - order.remaining_notional_units
+            + (order.remaining_notional_units - qty_notional_units)
+        )
+        if candidate_gross + remaining_orders > self.max_notional_units:
+            return OracleDecision(False, "portfolio_notional_limit")
+        order.remaining_notional_units -= qty_notional_units
+        if order.remaining_notional_units == 0:
+            order.state = "filled"
+        self._inventory_by_symbol = candidate
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def invalidate_epoch(self) -> OracleDecision:
+        for order in self._orders.values():
+            if order.state in {"live", "pending_cancel"}:
+                order.state = "epoch_invalidated"
+        self._assert_invariants()
+        return OracleDecision(True)
+
+    def canonical_bytes(self) -> bytes:
+        pieces = [f"max:{self.max_notional_units};"]
+        for symbol_id in sorted(self._inventory_by_symbol):
+            pieces.append(f"inventory:{symbol_id}:{self._inventory_by_symbol[symbol_id]};")
+        pieces.append("seen:" + ",".join(str(order_id) for order_id in sorted(self._seen_order_ids)) + ";")
+        for order_id in sorted(self._orders):
+            order = self._orders[order_id]
+            side = "bid" if order.is_bid else "ask"
+            pieces.append(f"order:{order_id}:{order.symbol_id}:{side}:{order.remaining_notional_units}:{order.state};")
+        return "".join(pieces).encode("utf-8")
+
+    def state_sha256(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()
