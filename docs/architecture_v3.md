@@ -112,10 +112,11 @@ single Python bytes object merely to produce provenance.
 
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
-results, an integer-nanosecond action scheduler, and per-symbol worst-case
-live-plus-pending lot reservations. Transition results and periodic full-state
-hashes agree across the independent Python and Rust implementations. These
-primitives are not yet the engine's end-to-end scheduler or portfolio-notional
-risk path. The public-L2 scenario venue, engine integration, accounting,
+results, an integer-nanosecond action scheduler, per-symbol worst-case
+live-plus-pending lot reservations, and cross-symbol gross-notional
+reservations over externally marked inventory. Transition results and periodic
+full-state hashes agree across the independent Python and Rust implementations.
+These primitives are not yet the engine's end-to-end scheduler or
+engine-integrated portfolio-notional risk path. The public-L2 scenario venue, engine integration, accounting,
 markouts and run manifests remain outside the parity claim, so artifacts keep
 `full_engine_parity=false`.

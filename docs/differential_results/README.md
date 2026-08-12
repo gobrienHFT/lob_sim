@@ -14,6 +14,9 @@ Python oracle and the Rust kernel over:
 - 10,000 generated per-symbol reservation operations covering live and pending
   exposure, cancel acknowledgements, partial fills, invalid transitions, and
   epoch invalidation;
+- 10,000 generated cross-symbol gross-notional operations covering externally
+  marked inventory, live and pending order reservations, partial fills, cancel
+  acknowledgements, invalid transitions, and epoch invalidation;
 - every lifecycle result, fill, drain, reservation decision, position, and
   outstanding reservation total from those operations; and
 - 39 independently computed full-state hash checkpoints per stateful trace.
@@ -31,7 +34,8 @@ The reviewer gate passes the same file through `--expected`, so behavioral or
 corpus drift fails until the evidence is reviewed and intentionally refreshed.
 
 This report keeps `full_engine_parity=false`. It does not compare the public-L2
-scenario venue, the engine-integrated latency path, portfolio-notional risk,
-accounting/markouts, or run manifests, and it does not claim historical Binance
-FIFO. Scheduler and reservation results are kernel-primitive proofs, not a
-claim that the whole Python engine already executes through Rust.
+scenario venue, the engine-integrated latency path, engine-integrated
+portfolio-notional risk, accounting/markouts, or run manifests, and it does not
+claim historical Binance FIFO. Scheduler and reservation results are
+kernel-primitive proofs, not a claim that the whole Python engine already
+executes through Rust.
