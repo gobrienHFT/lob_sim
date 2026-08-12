@@ -117,6 +117,7 @@ class SimulationEngine:
         self._capture_invalid_reason: str | None = None
         self._capture_schema_version = 1
         self._receive_clock = False
+        self._capture_trailer_seen = False
         self._last_receive_seq: int | None = None
         self._stream_epochs: dict[tuple[str, str], int] = {}
         self._capture_sync_epochs: dict[str, int] = {}
@@ -1497,6 +1498,7 @@ class SimulationEngine:
             "trace_counter": self._trace_counter,
             "capture_schema_version": self._capture_schema_version,
             "receive_clock": self._receive_clock,
+            "capture_trailer_seen": self._capture_trailer_seen,
             "last_receive_seq": self._last_receive_seq,
             "clock_regressions": self._clock_regressions,
             "clock_invalidated": self._clock_invalidated,
@@ -1543,6 +1545,7 @@ class SimulationEngine:
         self._trace_counter = int(state["trace_counter"])
         self._capture_schema_version = int(state["capture_schema_version"])
         self._receive_clock = bool(state["receive_clock"])
+        self._capture_trailer_seen = bool(state.get("capture_trailer_seen", False))
         raw_receive_seq = state.get("last_receive_seq")
         self._last_receive_seq = None if raw_receive_seq is None else int(raw_receive_seq)
         self._clock_regressions = int(state["clock_regressions"])
@@ -1774,6 +1777,8 @@ class SimulationEngine:
             self._drain_events(now, inclusive=not market_data_first)
             self._observe_capture_epoch(rec, now, receipt_checked=receipt_checked)
             self._trace_market_record(rec, now, observed_ts)
+            if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
+                self._capture_trailer_seen = True
             if rec.type in {"captureMeta", "captureEvent"}:
                 continue
             if rec.type == "exchangeInfo":
@@ -2019,11 +2024,19 @@ class SimulationEngine:
         clock_claim_ready = (
             self._capture_schema_version >= 3
             and self._receive_clock
+            and self._capture_trailer_seen
             and self._clock_regressions == 0
             and self._receive_clock_regressions == 0
             and not self._clock_invalidated
             and self._last_receive_seq is not None
             and self._capture_valid
+        )
+        execution_claim_ready = (
+            clock_claim_ready
+            and bool(stream_state)
+            and all(state["execution_inputs_valid"] for state in stream_state.values())
+            and self._gap_count == 0
+            and self.metrics.trade_stream_invalidation_count == 0
         )
         return {
             "execution_model": {
@@ -2072,6 +2085,8 @@ class SimulationEngine:
                 "capture_valid": self._capture_valid,
                 "capture_invalidations": self._capture_invalidations,
                 "capture_invalid_reason": self._capture_invalid_reason,
+                "capture_trailer_seen": self._capture_trailer_seen,
+                "claim_ready": execution_claim_ready,
                 "book_invalidations": self._gap_count,
                 "snapshot_attempts_rejected": self._snapshot_rejections,
                 "sync_epoch_transitions": self._sync_epoch_transitions,
@@ -2098,6 +2113,8 @@ class SimulationEngine:
                     if not self._capture_valid
                     else "receipt monotonic clock regression invalidated execution"
                     if self._receive_clock_regressions
+                    else "schema-v3 capture trailer missing; finalized capture required"
+                    if self._capture_schema_version >= 3 and not self._capture_trailer_seen
                     else "legacy/exchange clock or invalid intervals make subsecond horizons non-claimable"
                 ),
                 "pnl": "model_output_not_a_live_or_counterfactual_trading_result",
@@ -2182,6 +2199,7 @@ class SimulationEngine:
                 "invalidations": self._capture_invalidations,
                 "invalid_reason": self._capture_invalid_reason,
                 "receive_sequence_gaps": self._receive_sequence_gaps,
+                "capture_trailer_seen": self._capture_trailer_seen,
             },
             "continuation_state": encode_checkpoint(
                 {

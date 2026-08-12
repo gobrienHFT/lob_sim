@@ -561,6 +561,31 @@ def test_capture_failure_is_validated_before_due_actions_are_drained(
     assert not any(row["event_type"] == "order_arrival" for row in engine.event_trace)
 
 
+def test_schema_v3_simulation_requires_capture_trailer_for_claim_ready(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, MM_ENABLED="0"))
+    engine._capture_schema_version = 3
+    engine._receive_clock = True
+    engine._capture_valid = True
+    engine._last_receive_seq = 7
+    _prime_synced_symbol(engine, "BTCUSDT")
+    engine._depth_stream_valid["BTCUSDT"] = True
+    engine._trade_stream_valid["BTCUSDT"] = True
+
+    without_trailer = engine._summary_annotations()
+    assert without_trailer["integrity"]["capture_trailer_seen"] is False
+    assert without_trailer["integrity"]["claim_ready"] is False
+    assert without_trailer["evidence_quality"]["markouts"] == "diagnostic_only"
+    assert "capture trailer missing" in without_trailer["evidence_quality"]["markout_reason"]
+
+    engine._capture_trailer_seen = True
+    with_trailer = engine._summary_annotations()
+    assert with_trailer["integrity"]["capture_trailer_seen"] is True
+    assert with_trailer["integrity"]["claim_ready"] is True
+    assert with_trailer["evidence_quality"]["markouts"] == "claim_ready"
+
+
 def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
