@@ -222,6 +222,9 @@ def test_clock_regressions_are_streamed_in_logical_order_with_raw_time_evidence(
     market_rows = [row for row in rows if row["event_type"] == "market_record"]
 
     assert summary["integrity"]["clock_regressions_clamped"] == 1
+    assert summary["integrity"]["clock_invalidated"] is False
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["clock_valid"] is False
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["execution_inputs_valid"] is False
     assert [float(row["ts_local"]) for row in rows] == sorted(float(row["ts_local"]) for row in rows)
     snapshot_details = json.loads(next(row["details"] for row in market_rows if row["source"] == "snapshot"))
     assert snapshot_details["clock_clamped"] is True

@@ -99,6 +99,12 @@ timestamp as explicit trace evidence. The fixture-scale compatibility exporter
 requires `--in-memory-export`, declares linear retention, and remains available
 for small committed packs. Benchmark export mode exercises the bounded path.
 
+A schema-v3 clock regression is an integrity boundary, not a recoverable
+execution condition: the first regression invalidates all pending markout
+horizons, clears live and scheduled execution state, and halts further
+strategy actions. Legacy tapes retain their compatibility replay trace, but
+their clock-dependent fills and markouts remain diagnostic-only.
+
 The real-data evidence path preserves that property end to end. It accepts a
 schema-v3 capture manifest (or a legacy NDJSON tape), runs the bounded exporter,
 copies all three audits through fsynced partial files, and publishes a derived
