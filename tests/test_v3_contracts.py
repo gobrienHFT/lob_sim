@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from lob_sim.cli import _EnvelopeRecordWriter, _capture_trailer_record, _write_capture_failure_report
+from lob_sim.book.types import SymbolSpec
+from lob_sim.cli import _EnvelopeRecordWriter, _capture_trailer_record, _write_capture_failure_report, _write_snapshot
+from lob_sim.config import load_config
 from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkpoint
 from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
 from lob_sim.record.format import NDJSONRecord
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
-from lob_sim.replay.reader import iter_records
 from lob_sim.replay.arrow_store import arrow_metadata, iter_arrow_rows, normalize_to_arrow
+from lob_sim.replay.reader import RecordedEvent, iter_records
+from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.latency import LatencyModel
 
 
@@ -188,6 +192,77 @@ def test_capture_trailer_has_one_shared_receive_identity() -> None:
     assert record.data["recvSeq"] == 81
     assert record.data["_capture"]["recvSeq"] == 81
     assert record.data["writerQueueCapacity"] == 4096
+
+
+def test_rejected_snapshot_preserves_raw_levels_without_rounding() -> None:
+    written: list[NDJSONRecord] = []
+
+    class _Writer:
+        def write(self, record: NDJSONRecord) -> None:
+            written.append(record)
+
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size="0.1", step_size="0.001")
+    raw = {
+        "lastUpdateId": 100,
+        "bids": [["100.05", "0.001"]],
+        "asks": [["100.15", "0.002"]],
+    }
+
+    asyncio.run(
+        _write_snapshot(
+            "BTCUSDT",
+            spec,
+            raw,
+            _Writer(),
+            sync_epoch=2,
+            stream_epoch=3,
+            reason="snapshot_retry",
+            accepted=False,
+            validation_error="snapshot_does_not_bridge_buffer",
+            next_receive_seq=iter([17]).__next__,
+        )
+    )
+
+    assert len(written) == 1
+    assert written[0].data["bids"] == [("100.05", "0.001")]
+    assert written[0].data["asks"] == [("100.15", "0.002")]
+    assert written[0].data["_capture"]["snapshotAccepted"] is False
+    assert written[0].data["_capture"]["validationError"] == "snapshot_does_not_bridge_buffer"
+
+
+def test_snapshot_rejection_capture_event_invalidates_execution_without_disabling_stream() -> None:
+    engine = SimulationEngine(load_config(".env.example"))
+    engine._capture_schema_version = 3
+    engine._depth_stream_valid["BTCUSDT"] = True
+
+    engine._observe_capture_epoch(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={
+                "event": "snapshot_rejected",
+                "route": "public",
+                "reason": "bootstrap",
+                "validationError": "ValueError",
+                "_capture": {
+                    "recvSeq": 1,
+                    "recvMonotonicNs": 10,
+                    "streamEpoch": 1,
+                    "syncEpoch": 1,
+                    "route": "public",
+                    "snapshotAccepted": False,
+                    "validationError": "ValueError",
+                },
+            },
+        ),
+        1.0,
+    )
+
+    assert engine._snapshot_rejections == 1
+    assert engine._depth_stream_valid["BTCUSDT"] is True
+    assert engine.metrics.book_invalidation_count == 1
+    assert engine.metrics.book_invalidation_reasons == {"snapshot_rejected: ValueError": 1}
 
 
 def test_capture_failure_report_is_atomic_sanitized_and_hashed(tmp_path: Path) -> None:
