@@ -484,6 +484,49 @@ def test_economic_simulation_rejects_visible_partial_capture_tail(
         engine.run(tmp_path / "capture_000001.ndjson.partial")
 
 
+def test_capture_failure_is_validated_before_due_actions_are_drained(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, MM_ENABLED="0"))
+    _prime_synced_symbol(engine, "BTCUSDT")
+    engine._depth_stream_valid["BTCUSDT"] = True
+    engine._trade_stream_valid["BTCUSDT"] = True
+    engine._schedule(
+        1.5,
+        "order_arrival",
+        "BTCUSDT",
+        {"side": "bid", "quote_slot": "base", "price_tick": 99, "qty_lots": 1},
+    )
+    replay_path = tmp_path / "capture_failure_ordering.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="*",
+            type="captureMeta",
+            data={"schemaVersion": 3, "clock": "receive_time"},
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={
+                "U": 102,
+                "u": 102,
+                "pu": 101,
+                "b": [],
+                "a": [],
+            },
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    engine.run(replay_path)
+
+    assert engine._capture_invalid_reason == "missing_capture_metadata"
+    assert engine.metrics.order_arrival_count == 0
+    assert engine.fill_model.get_order("BTCUSDT", "bid") is None
+    assert not any(row["event_type"] == "order_arrival" for row in engine.event_trace)
+
+
 def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

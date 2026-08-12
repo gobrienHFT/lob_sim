@@ -368,21 +368,98 @@ class SimulationEngine:
             details={"stream_epoch": epoch},
         )
 
-    def _observe_capture_epoch(self, rec: RecordedEvent, now: float) -> None:
+    def _prevalidate_capture_boundary(self, rec: RecordedEvent, now: float) -> bool:
+        """Reject capture-integrity boundaries before due actions can run.
+
+        Stream epoch transitions are intentionally applied by
+        :meth:`_observe_capture_epoch` after the legacy action-drain phase so
+        existing causal tie behavior remains stable.  Receipt identity and
+        capture-failure boundaries are different: once an observation proves
+        the tape invalid, an older due order must not execute first.
+
+        The return value tells the full observer that the receipt fields have
+        already been checked.  Invalid fields still return ``True`` because
+        the invalidation is recorded here and the later observer must avoid
+        incrementing sequence/clock counters a second time.
+        """
+
+        if self._capture_schema_version < 3 or rec.type == "captureMeta":
+            return False
         capture = rec.data.get("_capture")
         if capture is None and rec.type == "captureEvent":
             capture = rec.data
         if not isinstance(capture, dict):
-            if self._capture_schema_version >= 3 and rec.type != "captureMeta":
+            self._invalidate_capture(now, "missing_capture_metadata")
+            return True
+
+        missing_fields = [field for field in ("recvSeq", "recvMonotonicNs", "route") if capture.get(field) is None]
+        if missing_fields:
+            self._invalidate_capture(now, "missing_capture_metadata:" + ",".join(missing_fields))
+            return True
+
+        recv_seq = capture.get("recvSeq")
+        try:
+            seq = int(str(recv_seq))
+        except (TypeError, ValueError):
+            self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
+            return True
+        if seq < 0:
+            self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
+            return True
+        if self._last_receive_seq is not None and seq <= self._last_receive_seq:
+            raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
+        self._last_receive_seq = seq
+
+        raw_monotonic_ns = capture.get("recvMonotonicNs")
+        try:
+            monotonic_ns = int(str(raw_monotonic_ns))
+        except (TypeError, ValueError):
+            self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
+            return True
+        if monotonic_ns < 0:
+            self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
+            return True
+        previous_monotonic_ns = self._last_receive_monotonic_ns
+        if previous_monotonic_ns is not None and monotonic_ns < previous_monotonic_ns:
+            self._receive_clock_regressions += 1
+            self._invalidate_clock(
+                now,
+                now,
+                reason="receive_monotonic_regression",
+                observed_monotonic_ns=monotonic_ns,
+                previous_monotonic_ns=previous_monotonic_ns,
+            )
+        if previous_monotonic_ns is None or monotonic_ns >= previous_monotonic_ns:
+            self._last_receive_monotonic_ns = monotonic_ns
+
+        event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
+        if event_name in CAPTURE_INVALIDATION_EVENTS:
+            failure_reason = str(
+                rec.data.get("validationError")
+                or capture.get("validationError")
+                or rec.data.get("reason")
+                or capture.get("reason")
+                or event_name
+                or "unspecified"
+            )
+            self._invalidate_capture(now, f"{event_name}: {failure_reason}")
+        return True
+
+    def _observe_capture_epoch(self, rec: RecordedEvent, now: float, *, receipt_checked: bool = False) -> None:
+        capture = rec.data.get("_capture")
+        if capture is None and rec.type == "captureEvent":
+            capture = rec.data
+        if not isinstance(capture, dict):
+            if self._capture_schema_version >= 3 and rec.type != "captureMeta" and not receipt_checked:
                 self._invalidate_capture(now, "missing_capture_metadata")
             return
-        if self._capture_schema_version >= 3 and rec.type != "captureMeta":
+        if self._capture_schema_version >= 3 and rec.type != "captureMeta" and not receipt_checked:
             missing_fields = [field for field in ("recvSeq", "recvMonotonicNs", "route") if capture.get(field) is None]
             if missing_fields:
                 self._invalidate_capture(now, "missing_capture_metadata:" + ",".join(missing_fields))
                 return
         recv_seq = capture.get("recvSeq")
-        if recv_seq is not None:
+        if recv_seq is not None and not receipt_checked:
             try:
                 seq = int(str(recv_seq))
             except (TypeError, ValueError):
@@ -394,7 +471,7 @@ class SimulationEngine:
             if self._last_receive_seq is not None and seq <= self._last_receive_seq:
                 raise ValueError(f"non-increasing receive sequence: {seq} after {self._last_receive_seq}")
             self._last_receive_seq = seq
-        if self._capture_schema_version >= 3:
+        if self._capture_schema_version >= 3 and not receipt_checked:
             raw_monotonic_ns = capture.get("recvMonotonicNs")
             if raw_monotonic_ns is not None:
                 try:
@@ -1683,9 +1760,10 @@ class SimulationEngine:
 
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
+            receipt_checked = self._prevalidate_capture_boundary(rec, now)
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
             self._drain_events(now, inclusive=not market_data_first)
-            self._observe_capture_epoch(rec, now)
+            self._observe_capture_epoch(rec, now, receipt_checked=receipt_checked)
             self._trace_market_record(rec, now, observed_ts)
             if rec.type in {"captureMeta", "captureEvent"}:
                 continue

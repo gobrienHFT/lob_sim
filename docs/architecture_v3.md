@@ -60,11 +60,13 @@ boundary.
 
 For schema-v3 replay, the logical priority at equal receipt time is:
 
-1. Drain actions strictly earlier than the next observation.
-2. Apply market observations in receipt-sequence order.
-3. Update marks and markouts.
-4. Let the strategy observe the resulting causal state.
-5. Apply actions due exactly at that time.
+1. Validate receipt identity and apply capture/stream validity boundaries
+   before any due action can execute.
+2. Drain actions strictly earlier than the next observation.
+3. Apply market observations in receipt-sequence order.
+4. Update marks and markouts.
+5. Let the strategy observe the resulting causal state.
+6. Apply actions due exactly at that time.
 
 Legacy v1 tapes retain their documented action-first compatibility policy and
 are never mixed into a claim-ready markout report.
