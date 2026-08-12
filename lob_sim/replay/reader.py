@@ -47,6 +47,14 @@ def _record_from_envelope(envelope: object) -> RecordedEvent:
     )
 
 
+def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _iter_segment(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
     if validate:
         report = validate_segment(path)
@@ -90,7 +98,7 @@ def _iter_manifest(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
         if not segment_path.exists():
             raise RecordValidationError(f"capture segment missing: {segment_path.name}", path=path)
         expected_file_hash = segment.get("file_sha256")
-        actual_file_hash = hashlib.sha256(segment_path.read_bytes()).hexdigest()
+        actual_file_hash = _file_sha256(segment_path)
         if expected_file_hash != actual_file_hash:
             raise RecordValidationError(f"capture segment hash mismatch: {segment_path.name}", path=path)
         for record in _iter_segment(segment_path, validate=validate):

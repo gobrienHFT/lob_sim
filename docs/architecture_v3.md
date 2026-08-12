@@ -74,6 +74,15 @@ timestamp as explicit trace evidence. The fixture-scale compatibility exporter
 requires `--in-memory-export`, declares linear retention, and remains available
 for small committed packs. Benchmark export mode exercises the bounded path.
 
+The real-data evidence path preserves that property end to end. It accepts a
+schema-v3 capture manifest (or a legacy NDJSON tape), runs the bounded exporter,
+copies all three audits through fsynced partial files, and publishes a derived
+pack only after a second audit oracle succeeds. That oracle reparses the CSVs,
+recomputes both domain-separated chains, correlates fills and markouts against
+the trace in order, and resolves evidence IDs exactly through a temporary
+on-disk SQLite index. It caps diagnostics on corrupt input and retains no detail
+rows in Python memory. A failed derived-pack audit recreates `_INCOMPLETE.json`.
+
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
 results, an integer-nanosecond action scheduler, and per-symbol worst-case
