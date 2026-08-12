@@ -669,6 +669,12 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "accounting_operation_corpus_sha256",
         "accounting_trace_sha256",
         "accounting_final_state_sha256",
+        "latency_operations",
+        "latency_operation_corpus_sha256",
+        "latency_sampler",
+        "latency_resolution_us",
+        "latency_trace_sha256_by_mode",
+        "latency_final_state_by_mode",
         "remaining_full_engine_scope",
         "full_engine_parity",
     }
@@ -815,10 +821,33 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "accounting_operation_corpus_sha256",
         "accounting_trace_sha256",
         "accounting_final_state_sha256",
+        "latency_operation_corpus_sha256",
     ):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
             issues.append(f"Rust/Python parity report has invalid {field}")
+    if report["latency_operations"] <= 0:
+        issues.append("Rust/Python parity latency operation count must be positive")
+    if report["latency_sampler"] != "splitmix64_v1" or report["latency_resolution_us"] != 1:
+        issues.append("Rust/Python parity latency sampler metadata is invalid")
+    latency_trace_hashes = report["latency_trace_sha256_by_mode"]
+    if not isinstance(latency_trace_hashes, dict) or set(latency_trace_hashes) != {
+        "fixed",
+        "empirical",
+        "stress_tail",
+    }:
+        issues.append("Rust/Python parity report has invalid latency trace modes")
+    else:
+        for mode, value in latency_trace_hashes.items():
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+                issues.append(f"Rust/Python parity report has invalid latency trace hash for {mode}")
+    latency_final_states = report["latency_final_state_by_mode"]
+    if not isinstance(latency_final_states, dict) or set(latency_final_states) != {
+        "fixed",
+        "empirical",
+        "stress_tail",
+    }:
+        issues.append("Rust/Python parity report has invalid latency final states")
     expected_remaining = {
         "public-L2 execution scenarios",
         "engine-integrated latency and portfolio-notional risk",

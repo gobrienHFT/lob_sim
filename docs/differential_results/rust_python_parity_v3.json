@@ -30,6 +30,20 @@
   "book_batches": 10000,
   "final_state_sha256": "d08345b1e5b0d9d7046d83a45ee99804008e67dabed50c7e971b69daa58592e4",
   "full_engine_parity": false,
+  "latency_final_state_by_mode": {
+    "empirical": 6269817706955863137,
+    "fixed": 17,
+    "stress_tail": 17
+  },
+  "latency_operation_corpus_sha256": "0b82a928b60d77b39c6f8364645ff983e2ffbb9e51b676070bc0bd0bef3ea40c",
+  "latency_operations": 10000,
+  "latency_resolution_us": 1,
+  "latency_sampler": "splitmix64_v1",
+  "latency_trace_sha256_by_mode": {
+    "empirical": "b85906b42192ad986ce2e2d059fcb8bafacbffdf73779e7100d78600c83f90b9",
+    "fixed": "9ed80c171c0c956d1c411eee1dade95ccf20a615b5de8d9819235b40d33be4bc",
+    "stress_tail": "436a28e44b9722c5ad993aee6ee1f5f3fd10e7baffb00199c902c8b35bebbddd"
+  },
   "logical_time_cases": 10000,
   "ok": true,
   "portfolio_notional_accepted_operation_kind_counts": {
@@ -110,7 +124,7 @@
   "scheduler_rejected_operations": 2071,
   "scheduler_trace_sha256": "7207edb898467b8e5640dd8ae89f9f5a5874ea7301055b62d3fe26f7b1600c11",
   "schema_version": "lob_sim.rust_python_parity.v3",
-  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill accounting, nullable mark valuation, and signed markouts, with transition traces and periodic full-state hashes",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill accounting, nullable mark valuation, signed markouts, and deterministic fixed/empirical/stress-tail scenario latency sampling, with transition traces and periodic full-state hashes",
   "seed": 17,
   "synthetic_accepted_operations": 4772,
   "synthetic_checkpoint_count": 39,

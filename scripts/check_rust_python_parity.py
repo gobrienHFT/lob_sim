@@ -11,7 +11,7 @@ import sys
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence, cast
 
 from lob_sim.oracle_kernel import (
     AccountingMarkoutOracle,
@@ -19,6 +19,7 @@ from lob_sim.oracle_kernel import (
     OracleDecision,
     PortfolioNotionalReservationOracle,
     RiskReservationOracle,
+    ScenarioLatencyOracle,
 )
 from lob_sim.record.envelope import LogicalTime
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
@@ -32,6 +33,7 @@ SchedulerOperation = tuple[int, int, int, int, bool]
 RiskOperation = tuple[int, int, bool, int]
 PortfolioOperation = tuple[int, int, int, bool, int]
 AccountingOperation = tuple[int, int, bool, int, int, int]
+LatencyTraceRow = tuple[int, int]
 
 
 def _python_apply_batch(
@@ -570,6 +572,32 @@ def _python_accounting_trace(
     return rows
 
 
+def _python_latency_trace(
+    *,
+    mode: int,
+    fixed_new_us: int,
+    fixed_cancel_us: int,
+    samples_us: tuple[int, ...],
+    stress_multiplier_ppm: int,
+    seed: int,
+    components: list[int],
+) -> list[LatencyTraceRow]:
+    mode_name = cast(Literal["fixed", "empirical", "stress_tail"], ("fixed", "empirical", "stress_tail")[mode])
+    sampler = ScenarioLatencyOracle(
+        mode=mode_name,
+        fixed_new_us=fixed_new_us,
+        fixed_cancel_us=fixed_cancel_us,
+        samples_us=samples_us,
+        stress_multiplier_ppm=stress_multiplier_ppm,
+        seed=seed,
+    )
+    rows: list[LatencyTraceRow] = []
+    for component in components:
+        component_name: Literal["new_order", "cancel"] = "new_order" if component == 0 else "cancel"
+        rows.append((sampler.draw(component_name), sampler.state))
+    return rows
+
+
 def _build_extension(cargo: str, directory: Path) -> Path:
     environment = dict(os.environ)
     cargo_path = Path(cargo)
@@ -876,6 +904,61 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         for name, kind in (("fill", 0), ("mark", 1), ("clear_mark", 2), ("markout", 3))
     }
 
+    latency_components = [rng.randrange(2) for _ in range(cases)]
+    latency_operation_corpus_sha256 = hashlib.sha256(
+        json.dumps(latency_components, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    latency_scenarios = {
+        "fixed": (0, 25_000, 50_000, (), 1_000_000, 17),
+        "empirical": (1, 1_000, 5_000, (1_000, 5_000, 25_000), 1_000_000, 17),
+        "stress_tail": (2, 1_000, 5_000, (1_000, 5_000, 25_000), 3_000_000, 17),
+    }
+    latency_trace_sha256_by_mode: dict[str, str] = {}
+    latency_final_state_by_mode: dict[str, int] = {}
+    for mode_name, (
+        mode,
+        fixed_new_us,
+        fixed_cancel_us,
+        samples_us,
+        stress_multiplier_ppm,
+        seed,
+    ) in latency_scenarios.items():
+        python_latency_trace = _python_latency_trace(
+            mode=mode,
+            fixed_new_us=fixed_new_us,
+            fixed_cancel_us=fixed_cancel_us,
+            samples_us=samples_us,
+            stress_multiplier_ppm=stress_multiplier_ppm,
+            seed=seed,
+            components=latency_components,
+        )
+        rust_latency_trace = list(
+            lob_core.run_latency_trace(
+                mode,
+                fixed_new_us,
+                fixed_cancel_us,
+                list(samples_us),
+                stress_multiplier_ppm,
+                seed,
+                latency_components,
+            )
+        )
+        if rust_latency_trace != python_latency_trace:
+            for latency_index, (latency_python_row, latency_rust_row) in enumerate(
+                zip(python_latency_trace, rust_latency_trace, strict=False)
+            ):
+                if latency_python_row != latency_rust_row:
+                    raise AssertionError(
+                        "latency sampler divergence at operation "
+                        f"{latency_index}: mode={mode_name}, component={latency_components[latency_index]}, "
+                        f"python={latency_python_row!r}, rust={latency_rust_row!r}"
+                    )
+            raise AssertionError(f"latency sampler trace length differs for mode={mode_name}")
+        latency_trace_sha256_by_mode[mode_name] = hashlib.sha256(
+            json.dumps(python_latency_trace, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        latency_final_state_by_mode[mode_name] = python_latency_trace[-1][1] if python_latency_trace else seed
+
     return {
         "schema_version": "lob_sim.rust_python_parity.v3",
         "ok": True,
@@ -949,11 +1032,18 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "accounting_final_markout_cash_units": python_accounting_trace[-1][8],
         "accounting_final_markout_qty_lots": python_accounting_trace[-1][9],
         "accounting_final_state_sha256": accounting_final_hash,
+        "latency_operations": len(latency_components),
+        "latency_operation_corpus_sha256": latency_operation_corpus_sha256,
+        "latency_sampler": "splitmix64_v1",
+        "latency_resolution_us": 1,
+        "latency_trace_sha256_by_mode": latency_trace_sha256_by_mode,
+        "latency_final_state_by_mode": latency_final_state_by_mode,
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
             "MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol "
             "live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill "
-            "accounting, nullable mark valuation, and signed markouts, with transition traces and periodic "
+            "accounting, nullable mark valuation, signed markouts, and deterministic fixed/empirical/stress-tail "
+            "scenario latency sampling, with transition traces and periodic "
             "full-state hashes"
         ),
         "remaining_full_engine_scope": [
