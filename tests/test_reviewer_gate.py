@@ -22,6 +22,7 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
         "whitespace check",
         "committed fixture determinism",
         "committed futures pack audit",
+        "fault-injection fail-closed matrix",
         "recorded clip benchmark",
     ]
     assert steps[0].command == ("python", "-m", "pytest", "-q")
@@ -48,12 +49,13 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert "scripts/check_futures_determinism.py" in steps[10].command
     assert "scripts/audit_futures_pack.py" in steps[11].command
     assert "--committed-futures" in steps[11].command
-    assert "experiments/benchmark_futures_replay.py" in steps[12].command
-    assert "--mode" in steps[12].command
-    assert "all" in steps[12].command
-    assert "--pack" in steps[12].command
-    assert "docs/sample_outputs/futures_stress_case" in steps[12].command
-    assert "--json-out" in steps[12].command
+    assert steps[12].command == ("python", "scripts/check_fault_injection.py")
+    assert "experiments/benchmark_futures_replay.py" in steps[13].command
+    assert "--mode" in steps[13].command
+    assert "all" in steps[13].command
+    assert "--pack" in steps[13].command
+    assert "docs/sample_outputs/futures_stress_case" in steps[13].command
+    assert "--json-out" in steps[13].command
 
 
 def test_reviewer_gate_mypy_targets_match_makefile() -> None:
@@ -68,7 +70,7 @@ def test_reviewer_gate_can_skip_benchmark_for_narrower_local_checks() -> None:
     steps = reviewer_gate.build_reviewer_gate_steps("python", include_benchmark=False, include_rust=False)
 
     commands = [" ".join(step.command) for step in steps]
-    assert len(steps) == 8
+    assert len(steps) == 9
     assert not any("benchmark_futures_replay.py" in command for command in commands)
 
 

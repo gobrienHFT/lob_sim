@@ -88,6 +88,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - `replay` and `audit` expose a separate validity reduction for receipt sequence, monotonic receive-clock, capture lifecycle, stream epochs, rejected snapshots, and per-symbol execution inputs. Audit status explicitly separates structural book validity, selected execution-input validity, and the stricter `claim_ready` evidence gate. `claim_ready` requires a complete schema-v3 trailer and valid execution inputs; legacy tapes remain diagnostic-only even when their books sync.
 - Schema-v3 audit output retains a bounded receipt-anchored validity-boundary timeline. Reconnects, rejected snapshots, clock regressions, and capture failures remain explicit invalidated epochs; recovered final books do not erase the evidence or turn an interrupted tape into claim-ready data.
 - Simulation integrity carries the same finalized-capture boundary: schema-v3 `integrity.claim_ready` stays false until a complete `capture_trailer` is observed, even if receipt clocks and final books are coherent.
+- The reviewer gate runs [`scripts/check_fault_injection.py`](scripts/check_fault_injection.py), a deterministic six-case matrix covering capture failures, receipt gaps, clock regressions, truncated segments, and payload checksum corruption. It proves the local fail-closed contracts without claiming venue-side zero loss or private execution truth; see [docs/fault_injection.md](docs/fault_injection.md).
 
 Run the futures paths with:
 
