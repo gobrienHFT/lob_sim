@@ -86,7 +86,13 @@ make latency-sweep-fixture
 make refresh-artifacts
 ```
 
-`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` delegates to that same script. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13: each job installs the package with dev dependencies, runs a CLI smoke test, then runs `make reviewer-gate`. The mypy surface includes the bounded audit oracle, book, replay, record, CLI, independent Python oracle, deterministic simulation kernel, bounded export transaction, runner, metrics, manifests, sinks, and synthetic exchange. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+`python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` delegates to that same script. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13: each job installs the package with dev dependencies, runs a CLI smoke test, then runs `make reviewer-gate`. The mypy surface includes the bounded audit oracle, book, replay, record, CLI, independent Python oracle, deterministic simulation kernel, bounded export transaction, runner, metrics, manifests, sinks, and synthetic exchange/demo modules. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+
+`python -m lob_sim.cli --env .env.example demo` adds a compact exact-synthetic
+MBO proof to the public-L2 walkthrough. It shows the known maker order IDs,
+price-time fill sequence, deterministic post-only rejection, transition log,
+and final state hash. That result is ground truth only inside the synthetic
+venue; the same output explicitly labels it as not historical Binance FIFO.
 
 ## Observed vs Inferred
 

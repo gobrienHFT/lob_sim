@@ -146,6 +146,23 @@ def test_cli_exposes_reviewer_grade_command_surface() -> None:
         assert command in result.stdout
 
 
+def test_cli_demo_separates_public_l2_and_exact_synthetic_ground_truth() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "lob_sim.cli", "--env", ".env.example", "demo"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    synthetic = payload["synthetic_exchange"]
+    assert synthetic["historical_binance_fifo"] is False
+    assert synthetic["fifo_ground_truth"]["matches"] is True
+    assert synthetic["post_only_rejection_reason"] == "post_only_would_cross"
+
+
 def test_capture_command_finalizes_trailer_and_writer_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

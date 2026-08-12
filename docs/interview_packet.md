@@ -41,6 +41,7 @@ make reviewer-gate
 - `lob_sim/record/segmented.py`: checksummed segments, visible partial recovery, atomic finalization, and hashed writer evidence.
 - `lob_sim/replay/adapters.py`: venue record normalization into instrument, snapshot, depth, and trade events.
 - `lob_sim/sim/fill_model.py`: synthetic queue-ahead scenarios, passive/taker fills, public consumption, and self-trade prevention.
+- `lob_sim/sim/synthetic_exchange.py` and `lob_sim/sim/synthetic_demo.py`: exact participant/order-level price-time matching and a compact ground-truth demo kept separate from public-L2 inference.
 - `lob_sim/sim/engine.py`: event-time scheduling for market rows, decisions, arrivals, cancels, fills, and risk halts.
 - `lob_sim/sim/metrics.py`: fill-source metrics, per-fill evidence/validity/queue/latency provenance, markouts, inventory, PnL, lifecycle counts, and public-consumption summaries.
 - `scripts/audit_futures_pack.py`: resolves fill evidence against replay input and cross-checks summary, CSVs, event trace, trades, manifest, validity, queue trajectories, latency labels, provenance, per-file hashes, and the content-addressed bundle digest.
@@ -66,6 +67,7 @@ The committed reports under `docs/real_data_runs/` are retained only as pre-sema
 - Marketable strategy orders are taker fills and cannot self-trade with own resting liquidity.
 - Every fill's scenario, input-record evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, fee model, economics, and artifact hashes agree across summary, trades, and trace outputs.
 - Deterministic fixture runs produce identical summary and event-trace hashes.
+- `python -m lob_sim.cli --env .env.example demo` prints both the public-L2 deterministic result and an exact-synthetic FIFO proof with separate claims.
 
 ## Not Claimed
 
@@ -92,6 +94,13 @@ The synchronizer enforces Binance `U/u/pu` continuity. Live collection can resna
 ### Why include synthetic packs?
 
 The recorded clip proves the path on public tape. The synthetic walkthrough and stress packs make rare mechanics compact and deterministic: overlap netting, cancel races, taker fills, self-trade prevention, and adverse/non-adverse markouts.
+
+### Why is the exact synthetic venue not a Binance claim?
+
+The synthetic venue owns participant IDs, order IDs, and every state transition,
+so price-time priority is ground truth inside that controlled mode. Binance
+market-by-price data does not expose those private identities; the CLI demo
+prints the two modes separately and labels the synthetic result explicitly.
 
 ### What would you do next for a desk-grade extension?
 
