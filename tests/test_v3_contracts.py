@@ -14,6 +14,7 @@ from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkp
 from lob_sim.oracle_kernel import ScenarioLatencyOracle
 from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
 from lob_sim.record.format import NDJSONRecord
+from lob_sim.record.schema import RecordValidationError
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
 from lob_sim.replay.arrow_store import arrow_metadata, iter_arrow_rows, normalize_to_arrow
 from lob_sim.replay.reader import RecordedEvent, iter_records
@@ -99,6 +100,15 @@ def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(
     assert [record.data["_capture"]["captureId"] for record in replayed] == ["capture-1", "capture-1"]
     assert all(record.data["_capture"]["payloadChecksum"].startswith("crc32c:") for record in replayed)
     assert [record.type for record in replayed] == ["depthUpdate", "depthUpdate"]
+
+
+def test_manifest_with_incomplete_writer_cannot_be_replayed(tmp_path: Path) -> None:
+    with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
+        writer.write(_envelope(1))
+        writer.update_manifest_metadata({"writer": {"complete": False}})
+
+    with pytest.raises(RecordValidationError, match="writer is incomplete"):
+        list(iter_records(tmp_path / "capture-1.manifest.json"))
 
 
 def test_partial_tail_is_visible_and_recovers_only_complete_records(tmp_path: Path) -> None:

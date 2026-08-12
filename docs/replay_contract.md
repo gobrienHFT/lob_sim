@@ -77,6 +77,11 @@ until every declared artifact and its manifest exist. Absence of the manifest
 or presence of that sentinel means the bundle is incomplete. The explicit
 `--in-memory-export` option retains the historical stem-based fixture layout.
 
+The low-level reader may recover a fully checksummed prefix from a visible
+capture `.partial` segment for forensic replay. `SimulationEngine.run` rejects
+such a path before processing records, so economic results cannot silently
+present an incomplete capture as a finalized tape.
+
 The simulation summary includes event-count diagnostics for processed replay rows, accepted depth-change counts, book-sync gap counts, fill-source counts, order-lifecycle counts, queue-ahead-at-arrival counts, kill-switch state, optional portfolio-notional reservations, and self-trade-prevention counts. Those fields make it visible when a run skipped gap-affected depth data, relied on depth-inferred fills, posted quotes that never arrived, rested behind visible queue, expired a marketable remainder, halted on configured risk limits, rejected a quote because gross marked inventory plus live/pending orders exceeded the configured portfolio cap, or prevented a strategy own-cross instead of silently advancing the book.
 
 Summaries and manifests include `simulation_assumptions`: the structured public-data contract for the run. It states that the simulator uses public L2 and aggregate-trade records only, does not claim private exchange execution reports, uses synthetic queue-ahead assumptions, keeps cancel latency explicit, records the selected fill-assumption profile, and records the overlap-netting window used to reduce double counting between depth reductions and trade prints.

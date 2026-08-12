@@ -476,6 +476,14 @@ def test_schema_v3_receipt_monotonic_regression_invalidates_clock_state(
     assert clock_rows[0]["details"]["previous_monotonic_ns"] == 10
 
 
+def test_economic_simulation_rejects_visible_partial_capture_tail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    with pytest.raises(ValueError, match="finalized capture"):
+        engine.run(tmp_path / "capture_000001.ndjson.partial")
+
+
 def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
