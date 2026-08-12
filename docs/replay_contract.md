@@ -32,6 +32,25 @@ python -m lob_sim.cli inspect --file docs/sample_outputs/futures_replay_walkthro
 
 It reports record counts, symbols, event-time span, symbol tick/lot metadata, file size, and a SHA-256 digest of the exact input bytes.
 
+The replay and audit commands add a separate validity reduction.  A schema-v3
+run reports receipt-sequence and monotonic-clock checks, capture invalidation
+reasons, trailer/completeness evidence, public and market stream epochs, and
+whether each symbol has valid execution inputs.  ``claim_ready`` is stricter
+than a parser or book-sync success: it requires schema-v3 receive identity,
+the receive clock, a complete capture trailer, no capture/clock invalidation,
+and valid book/trade inputs for every symbol.  Legacy tapes remain replayable
+for compatibility, but their validity output is diagnostic-only and cannot
+become claim-ready evidence by omission.
+
+```bash
+python -m lob_sim.cli audit --file data/capture_....manifest.json
+```
+
+The audit report uses ``lob_sim.capture_audit.v2``.  ``ok`` means that the
+reconstructed books and currently selected execution inputs are valid; the
+separate ``replay.validity.claim_ready`` field prevents a clean legacy replay
+from being mistaken for a claim-ready capture.
+
 ## Determinism Check
 
 Use the determinism checker when you want one command that proves a replay fixture is stable across repeated simulator runs:

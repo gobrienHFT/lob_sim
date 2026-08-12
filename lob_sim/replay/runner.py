@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict
@@ -17,6 +17,318 @@ from .adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 logger = logging.getLogger(__name__)
 
 
+_STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failure", "overflow"})
+_CAPTURE_INVALIDATION_EVENTS = frozenset({"parse_failure", "overflow", "writer_failure", "capture_abort"})
+
+
+@dataclass
+class _MutableSymbolValidity:
+    """Validity state accumulated while replaying one symbol.
+
+    This is deliberately separate from ``BookSynchronizer``.  A book can be
+    reconstructed while the capture clock or a companion trade route is
+    invalid, and the audit output must expose that distinction instead of
+    collapsing everything into ``synced``.
+    """
+
+    depth_stream_valid: bool = True
+    trade_stream_valid: bool = True
+    public_stream_epoch: int | None = None
+    market_stream_epoch: int | None = None
+    capture_sync_epoch: int | None = None
+    snapshot_rejections: int = 0
+    invalid_reasons: list[str] = field(default_factory=list)
+
+    def invalidate(self, reason: str, *, route: str | None = None) -> None:
+        if route == "market":
+            self.trade_stream_valid = False
+        elif route == "public":
+            self.depth_stream_valid = False
+        if reason not in self.invalid_reasons:
+            self.invalid_reasons.append(reason)
+
+    def recover(self, route: str) -> None:
+        if route == "market":
+            self.trade_stream_valid = True
+        elif route == "public":
+            self.depth_stream_valid = True
+
+
+@dataclass(frozen=True)
+class ReplaySymbolValidity:
+    depth_stream_valid: bool
+    trade_stream_valid: bool
+    trade_stream_required: bool
+    clock_valid: bool
+    capture_valid: bool
+    execution_inputs_valid: bool
+    public_stream_epoch: int | None
+    market_stream_epoch: int | None
+    capture_sync_epoch: int | None
+    snapshot_rejections: int
+    invalid_reasons: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "depth_stream_valid": self.depth_stream_valid,
+            "trade_stream_valid": self.trade_stream_valid,
+            "trade_stream_required": self.trade_stream_required,
+            "clock_valid": self.clock_valid,
+            "capture_valid": self.capture_valid,
+            "execution_inputs_valid": self.execution_inputs_valid,
+            "public_stream_epoch": self.public_stream_epoch,
+            "market_stream_epoch": self.market_stream_epoch,
+            "capture_sync_epoch": self.capture_sync_epoch,
+            "snapshot_rejections": self.snapshot_rejections,
+            "invalid_reasons": list(self.invalid_reasons),
+        }
+
+
+@dataclass(frozen=True)
+class ReplayValidity:
+    """Capture-level integrity observed during a diagnostic replay.
+
+    ``claim_ready`` is intentionally stricter than a successful parser run:
+    schema-v3 receipt identity, a monotonic receive clock, a complete trailer,
+    and valid execution inputs for every symbol are required.  Legacy tapes
+    remain replayable for compatibility but cannot silently become claim-ready
+    evidence.
+    """
+
+    schema_version: int
+    receive_clock: bool
+    capture_valid: bool
+    clock_valid: bool
+    capture_trailer_seen: bool
+    last_receive_seq: int | None
+    last_receive_monotonic_ns: int | None
+    receive_sequence_regressions: int
+    receive_clock_regressions: int
+    capture_invalidations: int
+    invalid_reasons: tuple[str, ...]
+    claim_ready: bool
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "receive_clock": self.receive_clock,
+            "capture_valid": self.capture_valid,
+            "clock_valid": self.clock_valid,
+            "capture_trailer_seen": self.capture_trailer_seen,
+            "last_receive_seq": self.last_receive_seq,
+            "last_receive_monotonic_ns": self.last_receive_monotonic_ns,
+            "receive_sequence_regressions": self.receive_sequence_regressions,
+            "receive_clock_regressions": self.receive_clock_regressions,
+            "capture_invalidations": self.capture_invalidations,
+            "invalid_reasons": list(self.invalid_reasons),
+            "claim_ready": self.claim_ready,
+        }
+
+
+class _ReplayValidityTracker:
+    """Small independent validity reducer for replay/audit diagnostics."""
+
+    def __init__(self, *, trade_stream_required: bool) -> None:
+        self.trade_stream_required = trade_stream_required
+        self.schema_version = 1
+        self.receive_clock = False
+        self.capture_valid = True
+        self.clock_valid = True
+        self.capture_trailer_seen = False
+        self.last_receive_seq: int | None = None
+        self.last_receive_monotonic_ns: int | None = None
+        self.receive_sequence_regressions = 0
+        self.receive_clock_regressions = 0
+        self.capture_invalidations = 0
+        self.invalid_reasons: list[str] = []
+        self.symbols: dict[str, _MutableSymbolValidity] = {}
+
+    def _symbol(self, symbol: str) -> _MutableSymbolValidity:
+        return self.symbols.setdefault(
+            symbol,
+            _MutableSymbolValidity(
+                depth_stream_valid=self.schema_version < 3,
+                trade_stream_valid=self.schema_version < 3,
+            ),
+        )
+
+    def _invalidate_capture(self, reason: str) -> None:
+        if self.capture_valid:
+            self.capture_invalidations += 1
+        self.capture_valid = False
+        if reason not in self.invalid_reasons:
+            self.invalid_reasons.append(reason)
+
+    def _invalidate_clock(self, reason: str) -> None:
+        self.clock_valid = False
+        if reason not in self.invalid_reasons:
+            self.invalid_reasons.append(reason)
+
+    @staticmethod
+    def _int_or_none(value: object) -> int | None:
+        try:
+            parsed = int(str(value))
+        except (TypeError, ValueError):
+            return None
+        return parsed
+
+    def _observe_receipt(self, rec: RecordedEvent, capture: dict[str, object]) -> None:
+        if self.schema_version < 3:
+            return
+        missing = [key for key in ("recvSeq", "recvMonotonicNs", "route") if capture.get(key) is None]
+        if missing:
+            self._invalidate_capture("missing_capture_metadata:" + ",".join(missing))
+            return
+
+        sequence = self._int_or_none(capture.get("recvSeq"))
+        if sequence is None or sequence < 0:
+            self._invalidate_capture("invalid_capture_metadata:recvSeq")
+        elif self.last_receive_seq is not None and sequence <= self.last_receive_seq:
+            self.receive_sequence_regressions += 1
+            self._invalidate_capture("non_increasing_receive_sequence")
+        else:
+            self.last_receive_seq = sequence
+
+        monotonic_ns = self._int_or_none(capture.get("recvMonotonicNs"))
+        if monotonic_ns is None or monotonic_ns < 0:
+            self._invalidate_capture("invalid_capture_metadata:recvMonotonicNs")
+        elif self.last_receive_monotonic_ns is not None and monotonic_ns < self.last_receive_monotonic_ns:
+            self.receive_clock_regressions += 1
+            self._invalidate_clock("receive_monotonic_regression")
+        else:
+            self.last_receive_monotonic_ns = monotonic_ns
+
+    def _observe_epoch(self, rec: RecordedEvent, capture: dict[str, object], symbol: _MutableSymbolValidity) -> None:
+        route = str(capture.get("route") or rec.data.get("route") or "")
+        stream_epoch = self._int_or_none(capture.get("streamEpoch"))
+        sync_epoch = self._int_or_none(capture.get("syncEpoch"))
+        event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
+        if route == "public":
+            previous_epoch = symbol.public_stream_epoch
+            if stream_epoch is not None:
+                symbol.public_stream_epoch = stream_epoch
+                if previous_epoch is not None and stream_epoch != previous_epoch:
+                    symbol.invalidate("public_stream_epoch_changed", route=route)
+            if sync_epoch is not None:
+                if symbol.capture_sync_epoch is not None and sync_epoch != symbol.capture_sync_epoch:
+                    symbol.invalidate("capture_sync_epoch_changed", route=route)
+                symbol.capture_sync_epoch = sync_epoch
+        elif route == "market" and stream_epoch is not None:
+            previous_epoch = symbol.market_stream_epoch
+            symbol.market_stream_epoch = stream_epoch
+            if previous_epoch is not None and stream_epoch != previous_epoch:
+                symbol.invalidate("market_stream_epoch_changed", route=route)
+        reason = str(
+            rec.data.get("validationError")
+            or capture.get("validationError")
+            or rec.data.get("reason")
+            or capture.get("reason")
+            or event_name
+            or "unspecified"
+        )
+        if event_name in _CAPTURE_INVALIDATION_EVENTS:
+            self._invalidate_capture(f"{event_name}: {reason}")
+        if route in {"public", "market"}:
+            if event_name in _STREAM_FAILURE_EVENTS:
+                symbol.invalidate(f"{route}_stream_{event_name}: {reason}", route=route)
+            elif event_name in {"connect", "reconnect"}:
+                symbol.recover(route)
+
+        if rec.type == "snapshot" and capture.get("snapshotAccepted") is False:
+            symbol.snapshot_rejections += 1
+            symbol.invalidate(f"snapshot_rejected: {reason}", route="public")
+
+    def observe(self, rec: RecordedEvent) -> None:
+        if rec.type == "captureMeta":
+            version = self._int_or_none(rec.data.get("schemaVersion"))
+            if version is None or version < 1:
+                self._invalidate_capture("invalid_capture_schema_version")
+                return
+            self.schema_version = version
+            self.receive_clock = rec.data.get("clock") == "receive_time"
+            if version >= 3 and not self.receive_clock:
+                self._invalidate_clock("schema_v3_without_receive_clock")
+            return
+
+        capture_value = rec.data.get("_capture")
+        capture = dict(capture_value) if isinstance(capture_value, dict) else {}
+        if rec.type == "captureEvent" and not capture:
+            capture = {key: rec.data[key] for key in ("recvSeq", "recvMonotonicNs", "route") if key in rec.data}
+        if self.schema_version >= 3:
+            self._observe_receipt(rec, capture)
+        if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
+            self.capture_trailer_seen = True
+
+        symbol_name = rec.symbol
+        if symbol_name not in {"", "*"}:
+            symbol = self._symbol(symbol_name)
+            depth_was_valid = symbol.depth_stream_valid
+            trade_was_valid = symbol.trade_stream_valid
+            had_public_epoch = symbol.public_stream_epoch is not None
+            had_market_epoch = symbol.market_stream_epoch is not None
+            self._observe_epoch(rec, capture, symbol)
+            if rec.type in {"depthUpdate", "snapshot"} and capture.get("snapshotAccepted") is not False:
+                if depth_was_valid or not had_public_epoch:
+                    symbol.recover("public")
+            elif rec.type == "aggTrade":
+                if trade_was_valid or not had_market_epoch:
+                    symbol.recover("market")
+
+    def symbol_validity(self, symbol: str, *, synced: bool, gap_count: int) -> ReplaySymbolValidity:
+        state = self.symbols.get(symbol, _MutableSymbolValidity(self.schema_version < 3, self.schema_version < 3))
+        reasons = list(state.invalid_reasons)
+        if gap_count:
+            reason = f"book_gap_count:{gap_count}"
+            if reason not in reasons:
+                reasons.append(reason)
+        book_valid = synced and state.depth_stream_valid and gap_count == 0
+        execution_valid = (
+            book_valid
+            and (not self.trade_stream_required or state.trade_stream_valid)
+            and self.clock_valid
+            and self.capture_valid
+        )
+        return ReplaySymbolValidity(
+            depth_stream_valid=state.depth_stream_valid,
+            trade_stream_valid=state.trade_stream_valid,
+            trade_stream_required=self.trade_stream_required,
+            clock_valid=self.clock_valid,
+            capture_valid=self.capture_valid,
+            execution_inputs_valid=execution_valid,
+            public_stream_epoch=state.public_stream_epoch,
+            market_stream_epoch=state.market_stream_epoch,
+            capture_sync_epoch=state.capture_sync_epoch,
+            snapshot_rejections=state.snapshot_rejections,
+            invalid_reasons=tuple(reasons),
+        )
+
+    def summary(self, symbol_validities: dict[str, ReplaySymbolValidity]) -> ReplayValidity:
+        claim_ready = (
+            self.schema_version >= 3
+            and self.receive_clock
+            and self.capture_trailer_seen
+            and self.capture_valid
+            and self.clock_valid
+            and bool(symbol_validities)
+            and all(value.execution_inputs_valid for value in symbol_validities.values())
+            and all(not value.invalid_reasons for value in symbol_validities.values())
+        )
+        return ReplayValidity(
+            schema_version=self.schema_version,
+            receive_clock=self.receive_clock,
+            capture_valid=self.capture_valid,
+            clock_valid=self.clock_valid,
+            capture_trailer_seen=self.capture_trailer_seen,
+            last_receive_seq=self.last_receive_seq,
+            last_receive_monotonic_ns=self.last_receive_monotonic_ns,
+            receive_sequence_regressions=self.receive_sequence_regressions,
+            receive_clock_regressions=self.receive_clock_regressions,
+            capture_invalidations=self.capture_invalidations,
+            invalid_reasons=tuple(self.invalid_reasons),
+            claim_ready=claim_ready,
+        )
+
+
 @dataclass
 class ReplaySymbolResult:
     snapshot_seen: bool
@@ -24,6 +336,7 @@ class ReplaySymbolResult:
     gap_count: int
     total_levels: int
     last_update_id: int | None
+    validity: ReplaySymbolValidity | None = None
 
 
 @dataclass
@@ -34,6 +347,7 @@ class ReplayResult:
     events_per_sec: float
     elapsed_seconds: float
     symbols: dict[str, ReplaySymbolResult]
+    validity: ReplayValidity | None = None
 
 
 def symbol_spec_from_record(
@@ -69,6 +383,15 @@ def replay(
     syncers: Dict[str, BookSynchronizer] = {}
     top_n = config.book_top_n if config else 50
     resync = bool(config.resync_on_gap) if config else True
+    trade_stream_required = (
+        True
+        if config is None
+        else bool(
+            config.effective_fill_assumption.agg_trades_consume_queue
+            or config.mm_strategy_profile in {"layered_mm", "research_mm"}
+        )
+    )
+    validity_tracker = _ReplayValidityTracker(trade_stream_required=trade_stream_required)
 
     events_processed = 0
     depth_events = 0
@@ -79,6 +402,26 @@ def replay(
 
     for rec in iter_records(path):
         events_processed += 1
+        validity_tracker.observe(rec)
+
+        if rec.type == "captureEvent":
+            event_name = str(rec.data.get("event", ""))
+            capture_value = rec.data.get("_capture")
+            capture = dict(capture_value) if isinstance(capture_value, dict) else rec.data
+            route = str(capture.get("route") or rec.data.get("route") or "")
+            if event_name in {"writer_failure", "capture_abort", "parse_failure", "overflow"} and route == "control":
+                for active_syncer in syncers.values():
+                    active_syncer.begin_resync(f"capture_{event_name}")
+            if (
+                rec.symbol in syncers
+                and route == "public"
+                and (
+                    event_name in _STREAM_FAILURE_EVENTS or event_name in {"connect", "reconnect", "snapshot_rejected"}
+                )
+            ):
+                syncers[rec.symbol].begin_resync(f"capture_{event_name}")
+            continue
+
         if rec.type == "exchangeInfo":
             spec = symbol_spec_from_record(rec, adapter)
             if spec is None:
@@ -109,6 +452,11 @@ def replay(
             syncers[rec.symbol] = syncer
 
         if rec.type == "snapshot":
+            capture = rec.data.get("_capture", {})
+            if isinstance(capture, dict) and capture.get("snapshotAccepted") is False:
+                if syncer is not None:
+                    syncer.begin_resync("snapshot_rejected")
+                continue
             evt = adapter.snapshot_from_record(rec, spec)
             if syncer is not None:
                 try:
@@ -146,16 +494,26 @@ def replay(
             gap_count=syn.gap_count,
             total_levels=syn.book.total_levels(),
             last_update_id=syn.last_update_id,
+            validity=validity_tracker.symbol_validity(
+                symbol,
+                synced=syn.synced,
+                gap_count=syn.gap_count,
+            ),
         )
         for symbol, syn in sorted(syncers.items())
     }
+    symbol_validities = {
+        symbol: result.validity for symbol, result in symbol_results.items() if result.validity is not None
+    }
+    validity = validity_tracker.summary(symbol_validities)
     if verbose:
         print(f"[replay] processed {events_processed} events in {elapsed:.2f}s ({events_per_sec:.2f} events/sec)")
         for symbol, result in symbol_results.items():
             print(
                 f"[replay] symbol={symbol} snapshot={'yes' if result.snapshot_seen else 'no'} "
                 f"synced={'yes' if result.synced else 'no'} gaps={result.gap_count} "
-                f"levels={result.total_levels} last_update_id={result.last_update_id}"
+                f"levels={result.total_levels} last_update_id={result.last_update_id} "
+                f"execution_inputs_valid={result.validity.execution_inputs_valid if result.validity else False}"
             )
     return ReplayResult(
         events_processed=events_processed,
@@ -164,4 +522,5 @@ def replay(
         events_per_sec=events_per_sec,
         elapsed_seconds=elapsed,
         symbols=symbol_results,
+        validity=validity,
     )

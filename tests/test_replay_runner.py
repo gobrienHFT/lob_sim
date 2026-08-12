@@ -8,6 +8,23 @@ from lob_sim.replay.runner import replay
 from lob_sim.config import load_config
 
 
+def _v3_capture(
+    sequence: int,
+    route: str,
+    *,
+    stream_epoch: int = 1,
+    sync_epoch: int = 1,
+    monotonic_ns: int | None = None,
+) -> dict[str, object]:
+    return {
+        "route": route,
+        "streamEpoch": stream_epoch,
+        "syncEpoch": sync_epoch,
+        "recvSeq": sequence,
+        "recvMonotonicNs": sequence if monotonic_ns is None else monotonic_ns,
+    }
+
+
 def test_replay_returns_structured_symbol_diagnostics(tmp_path: Path, capsys) -> None:
     path = tmp_path / "replay.ndjson"
     records = [
@@ -88,3 +105,165 @@ def test_replay_counts_non_resync_gap_without_advancing_book(tmp_path: Path, mon
     # Gap invalidation clears the previous epoch; no stale liquidity remains
     # available to fills or markouts while awaiting a fresh snapshot.
     assert result.symbols["BTCUSDT"].total_levels == 0
+
+
+def test_replay_reports_claim_ready_schema_v3_validity(tmp_path: Path) -> None:
+    path = tmp_path / "schema_v3.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.0,
+            symbol="*",
+            type="captureMeta",
+            data={"schemaVersion": 3, "clock": "receive_time"},
+        ),
+        NDJSONRecord(
+            ts_local=0.1,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "_capture": _v3_capture(2, "control", stream_epoch=0, sync_epoch=0),
+            },
+        ),
+        NDJSONRecord(
+            ts_local=0.2,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={"event": "connect", "route": "public", "_capture": _v3_capture(3, "public")},
+        ),
+        NDJSONRecord(
+            ts_local=0.3,
+            symbol="BTCUSDT",
+            type="captureEvent",
+            data={"event": "connect", "route": "market", "_capture": _v3_capture(4, "market")},
+        ),
+        NDJSONRecord(
+            ts_local=0.4,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data={
+                **snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.001")]),
+                "_capture": _v3_capture(5, "public"),
+            },
+        ),
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={
+                "U": 95,
+                "u": 105,
+                "pu": 94,
+                "b": [["100.0", "0.001"]],
+                "a": [["100.1", "0.001"]],
+                "_capture": _v3_capture(6, "public"),
+            },
+        ),
+        NDJSONRecord(
+            ts_local=0.6,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.0", "q": "0.001", "m": True, "_capture": _v3_capture(7, "market")},
+        ),
+        NDJSONRecord(
+            ts_local=0.7,
+            symbol="*",
+            type="captureEvent",
+            data={
+                "event": "capture_trailer",
+                "route": "control",
+                "_capture": _v3_capture(8, "control", stream_epoch=0, sync_epoch=0),
+            },
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    result = replay(path, replace(load_config(".env.example"), mm_strategy_profile="baseline"))
+
+    assert result.validity is not None
+    assert result.validity.claim_ready is True
+    assert result.validity.capture_valid is True
+    assert result.validity.clock_valid is True
+    assert result.validity.last_receive_seq == 8
+    assert result.symbols["BTCUSDT"].validity is not None
+    assert result.symbols["BTCUSDT"].validity.execution_inputs_valid is True
+
+
+def test_replay_fails_closed_on_schema_v3_receive_clock_regression(tmp_path: Path) -> None:
+    path = tmp_path / "clock_regression.ndjson"
+    records = [
+        NDJSONRecord(0.0, "*", "captureMeta", {"schemaVersion": 3, "clock": "receive_time"}),
+        NDJSONRecord(
+            0.1,
+            "BTCUSDT",
+            "exchangeInfo",
+            {
+                "tickSize": "0.1",
+                "stepSize": "0.001",
+                "_capture": _v3_capture(1, "control", stream_epoch=0, sync_epoch=0),
+            },
+        ),
+        NDJSONRecord(
+            0.2,
+            "BTCUSDT",
+            "captureEvent",
+            {"event": "connect", "route": "public", "_capture": _v3_capture(2, "public", monotonic_ns=20)},
+        ),
+        NDJSONRecord(
+            0.3,
+            "BTCUSDT",
+            "snapshot",
+            {
+                **snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.001")]),
+                "_capture": _v3_capture(3, "public", monotonic_ns=10),
+            },
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    result = replay(path)
+
+    assert result.validity is not None
+    assert result.validity.clock_valid is False
+    assert result.validity.claim_ready is False
+    assert result.validity.receive_clock_regressions == 1
+    assert "receive_monotonic_regression" in result.validity.invalid_reasons
+    assert result.symbols["BTCUSDT"].validity is not None
+    assert result.symbols["BTCUSDT"].validity.execution_inputs_valid is False
+
+
+def test_replay_reconnect_and_rejected_snapshot_clear_book_epoch(tmp_path: Path) -> None:
+    path = tmp_path / "reconnect_rejected_snapshot.ndjson"
+    records = [
+        NDJSONRecord(0.0, "BTCUSDT", "exchangeInfo", {"tickSize": "0.1", "stepSize": "0.001"}),
+        NDJSONRecord(0.1, "BTCUSDT", "snapshot", snapshot_payload(100, [("100.0", "0.001")], [("100.1", "0.001")])),
+        NDJSONRecord(0.2, "BTCUSDT", "depthUpdate", {"U": 95, "u": 105, "pu": 94, "b": [], "a": []}),
+        NDJSONRecord(
+            0.3,
+            "BTCUSDT",
+            "captureEvent",
+            {"event": "disconnect", "route": "public", "reason": "socket closed"},
+        ),
+        NDJSONRecord(
+            0.4,
+            "BTCUSDT",
+            "snapshot",
+            {
+                **snapshot_payload(200, [("100.0", "0.001")], [("100.1", "0.001")]),
+                "_capture": {"snapshotAccepted": False, "validationError": "too_old"},
+            },
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    result = replay(path)
+
+    symbol = result.symbols["BTCUSDT"]
+    assert symbol.synced is False
+    assert symbol.total_levels == 0
+    assert symbol.validity is not None
+    assert symbol.validity.snapshot_rejections == 1
+    assert symbol.validity.execution_inputs_valid is False
+    assert result.validity is not None
+    assert result.validity.claim_ready is False
