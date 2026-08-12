@@ -790,18 +790,28 @@ def cmd_inspect(file: str) -> None:
     print(json.dumps(inspect_stream(file).as_dict(), indent=2))
 
 
-def cmd_validate(file: str) -> None:
+def cmd_validate(file: str) -> int:
     inspection = inspect_stream(file)
+    liveness = inspection.capture_liveness
+    schema_v3 = liveness.schema_version is not None and liveness.schema_version >= 3
+    receipt_integrity_ok = liveness.receipt_integrity_ok if schema_v3 else None
+    capture_invalidation_count = liveness.invalidation_event_count if schema_v3 else None
+    ok = bool(receipt_integrity_ok and capture_invalidation_count == 0) if schema_v3 else True
     print(
         json.dumps(
             {
-                "ok": True,
-                "schema_version": "lob_sim.validation_report.v1",
+                "ok": ok,
+                "schema_version": "lob_sim.validation_report.v2",
+                "validation_scope": "schema_and_capture_receipt" if schema_v3 else "record_schema_only",
+                "structurally_valid": True,
+                "receipt_integrity_ok": receipt_integrity_ok,
+                "capture_invalidation_event_count": capture_invalidation_count,
                 "inspection": inspection.as_dict(),
             },
             indent=2,
         )
     )
+    return 0 if ok else 1
 
 
 def cmd_normalize(file: str, out: str, batch_size: int = 65_536) -> None:
@@ -1135,9 +1145,12 @@ def main() -> None:
         )
         return
 
-    if args.command in {"inspect", "validate"}:
+    if args.command == "inspect":
         args.func(args.file)
         return
+
+    if args.command == "validate":
+        raise SystemExit(args.func(args.file))
 
     if args.command == "normalize":
         args.func(args.file, args.out, args.batch_size)
