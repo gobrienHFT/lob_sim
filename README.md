@@ -46,6 +46,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - JSON-only checkpoint/resume for interrupted long replays, including active venue state, pending actions, markouts, accounting, strategy features, explicit SplitMix64 scenario-latency state, and input/config identity checks.
 - Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
 - Schema-v3 `inspect`/`validate` output includes bounded receipt-liveness diagnostics: route coverage, sequence gaps/regressions, monotonic-clock health, inter-arrival extremes, lifecycle invalidations, and trailer completeness. These are capture-side coherence checks, not proof of venue-side packet completeness or trading performance.
+- `validate` exits non-zero for a structurally readable schema-v3 tape with incomplete receipt identity, sequence gaps/regressions, a missing trailer, or capture-invalidation events; legacy tapes remain readable under an explicitly weaker record-schema-only scope.
 - Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
 
 ## What Is Implemented

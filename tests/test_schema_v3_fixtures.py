@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from lob_sim.cli import cmd_validate
 from lob_sim.replay.runner import replay
 from lob_sim.replay.inspection import inspect_stream
 
@@ -62,3 +64,20 @@ def test_committed_schema_v3_fixture_inspection_reports_receipt_liveness() -> No
     assert adversarial.invalidation_event_count == 1
     assert adversarial.capture_event_counts["overflow"] == 1
     assert adversarial.receipt_integrity_ok is False
+
+
+def test_validate_reports_schema_v3_receipt_status_and_exit_code(capsys) -> None:
+    clean_status = cmd_validate(str(FIXTURE_DIR / "input_fixture.ndjson"))
+    clean_report = json.loads(capsys.readouterr().out)
+    assert clean_status == 0
+    assert clean_report["ok"] is True
+    assert clean_report["validation_scope"] == "schema_and_capture_receipt"
+    assert clean_report["receipt_integrity_ok"] is True
+    assert clean_report["capture_invalidation_event_count"] == 0
+
+    adversarial_status = cmd_validate(str(FIXTURE_DIR / "adversarial_fixture.ndjson"))
+    adversarial_report = json.loads(capsys.readouterr().out)
+    assert adversarial_status == 1
+    assert adversarial_report["ok"] is False
+    assert adversarial_report["receipt_integrity_ok"] is False
+    assert adversarial_report["capture_invalidation_event_count"] == 1

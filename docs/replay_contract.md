@@ -41,6 +41,13 @@ that the venue delivered every packet, that the writer experienced no loss befor
 capture, or that the tape is economically claim-ready. Use replay validity and
 the per-symbol execution-input intersection for that stricter conclusion.
 
+`validate` preserves that distinction in its exit status. A structurally valid
+schema-v3 tape exits non-zero when receipt identity is incomplete/non-monotonic,
+the receive sequence has gaps, the trailer is absent, or a capture-invalidation
+event is recorded. Its report says `validation_scope=\"schema_and_capture_receipt\"`;
+it still does not claim that the books synchronized or that fills are executable.
+Legacy tapes remain compatible and use `validation_scope=\"record_schema_only\"`.
+
 The replay and audit commands add a separate validity reduction.  A schema-v3
 run reports receipt-sequence and monotonic-clock checks, capture invalidation
 reasons, trailer/completeness evidence, public and market stream epochs, and
