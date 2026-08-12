@@ -9,6 +9,7 @@ from math import sqrt
 from typing import Any, Dict, List, cast
 
 from ..book.local_book import LocalOrderBook
+from ..book.types import InstrumentSpec
 from ..config import Config
 from ..oracle import canonical_bytes
 from .fees import StaticFeeModel
@@ -86,8 +87,6 @@ class SimulationMetrics:
             retain_audit_rows if buffer_markout_trace_events is None else buffer_markout_trace_events
         )
         self.position: Dict[str, PositionState] = {}
-        self.specs: Dict[str, object] = {}
-
         self.realized_pnl = Decimal("0")
         self.unrealized_pnl = Decimal("0")
         self.total_fees = Decimal("0")
@@ -662,6 +661,7 @@ class SimulationMetrics:
         books: Dict[str, LocalOrderBook],
         now_ts: float | None = None,
         mid_override: Dict[str, Decimal] | None = None,
+        specs: Mapping[str, InstrumentSpec] | None = None,
     ) -> None:
         unreal = Decimal("0")
         total_inventory = Decimal("0")
@@ -672,15 +672,21 @@ class SimulationMetrics:
             if pos.lot_size == 0 or pos.avg_cost is None:
                 continue
             book = books.get(symbol)
-            if book is None:
+            spec = book.spec if book is not None else (specs or {}).get(symbol)
+            if spec is None:
+                # We cannot even convert the open lot position to quantity
+                # without the immutable instrument metadata.  Keep the
+                # valuation explicitly incomplete rather than silently
+                # treating the position as zero exposure.
+                missing_mark_symbols.append(symbol)
                 continue
 
-            qty = book.spec.lot_to_qty(abs(pos.lot_size))
+            qty = spec.lot_to_qty(abs(pos.lot_size))
             sign = Decimal(1) if pos.lot_size > 0 else Decimal("-1")
             total_inventory += sign * qty
 
             mid = mids.get(symbol)
-            if mid is None:
+            if mid is None and book is not None:
                 mid = book.mid_price()
                 if mid is not None:
                     mids[symbol] = mid
@@ -688,7 +694,7 @@ class SimulationMetrics:
                 missing_mark_symbols.append(symbol)
                 continue
 
-            unreal += sign * qty * (mid - pos.avg_cost) * book.spec.contract_multiplier
+            unreal += sign * qty * (mid - pos.avg_cost) * spec.contract_multiplier
 
         # Markout sampling is independent of whether the net position remains
         # open. A round trip can leave inventory flat while both fill horizons
@@ -734,8 +740,12 @@ class SimulationMetrics:
         self._inv_mean += delta / Decimal(self._inv_n)
         self._inv_m2 += delta * (total_inventory - self._inv_mean)
 
-    def get_summary(self, books: Dict[str, LocalOrderBook]) -> dict:
-        self.update_unrealized(books)
+    def get_summary(
+        self,
+        books: Dict[str, LocalOrderBook],
+        specs: Mapping[str, InstrumentSpec] | None = None,
+    ) -> dict:
+        self.update_unrealized(books, specs=specs)
 
         avg_spread = Decimal("0")
         if self.spread_capture_qty > 0:
@@ -802,11 +812,14 @@ class SimulationMetrics:
 
         total_inventory = Decimal("0")
         inventory_by_symbol: dict[str, float] = {}
+        inventory_missing_spec_symbols: list[str] = []
         for symbol, pos in self.position.items():
-            book = books.get(symbol)
-            if book is None:
+            spec = books[symbol].spec if symbol in books else (specs or {}).get(symbol)
+            if spec is None:
+                if pos.lot_size != 0:
+                    inventory_missing_spec_symbols.append(symbol)
                 continue
-            qty = book.spec.lot_to_qty(pos.lot_size)
+            qty = spec.lot_to_qty(pos.lot_size)
             total_inventory += qty
             inventory_by_symbol[symbol] = float(qty)
 
@@ -935,6 +948,7 @@ class SimulationMetrics:
             "unrealized_pnl": unrealized_pnl,
             "valuation_complete": valuation_complete,
             "missing_mark_symbols": list(self.missing_mark_symbols),
+            "inventory_missing_spec_symbols": sorted(inventory_missing_spec_symbols),
             "max_drawdown": float(self.max_drawdown),
             "fill_count": self.fill_count,
             "fill_source_counts": {source: self.fill_source_counts.get(source, 0) for source in FILL_SOURCES},
