@@ -532,13 +532,22 @@ class SimulationMetrics:
                 realized_delta = close_qty * ((pos.avg_cost or Decimal("0")) - price) * contract_multiplier
             self.realized_pnl += realized_delta
 
-            remaining = abs(signed_qty_lots) - close_qty_lots
-            if remaining == 0:
-                if abs(pos.lot_size) == close_qty_lots:
+            remaining_incoming = abs(signed_qty_lots) - close_qty_lots
+            remaining_position = abs(pos.lot_size) - close_qty_lots
+            if remaining_incoming == 0:
+                # A partial reversal reduces the existing position while
+                # preserving its cost basis.  The old implementation left
+                # the lot size unchanged here, overstating inventory and
+                # making subsequent valuation/risk results non-conservative.
+                if remaining_position == 0:
                     pos.lot_size = 0
                     pos.avg_cost = None
+                else:
+                    pos.lot_size = (1 if pos.lot_size > 0 else -1) * remaining_position
             else:
-                pos.lot_size = side_sign * remaining
+                # Once the original side is fully closed, an over-reversal
+                # opens the residual quantity at the incoming fill price.
+                pos.lot_size = side_sign * remaining_incoming
                 pos.avg_cost = price
 
         fee = self.fee_model.assess(fill, book.spec)
