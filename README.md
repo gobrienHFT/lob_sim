@@ -26,6 +26,13 @@ Reviewer quickstart:
 python scripts/reviewer_gate.py
 ```
 
+The compact reviewer demo also shows the separation between inferred public-L2
+execution and exact synthetic ground truth:
+
+```bash
+python -m lob_sim.cli --env .env.example demo
+```
+
 For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md). The memo points to the real recorded clip, the synthetic stress pack, the larger-tape path in [docs/real_data_runbook.md](docs/real_data_runbook.md), the publication checklist in [docs/real_data_results_template.md](docs/real_data_results_template.md), benchmark commands, and limitations.
 
 ### Why this stands out
@@ -33,6 +40,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 - Event-time replay rather than bar backtest.
 - Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
 - Explicit public-L2 execution scenarios with synthetic queue-ahead tracking; historical Binance participant FIFO is not claimed.
+- A separate exact synthetic MBO venue with participant IDs and price-time priority; `demo` prints its FIFO ground-truth result separately from public-L2 replay.
 - Deterministic artifacts, reproducible runs, and a hash-based replay determinism checker for recorded NDJSON inputs.
 - JSON-only checkpoint/resume for interrupted long replays, including active venue state, pending actions, markouts, accounting, strategy features, explicit SplitMix64 scenario-latency state, and input/config identity checks.
 - Line-numbered replay schema validation, stream inspection, and run manifests with input digests.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from lob_sim.record.envelope import LogicalTime
+from lob_sim.sim.synthetic_demo import run_exact_synthetic_demo
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 
 
@@ -165,3 +166,21 @@ def test_state_hash_is_deterministic_and_time_regressions_fail_closed() -> None:
         assert "nondecreasing" in str(exc)
     else:
         raise AssertionError("logical time regression was accepted")
+
+
+def test_reviewer_demo_publishes_exact_fifo_ground_truth_separately() -> None:
+    report = run_exact_synthetic_demo()
+
+    assert report["schema_version"] == "lob_sim.synthetic_exchange_demo.v1"
+    assert report["mode"] == "exact_synthetic_mbo_price_time_priority"
+    assert report["historical_binance_fifo"] is False
+    assert report["fifo_ground_truth"] == {
+        "expected_maker_order_sequence": ["ask-a", "ask-b"],
+        "observed_maker_order_sequence": ["ask-a", "ask-b"],
+        "expected_fill_lots": [2, 1],
+        "observed_fill_lots": [2, 1],
+        "matches": True,
+    }
+    assert report["post_only_rejection_reason"] == "post_only_would_cross"
+    assert len(report["transitions"]) == 10
+    assert len(report["state_sha256"]) == 64

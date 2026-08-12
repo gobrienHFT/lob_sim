@@ -123,3 +123,9 @@ These primitives are not yet the engine's end-to-end scheduler, latency path,
 portfolio-notional risk path, or accounting path. The public-L2 scenario venue,
 engine integration, and run manifests remain outside the parity claim, so artifacts keep
 `full_engine_parity=false`.
+
+The reviewer CLI's `demo` command also runs a compact exact-synthetic MBO
+scenario. Because that venue owns participant and order identity, its
+price-time sequence is an executable ground-truth check for the synthetic mode
+only; the output is kept beside, and explicitly separated from, the inferred
+public-L2 execution result.

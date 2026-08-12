@@ -48,6 +48,7 @@ from .sim.engine import SimulationEngine
 from .sim.runner import run_bounded_simulation
 from .sim.sinks import NullSink
 from .sim.run_manifest import config_snapshot
+from .sim.synthetic_demo import run_exact_synthetic_demo
 from . import __version__
 
 
@@ -957,12 +958,14 @@ def cmd_demo(config: Config, file: str | None = None) -> None:
     )
     inspection = inspect_stream(target)
     run = _deterministic_run(config, str(target))
+    synthetic_demo = run_exact_synthetic_demo()
     print(
         json.dumps(
             {
                 "schema_version": "lob_sim.reviewer_demo.v1",
                 "input": inspection.as_dict(),
                 "deterministic_run": run,
+                "synthetic_exchange": synthetic_demo,
                 "next_commands": [
                     f"python -m lob_sim.cli --env .env.example validate --file {target}",
                     f"python -m lob_sim.cli --env .env.example compare --file {target}",

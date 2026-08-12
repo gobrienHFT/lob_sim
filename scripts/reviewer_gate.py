@@ -34,6 +34,7 @@ MYPY_TARGETS = (
     "lob_sim/sim/latency.py",
     "lob_sim/sim/sinks.py",
     "lob_sim/sim/synthetic_exchange.py",
+    "lob_sim/sim/synthetic_demo.py",
     "lob_sim/audit",
 )
 
