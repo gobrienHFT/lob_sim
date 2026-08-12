@@ -18,6 +18,7 @@ from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import PositionState, SimulationMetrics
 from lob_sim.sim.mm_strategy import QuoteTarget, StrategyDecision
 from lob_sim.sim.orders import Fill, Order
+from lob_sim.sim.checkpoint import encode as encode_checkpoint
 
 
 def _build_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: str) -> Config:
@@ -322,6 +323,74 @@ def _capture_event(
         data["reason"] = reason
         capture["reason"] = reason
     return RecordedEvent(ts_local=ts_local, symbol="BTCUSDT", type="captureEvent", data=data)
+
+
+def test_capture_integrity_failure_invalidates_execution_state_and_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path, SIM_ADVERSE_MARKOUT_SECONDS="1.0"))
+    engine._capture_schema_version = 3
+    engine._receive_clock = True
+    _prime_synced_symbol(engine, "BTCUSDT")
+    engine._depth_stream_valid["BTCUSDT"] = True
+    engine._trade_stream_valid["BTCUSDT"] = True
+    book = engine._books["BTCUSDT"]
+    engine.metrics.on_fill(
+        Fill(ts_local=1.0, symbol="BTCUSDT", side="bid", price_tick=100, qty_lots=1, order_id="fill-1"),
+        book,
+        book.mid_price(),
+    )
+    order = Order(
+        order_id="BTCUSDT-bid-live",
+        symbol="BTCUSDT",
+        side="bid",
+        price_tick=99,
+        qty_lots=1,
+        created_ts=1.0,
+        remaining_lots=1,
+    )
+    engine.fill_model.place_order(order)
+
+    engine._observe_capture_epoch(
+        _capture_event(
+            ts_local=2.0,
+            route="control",
+            event="parse_failure",
+            recv_seq=1,
+            stream_epoch=0,
+            sync_epoch=0,
+            reason="malformed payload",
+        ),
+        2.0,
+    )
+
+    summary = engine.metrics.get_summary(engine._books)
+    summary.update(engine._summary_annotations())
+    assert engine._capture_valid is False
+    assert engine._capture_invalidations == 1
+    assert engine._capture_invalid_reason == "parse_failure: malformed payload"
+    assert engine._trading_halted is True
+    assert engine.fill_model.get_order("BTCUSDT", "bid") is None
+    assert engine.metrics.pending_markout_state() == []
+    assert summary["integrity"]["capture_valid"] is False
+    assert summary["integrity"]["capture_invalidations"] == 1
+    assert summary["integrity"]["capture_invalid_reason"] == "parse_failure: malformed payload"
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["capture_valid"] is False
+    assert summary["integrity"]["stream_state"]["BTCUSDT"]["execution_inputs_valid"] is False
+    validity = engine._validity_state("BTCUSDT", require_trade=False).as_dict()
+    assert validity["capture_valid"] is False
+    assert validity["execution_valid"] is False
+    assert validity["reason"] == "parse_failure: malformed payload"
+    rows = [row for row in engine.event_trace if row["event_type"] == "capture_invalidated"]
+    assert len(rows) == 1
+    assert rows[0]["details"]["invalidated_markout_count"] == 1
+
+    resumed = SimulationEngine(engine.cfg)
+    resumed._restore_checkpoint_mutable_state(encode_checkpoint(engine._checkpoint_mutable_state()))
+    assert resumed._capture_valid is False
+    assert resumed._capture_invalidations == 1
+    assert resumed._capture_invalid_reason == "parse_failure: malformed payload"
+    assert resumed.state_sha256() == engine.state_sha256()
 
 
 def test_trade_disconnect_invalidates_trade_dependent_state_once_then_recovers(

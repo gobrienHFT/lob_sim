@@ -45,6 +45,10 @@ from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
 
 STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failure", "overflow"})
+# A route failure invalidates only the affected market-data dimension. These
+# events mean the capture itself can no longer be treated as a lossless input,
+# so execution must fail closed globally.
+CAPTURE_INVALIDATION_EVENTS = frozenset({"parse_failure", "overflow", "writer_failure", "capture_abort"})
 
 
 @dataclass(order=True)
@@ -105,6 +109,9 @@ class SimulationEngine:
         self._symbol_time_watermark: Dict[str, float] = {}
         self._clock_regressions = 0
         self._clock_invalidated = False
+        self._capture_valid = True
+        self._capture_invalidations = 0
+        self._capture_invalid_reason: str | None = None
         self._capture_schema_version = 1
         self._receive_clock = False
         self._last_receive_seq: int | None = None
@@ -190,11 +197,13 @@ class SimulationEngine:
             invalid_reasons.append(self._stream_invalid_reason.get((symbol, "market"), "trade_stream_invalid"))
         if not clock_valid:
             invalid_reasons.append("clock_invalid")
+        if not self._capture_valid:
+            invalid_reasons.append(self._capture_invalid_reason or "capture_invalid")
         return ValidityState(
             book_valid=book_valid,
             trade_stream_valid=trade_valid,
             clock_valid=clock_valid,
-            capture_valid=True,
+            capture_valid=self._capture_valid,
             trade_stream_required=require_trade,
             reason=";".join(invalid_reasons) or None,
         )
@@ -255,6 +264,33 @@ class SimulationEngine:
                 "reason": "clock_regression",
                 "observed_ts_local": observed_ts,
                 "logical_ts_local": now,
+                "invalidated_markout_count": invalidated_markouts,
+                "cleared_execution_state_by_symbol": cleared_by_symbol,
+            },
+        )
+
+    def _invalidate_capture(self, now: float, reason: str) -> None:
+        """Fail closed when the tape reports a capture-integrity failure."""
+
+        if not self._capture_valid:
+            return
+        self._capture_valid = False
+        self._capture_invalidations += 1
+        self._capture_invalid_reason = reason
+        symbols = sorted(set(self._specs) | set(self._books) | set(self.metrics.position))
+        cleared_by_symbol: dict[str, dict[str, int]] = {}
+        for symbol in symbols:
+            self._call_strategy_epoch_hook("invalidate_book_epoch", symbol)
+            cleared_by_symbol[symbol] = self._clear_symbol_execution_state(symbol)
+        invalidated_markouts = self.metrics.invalidate_all_pending_markouts("capture_invalidated", ts_local=now)
+        self._trading_halted = True
+        self._trace(
+            now,
+            "*",
+            "capture_invalidated",
+            "capture",
+            details={
+                "reason": reason,
                 "invalidated_markout_count": invalidated_markouts,
                 "cleared_execution_state_by_symbol": cleared_by_symbol,
             },
@@ -337,6 +373,8 @@ class SimulationEngine:
             or event_name
             or "unspecified"
         )
+        if event_name in CAPTURE_INVALIDATION_EVENTS:
+            self._invalidate_capture(now, f"{event_name}: {failure_reason}")
         stream_epoch = capture.get("streamEpoch")
         epoch: int | None = None
         previous: int | None = None
@@ -1324,6 +1362,9 @@ class SimulationEngine:
             "last_receive_seq": self._last_receive_seq,
             "clock_regressions": self._clock_regressions,
             "clock_invalidated": self._clock_invalidated,
+            "capture_valid": self._capture_valid,
+            "capture_invalidations": self._capture_invalidations,
+            "capture_invalid_reason": self._capture_invalid_reason,
             "next_decision": self._next_decision,
             "actions": self._actions,
             "event_trace": self.event_trace,
@@ -1365,6 +1406,10 @@ class SimulationEngine:
         self._last_receive_seq = None if raw_receive_seq is None else int(raw_receive_seq)
         self._clock_regressions = int(state["clock_regressions"])
         self._clock_invalidated = bool(state.get("clock_invalidated", self._clock_regressions > 0))
+        self._capture_valid = bool(state.get("capture_valid", True))
+        self._capture_invalidations = int(state.get("capture_invalidations", 0))
+        raw_capture_reason = state.get("capture_invalid_reason")
+        self._capture_invalid_reason = None if raw_capture_reason is None else str(raw_capture_reason)
         self._next_decision = dict(state["next_decision"])
         self._actions = list(state["actions"])
         heapify(self._actions)
@@ -1804,11 +1849,13 @@ class SimulationEngine:
                 "public_invalid_reason": self._stream_invalid_reason.get((symbol, "public")),
                 "market_invalid_reason": self._stream_invalid_reason.get((symbol, "market")),
                 "clock_valid": clock_valid,
+                "capture_valid": self._capture_valid,
                 "execution_inputs_valid": (
                     bool(book_state.get(symbol, {}).get("synced_at_end"))
                     and self._depth_stream_is_valid(symbol)
                     and (not trade_stream_required or self._trade_stream_is_valid(symbol))
                     and clock_valid
+                    and self._capture_valid
                 ),
             }
             for symbol in stream_symbols
@@ -1818,6 +1865,7 @@ class SimulationEngine:
             and self._receive_clock
             and self._clock_regressions == 0
             and self._last_receive_seq is not None
+            and self._capture_valid
         )
         return {
             "execution_model": {
@@ -1860,6 +1908,9 @@ class SimulationEngine:
                 "clock": "receive_time" if self._receive_clock else "legacy_exchange_or_local_time",
                 "clock_regressions_clamped": self._clock_regressions,
                 "clock_invalidated": self._clock_invalidated,
+                "capture_valid": self._capture_valid,
+                "capture_invalidations": self._capture_invalidations,
+                "capture_invalid_reason": self._capture_invalid_reason,
                 "book_invalidations": self._gap_count,
                 "snapshot_attempts_rejected": self._snapshot_rejections,
                 "sync_epoch_transitions": self._sync_epoch_transitions,
@@ -1882,6 +1933,8 @@ class SimulationEngine:
                 "markout_reason": (
                     "schema-v3 receive clock with monotonic sequence and no clamped regressions"
                     if clock_claim_ready
+                    else f"capture integrity invalidated: {self._capture_invalid_reason}"
+                    if not self._capture_valid
                     else "legacy/exchange clock or invalid intervals make subsecond horizons non-claimable"
                 ),
                 "pnl": "model_output_not_a_live_or_counterfactual_trading_result",
@@ -1958,6 +2011,11 @@ class SimulationEngine:
             "clock_state": {
                 "regressions": self._clock_regressions,
                 "invalidated": self._clock_invalidated,
+            },
+            "capture_state": {
+                "valid": self._capture_valid,
+                "invalidations": self._capture_invalidations,
+                "invalid_reason": self._capture_invalid_reason,
             },
             "continuation_state": encode_checkpoint(
                 {
