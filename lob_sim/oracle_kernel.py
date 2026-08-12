@@ -404,3 +404,162 @@ class PortfolioNotionalReservationOracle:
 
     def state_sha256(self) -> str:
         return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+
+ACCOUNTING_CASH_SCALE = 1_000_000
+
+
+@dataclass
+class _AccountingPosition:
+    lots: int = 0
+    cost_basis_cash_units: int = 0
+
+
+def _trunc_div(numerator: int, denominator: int) -> int:
+    """Integer division toward zero, independent of Python's floor semantics."""
+
+    if denominator <= 0:
+        raise ValueError("denominator must be positive")
+    quotient = abs(numerator) // denominator
+    return -quotient if numerator < 0 else quotient
+
+
+class AccountingMarkoutOracle:
+    """Fixed-point fill accounting specification for the Rust parity boundary.
+
+    Prices are integer ticks, quantities are integer lots, and cash is stored
+    in ``ACCOUNTING_CASH_SCALE`` micro-units per tick-lot.  The cost basis is
+    retained as an integer numerator; partial reversals allocate that basis
+    toward the closing quantity with division toward zero, leaving any
+    remainder attached to the open position.  This makes reversal behavior
+    deterministic without floating-point average prices.
+    """
+
+    def __init__(self) -> None:
+        self._positions: dict[int, _AccountingPosition] = {}
+        self._marks: dict[int, int] = {}
+        self.realized_pnl_cash_units = 0
+        self.total_fees_cash_units = 0
+        self.markout_cash_units = 0
+        self.markout_qty_lots = 0
+
+    @property
+    def net_realized_pnl_cash_units(self) -> int:
+        return self.realized_pnl_cash_units - self.total_fees_cash_units
+
+    @property
+    def position_lots(self) -> int:
+        return sum(position.lots for position in self._positions.values())
+
+    @property
+    def gross_position_lots(self) -> int:
+        return sum(abs(position.lots) for position in self._positions.values())
+
+    @property
+    def unrealized_pnl_cash_units(self) -> int | None:
+        if any(position.lots and symbol_id not in self._marks for symbol_id, position in self._positions.items()):
+            return None
+        return sum(
+            (
+                self._marks[symbol_id] * position.lots * ACCOUNTING_CASH_SCALE - position.cost_basis_cash_units
+                if position.lots > 0
+                else position.cost_basis_cash_units
+                - self._marks[symbol_id] * abs(position.lots) * ACCOUNTING_CASH_SCALE
+            )
+            for symbol_id, position in self._positions.items()
+            if position.lots
+        )
+
+    @property
+    def valuation_complete(self) -> bool:
+        return self.unrealized_pnl_cash_units is not None
+
+    def mark(self, symbol_id: int, price_tick: int) -> OracleDecision:
+        if price_tick <= 0:
+            return OracleDecision(False, "invalid_mark_price")
+        self._marks[symbol_id] = price_tick
+        return OracleDecision(True)
+
+    def clear_mark(self, symbol_id: int) -> OracleDecision:
+        self._marks.pop(symbol_id, None)
+        return OracleDecision(True)
+
+    def fill(
+        self,
+        symbol_id: int,
+        *,
+        is_bid: bool,
+        price_tick: int,
+        qty_lots: int,
+        fee_cash_units: int = 0,
+    ) -> OracleDecision:
+        if price_tick <= 0:
+            return OracleDecision(False, "invalid_fill_price")
+        if qty_lots <= 0:
+            return OracleDecision(False, "invalid_fill_quantity")
+        position = self._positions.setdefault(symbol_id, _AccountingPosition())
+        signed_qty = qty_lots if is_bid else -qty_lots
+        if position.lots == 0:
+            position.lots = signed_qty
+            position.cost_basis_cash_units = price_tick * qty_lots * ACCOUNTING_CASH_SCALE
+        elif position.lots * signed_qty > 0:
+            position.cost_basis_cash_units += price_tick * qty_lots * ACCOUNTING_CASH_SCALE
+            position.lots += signed_qty
+        else:
+            close_lots = min(abs(position.lots), qty_lots)
+            allocated_cost = _trunc_div(
+                position.cost_basis_cash_units * close_lots,
+                abs(position.lots),
+            )
+            fill_cash = price_tick * close_lots * ACCOUNTING_CASH_SCALE
+            self.realized_pnl_cash_units += (
+                fill_cash - allocated_cost if position.lots > 0 else allocated_cost - fill_cash
+            )
+            position.cost_basis_cash_units -= allocated_cost
+            remaining_position = abs(position.lots) - close_lots
+            remaining_incoming = qty_lots - close_lots
+            if remaining_position > 0:
+                position.lots = (1 if position.lots > 0 else -1) * remaining_position
+            elif remaining_incoming > 0:
+                position.lots = (1 if is_bid else -1) * remaining_incoming
+                position.cost_basis_cash_units = price_tick * remaining_incoming * ACCOUNTING_CASH_SCALE
+            else:
+                position.lots = 0
+                position.cost_basis_cash_units = 0
+        self.total_fees_cash_units += fee_cash_units
+        if position.lots == 0:
+            self._positions.pop(symbol_id, None)
+        return OracleDecision(True)
+
+    def markout(
+        self,
+        *,
+        is_bid: bool,
+        fill_price_tick: int,
+        qty_lots: int,
+        mark_price_tick: int,
+    ) -> OracleDecision:
+        if fill_price_tick <= 0 or mark_price_tick <= 0:
+            return OracleDecision(False, "invalid_markout_price")
+        if qty_lots <= 0:
+            return OracleDecision(False, "invalid_markout_quantity")
+        direction = 1 if is_bid else -1
+        self.markout_cash_units += (mark_price_tick - fill_price_tick) * qty_lots * ACCOUNTING_CASH_SCALE * direction
+        self.markout_qty_lots += qty_lots
+        return OracleDecision(True)
+
+    def canonical_bytes(self) -> bytes:
+        pieces = [
+            f"realized:{self.realized_pnl_cash_units};",
+            f"fees:{self.total_fees_cash_units};",
+            f"markout:{self.markout_cash_units}:{self.markout_qty_lots};",
+        ]
+        for symbol_id in sorted(self._marks):
+            pieces.append(f"mark:{symbol_id}:{self._marks[symbol_id]};")
+        for symbol_id in sorted(self._positions):
+            position = self._positions[symbol_id]
+            pieces.append(f"position:{symbol_id}:{position.lots}:{position.cost_basis_cash_units};")
+        return "".join(pieces).encode("utf-8")
+
+    def state_sha256(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()

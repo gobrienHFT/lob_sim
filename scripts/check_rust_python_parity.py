@@ -14,6 +14,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Sequence
 
 from lob_sim.oracle_kernel import (
+    AccountingMarkoutOracle,
     DeterministicSchedulerOracle,
     OracleDecision,
     PortfolioNotionalReservationOracle,
@@ -30,6 +31,7 @@ SyntheticOperation = tuple[int, int, int, bool, int | None, int, bool, bool]
 SchedulerOperation = tuple[int, int, int, int, bool]
 RiskOperation = tuple[int, int, bool, int]
 PortfolioOperation = tuple[int, int, int, bool, int]
+AccountingOperation = tuple[int, int, bool, int, int, int]
 
 
 def _python_apply_batch(
@@ -484,6 +486,90 @@ def _python_portfolio_trace(
     return rows
 
 
+def _generated_accounting_operations(rng: random.Random, cases: int) -> list[AccountingOperation]:
+    operations: list[AccountingOperation] = []
+    for symbol_id in range(4):
+        operations.append((1, symbol_id, False, 100 + symbol_id, 0, 0))
+    operations.extend(
+        [
+            (0, 0, True, 100, 3, 7),
+            (0, 0, False, 110, 1, -2),
+            (3, 0, True, 100, 2, 98),
+            (2, 0, False, 0, 0, 0),
+            (0, 1, False, 101, 2, 0),
+            (0, 1, True, 99, 3, 1),
+            (1, 1, False, 100, 0, 0),
+        ]
+    )
+    while len(operations) < cases:
+        kind = rng.randrange(100)
+        symbol_id = rng.randrange(4)
+        if kind < 54:
+            price_tick = 0 if rng.randrange(100) < 4 else rng.randrange(90, 111)
+            qty_lots = 0 if rng.randrange(100) < 4 else rng.randrange(1, 6)
+            operations.append((0, symbol_id, bool(rng.randrange(2)), price_tick, qty_lots, rng.randrange(-5, 6)))
+        elif kind < 76:
+            price_tick = 0 if rng.randrange(100) < 4 else rng.randrange(90, 111)
+            operations.append((1, symbol_id, False, price_tick, 0, 0))
+        elif kind < 86:
+            operations.append((2, symbol_id, False, 0, 0, 0))
+        else:
+            fill_price = 0 if rng.randrange(100) < 4 else rng.randrange(90, 111)
+            mark_price = 0 if rng.randrange(100) < 4 else rng.randrange(90, 111)
+            qty_lots = 0 if rng.randrange(100) < 4 else rng.randrange(1, 6)
+            operations.append((3, symbol_id, bool(rng.randrange(2)), fill_price, qty_lots, mark_price))
+    return operations
+
+
+def _python_accounting_trace(
+    operations: list[AccountingOperation],
+    *,
+    checkpoint_interval: int,
+) -> list[tuple[bool, str | None, int, int, int, int, int | None, bool, int, int, str | None]]:
+    ledger = AccountingMarkoutOracle()
+    rows: list[tuple[bool, str | None, int, int, int, int, int | None, bool, int, int, str | None]] = []
+    for index, (kind, symbol_id, is_bid, price_tick, qty_lots, fee_or_mark_tick) in enumerate(operations):
+        if kind == 0:
+            decision = ledger.fill(
+                symbol_id,
+                is_bid=is_bid,
+                price_tick=price_tick,
+                qty_lots=qty_lots,
+                fee_cash_units=fee_or_mark_tick,
+            )
+        elif kind == 1:
+            decision = ledger.mark(symbol_id, price_tick)
+        elif kind == 2:
+            decision = ledger.clear_mark(symbol_id)
+        elif kind == 3:
+            decision = ledger.markout(
+                is_bid=is_bid,
+                fill_price_tick=price_tick,
+                qty_lots=qty_lots,
+                mark_price_tick=fee_or_mark_tick,
+            )
+        else:
+            raise ValueError(f"unsupported accounting operation kind: {kind}")
+        ordinal = index + 1
+        checkpoint = ledger.state_sha256() if ordinal % checkpoint_interval == 0 or ordinal == len(operations) else None
+        rows.append(
+            (
+                decision.accepted,
+                decision.reason,
+                ledger.position_lots,
+                ledger.gross_position_lots,
+                ledger.realized_pnl_cash_units,
+                ledger.total_fees_cash_units,
+                ledger.unrealized_pnl_cash_units,
+                ledger.valuation_complete,
+                ledger.markout_cash_units,
+                ledger.markout_qty_lots,
+                checkpoint,
+            )
+        )
+    return rows
+
+
 def _build_extension(cargo: str, directory: Path) -> Path:
     environment = dict(os.environ)
     cargo_path = Path(cargo)
@@ -746,6 +832,50 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         )
     }
 
+    accounting_operations = _generated_accounting_operations(random.Random(47), cases)
+    accounting_corpus_sha256 = hashlib.sha256(
+        json.dumps(accounting_operations, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    python_accounting_trace = _python_accounting_trace(
+        accounting_operations,
+        checkpoint_interval=SYNTHETIC_CHECKPOINT_INTERVAL,
+    )
+    rust_accounting_trace = list(lob_core.run_accounting_trace(accounting_operations, SYNTHETIC_CHECKPOINT_INTERVAL))
+    if len(rust_accounting_trace) != len(python_accounting_trace):
+        raise AssertionError(
+            f"accounting trace length differs: python={len(python_accounting_trace)}, rust={len(rust_accounting_trace)}"
+        )
+    for accounting_index, (accounting_python_row, accounting_rust_row) in enumerate(
+        zip(python_accounting_trace, rust_accounting_trace, strict=True)
+    ):
+        if accounting_python_row != accounting_rust_row:
+            raise AssertionError(
+                "accounting divergence at operation "
+                f"{accounting_index}: operation={accounting_operations[accounting_index]!r}, "
+                f"python={accounting_python_row!r}, rust={accounting_rust_row!r}"
+            )
+    accounting_accepted = sum(1 for row in python_accounting_trace if row[0])
+    accounting_checkpoint_count = sum(1 for row in python_accounting_trace if row[10] is not None)
+    accounting_final_hash = python_accounting_trace[-1][10]
+    assert accounting_final_hash is not None
+    accounting_trace_sha256 = hashlib.sha256(
+        json.dumps(python_accounting_trace, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    accounting_operation_kind_counts = {
+        "fill": sum(1 for operation in accounting_operations if operation[0] == 0),
+        "mark": sum(1 for operation in accounting_operations if operation[0] == 1),
+        "clear_mark": sum(1 for operation in accounting_operations if operation[0] == 2),
+        "markout": sum(1 for operation in accounting_operations if operation[0] == 3),
+    }
+    accounting_accepted_operation_kind_counts = {
+        name: sum(
+            1
+            for operation, row in zip(accounting_operations, python_accounting_trace, strict=True)
+            if operation[0] == kind and row[0]
+        )
+        for name, kind in (("fill", 0), ("mark", 1), ("clear_mark", 2), ("markout", 3))
+    }
+
     return {
         "schema_version": "lob_sim.rust_python_parity.v3",
         "ok": True,
@@ -802,16 +932,34 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "portfolio_notional_final_reserved_order_units": python_portfolio_trace[-1][3],
         "portfolio_notional_final_total_reserved_units": python_portfolio_trace[-1][4],
         "portfolio_notional_final_state_sha256": portfolio_final_hash,
+        "accounting_operations": len(accounting_operations),
+        "accounting_operation_kind_counts": accounting_operation_kind_counts,
+        "accounting_accepted_operation_kind_counts": accounting_accepted_operation_kind_counts,
+        "accounting_operation_corpus_sha256": accounting_corpus_sha256,
+        "accounting_trace_sha256": accounting_trace_sha256,
+        "accounting_accepted_operations": accounting_accepted,
+        "accounting_rejected_operations": len(accounting_operations) - accounting_accepted,
+        "accounting_checkpoint_count": accounting_checkpoint_count,
+        "accounting_final_position_lots": python_accounting_trace[-1][2],
+        "accounting_final_gross_position_lots": python_accounting_trace[-1][3],
+        "accounting_final_realized_pnl_cash_units": python_accounting_trace[-1][4],
+        "accounting_final_fees_cash_units": python_accounting_trace[-1][5],
+        "accounting_final_unrealized_pnl_cash_units": python_accounting_trace[-1][6],
+        "accounting_final_valuation_complete": python_accounting_trace[-1][7],
+        "accounting_final_markout_cash_units": python_accounting_trace[-1][8],
+        "accounting_final_markout_qty_lots": python_accounting_trace[-1][9],
+        "accounting_final_state_sha256": accounting_final_hash,
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
             "MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol "
-            "live-plus-pending lot reservations, cross-symbol gross-notional reservations, with transition "
-            "traces and periodic full-state hashes"
+            "live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill "
+            "accounting, nullable mark valuation, and signed markouts, with transition traces and periodic "
+            "full-state hashes"
         ),
         "remaining_full_engine_scope": [
             "public-L2 execution scenarios",
             "engine-integrated latency and portfolio-notional risk",
-            "accounting and markouts",
+            "engine-integrated accounting and markouts",
             "run manifests",
         ],
         "full_engine_parity": False,

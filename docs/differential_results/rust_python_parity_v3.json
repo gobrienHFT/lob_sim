@@ -1,5 +1,32 @@
 {
   "accepted_batches": 3202,
+  "accounting_accepted_operation_kind_counts": {
+    "clear_mark": 998,
+    "fill": 4920,
+    "mark": 2195,
+    "markout": 1241
+  },
+  "accounting_accepted_operations": 9354,
+  "accounting_checkpoint_count": 39,
+  "accounting_final_fees_cash_units": -76,
+  "accounting_final_gross_position_lots": 539,
+  "accounting_final_markout_cash_units": -91000000,
+  "accounting_final_markout_qty_lots": 3769,
+  "accounting_final_position_lots": -265,
+  "accounting_final_realized_pnl_cash_units": 2529709892,
+  "accounting_final_state_sha256": "3e255916c8f285eddd4adf0d19c349d64fb405e5b625695ed243b6d0b43f00bf",
+  "accounting_final_unrealized_pnl_cash_units": null,
+  "accounting_final_valuation_complete": false,
+  "accounting_operation_corpus_sha256": "10d525c20157e9c819414b22d0249679cc5f15f13fb12f5256f5901c118385f0",
+  "accounting_operation_kind_counts": {
+    "clear_mark": 998,
+    "fill": 5348,
+    "mark": 2248,
+    "markout": 1406
+  },
+  "accounting_operations": 10000,
+  "accounting_rejected_operations": 646,
+  "accounting_trace_sha256": "0a1d7870f3aef0895db88105ad0fc836efec13e5f54ac847fe1a333f17d1dd5a",
   "book_batches": 10000,
   "final_state_sha256": "d08345b1e5b0d9d7046d83a45ee99804008e67dabed50c7e971b69daa58592e4",
   "full_engine_parity": false,
@@ -36,7 +63,7 @@
   "remaining_full_engine_scope": [
     "public-L2 execution scenarios",
     "engine-integrated latency and portfolio-notional risk",
-    "accounting and markouts",
+    "engine-integrated accounting and markouts",
     "run manifests"
   ],
   "risk_accepted_operation_kind_counts": {
@@ -83,7 +110,7 @@
   "scheduler_rejected_operations": 2071,
   "scheduler_trace_sha256": "7207edb898467b8e5640dd8ae89f9f5a5874ea7301055b62d3fe26f7b1600c11",
   "schema_version": "lob_sim.rust_python_parity.v3",
-  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, with transition traces and periodic full-state hashes",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill accounting, nullable mark valuation, and signed markouts, with transition traces and periodic full-state hashes",
   "seed": 17,
   "synthetic_accepted_operations": 4772,
   "synthetic_checkpoint_count": 39,
