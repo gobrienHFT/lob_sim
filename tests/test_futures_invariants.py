@@ -346,6 +346,32 @@ def test_engine_action_heap_uses_exact_logical_nanoseconds_for_large_receipt_clo
     assert [event.logical_ns for event in engine._actions] == [base_ns + 2]
 
 
+def test_event_trace_uses_exact_logical_key_when_receipt_floats_collapse() -> None:
+    engine = SimulationEngine.__new__(SimulationEngine)
+    engine._last_trace_ts = None
+    engine._last_trace_key = None
+    engine._active_logical_ns = None
+    engine._active_legacy_subns = 0
+    engine._active_event_ts = None
+    engine._trace_counter = 0
+    engine._event_trace_count = 0
+    engine._event_sink = type("Sink", (), {"write": lambda self, event: None})()
+    engine._retain_event_trace = True
+    engine.event_trace = []
+
+    base_ns = 1_700_000_000_000_000_000
+    seconds = base_ns / 1_000_000_000
+    engine._active_logical_ns = base_ns + 1
+    engine._active_event_ts = seconds
+    engine._trace(seconds, "BTCUSDT", "first", "test")
+    engine._active_logical_ns = base_ns + 2
+    engine._trace(seconds, "BTCUSDT", "second", "test")
+
+    engine._active_logical_ns = base_ns
+    with pytest.raises(RuntimeError, match="event trace violated causal order"):
+        engine._trace(seconds, "BTCUSDT", "regression", "test")
+
+
 def test_schema_v3_trace_preserves_raw_wall_time_when_using_receive_clock() -> None:
     engine = SimulationEngine.__new__(SimulationEngine)
     engine._last_trace_ts = None

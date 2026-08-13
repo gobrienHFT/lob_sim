@@ -132,6 +132,11 @@ uninterrupted run. Checkpointing is deliberately restricted to `NullSink`
 outputs; a resumed streaming export needs an explicit append/transaction
 protocol and is not silently fabricated.
 
+Event-trace causality uses the same exact internal key as the action heap. The
+exported `ts_local` remains a compatibility/reporting field; it is not the
+ordering authority when large receipt timestamps collapse to the same binary
+float.
+
 ## Pack Audit
 
 Use the pack auditor when you want to check a generated futures pack without reading each CSV by hand:

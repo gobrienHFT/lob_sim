@@ -115,6 +115,7 @@ class SimulationEngine:
         self._retain_event_trace = retain_event_trace
         self._event_trace_count = 0
         self._last_trace_ts: float | None = None
+        self._last_trace_key: tuple[int, int] | None = None
         self._trading_halted = False
         self._pending_cancel_ack_ts: dict[str, float] = {}
         self._pending_replacement_slots: set[tuple[str, str, str]] = set()
@@ -731,9 +732,19 @@ class SimulationEngine:
         fill_source: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        if self._last_trace_ts is not None and ts < self._last_trace_ts:
+        active_event_ts = getattr(self, "_active_event_ts", None)
+        active_logical_ns = getattr(self, "_active_logical_ns", None)
+        if isinstance(active_logical_ns, int) and active_event_ts is not None and ts == active_event_ts:
+            trace_key = (active_logical_ns, int(getattr(self, "_active_legacy_subns", 0)))
+        else:
+            trace_key = self._timestamp_to_key(ts)
+        last_trace_key = getattr(self, "_last_trace_key", None)
+        if last_trace_key is None and self._last_trace_ts is not None:
+            last_trace_key = self._timestamp_to_key(self._last_trace_ts)
+        if last_trace_key is not None and trace_key < last_trace_key:
             raise RuntimeError(f"event trace violated causal order: timestamp {ts!r} followed {self._last_trace_ts!r}")
         self._last_trace_ts = ts
+        self._last_trace_key = trace_key
         sequence = self._trace_counter
         self._trace_counter += 1
         event = {
@@ -1681,6 +1692,7 @@ class SimulationEngine:
             "event_trace": self.event_trace,
             "event_trace_count": self._event_trace_count,
             "last_trace_ts": self._last_trace_ts,
+            "last_trace_key": self._last_trace_key,
             "trading_halted": self._trading_halted,
             "pending_cancel_ack_ts": self._pending_cancel_ack_ts,
             "pending_replacement_slots": self._pending_replacement_slots,
@@ -1734,6 +1746,8 @@ class SimulationEngine:
         self.event_trace = list(state["event_trace"])
         self._event_trace_count = int(state["event_trace_count"])
         self._last_trace_ts = state["last_trace_ts"]
+        raw_trace_key = state.get("last_trace_key")
+        self._last_trace_key = None if raw_trace_key is None else (int(raw_trace_key[0]), int(raw_trace_key[1]))
         self._trading_halted = bool(state["trading_halted"])
         self._pending_cancel_ack_ts = dict(state["pending_cancel_ack_ts"])
         self._pending_replacement_slots = set(state["pending_replacement_slots"])
