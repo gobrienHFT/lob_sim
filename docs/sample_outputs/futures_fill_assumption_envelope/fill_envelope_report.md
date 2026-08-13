@@ -1,9 +1,10 @@
 # Fill Assumption Envelope
 
 - Input file: `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson`
-- Input digest: `2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9`
-- Normalized config digest: `96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4`
+- Input digest: `eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65`
+- Normalized config digest: `80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9`
 - Profiles: `conservative, base, aggressive`
+- Frozen research registry SHA-256: `bb040321692d388b48634399cc510a08bc83820510a1b8e8cb48f88fe967f47d`
 
 Exact command:
 
@@ -18,9 +19,9 @@ The runner executes the same replay input and the same normalized simulation con
 
 | Profile | Fills | Realized PnL | Unrealized PnL | Fees | Avg spread | Adverse 1s | Max inventory | Fill sources | Public consumption |
 |---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| `conservative` | 0 | 0 | 0 | 0 | 0 | 0.000000 | 0 | `{"agg_trade": 0, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 3, "total_observed_lots": 3, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 2, "total_unmatched_lots": 1}` |
-| `base` | 1 | 2e-06 | 5e-05 | -2e-06 | 0.05 | 0.000000 | 0.001 | `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 3, "total_observed_lots": 3, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 3, "total_unmatched_lots": 0}` |
-| `aggressive` | 1 | 2e-06 | 5e-05 | -2e-06 | 0.05 | 0.000000 | 0.001 | `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 3, "total_observed_lots": 3, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 3, "total_unmatched_lots": 0}` |
+| `conservative` | 1 | 2e-06 | 5e-05 | -2e-06 | 0.05 | 0.000000 | 0.001 | `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 4, "total_observed_lots": 4, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 3, "total_unmatched_lots": 1}` |
+| `base` | 1 | 2e-06 | 5e-05 | -2e-06 | 0.05 | 0.000000 | 0.001 | `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 4, "total_observed_lots": 4, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 3, "total_unmatched_lots": 1}` |
+| `aggressive` | 1 | 2e-06 | 5e-05 | -2e-06 | 0.05 | 0.000000 | 0.001 | `{"agg_trade": 1, "depth_update": 0, "taker_order": 0}` | `{"total_modeled_lots": 4, "total_observed_lots": 4, "total_overlap_netted_lots": 0, "total_queue_consumed_lots": 3, "total_unmatched_lots": 1}` |
 
 ## Artifact Paths
 
