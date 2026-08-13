@@ -327,6 +327,35 @@ def test_futures_simulation_assumption_verifier_rejects_private_fill_claim(tmp_p
     ]
 
 
+def test_futures_simulation_assumption_verifier_rejects_legacy_fifo_mode(tmp_path, monkeypatch) -> None:
+    showcase = tmp_path / "showcase"
+    recorded = tmp_path / "recorded"
+    expected = _valid_simulation_assumptions()
+    stale = json.loads(json.dumps(expected))
+    stale["fill_assumption"]["uncorroborated_depth_reduction_mode"] = "consume_fifo_queue"
+
+    _write_simulation_assumption_case(
+        showcase,
+        manifest_assumptions=stale,
+        summary_assumptions=stale,
+    )
+    _write_simulation_assumption_case(
+        recorded,
+        manifest_assumptions=expected,
+        summary_assumptions=expected,
+    )
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", showcase)
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", recorded)
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_simulation_assumptions_metadata()
+
+    assert issues == [
+        f"{showcase / 'manifest.json'} simulation_assumptions has a non-canonical depth reduction mode",
+        f"{showcase / 'summary.json'} simulation_assumptions has a non-canonical depth reduction mode",
+    ]
+
+
 def test_futures_trade_audit_verifier_requires_economics_and_provenance(tmp_path, monkeypatch) -> None:
     showcase = tmp_path / "showcase"
     recorded = tmp_path / "recorded"
