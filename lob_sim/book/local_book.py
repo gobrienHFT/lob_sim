@@ -31,8 +31,8 @@ class LocalOrderBook:
         self.last_update_id = None
 
     def reset_from_snapshot(self, last_update_id: int, bids: dict[int, int], asks: dict[int, int]) -> None:
-        if last_update_id < 0:
-            raise BookInvariantError("last_update_id cannot be negative")
+        if type(last_update_id) is not int or last_update_id < 0:
+            raise BookInvariantError("last_update_id must be a non-negative integer")
         next_bids = {tick: qty for tick, qty in bids.items() if qty > 0}
         next_asks = {tick: qty for tick, qty in asks.items() if qty > 0}
         self._validate_state(next_bids, next_asks)
