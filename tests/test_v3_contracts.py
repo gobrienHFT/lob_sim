@@ -118,6 +118,52 @@ def test_envelope_record_writer_rejects_coercible_capture_identity() -> None:
     assert written == []
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("route", 7, "route must be a non-empty string"),
+        ("venue", 7, "venue must be a non-empty string"),
+        ("E", "1000", "E must be an integer"),
+        ("T", 1000.0, "T must be an integer"),
+    ],
+)
+def test_envelope_record_writer_rejects_coercible_identity_and_exchange_time(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    written: list[EventEnvelope] = []
+
+    class Sink:
+        def write(self, envelope: EventEnvelope) -> None:
+            written.append(envelope)
+
+    writer = _EnvelopeRecordWriter(Sink(), "capture-1", iter([2]).__next__)
+    capture: dict[str, object] = {
+        "route": "public",
+        "recvSeq": 1,
+        "recvMonotonicNs": 100,
+        "streamEpoch": 1,
+        "syncEpoch": 1,
+    }
+    data: dict[str, object] = {
+        "event": "connect",
+        "E": 1_000,
+        "T": 1_000,
+        "_capture": capture,
+    }
+    if field == "route":
+        capture["route"] = value
+    else:
+        data[field] = value
+    if field == "venue":
+        data["venue"] = value
+
+    with pytest.raises(ValueError, match=message):
+        writer.write(NDJSONRecord(ts_local=1.0, symbol="BTCUSDT", type="captureEvent", data=data))
+    assert written == []
+
+
 def test_logical_time_rejects_bool_and_fractional_components() -> None:
     with pytest.raises(ValueError, match="recv_monotonic_ns must be an integer"):
         LogicalTime(True, 1)  # type: ignore[arg-type]
