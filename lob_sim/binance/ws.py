@@ -14,6 +14,7 @@ from websockets.exceptions import ConnectionClosed
 
 from ..book.types import AggTradeEvent, DepthUpdateEvent, SymbolSpec
 from ..config import Config
+from ..record.envelope import require_nonnegative_int
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +109,26 @@ def parse_depth_update(
         ts_local=_parse_event_ts(payload) if received_ts is None else float(received_ts),
         event_ts=_optional_exchange_ts(payload, "E"),
         transaction_ts=_optional_exchange_ts(payload, "T"),
-        receive_seq=int(capture["recvSeq"]) if capture.get("recvSeq") is not None else None,
-        receive_monotonic_ns=(int(capture["recvMonotonicNs"]) if capture.get("recvMonotonicNs") is not None else None),
-        stream_epoch=int(capture["streamEpoch"]) if capture.get("streamEpoch") is not None else None,
-        sync_epoch=int(capture["syncEpoch"]) if capture.get("syncEpoch") is not None else None,
+        receive_seq=(
+            require_nonnegative_int(capture["recvSeq"], "recvSeq")
+            if capture.get("recvSeq") is not None
+            else None
+        ),
+        receive_monotonic_ns=(
+            require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
+            if capture.get("recvMonotonicNs") is not None
+            else None
+        ),
+        stream_epoch=(
+            require_nonnegative_int(capture["streamEpoch"], "streamEpoch")
+            if capture.get("streamEpoch") is not None
+            else None
+        ),
+        sync_epoch=(
+            require_nonnegative_int(capture["syncEpoch"], "syncEpoch")
+            if capture.get("syncEpoch") is not None
+            else None
+        ),
     )
 
 
@@ -131,10 +148,26 @@ def parse_agg_trade(
         aggregate_trade_id=int(payload["a"]) if payload.get("a") is not None else None,
         event_ts=_optional_exchange_ts(payload, "E"),
         transaction_ts=_optional_exchange_ts(payload, "T"),
-        receive_seq=int(capture["recvSeq"]) if capture.get("recvSeq") is not None else None,
-        receive_monotonic_ns=(int(capture["recvMonotonicNs"]) if capture.get("recvMonotonicNs") is not None else None),
-        stream_epoch=int(capture["streamEpoch"]) if capture.get("streamEpoch") is not None else None,
-        sync_epoch=int(capture["syncEpoch"]) if capture.get("syncEpoch") is not None else None,
+        receive_seq=(
+            require_nonnegative_int(capture["recvSeq"], "recvSeq")
+            if capture.get("recvSeq") is not None
+            else None
+        ),
+        receive_monotonic_ns=(
+            require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
+            if capture.get("recvMonotonicNs") is not None
+            else None
+        ),
+        stream_epoch=(
+            require_nonnegative_int(capture["streamEpoch"], "streamEpoch")
+            if capture.get("streamEpoch") is not None
+            else None
+        ),
+        sync_epoch=(
+            require_nonnegative_int(capture["syncEpoch"], "syncEpoch")
+            if capture.get("syncEpoch") is not None
+            else None
+        ),
     )
 
 

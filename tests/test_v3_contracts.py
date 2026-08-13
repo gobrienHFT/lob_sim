@@ -77,6 +77,35 @@ def test_event_envelope_rejects_fractional_exchange_timestamp() -> None:
         EventEnvelope.from_dict(payload)
 
 
+def test_envelope_record_writer_rejects_coercible_capture_identity() -> None:
+    written: list[EventEnvelope] = []
+
+    class Sink:
+        def write(self, envelope: EventEnvelope) -> None:
+            written.append(envelope)
+
+    writer = _EnvelopeRecordWriter(Sink(), "capture-1", iter([2]).__next__)
+    record = NDJSONRecord(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="captureEvent",
+        data={
+            "event": "connect",
+            "_capture": {
+                "route": "public",
+                "recvSeq": 1.5,
+                "recvMonotonicNs": 100,
+                "streamEpoch": 1,
+                "syncEpoch": 1,
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="recvSeq must be an integer"):
+        writer.write(record)
+    assert written == []
+
+
 def test_logical_time_rejects_bool_and_fractional_components() -> None:
     with pytest.raises(ValueError, match="recv_monotonic_ns must be an integer"):
         LogicalTime(True, 1)  # type: ignore[arg-type]
