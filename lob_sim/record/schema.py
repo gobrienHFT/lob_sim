@@ -138,6 +138,18 @@ def _require_intish(
         ) from exc
 
 
+def _require_nonnegative_intish(
+    value: Any,
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    _require_intish(value, context, path=path, line_number=line_number)
+    if int(str(value)) < 0:
+        _fail(f"{context} must be non-negative, got {value!r}", path=path, line_number=line_number)
+
+
 def _require_exact_nonnegative_int(
     value: Any,
     context: str,
@@ -314,17 +326,17 @@ def validate_record_object(
 
     if record_type == "snapshot":
         _require_keys(data, ("lastUpdateId", "bids", "asks"), "snapshot payload", path=path, line_number=line_number)
-        _require_intish(data["lastUpdateId"], "snapshot.lastUpdateId", path=path, line_number=line_number)
+        _require_nonnegative_intish(data["lastUpdateId"], "snapshot.lastUpdateId", path=path, line_number=line_number)
         _require_level_list(data["bids"], "snapshot.bids", path=path, line_number=line_number)
         _require_level_list(data["asks"], "snapshot.asks", path=path, line_number=line_number)
         return
 
     if record_type == "depthUpdate":
         _require_keys(data, ("U", "u", "b", "a"), "depthUpdate payload", path=path, line_number=line_number)
-        _require_intish(data["U"], "depthUpdate.U", path=path, line_number=line_number)
-        _require_intish(data["u"], "depthUpdate.u", path=path, line_number=line_number)
+        _require_nonnegative_intish(data["U"], "depthUpdate.U", path=path, line_number=line_number)
+        _require_nonnegative_intish(data["u"], "depthUpdate.u", path=path, line_number=line_number)
         if "pu" in data:
-            _require_intish(data["pu"], "depthUpdate.pu", path=path, line_number=line_number)
+            _require_nonnegative_intish(data["pu"], "depthUpdate.pu", path=path, line_number=line_number)
         _require_level_list(data["b"], "depthUpdate.b", path=path, line_number=line_number)
         _require_level_list(data["a"], "depthUpdate.a", path=path, line_number=line_number)
         return

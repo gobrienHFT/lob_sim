@@ -53,6 +53,28 @@ def test_iter_records_rejects_fractional_sequence_ids(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("record_type", "data", "field"),
+    [
+        ("snapshot", {"lastUpdateId": -1, "bids": [], "asks": []}, "snapshot.lastUpdateId"),
+        ("depthUpdate", {"U": -1, "u": 1, "pu": 0, "b": [], "a": []}, "depthUpdate.U"),
+        ("depthUpdate", {"U": 0, "u": -1, "pu": 0, "b": [], "a": []}, "depthUpdate.u"),
+        ("depthUpdate", {"U": 0, "u": 1, "pu": -1, "b": [], "a": []}, "depthUpdate.pu"),
+    ],
+)
+def test_iter_records_rejects_negative_book_sequence_ids(
+    tmp_path: Path, record_type: str, data: dict, field: str
+) -> None:
+    path = tmp_path / f"negative_{record_type}_{field.rsplit('.', 1)[-1]}.ndjson"
+    path.write_text(
+        NDJSONRecord(ts_local=1.0, symbol="BTCUSDT", type=record_type, data=data).to_json() + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RecordValidationError, match=f"{field} must be non-negative"):
+        list(iter_records(path))
+
+
+@pytest.mark.parametrize(
     ("field", "value"),
     [
         ("recvSeq", "100"),
