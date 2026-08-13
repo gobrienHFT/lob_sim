@@ -7,7 +7,7 @@
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Frozen research registry SHA-256: `6010c87eb60d5dcd6d8ce02577f243d4093007d1c35a46e12d19c17702b03f30`
 - Registry sidecar: `futures_strategy_profile_reference_registry.json`
-- Git commit at run time: `fa1cf7690a0be8b9f0f4a51ce75a0f9d5d6f4b8`
+- Git commit at run time: `c6db7869ab6057e09bf7e15bdbcf91784e5e1d3f`
 - Git dirty at run time: `False`
 - Input note: this committed recorded clip is short, so the comparison is intentionally modest.
 - Refresh command:
@@ -43,6 +43,18 @@ python experiments/compare_futures_strategy_profiles.py --file docs/sample_outpu
 | unrealized_pnl | 0.0789 | 0.22355 |
 | total_pnl | -0.09293928 | -0.26332796 |
 | kill_switch_triggered | False | False |
+
+## Evidence Status
+
+| Evidence field | Baseline | Candidate |
+|---|---|---|
+| claim_ready | False | False |
+| capture_valid | True | True |
+| clock_invalidated | False | False |
+| markout evidence | diagnostic_only | diagnostic_only |
+| PnL scope | model_output_not_a_live_or_counterfactual_trading_result | model_output_not_a_live_or_counterfactual_trading_result |
+
+The comparison inherits the simulator validity boundary. `claim_ready=False` or `markout evidence=diagnostic_only` means the numbers are behavior diagnostics, not claim-bearing economic evidence.
 
 ## Interpretation
 
