@@ -2301,6 +2301,81 @@ def test_simulation_records_non_resync_gap_without_applying_bad_depth(
     assert engine._syncers["BTCUSDT"].synced is False
 
 
+def test_normalization_failure_invalidates_capture_without_applying_off_grid_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "off_grid_snapshot.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.05", "0.010")], [("100.1", "0.010")]),
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_ENABLED="0")
+
+    engine = SimulationEngine(cfg)
+    engine.run(replay_path)
+
+    assert engine._capture_valid is False
+    assert engine._capture_invalid_reason == "snapshot_parse_failure: ValueError"
+    assert engine._books["BTCUSDT"].total_levels() == 0
+    assert any(row["event_type"] == "record_parse_failure" for row in engine.event_trace)
+
+
+def test_normalization_failure_invalidates_capture_without_applying_off_grid_trade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    replay_path = tmp_path / "off_grid_trade.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.5,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"symbol": "BTCUSDT", "tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(100, [("100.0", "0.010")], [("100.1", "0.010")]),
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 95, "u": 105, "pu": 94, "b": [("100.0", "0.010")], "a": [("100.1", "0.010")]},
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.05", "q": "0.001", "m": True},
+        ),
+    ]
+    replay_path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+    cfg = _build_config(monkeypatch, tmp_path, MM_ENABLED="0")
+
+    engine = SimulationEngine(cfg)
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert engine._capture_valid is False
+    assert engine._capture_invalid_reason == "aggTrade_parse_failure: ValueError"
+    assert summary["fill_count"] == 0
+    assert any(row["event_type"] == "record_parse_failure" for row in engine.event_trace)
+
+
 def test_simulation_event_trace_exports_order_lifecycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
