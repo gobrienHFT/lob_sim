@@ -24,7 +24,7 @@ The selected signal is the only public route eligible to model queue
 consumption; the other route can only be counted as corroborating evidence
 inside the configured receipt-time window. This is a microstructure diagnostic,
 not economic evidence, a private-fill estimate, or a true Binance FIFO claim.
-Every scenario is mutually exclusive and not claim-ready.
+Every scenario is mutually exclusive and not claim-ready. The matrix publishes aggregate-only metrics with event and audit rows disabled in memory; use bounded streaming export when individual audit rows are required.
 
 The committed reference is in
 [`sample_outputs/futures_overlap_sensitivity/README.md`](sample_outputs/futures_overlap_sensitivity/README.md).

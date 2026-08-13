@@ -12,6 +12,7 @@ truth. The six-row reference crosses the mutually exclusive `trade` and
 `depth` signals with the three windows; the non-selected route is only
 corroborating public evidence.
 The study is not claim-ready.
+The six scenarios publish aggregate-only metrics with event and audit rows disabled in memory. Individual audit rows belong in the bounded streaming simulation export rather than this matrix runner.
 
 Refresh the committed reference from a clean tree:
 

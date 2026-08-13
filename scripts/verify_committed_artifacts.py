@@ -2077,6 +2077,8 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
                 issues.append(f"{_repo_relative(summary_path)} run {pair!r} has invalid {field}")
         if run.get("execution_claim_ready") is not False:
             issues.append(f"{_repo_relative(summary_path)} run {pair!r} must remain non-claim-ready")
+        if run.get("memory_bounded_by_tape_duration") is not True:
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} must prove bounded aggregate-only retention")
 
     try:
         sidecar = json.loads(_read_text(registry_path))
@@ -2103,6 +2105,10 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
         for row in csv_rows
         if row.get("fill_model") and row.get("overlap_window_ms")
     ]
+    if not csv_rows or "memory_bounded_by_tape_duration" not in csv_rows[0]:
+        issues.append(f"{_repo_relative(csv_path)} is missing memory_bounded_by_tape_duration")
+    elif any(row.get("memory_bounded_by_tape_duration") != "True" for row in csv_rows):
+        issues.append(f"{_repo_relative(csv_path)} must prove bounded aggregate-only retention")
     if csv_pairs != expected_pairs:
         issues.append(f"{_repo_relative(csv_path)} must contain trade/depth × 0/125/250 ms rows")
 
@@ -2111,12 +2117,14 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
         not isinstance(interpretation, dict)
         or interpretation.get("claim_ready") is not False
         or interpretation.get("economic_fill_signals") != expected_models
+        or interpretation.get("memory_bounded_by_tape_duration") is not True
     ):
         issues.append(f"{_repo_relative(summary_path)} interpretation.claim_ready must be false")
     required_caveats = [
         "public l2 cannot prove private fills",
         "mutually exclusive",
         "not claim-ready",
+        "aggregate-only metrics with event and audit rows disabled in memory",
     ]
     for path in [OVERLAP_SENSITIVITY_DOC, readme_path, markdown_path]:
         text = _read_text(path).lower()

@@ -38,6 +38,7 @@ OVERLAP_SWEEP_FIELDS = [
     "uncorroborated_depth_reduction_lots",
     "fill_source_counts",
     "execution_claim_ready",
+    "memory_bounded_by_tape_duration",
 ]
 
 
@@ -159,7 +160,10 @@ def _run_window(
     registry_variant_id: str,
 ) -> dict[str, Any]:
     cfg = _window_config(base_cfg, window_ms, fill_model)
-    engine = SimulationEngine(cfg, retain_event_trace=False)
+    # This sensitivity study only publishes aggregate reconciliation totals;
+    # retaining detailed rows per scenario would make the matrix scale with
+    # tape duration despite disabled event tracing.
+    engine = SimulationEngine(cfg, retain_event_trace=False, retain_audit_rows=False)
     metrics = engine.run(input_file)
     summary = _summary_for_engine(engine, metrics)
     diagnostics = summary.get("fill_assumption_diagnostics", {})
@@ -188,6 +192,10 @@ def _run_window(
         "uncorroborated_depth_reduction_lots": int(diagnostics.get("uncorroborated_depth_reduction_lots", 0)),
         "fill_source_counts": summary.get("fill_source_counts", {}),
         "execution_claim_ready": bool(claim_ready),
+        "memory_bounded_by_tape_duration": bool(
+            summary["audit_retention"]["memory_bounded_by_tape_duration"]
+            and engine.event_trace_retention()["memory_bounded_by_tape_duration"]
+        ),
     }
 
 
@@ -289,6 +297,7 @@ def run_overlap_sweep(
             "private_fifo_claim": False,
             "private_execution_truth": False,
             "claim_ready": False,
+            "memory_bounded_by_tape_duration": all(bool(row.get("memory_bounded_by_tape_duration")) for row in rows),
         },
     }
 
@@ -373,6 +382,7 @@ def write_overlap_outputs(
             "",
             "Public L2 cannot prove private fills. This is a local corroboration diagnostic, not a private FIFO or execution-truth claim.",
             "Trade-only and depth-only signals are run separately; the window only controls whether the other public feed is treated as corroborating evidence.",
+            "The sweep uses aggregate-only metrics with event and audit rows disabled in memory; use bounded streaming export when individual audit rows are required.",
             "The study is intentionally non-economic (`MM_ENABLED=0`) and is not claim-ready even if the input has no detected gap.",
             "",
             *table,
