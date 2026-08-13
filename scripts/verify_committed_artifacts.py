@@ -375,6 +375,10 @@ EXPECTED_SIMULATION_LIMITATIONS = {
     "not_private_exchange_fill_truth",
     "public_l2_cannot_distinguish_all_cancels_from_trades",
 }
+EXPECTED_DEPTH_REDUCTION_MODES = {
+    "record_unknown_cancel_like",
+    "consume_synthetic_queue_ahead",
+}
 EXPECTED_PUBLIC_CONSUMPTION_SOURCES = {"depth_update", "agg_trade"}
 EXPECTED_PUBLIC_CONSUMPTION_FIELDS = {
     "observed_lots",
@@ -1219,6 +1223,11 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
         issues.append(f"{_repo_relative(path)} simulation_assumptions is missing fill_assumption")
     elif fill_assumption.get("profile") != profile:
         issues.append(f"{_repo_relative(path)} simulation_assumptions fill_assumption profile mismatch")
+    if (
+        isinstance(fill_assumption, dict)
+        and fill_assumption.get("uncorroborated_depth_reduction_mode") not in EXPECTED_DEPTH_REDUCTION_MODES
+    ):
+        issues.append(f"{_repo_relative(path)} simulation_assumptions has a non-canonical depth reduction mode")
     if assumptions.get("data_scope") != "public_l2_order_book_and_agg_trade_records":
         issues.append(f"{_repo_relative(path)} simulation_assumptions has unexpected data_scope")
     if assumptions.get("private_exchange_execution_reports") is not False:
