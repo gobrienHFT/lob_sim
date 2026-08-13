@@ -54,7 +54,11 @@ depth/trade overlap, private FIFO, or venue-wide fill truth. Scheduler,
 reservation, accounting, and latency results are kernel-primitive proofs, not
 a claim that the whole Python engine already executes through Rust.
 
-The CLI `compare` command has the same intentionally narrow Rust surface: its
-`rust_differential` object reports only an optional `logical_time_key` smoke
-check and explicitly lists the remaining scope. The command's repeated-run
-`python_repeat_parity` result is not whole-engine Python/Rust parity.
+The CLI `compare` command has the same intentionally narrow live Rust surface:
+its `rust_differential` object reports only an optional `logical_time_key` smoke
+check and explicitly lists the remaining scope. It also includes a
+`committed_report` pointer with the report path, SHA-256, schema, operation
+counts and remaining scope, so a comparison result is self-describing without
+rerunning the longer differential suite. The command's repeated-run
+`python_repeat_parity` result is not whole-engine Python/Rust parity, and the
+committed report continues to state `full_engine_parity=false`.

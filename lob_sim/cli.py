@@ -62,6 +62,9 @@ logger = logging.getLogger(__name__)
 
 
 CAPTURE_SCHEMA_VERSION = 3
+RUST_PYTHON_PARITY_REPORT = (
+    Path(__file__).resolve().parents[1] / "docs" / "differential_results" / "rust_python_parity_v3.json"
+)
 
 
 class _RecordWriter(Protocol):
@@ -910,6 +913,73 @@ def _deterministic_run(config: Config, file: str) -> dict[str, object]:
     }
 
 
+def _committed_parity_evidence() -> dict[str, object]:
+    """Return a safe, content-addressed pointer to the committed parity report.
+
+    ``compare`` is intentionally a lightweight determinism command.  Exposing
+    the checked-in report here makes the broader kernel evidence discoverable
+    without pretending that the command reruns the full differential suite.
+    Missing or malformed evidence is reported as data rather than making a
+    routine comparison crash.
+    """
+
+    path = RUST_PYTHON_PARITY_REPORT
+    repo_root = Path(__file__).resolve().parents[1]
+    display_path = path.relative_to(repo_root).as_posix()
+    try:
+        raw = path.read_bytes()
+        value = json.loads(raw)
+    except FileNotFoundError:
+        return {
+            "available": False,
+            "path": display_path,
+            "reason": "committed_parity_report_missing",
+        }
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return {
+            "available": False,
+            "path": display_path,
+            "reason": f"committed_parity_report_unreadable:{type(exc).__name__}",
+        }
+
+    if not isinstance(value, Mapping):
+        return {
+            "available": False,
+            "path": display_path,
+            "reason": "committed_parity_report_not_object",
+        }
+
+    count_fields = (
+        "logical_time_cases",
+        "book_batches",
+        "public_queue_operations",
+        "synthetic_operations",
+        "scheduler_operations",
+        "risk_operations",
+        "portfolio_notional_operations",
+        "accounting_operations",
+        "latency_operations",
+    )
+    operation_counts = {
+        field: value[field] for field in count_fields if type(value.get(field)) is int and value[field] >= 0
+    }
+    remaining = value.get("remaining_full_engine_scope")
+    remaining_scope = [item for item in remaining if isinstance(item, str)] if isinstance(remaining, list) else []
+    schema_version = value.get("schema_version")
+    scope = value.get("scope")
+    return {
+        "available": True,
+        "path": display_path,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "schema_version": schema_version if isinstance(schema_version, str) else None,
+        "ok": value.get("ok") is True,
+        "full_engine_parity": value.get("full_engine_parity") is True,
+        "scope": scope if isinstance(scope, str) else None,
+        "remaining_full_engine_scope": remaining_scope,
+        "operation_counts": operation_counts,
+    }
+
+
 def _rust_differential_status() -> dict[str, object]:
     """Describe the Rust check exposed by the lightweight CLI comparison.
 
@@ -925,6 +995,7 @@ def _rust_differential_status() -> dict[str, object]:
         "engine-integrated accounting and markouts",
         "run manifests and streaming audit sinks",
     ]
+    committed_report = _committed_parity_evidence()
     try:
         import lob_core  # type: ignore[import-not-found]
     except ImportError:
@@ -935,6 +1006,7 @@ def _rust_differential_status() -> dict[str, object]:
             "reason": "lob_core_extension_unavailable",
             "checked_surfaces": [],
             "remaining_scope": remaining_scope,
+            "committed_report": committed_report,
         }
 
     return {
@@ -944,6 +1016,7 @@ def _rust_differential_status() -> dict[str, object]:
         "scope": "logical_time_smoke_only_for_cli_compare",
         "checked_surfaces": ["logical_time_key"],
         "remaining_scope": remaining_scope,
+        "committed_report": committed_report,
     }
 
 

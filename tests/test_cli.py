@@ -221,6 +221,14 @@ def test_cli_compare_reports_scoped_rust_status(tmp_path: Path) -> None:
         "logical_time_smoke_only_for_cli_compare",
     }
     assert "public-L2 execution scenarios" in rust_status["remaining_scope"]
+    report = rust_status["committed_report"]
+    assert report["available"] is True
+    assert report["schema_version"] == "lob_sim.rust_python_parity.v3"
+    assert report["ok"] is True
+    assert report["full_engine_parity"] is False
+    assert len(report["sha256"]) == 64
+    assert report["operation_counts"]["book_batches"] == 10_000
+    assert "run manifests" in report["remaining_full_engine_scope"]
 
 
 def test_cli_demo_separates_public_l2_and_exact_synthetic_ground_truth() -> None:
