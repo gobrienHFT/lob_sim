@@ -92,6 +92,33 @@ def _require_numberish(
         )
 
 
+def _require_nonnegative_numberish(
+    value: Any,
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    """Validate a finite decimal timestamp without changing its wire type."""
+
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise RecordValidationError(
+            f"{context} must be numeric, got {value!r}",
+            path=path,
+            line_number=line_number,
+        ) from exc
+    if not parsed.is_finite():
+        raise RecordValidationError(
+            f"{context} must be finite, got {value!r}",
+            path=path,
+            line_number=line_number,
+        )
+    if parsed < 0:
+        _fail(f"{context} must be non-negative, got {value!r}", path=path, line_number=line_number)
+
+
 def _require_intish(
     value: Any,
     context: str,
@@ -238,7 +265,7 @@ def validate_record_object(
 
     record = _require_mapping(obj, "record", path=path, line_number=line_number)
     _require_keys(record, ("ts_local", "symbol", "type", "data"), "record", path=path, line_number=line_number)
-    _require_numberish(record["ts_local"], "record.ts_local", path=path, line_number=line_number)
+    _require_nonnegative_numberish(record["ts_local"], "record.ts_local", path=path, line_number=line_number)
 
     symbol = record["symbol"]
     if not isinstance(symbol, str) or not symbol.strip():

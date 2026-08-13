@@ -175,6 +175,26 @@ def test_iter_records_rejects_nonfinite_record_timestamp(tmp_path: Path) -> None
         list(iter_records(path))
 
 
+@pytest.mark.parametrize("timestamp", [-1.0, "-0.001"])
+def test_iter_records_rejects_negative_record_timestamp(tmp_path: Path, timestamp: object) -> None:
+    path = tmp_path / "negative_timestamp.ndjson"
+    path.write_text(
+        json.dumps(
+            {
+                "ts_local": timestamp,
+                "symbol": "BTCUSDT",
+                "type": "exchangeInfo",
+                "data": {"tickSize": "0.1", "stepSize": "0.001"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RecordValidationError, match="record.ts_local must be non-negative"):
+        list(iter_records(path))
+
+
 def test_inspect_stream_reports_counts_and_digest(tmp_path: Path) -> None:
     path = tmp_path / "stream.ndjson"
     records = [
