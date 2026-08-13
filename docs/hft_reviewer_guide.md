@@ -22,15 +22,16 @@ Repository shortcut paths: `docs/interview_packet.md`, `docs/real_data_runbook.m
 10. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
 11. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
 12. [Latency sensitivity reference](strategy_results/futures_latency_sweep_reference.md)
-13. [Benchmark notes](futures_benchmarks.md)
-14. [Determinism checker](../scripts/check_futures_determinism.py)
-15. [Extension points](extension_points.md)
-16. [Synthetic stress evidence pack](sample_outputs/futures_stress_case/README.md)
-17. [Reviewer results memo](reviewer_results_memo.md)
-18. [Architecture decisions](architecture_decisions.md)
-19. [Interview packet](interview_packet.md)
-20. [Larger real-data runbook](real_data_runbook.md)
-21. [Real-data results template](real_data_results_template.md)
+13. [Overlap-reconciliation sensitivity](futures_overlap_sensitivity.md)
+14. [Benchmark notes](futures_benchmarks.md)
+15. [Determinism checker](../scripts/check_futures_determinism.py)
+16. [Extension points](extension_points.md)
+17. [Synthetic stress evidence pack](sample_outputs/futures_stress_case/README.md)
+18. [Reviewer results memo](reviewer_results_memo.md)
+19. [Architecture decisions](architecture_decisions.md)
+20. [Interview packet](interview_packet.md)
+21. [Larger real-data runbook](real_data_runbook.md)
+22. [Real-data results template](real_data_results_template.md)
 
 ## Architecture
 
@@ -64,6 +65,7 @@ python scripts/audit_futures_pack.py --committed-futures
 python experiments/benchmark_futures_replay.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --mode all --pack docs/sample_outputs/futures_stress_case --json-out outputs/futures_benchmark.json
 python experiments/sweep_futures_parameters.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_sweeps
 python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
+python experiments/sweep_futures_overlap.py --file docs/sample_outputs/futures_overlap_sensitivity/input_fixture.ndjson --env .env.example --out-dir outputs/futures_overlap_sensitivity
 python scripts/refresh_futures_parameter_sweep_reference.py
 python scripts/run_real_data_report.py --file data/capture_....manifest.json --env .env.real-data --label BTCUSDT_30m --publish-dir docs/real_data_runs
 ```
@@ -83,6 +85,7 @@ make determinism-fixture
 make benchmark-fixture
 make sweep-fixture
 make latency-sweep-fixture
+make overlap-sweep-fixture
 make refresh-artifacts
 ```
 
