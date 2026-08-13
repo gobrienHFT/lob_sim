@@ -152,18 +152,22 @@
   ],
   "rows": [
     {
+      "claim_ready": false,
+      "markout_evidence": "diagnostic_only",
       "registry_variant_id": "24461aadffdc1ae2",
       "strategy_profile": "baseline"
     },
     {
+      "claim_ready": false,
+      "markout_evidence": "diagnostic_only",
       "registry_variant_id": "43900aae1a66e1a3",
       "strategy_profile": "research_mm"
     }
   ],
   "schema_version": "lob_sim.futures_strategy_profile_registry.v1",
   "source": {
-    "git_branch": "codex/profile-registry",
-    "git_commit": "fa1cf7690a0be8b9f0f4a51ce75a0f9d5d6f4b8",
+    "git_branch": "codex/profile-evidence",
+    "git_commit": "c6db7869ab6057e09bf7e15bdbcf91784e5e1d3f",
     "git_dirty": false
   },
   "study_type": "futures_strategy_profile_comparison"
