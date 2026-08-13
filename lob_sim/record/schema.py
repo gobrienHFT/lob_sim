@@ -111,6 +111,43 @@ def _require_intish(
         ) from exc
 
 
+def _require_exact_nonnegative_int(
+    value: Any,
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    """Require the JSON integer representation used by schema-v3 metadata.
+
+    Payload sequence ids remain permissive for legacy NDJSON compatibility,
+    but receipt identity is part of the causal contract.  Accepting a string
+    or float here would make ``validate`` disagree with the replay engine,
+    which intentionally fails closed on coercible metadata.
+    """
+
+    if type(value) is not int or value < 0:
+        _fail(
+            f"{context} must be an exact non-negative integer, got {value!r}",
+            path=path,
+            line_number=line_number,
+        )
+
+
+def _require_optional_nonempty_string(
+    obj: Mapping[str, Any],
+    key: str,
+    context: str,
+    *,
+    path: str | Path | None,
+    line_number: int | None,
+) -> None:
+    if key in obj:
+        value = obj[key]
+        if not isinstance(value, str) or not value:
+            _fail(f"{context}.{key} must be a non-empty string", path=path, line_number=line_number)
+
+
 def _require_bool(
     value: Any,
     context: str,
@@ -167,8 +204,20 @@ def _validate_capture_metadata(
     capture_obj = _require_mapping(capture, f"{context}._capture", path=path, line_number=line_number)
     for key in ("recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"):
         if key in capture_obj:
-            _require_intish(capture_obj[key], f"{context}._capture.{key}", path=path, line_number=line_number)
-    for key in ("route", "reason", "validationError"):
+            _require_exact_nonnegative_int(
+                capture_obj[key],
+                f"{context}._capture.{key}",
+                path=path,
+                line_number=line_number,
+            )
+    _require_optional_nonempty_string(
+        capture_obj,
+        "route",
+        f"{context}._capture",
+        path=path,
+        line_number=line_number,
+    )
+    for key in ("reason", "validationError"):
         _require_optional_string(capture_obj, key, f"{context}._capture", path=path, line_number=line_number)
     if "snapshotAccepted" in capture_obj:
         _require_bool(
@@ -208,12 +257,17 @@ def validate_record_object(
     if record_type in {"captureMeta", "captureEvent"}:
         if record_type == "captureEvent":
             _require_keys(data, ("event", "route"), "captureEvent payload", path=path, line_number=line_number)
-            _require_optional_string(data, "event", "captureEvent", path=path, line_number=line_number)
-            _require_optional_string(data, "route", "captureEvent", path=path, line_number=line_number)
+            _require_optional_nonempty_string(data, "event", "captureEvent", path=path, line_number=line_number)
+            _require_optional_nonempty_string(data, "route", "captureEvent", path=path, line_number=line_number)
             _require_optional_string(data, "reason", "captureEvent", path=path, line_number=line_number)
             return
         if "schemaVersion" in data:
-            _require_intish(data["schemaVersion"], "captureMeta.schemaVersion", path=path, line_number=line_number)
+            _require_exact_nonnegative_int(
+                data["schemaVersion"],
+                "captureMeta.schemaVersion",
+                path=path,
+                line_number=line_number,
+            )
         _require_optional_string(data, "clock", "captureMeta", path=path, line_number=line_number)
         return
     if record_type == "exchangeInfo":

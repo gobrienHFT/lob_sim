@@ -53,6 +53,81 @@ def test_iter_records_rejects_fractional_sequence_ids(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("recvSeq", "100"),
+        ("recvMonotonicNs", 100.0),
+        ("streamEpoch", True),
+        ("syncEpoch", -1),
+    ],
+)
+def test_iter_records_rejects_coercible_schema_v3_capture_metadata(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    path = tmp_path / f"bad_capture_metadata_{field}.ndjson"
+    capture = {
+        "recvSeq": 100,
+        "recvMonotonicNs": 1_000,
+        "streamEpoch": 1,
+        "syncEpoch": 1,
+        "route": "public",
+    }
+    capture[field] = value
+    record = NDJSONRecord(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"U": 100, "u": 100, "pu": 99, "b": [], "a": [], "_capture": capture},
+    )
+    path.write_text(record.to_json() + "\n", encoding="utf-8")
+
+    with pytest.raises(RecordValidationError) as exc:
+        list(iter_records(path))
+
+    assert f"depthUpdate payload._capture.{field} must be an exact non-negative integer" in str(exc.value)
+
+
+def test_iter_records_rejects_coercible_capture_schema_version(tmp_path: Path) -> None:
+    path = tmp_path / "bad_capture_schema_version.ndjson"
+    record = NDJSONRecord(
+        ts_local=1.0,
+        symbol="*",
+        type="captureMeta",
+        data={"schemaVersion": "3", "clock": "receive_time"},
+    )
+    path.write_text(record.to_json() + "\n", encoding="utf-8")
+
+    with pytest.raises(RecordValidationError, match="captureMeta.schemaVersion must be an exact non-negative integer"):
+        list(iter_records(path))
+
+
+def test_iter_records_rejects_empty_schema_v3_route(tmp_path: Path) -> None:
+    path = tmp_path / "bad_capture_route.ndjson"
+    record = NDJSONRecord(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="captureEvent",
+        data={
+            "event": "connect",
+            "route": "",
+            "_capture": {
+                "recvSeq": 1,
+                "recvMonotonicNs": 1_000,
+                "streamEpoch": 1,
+                "syncEpoch": 1,
+                "route": "public",
+            },
+        },
+    )
+    path.write_text(record.to_json() + "\n", encoding="utf-8")
+
+    with pytest.raises(RecordValidationError, match="captureEvent.route must be a non-empty string"):
+        list(iter_records(path))
+
+
+@pytest.mark.parametrize(
     ("record_type", "data", "field"),
     [
         ("exchangeInfo", {"tickSize": "NaN", "stepSize": "0.001"}, "exchangeInfo.tickSize"),
