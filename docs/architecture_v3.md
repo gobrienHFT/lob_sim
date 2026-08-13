@@ -13,6 +13,11 @@ scenario. Schema-v3 replay rejects missing receipt identity and fails closed on
 a regressing receipt-monotonic clock; logical receipt order is never inferred
 from exchange timestamps.
 
+The synchronizer treats a crossed or otherwise invalid depth batch as a hard
+epoch boundary: the candidate batch is never exposed, the bad event is not
+retained as a future snapshot bridge, and replay must establish a fresh
+snapshot plus contiguous updates before execution can resume.
+
 The Python engine keeps seconds at the metrics/export boundary but orders its
 internal action heap by `(recv_monotonic_ns, insertion_order)`. This avoids
 collapsing distinct large receipt timestamps through binary floating point;
