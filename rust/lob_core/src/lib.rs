@@ -63,6 +63,10 @@ type PythonPublicQueueTraceRow = (
     usize,
     Option<String>,
 );
+#[cfg(feature = "python")]
+type PythonEngineContractOperation = (u8, u64, bool, i64, i64, i64, i64);
+#[cfg(feature = "python")]
+type PythonEngineContractTraceRow = (bool, Option<String>, Vec<(u64, i64)>, String);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -397,6 +401,11 @@ impl BookState {
             bytes.extend_from_slice(format!("a:{price}:{qty};").as_bytes());
         }
         bytes
+    }
+
+    #[must_use]
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
     }
 }
 
@@ -1724,6 +1733,168 @@ fn apply_book_batch(
     ))
 }
 
+/// Run one composed deterministic contract spanning the kernel boundaries used
+/// by the simulator.  This is intentionally a smoke path, not a claim that the
+/// Rust extension is a full replacement for ``SimulationEngine``.
+///
+/// Operations are ``(kind, id, is_bid, value_a, value_b, value_c, value_d)``:
+/// kind 0 is an atomic book update (price, quantity); 1 places a public queue
+/// order (queue-ahead, quantity, execution price, fee); 2 consumes public
+/// quantity; 3/4 request and acknowledge cancellation; 5 marks the accounting
+/// ledger; 6 invalidates the queue/risk epoch; 7/8 schedule and drain an
+/// integer-nanosecond action; and 9 records a signed markout (fill price,
+/// quantity, mark price).  Each row includes a composed state hash over all
+/// five component states.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_engine_contract_trace(
+    operations: Vec<PythonEngineContractOperation>,
+) -> pyo3::PyResult<Vec<PythonEngineContractTraceRow>> {
+    let mut book = BookState::default();
+    let mut queue = PublicQueueScenario::default();
+    let mut scheduler = DeterministicScheduler::default();
+    let mut risk =
+        RiskReservationLedger::new(8).map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let mut accounting = AccountingMarkoutLedger::default();
+    let mut order_metadata: BTreeMap<u64, (bool, i64, i64)> = BTreeMap::new();
+    let mut rows = Vec::with_capacity(operations.len());
+
+    for (kind, order_id, is_bid, value_a, value_b, value_c, value_d) in operations {
+        let mut accepted = true;
+        let mut reason: Option<String> = None;
+        let mut fills: Vec<(u64, i64)> = Vec::new();
+
+        let record_error = |accepted: &mut bool, reason: &mut Option<String>, candidate: &str| {
+            *accepted = false;
+            if reason.is_none() {
+                *reason = Some(candidate.to_owned());
+            }
+        };
+        let record_decision =
+            |accepted: &mut bool, reason: &mut Option<String>, decision: ReservationDecision| {
+                if !decision.accepted {
+                    record_error(accepted, reason, decision.reason.unwrap_or("rejected"));
+                }
+            };
+
+        match kind {
+            0 => {
+                if let Err(error) = book.apply_batch(&[(
+                    if is_bid { Side::Bid } else { Side::Ask },
+                    value_a,
+                    value_b,
+                )]) {
+                    record_error(&mut accepted, &mut reason, error);
+                }
+            }
+            1 => match queue.place(order_id, value_a, value_b) {
+                Ok(()) => {
+                    let decision = risk.reserve(order_id, is_bid, value_b);
+                    record_decision(&mut accepted, &mut reason, decision);
+                    if decision.accepted {
+                        order_metadata.insert(order_id, (is_bid, value_c, value_d));
+                    }
+                }
+                Err(error) => record_error(&mut accepted, &mut reason, error),
+            },
+            2 => match queue.consume(value_a) {
+                Ok((consumed, _unmatched)) => {
+                    fills = consumed.clone();
+                    for (fill_order_id, fill_quantity) in consumed {
+                        let Some((fill_side, fill_price, fee)) =
+                            order_metadata.get(&fill_order_id).copied()
+                        else {
+                            record_error(&mut accepted, &mut reason, "missing_order_metadata");
+                            continue;
+                        };
+                        let risk_decision = risk.fill(fill_order_id, fill_quantity);
+                        let risk_accepted = risk_decision.accepted;
+                        record_decision(&mut accepted, &mut reason, risk_decision);
+                        if risk_accepted {
+                            let accounting_decision =
+                                accounting.fill(0, fill_side, fill_price, fill_quantity, fee);
+                            record_decision(&mut accepted, &mut reason, accounting_decision);
+                        }
+                    }
+                }
+                Err(error) => record_error(&mut accepted, &mut reason, error),
+            },
+            3 => {
+                if let Err(error) = queue.cancel(order_id) {
+                    record_error(&mut accepted, &mut reason, error);
+                }
+                let decision = risk.request_cancel(order_id);
+                record_decision(&mut accepted, &mut reason, decision);
+            }
+            4 => {
+                let decision = risk.cancel_ack(order_id);
+                record_decision(&mut accepted, &mut reason, decision);
+            }
+            5 => {
+                let decision = accounting.mark(0, value_a);
+                record_decision(&mut accepted, &mut reason, decision);
+            }
+            6 => {
+                queue.invalidate_epoch();
+                let decision = risk.invalidate_epoch();
+                record_decision(&mut accepted, &mut reason, decision);
+            }
+            7 => {
+                let result = scheduler.schedule(
+                    order_id,
+                    LogicalTime {
+                        recv_monotonic_ns: value_a.try_into().map_err(|_| {
+                            pyo3::exceptions::PyValueError::new_err("negative logical time")
+                        })?,
+                        recv_seq: value_b.try_into().map_err(|_| {
+                            pyo3::exceptions::PyValueError::new_err("negative logical sequence")
+                        })?,
+                    },
+                );
+                if let Err(error) = result {
+                    record_error(&mut accepted, &mut reason, error);
+                }
+            }
+            8 => {
+                let monotonic_ns: u64 = value_a.try_into().map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err("negative logical time")
+                })?;
+                let recv_seq: u64 = value_b.try_into().map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err("negative logical sequence")
+                })?;
+                let _ = scheduler.drain(
+                    LogicalTime {
+                        recv_monotonic_ns: monotonic_ns,
+                        recv_seq,
+                    },
+                    is_bid,
+                );
+            }
+            9 => {
+                let decision = accounting.markout(is_bid, value_a, value_b, value_c);
+                record_decision(&mut accepted, &mut reason, decision);
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported engine contract operation kind: {kind}"
+                )))
+            }
+        }
+
+        let components = format!(
+            "{}|{}|{}|{}|{}",
+            book.state_sha256(),
+            queue.state_sha256(),
+            scheduler.state_sha256(),
+            risk.state_sha256(),
+            accounting.state_sha256(),
+        );
+        let state_sha256 = format!("{:x}", Sha256::digest(components.as_bytes()));
+        rows.push((accepted, reason, fills, state_sha256));
+    }
+    Ok(rows)
+}
+
 /// Run the restricted public-L2 single-price queue-ahead trace.
 ///
 /// Operations are `(kind, order_id, queue_ahead_lots, qty_lots)`: kind `0`
@@ -2184,6 +2355,7 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(logical_time_key, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(uncrossed, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_book_batch, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_engine_contract_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_public_queue_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_synthetic_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_scheduler_trace, m)?)?;

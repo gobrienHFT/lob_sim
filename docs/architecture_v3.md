@@ -182,6 +182,9 @@ reservations over externally marked inventory, fixed-point fill accounting,
 nullable mark valuation, signed markouts, and fixed/empirical/stress-tail
 scenario-latency sampler draws. Transition results and periodic
 full-state hashes agree across the independent Python and Rust implementations.
+A composed smoke contract additionally runs book mutation, scheduling, public
+queue consumption, risk reservations, fills, marks, markouts, and epoch
+invalidation in one deterministic sequence through both implementations.
 These primitives are not yet the engine's end-to-end scheduler, latency path,
 portfolio-notional risk path, or accounting path. The public-L2 scenario venue,
 engine integration, and run manifests remain outside the parity claim, so artifacts keep

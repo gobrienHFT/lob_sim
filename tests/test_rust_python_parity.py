@@ -5,6 +5,7 @@ import random
 
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 from scripts.check_rust_python_parity import (
+    _engine_contract_operations,
     _generated_portfolio_operations,
     _generated_accounting_operations,
     _generated_public_queue_operations,
@@ -14,6 +15,7 @@ from scripts.check_rust_python_parity import (
     _python_risk_trace,
     _python_portfolio_trace,
     _python_accounting_trace,
+    _python_engine_contract_trace,
     _python_public_queue_trace,
     _python_scheduler_trace,
     _python_synthetic_trace,
@@ -151,6 +153,22 @@ def test_python_accounting_trace_reports_nullable_marks_and_signed_markouts() ->
     assert trace[3][6] == 10_000_000
     assert trace[3][7] is True
     assert [index for index, row in enumerate(trace, start=1) if row[10] is not None] == [2, 4]
+
+
+def test_composed_engine_contract_trace_spans_components_and_rejections() -> None:
+    operations = _engine_contract_operations()
+    first = _python_engine_contract_trace(operations)
+    second = _python_engine_contract_trace(operations)
+
+    assert first == second
+    assert len(first) == len(operations)
+    assert sum(1 for row in first if row[0]) == 14
+    assert sum(1 for row in first if not row[0]) == 4
+    assert sum(len(row[2]) for row in first) == 1
+    assert len(first[-1][3]) == 64
+    assert first[12][1] == "duplicate_order_id"
+    assert first[13][1] == "batch would cross the book"
+    assert first[14][1] == "invalid_consumption"
 
 
 def test_python_scheduler_trace_proves_exact_time_boundary_and_checkpoints() -> None:

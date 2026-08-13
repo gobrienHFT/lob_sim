@@ -37,6 +37,8 @@ AccountingOperation = tuple[int, int, bool, int, int, int]
 PublicQueueOperation = tuple[int, int, int, int]
 PublicQueueTraceRow = tuple[bool, str | None, list[tuple[int, int]], int, int, str | None]
 LatencyTraceRow = tuple[int, int]
+EngineContractOperation = tuple[int, int, bool, int, int, int, int]
+EngineContractTraceRow = tuple[bool, str | None, list[tuple[int, int]], str]
 
 
 def _python_apply_batch(
@@ -664,6 +666,181 @@ def _python_latency_trace(
     return rows
 
 
+def _book_state_sha256(bids: dict[int, int], asks: dict[int, int]) -> str:
+    """Hash the composed-contract book using the Rust kernel encoding."""
+
+    pieces = [
+        *(f"b:{price}:{quantity};" for price, quantity in sorted(bids.items())),
+        *(f"a:{price}:{quantity};" for price, quantity in sorted(asks.items())),
+    ]
+    return hashlib.sha256("".join(pieces).encode("utf-8")).hexdigest()
+
+
+def _engine_contract_state_sha256(
+    bids: dict[int, int],
+    asks: dict[int, int],
+    queue: PublicQueueScenarioOracle,
+    scheduler: DeterministicSchedulerOracle,
+    risk: RiskReservationOracle,
+    accounting: AccountingMarkoutOracle,
+) -> str:
+    """Hash all composed-contract components in one canonical order."""
+
+    components = (
+        _book_state_sha256(bids, asks),
+        queue.state_sha256(),
+        scheduler.state_sha256(),
+        risk.state_sha256(),
+        accounting.state_sha256(),
+    )
+    return hashlib.sha256("|".join(components).encode("utf-8")).hexdigest()
+
+
+def _engine_contract_operations() -> list[EngineContractOperation]:
+    """Return a compact deterministic sequence spanning the composed kernel.
+
+    Tuple layout is ``(kind, id, is_bid, value_a, value_b, value_c, value_d)``:
+
+    * 0: atomic book batch (price, quantity);
+    * 1: quote (queue-ahead, quantity, execution price, fee);
+    * 2: public consumption (quantity);
+    * 3/4: request cancel/cancel acknowledgement (order id);
+    * 5: mark (price);
+    * 6: epoch invalidation;
+    * 7/8: schedule/drain (logical nanoseconds, receive sequence);
+    * 9: signed markout (fill price, quantity, mark price).
+
+    The final three operations are deliberately invalid.  They prove that the
+    composed contract reports a rejection without mutating the prior state;
+    they are not intended to model a realistic strategy trace.
+    """
+
+    return [
+        (0, 0, True, 100, 5, 0, 0),
+        (0, 0, False, 102, 5, 0, 0),
+        (7, 1, False, 10, 1, 0, 0),
+        (7, 2, False, 10, 2, 0, 0),
+        (8, 0, True, 10, 2, 0, 0),
+        (1, 11, True, 2, 3, 101, 1),
+        (1, 12, False, 1, 2, 101, -1),
+        (5, 0, False, 101, 0, 0, 0),
+        (2, 0, False, 4, 0, 0, 0),
+        (9, 0, True, 101, 2, 99, 0),
+        (3, 12, False, 0, 0, 0, 0),
+        (4, 12, False, 0, 0, 0, 0),
+        (1, 11, True, 0, 1, 101, 0),
+        (0, 0, False, 99, 1, 0, 0),
+        (2, 0, False, 0, 0, 0, 0),
+        (6, 0, False, 0, 0, 0, 0),
+        (7, 1, False, 10, 1, 0, 0),
+        (8, 0, True, 10, 1, 0, 0),
+    ]
+
+
+def _python_engine_contract_trace(
+    operations: list[EngineContractOperation],
+) -> list[EngineContractTraceRow]:
+    """Run one composed event path using only independent Python oracles."""
+
+    bids: dict[int, int] = {}
+    asks: dict[int, int] = {}
+    queue = PublicQueueScenarioOracle()
+    scheduler = DeterministicSchedulerOracle()
+    risk = RiskReservationOracle(max_position_lots=8)
+    accounting = AccountingMarkoutOracle()
+    order_metadata: dict[int, tuple[bool, int, int]] = {}
+    rows: list[EngineContractTraceRow] = []
+
+    for kind, order_id, is_bid, value_a, value_b, value_c, value_d in operations:
+        accepted = True
+        reason: str | None = None
+        fills: list[tuple[int, int]] = []
+
+        def observe(decision: OracleDecision) -> None:
+            nonlocal accepted, reason
+            if not decision.accepted:
+                accepted = False
+                if reason is None:
+                    reason = decision.reason
+
+        if kind == 0:
+            try:
+                bids, asks = _python_apply_batch(
+                    bids,
+                    asks,
+                    [(is_bid, value_a, value_b)],
+                )
+            except ValueError as exc:
+                accepted = False
+                reason = str(exc)
+        elif kind == 1:
+            queue_decision = queue.place(order_id, value_a, value_b)
+            observe(queue_decision)
+            if queue_decision.accepted:
+                risk_decision = risk.reserve(order_id, is_bid=is_bid, qty_lots=value_b)
+                observe(risk_decision)
+                if risk_decision.accepted:
+                    order_metadata[order_id] = (is_bid, value_c, value_d)
+        elif kind == 2:
+            queue_decision, fills, _unmatched = queue.consume(value_a)
+            observe(queue_decision)
+            for fill_order_id, fill_quantity in fills:
+                metadata = order_metadata.get(fill_order_id)
+                if metadata is None:
+                    accepted = False
+                    if reason is None:
+                        reason = "missing_order_metadata"
+                    continue
+                fill_side, fill_price, fee = metadata
+                risk_decision = risk.fill(fill_order_id, fill_quantity)
+                observe(risk_decision)
+                if risk_decision.accepted:
+                    observe(
+                        accounting.fill(
+                            0,
+                            is_bid=fill_side,
+                            price_tick=fill_price,
+                            qty_lots=fill_quantity,
+                            fee_cash_units=fee,
+                        )
+                    )
+        elif kind == 3:
+            observe(queue.cancel(order_id))
+            observe(risk.request_cancel(order_id))
+        elif kind == 4:
+            observe(risk.cancel_ack(order_id))
+        elif kind == 5:
+            observe(accounting.mark(0, value_a))
+        elif kind == 6:
+            observe(queue.invalidate_epoch())
+            observe(risk.invalidate_epoch())
+        elif kind == 7:
+            observe(scheduler.schedule(order_id, LogicalTime(value_a, value_b)))
+        elif kind == 8:
+            scheduler.drain(LogicalTime(value_a, value_b), inclusive=is_bid)
+        elif kind == 9:
+            observe(
+                accounting.markout(
+                    is_bid=is_bid,
+                    fill_price_tick=value_a,
+                    qty_lots=value_b,
+                    mark_price_tick=value_c,
+                )
+            )
+        else:
+            raise ValueError(f"unsupported engine contract operation kind: {kind}")
+
+        rows.append(
+            (
+                accepted,
+                reason,
+                fills,
+                _engine_contract_state_sha256(bids, asks, queue, scheduler, risk, accounting),
+            )
+        )
+    return rows
+
+
 def _build_extension(cargo: str, directory: Path) -> Path:
     environment = dict(os.environ)
     cargo_path = Path(cargo)
@@ -1070,6 +1247,30 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         ).hexdigest()
         latency_final_state_by_mode[mode_name] = python_latency_trace[-1][1] if python_latency_trace else seed
 
+    engine_contract_operations = _engine_contract_operations()
+    engine_contract_corpus_sha256 = hashlib.sha256(
+        json.dumps(engine_contract_operations, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    python_engine_contract_trace = _python_engine_contract_trace(engine_contract_operations)
+    rust_engine_contract_trace = list(lob_core.run_engine_contract_trace(engine_contract_operations))
+    if rust_engine_contract_trace != python_engine_contract_trace:
+        for engine_index, (python_engine_row, rust_engine_row) in enumerate(
+            zip(python_engine_contract_trace, rust_engine_contract_trace, strict=False)
+        ):
+            if python_engine_row != rust_engine_row:
+                raise AssertionError(
+                    "composed engine contract divergence at operation "
+                    f"{engine_index}: operation={engine_contract_operations[engine_index]!r}, "
+                    f"python={python_engine_row!r}, rust={rust_engine_row!r}"
+                )
+        raise AssertionError("composed engine contract trace length differs")
+    engine_contract_trace_sha256 = hashlib.sha256(
+        json.dumps(python_engine_contract_trace, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    engine_contract_final_state_sha256 = python_engine_contract_trace[-1][3]
+    engine_contract_fill_count = sum(len(row[2]) for row in python_engine_contract_trace)
+    engine_contract_accepted = sum(1 for row in python_engine_contract_trace if row[0])
+
     return {
         "schema_version": "lob_sim.rust_python_parity.v3",
         "ok": True,
@@ -1159,6 +1360,18 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "latency_resolution_us": 1,
         "latency_trace_sha256_by_mode": latency_trace_sha256_by_mode,
         "latency_final_state_by_mode": latency_final_state_by_mode,
+        "engine_contract_operations": len(engine_contract_operations),
+        "engine_contract_operation_corpus_sha256": engine_contract_corpus_sha256,
+        "engine_contract_trace_sha256": engine_contract_trace_sha256,
+        "engine_contract_accepted_operations": engine_contract_accepted,
+        "engine_contract_rejected_operations": len(engine_contract_operations) - engine_contract_accepted,
+        "engine_contract_fill_count": engine_contract_fill_count,
+        "engine_contract_final_state_sha256": engine_contract_final_state_sha256,
+        "engine_contract_scope": (
+            "composed deterministic smoke path spanning atomic book batches, integer-nanosecond scheduling, "
+            "public queue consumption, live-plus-pending risk reservations, fixed-point accounting/markouts, "
+            "and epoch invalidation; this is not full SimulationEngine replay parity"
+        ),
         "scope": (
             "logical time, uncrossed invariant, atomic fixed-point book batches, restricted single-price "
             "public-L2 trade queue-ahead consumption, and exact synthetic "
