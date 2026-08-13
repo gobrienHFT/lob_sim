@@ -170,3 +170,56 @@ def test_normalizers_reject_wrong_record_type() -> None:
 
     with pytest.raises(ValueError, match="Expected depthUpdate record"):
         depth_update_from_record(record, spec)
+
+
+@pytest.mark.parametrize("field", ["recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"])
+@pytest.mark.parametrize("value", ["7", 7.0, True, -1])
+def test_normalizers_reject_coercible_capture_metadata(field: str, value: object) -> None:
+    spec = instrument_spec_from_record(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"tickSize": "0.10", "stepSize": "0.001"},
+        )
+    )
+    assert spec is not None
+    capture = {"recvSeq": 1, "recvMonotonicNs": 2, "streamEpoch": 3, "syncEpoch": 4}
+    capture[field] = value
+    record = RecordedEvent(
+        ts_local=2.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={
+            "U": 101,
+            "u": 102,
+            "pu": 100,
+            "b": [],
+            "a": [],
+            "_capture": capture,
+        },
+    )
+
+    with pytest.raises(ValueError, match=f"{field}"):
+        depth_update_from_record(record, spec)
+
+
+def test_normalizers_reject_non_mapping_capture_metadata() -> None:
+    spec = instrument_spec_from_record(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"tickSize": "0.10", "stepSize": "0.001"},
+        )
+    )
+    assert spec is not None
+    record = RecordedEvent(
+        ts_local=2.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"U": 101, "u": 102, "pu": 100, "b": [], "a": [], "_capture": "invalid"},
+    )
+
+    with pytest.raises(ValueError, match="_capture must be a mapping"):
+        depth_update_from_record(record, spec)

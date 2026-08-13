@@ -5,9 +5,16 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Iterator
 
-from ..record.envelope import SCHEMA_V3, canonical_json, payload_checksum
+from ..record.envelope import (
+    SCHEMA_V3,
+    canonical_json,
+    payload_checksum,
+    require_nonempty_string,
+    require_nonnegative_int,
+)
 from .inspection import file_sha256
 from .reader import iter_records
 
@@ -53,11 +60,26 @@ def _schema() -> Any:
 
 def _row(record: Any, source_row_seq: int) -> dict[str, Any]:
     capture_value = record.data.get("_capture")
-    capture = capture_value if isinstance(capture_value, dict) else {}
-    has_receive_clock = capture.get("recvSeq") is not None and capture.get("recvMonotonicNs") is not None
-    recv_seq = int(capture["recvSeq"]) if capture.get("recvSeq") is not None else source_row_seq
+    if capture_value is None:
+        capture: dict[str, object] = {}
+    elif isinstance(capture_value, Mapping):
+        capture = dict(capture_value)
+    else:
+        raise ValueError("_capture must be a mapping")
+    has_recv_seq = capture.get("recvSeq") is not None
+    has_recv_monotonic = capture.get("recvMonotonicNs") is not None
+    if has_recv_seq != has_recv_monotonic:
+        raise ValueError("recvSeq and recvMonotonicNs must be provided together")
+    has_receive_clock = has_recv_seq and has_recv_monotonic
+    recv_seq = (
+        require_nonnegative_int(capture["recvSeq"], "recvSeq") if capture.get("recvSeq") is not None else source_row_seq
+    )
     recv_wall_ns = int(Decimal(str(record.ts_local)) * Decimal(1_000_000_000))
-    recv_monotonic_ns = int(capture["recvMonotonicNs"]) if capture.get("recvMonotonicNs") is not None else recv_wall_ns
+    recv_monotonic_ns = (
+        require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
+        if capture.get("recvMonotonicNs") is not None
+        else recv_wall_ns
+    )
     event_ms = record.data.get("E")
     transaction_ms = record.data.get("T")
     payload = dict(record.data)
@@ -66,14 +88,14 @@ def _row(record: Any, source_row_seq: int) -> dict[str, Any]:
         "source_row_seq": source_row_seq,
         "symbol": record.symbol,
         "event_kind": record.type,
-        "route": str(capture.get("route", "legacy")),
+        "route": (require_nonempty_string(capture["route"], "route") if capture.get("route") is not None else "legacy"),
         "recv_seq": recv_seq,
         "recv_wall_ns": recv_wall_ns,
         "recv_monotonic_ns": recv_monotonic_ns,
         "exchange_event_ns": int(event_ms) * 1_000_000 if event_ms is not None else None,
         "exchange_transaction_ns": int(transaction_ms) * 1_000_000 if transaction_ms is not None else None,
-        "stream_epoch": int(capture.get("streamEpoch", 0)),
-        "sync_epoch": int(capture.get("syncEpoch", 0)),
+        "stream_epoch": require_nonnegative_int(capture.get("streamEpoch", 0), "streamEpoch"),
+        "sync_epoch": require_nonnegative_int(capture.get("syncEpoch", 0), "syncEpoch"),
         "logical_time_source": "capture_receive_clock" if has_receive_clock else "legacy_row_order",
         "payload_checksum": payload_checksum(payload),
         "payload_json": canonical_json(payload).decode("utf-8"),
