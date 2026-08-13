@@ -17,9 +17,10 @@ The synchronizer treats a crossed or otherwise invalid depth batch or REST
 snapshot as a hard epoch boundary: the candidate state is never exposed, the
 bad event is not retained as a future snapshot bridge, and replay must
 establish a fresh snapshot plus contiguous updates before execution can resume.
-If the pre-snapshot buffer itself contains a continuity gap, it is discarded
-and a new snapshot attempt starts a fresh epoch; retrying the same broken
-buffer is not a recovery strategy.
+If the pre-snapshot buffer itself contains a continuity gap or overflows its
+hard capacity, it is discarded and a new snapshot attempt starts a fresh
+epoch; retrying the same broken or incomplete buffer is not a recovery
+strategy.
 
 The Python engine keeps seconds at the metrics/export boundary but orders its
 internal action heap by `(recv_monotonic_ns, insertion_order)`. This avoids

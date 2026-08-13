@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from lob_sim.book.local_book import LocalOrderBook
-from lob_sim.book.sync import BookSynchronizer, BookSyncGapError
+from lob_sim.book.sync import BookSyncBufferOverflowError, BookSynchronizer, BookSyncGapError
 from lob_sim.book.types import DepthUpdateEvent, InstrumentSpec, SnapshotEvent, SymbolSpec
 from lob_sim.binance.symbols import parse_exchange_info_for_symbol
 
@@ -277,6 +277,45 @@ def test_invalid_snapshot_invalidates_existing_book_epoch() -> None:
     assert sync.invalid_reason == "invalid_snapshot"
     assert book.bids == {}
     assert book.asks == {}
+
+
+def test_buffer_overflow_discards_prefix_and_invalidates_epoch() -> None:
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=True, max_buffer_events=1)
+    first = DepthUpdateEvent(
+        symbol="BTCUSDT",
+        first_update_id=90,
+        final_update_id=100,
+        prev_update_id=89,
+        bids=[(10000, 10)],
+        asks=[],
+        ts_local=1.0,
+    )
+    sync.on_depth_update(first)
+    previous_epoch = sync.epoch
+
+    with pytest.raises(BookSyncBufferOverflowError, match="Depth buffer overflow"):
+        sync.on_depth_update(
+            DepthUpdateEvent(
+                symbol="BTCUSDT",
+                first_update_id=101,
+                final_update_id=110,
+                prev_update_id=100,
+                bids=[(10000, 9)],
+                asks=[],
+                ts_local=2.0,
+            )
+        )
+
+    assert sync.epoch == previous_epoch + 1
+    assert sync.synced is False
+    assert sync.ready is False
+    assert sync.invalid_reason == "buffer_overflow"
+    assert sync.last_update_id is None
+    assert book.bids == {}
+    assert book.asks == {}
+    assert not sync.buffer
 
 
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():

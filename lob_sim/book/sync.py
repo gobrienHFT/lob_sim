@@ -45,7 +45,10 @@ class BookSynchronizer:
     def _buffer_event(self, event: DepthUpdateEvent) -> None:
         self._validate_symbol(event.symbol)
         if len(self.buffer) >= self.max_buffer_events:
-            self.invalid_reason = "buffer_overflow"
+            # A dropped pre-snapshot event makes the retained prefix unsafe
+            # for bridging a later snapshot.  Clear it and advance the epoch
+            # before surfacing the hard overflow boundary.
+            self.begin_resync("buffer_overflow")
             raise BookSyncBufferOverflowError(
                 f"Depth buffer overflow for {self.book.symbol} in sync epoch {self.epoch}: "
                 f"limit={self.max_buffer_events}"
