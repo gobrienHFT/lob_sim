@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-13T13:31:24.478447Z",
+    "benchmark_created_at_utc": "2026-08-13T13:40:10.014095Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -96,15 +96,15 @@
     "python_version": "3.13.1",
     "source": {
       "git_branch": "codex/synthetic-queue-assumption-label",
-      "git_commit": "5cebd68a84d0c063e22c2d28885a85c2fca0f0c6",
+      "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 92.16742766221361,
-    "loop_latency_p50_us": 308.35,
-    "loop_latency_p99_us": 108626.89499999958,
-    "wall_time_seconds": 0.8679856000017026
+    "events_per_second": 92.00387428312551,
+    "loop_latency_p50_us": 279.05,
+    "loop_latency_p99_us": 110312.03699999949,
+    "wall_time_seconds": 0.8695286000001943
   }
 }

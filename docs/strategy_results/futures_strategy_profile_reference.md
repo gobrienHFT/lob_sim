@@ -7,7 +7,7 @@
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Frozen research registry SHA-256: `d868a7b646a08302fcd6b99706a7b32382d54321480de26a6cce951583569ef2`
 - Registry sidecar: `futures_strategy_profile_reference_registry.json`
-- Git commit at run time: `5cebd68a84d0c063e22c2d28885a85c2fca0f0c6`
+- Git commit at run time: `37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb`
 - Git dirty at run time: `False`
 - Input note: this committed recorded clip is short, so the comparison is intentionally modest.
 - Refresh command:

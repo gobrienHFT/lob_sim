@@ -429,7 +429,7 @@
     "algorithm": "sha256",
     "complete": true,
     "file_count": 241,
-    "sha256": "78d41c3bb9cf83292c760eaa403afde104c79d103c41544b5e8a7d48edd61399"
+    "sha256": "af845205adfc4c2814d3aaad54199129802effbb10bbe7f6c172dc006d064b92"
   },
   "feed_adapter": {
     "name": "binance_usdm",

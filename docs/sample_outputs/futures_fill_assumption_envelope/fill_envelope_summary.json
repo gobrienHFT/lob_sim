@@ -197,7 +197,7 @@
       "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
       "config_digest": "4b6bd26877c2cf9db2928148b2a33dedd26900e4cafc70beba87845ada69d803",
       "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
-      "wall_time_seconds": 3.491585899999336,
+      "wall_time_seconds": 3.504880200001935,
       "fill_count": 1,
       "realized_pnl": 2e-06,
       "unrealized_pnl": 5e-05,
@@ -244,9 +244,9 @@
         "platform": "Windows-11-10.0.26200-SP0"
       },
       "source": {
-        "git_commit": "61fd59ffe41ccb9c168baf5b5e68e78efcc210d0",
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
         "git_branch": "codex/synthetic-queue-assumption-label",
-        "git_dirty": false
+        "git_dirty": true
       },
       "fill_assumption": {
         "profile": "conservative",
@@ -264,7 +264,7 @@
       "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
       "config_digest": "6464f09a64dd2d4f6e850dbc45800a137b354271f582815f85d69294d6cfcafd",
       "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
-      "wall_time_seconds": 2.892305100001977,
+      "wall_time_seconds": 3.081187100000534,
       "fill_count": 1,
       "realized_pnl": 2e-06,
       "unrealized_pnl": 5e-05,
@@ -311,9 +311,9 @@
         "platform": "Windows-11-10.0.26200-SP0"
       },
       "source": {
-        "git_commit": "61fd59ffe41ccb9c168baf5b5e68e78efcc210d0",
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
         "git_branch": "codex/synthetic-queue-assumption-label",
-        "git_dirty": false
+        "git_dirty": true
       },
       "fill_assumption": {
         "profile": "base",
@@ -331,7 +331,7 @@
       "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
       "config_digest": "a18a705f1d1ba4f8eb95464a4720c1534d572ae54485061eb4e7b727ab513a54",
       "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
-      "wall_time_seconds": 2.789108299999498,
+      "wall_time_seconds": 2.875004599998647,
       "fill_count": 1,
       "realized_pnl": 2e-06,
       "unrealized_pnl": 5e-05,
@@ -378,9 +378,9 @@
         "platform": "Windows-11-10.0.26200-SP0"
       },
       "source": {
-        "git_commit": "61fd59ffe41ccb9c168baf5b5e68e78efcc210d0",
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
         "git_branch": "codex/synthetic-queue-assumption-label",
-        "git_dirty": false
+        "git_dirty": true
       },
       "fill_assumption": {
         "profile": "aggressive",

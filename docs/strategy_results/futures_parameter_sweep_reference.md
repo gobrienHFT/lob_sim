@@ -10,7 +10,7 @@
 - Queue repost lots grid: `0, 5, 99`
 - Frozen research registry SHA-256: `73799a5bca953289f763bffc3740c1e846721ffaee9459805283e29eea5e6b14`
 - Registry sidecar: `futures_parameter_sweep_reference_registry.json`
-- Git commit at run time: `5cebd68a84d0c063e22c2d28885a85c2fca0f0c6`
+- Git commit at run time: `37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb`
 - Git dirty at run time: `False`
 
 Exact command:

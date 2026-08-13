@@ -1,13 +1,13 @@
 {
   "run_id": "6d71dc95e0a5d6a3",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-13T13:31:08.036251Z",
+  "created_at_utc": "2026-08-13T13:39:53.875382Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
     "size_bytes": 121067,
     "sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
-    "modified_at_utc": "2026-08-13T13:31:06.568512Z"
+    "modified_at_utc": "2026-08-13T13:39:52.486804Z"
   },
   "config": {
     "symbols": [
@@ -70,7 +70,7 @@
     "algorithm": "sha256",
     "complete": true,
     "file_count": 241,
-    "sha256": "72423d6fdec9c71b6b6be59ad02cfb82099eff4ad5cf280c53dc6ce221be97dd"
+    "sha256": "526b0c47f4640c89a50d368bbcf8f64c0688b8c83611bef6d31db7a767541e8d"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -134,7 +134,7 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "5cebd68a84d0c063e22c2d28885a85c2fca0f0c6",
+    "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
     "git_branch": "codex/synthetic-queue-assumption-label",
     "git_dirty": false
   },
@@ -150,7 +150,7 @@
       "path": "docs/sample_outputs/futures_recorded_clip_case/event_trace.csv",
       "size_bytes": 289222,
       "sha256": "db46a65db0e6ea9f3e6295a386c439917d87976f0063fc5d26b812b410ecc4b5",
-      "modified_at_utc": "2026-08-13T13:31:10.579785Z"
+      "modified_at_utc": "2026-08-13T13:39:56.109757Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/manifest.json"
@@ -158,20 +158,20 @@
     "summary": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.json",
       "size_bytes": 15020,
-      "sha256": "249aaff4e5a4fba412c3182ae09613dbf469d00a04c8d2361f341e9e30feae28",
-      "modified_at_utc": "2026-08-13T13:31:10.557816Z"
+      "sha256": "a2378bff13638e21217c831b64bdd03e9605cdc931cef8054acb911fac5c60fa",
+      "modified_at_utc": "2026-08-13T13:39:56.098796Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/summary.csv",
       "size_bytes": 13518,
-      "sha256": "35ebfbfa83971e19b25007e02c6d744d72a1ea767b1b099d7bcee2cdf2c5d0ec",
-      "modified_at_utc": "2026-08-13T13:31:10.564792Z"
+      "sha256": "cd692397d973a6f75b186c23358a8543c0c22fe24fbb0ccb07519ee39c8baae6",
+      "modified_at_utc": "2026-08-13T13:39:56.103990Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_recorded_clip_case/trades.csv",
       "size_bytes": 397,
       "sha256": "f85ed9999581c52797f28d042ee2ea9cc98c73fbd11496fe29e1505fd0ca6579",
-      "modified_at_utc": "2026-08-13T13:31:10.571649Z"
+      "modified_at_utc": "2026-08-13T13:39:56.106388Z"
     }
   },
   "fixture_provenance": {
