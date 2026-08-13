@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -90,3 +91,59 @@ def test_reviewer_gate_stops_on_first_failed_step() -> None:
 
     assert code == 1
     assert calls == [["python", "--version"], ["python", "-m", "missing"]]
+
+
+def test_reviewer_gate_writes_machine_readable_success_report(tmp_path: Path) -> None:
+    report_path = tmp_path / "outputs" / "reviewer_gate_report.json"
+    steps = [
+        reviewer_gate.GateStep("first", ("python", "--version")),
+        reviewer_gate.GateStep("second", ("python", "-c", "pass")),
+    ]
+
+    def fake_runner(command: list[str], *, cwd: Path, check: bool) -> SimpleNamespace:
+        return SimpleNamespace(returncode=0)
+
+    code = reviewer_gate.run_steps(
+        steps,
+        cwd=tmp_path,
+        runner=fake_runner,
+        report_path=report_path,
+        report_metadata={"include_benchmark": False},
+    )
+
+    assert code == 0
+    assert not list(report_path.parent.glob("*.partial"))
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == "lob_sim.reviewer_gate_report.v1"
+    assert report["status"] == "passed"
+    assert report["complete"] is True
+    assert report["exit_code"] == 0
+    assert report["step_count"] == 2
+    assert report["completed_step_count"] == 2
+    assert report["failed_step"] is None
+    assert report["invocation"] == {"include_benchmark": False}
+    assert [step["status"] for step in report["steps"]] == ["passed", "passed"]
+    assert all(step["elapsed_seconds"] >= 0 for step in report["steps"])
+
+
+def test_reviewer_gate_writes_failure_report_before_returning(tmp_path: Path) -> None:
+    report_path = tmp_path / "reviewer_gate_report.json"
+    steps = [
+        reviewer_gate.GateStep("ok", ("python", "--version")),
+        reviewer_gate.GateStep("bad", ("python", "-m", "missing")),
+        reviewer_gate.GateStep("not run", ("git", "status")),
+    ]
+
+    def fake_runner(command: list[str], *, cwd: Path, check: bool) -> SimpleNamespace:
+        return SimpleNamespace(returncode=1 if command == ["python", "-m", "missing"] else 0)
+
+    code = reviewer_gate.run_steps(steps, cwd=tmp_path, runner=fake_runner, report_path=report_path)
+
+    assert code == 1
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["status"] == "failed"
+    assert report["complete"] is False
+    assert report["exit_code"] == 1
+    assert report["failed_step"] == "bad"
+    assert report["completed_step_count"] == 2
+    assert [step["name"] for step in report["steps"]] == ["ok", "bad"]
