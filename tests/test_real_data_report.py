@@ -107,6 +107,10 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert payload["evidence_quality"]["markout_claim_ready"] is False
     assert payload["evidence_quality"]["checks"]["schema_v3_receipt_identity"] is False
     assert payload["evidence_quality"]["claim_matrix"]["modeled_pnl"]["status"] == "diagnostic_only"
+    assert payload["assumptions"]["execution_model"]["historical_fifo_claim"] is False
+    assert "maker_fee_bps" in payload["assumptions"]["economic"]
+    assert payload["assumptions"]["simulation"]["private_exchange_execution_reports"] is False
+    assert payload["assumptions"]["feed_adapter"]["name"] == "binance_usdm"
     assert (
         "missing_schema_v3_receipt_identity"
         in payload["evidence_quality"]["claim_matrix"]["capture_receipt_and_validity"]["reason_codes"]
@@ -141,6 +145,8 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert "Meets 10-30 minute target: `false`" in markdown
     assert "## Evidence Gate" in markdown
     assert "Execution claim-ready: `false`" in markdown
+    assert "## Model Assumptions" in markdown
+    assert "not exchange measurements" in markdown
     assert "python scripts/run_real_data_report.py" in markdown
     assert not any(path.suffix in {".csv", ".ndjson", ".gz"} for path in publish_dir.rglob("*"))
 
