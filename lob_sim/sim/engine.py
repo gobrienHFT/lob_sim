@@ -2063,6 +2063,7 @@ class SimulationEngine:
                                     now,
                                     evidence_ids=(record_evidence_id,),
                                     validity=self._validity_state(rec.symbol, require_trade=False).as_dict(),
+                                    logical_time_ns=logical_ns,
                                 )
                                 self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                                 if buffered_fills:
@@ -2095,6 +2096,7 @@ class SimulationEngine:
                             now,
                             evidence_ids=(record_evidence_id,),
                             validity=self._validity_state(rec.symbol, require_trade=False).as_dict(),
+                            logical_time_ns=logical_ns,
                         )
                         self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                         if fills:
@@ -2111,6 +2113,7 @@ class SimulationEngine:
                         now,
                         evidence_ids=(record_evidence_id,),
                         validity=self._validity_state(rec.symbol, require_trade=True).as_dict(),
+                        logical_time_ns=logical_ns,
                     )
                     self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                     if fills:

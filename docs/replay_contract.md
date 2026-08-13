@@ -137,6 +137,12 @@ exported `ts_local` remains a compatibility/reporting field; it is not the
 ordering authority when large receipt timestamps collapse to the same binary
 float.
 
+Depth/trade overlap reconciliation follows the same rule for schema-v3
+observations: expiry and netting use the integer receipt nanosecond key passed
+from the engine, not the derived float seconds. Direct legacy callers may omit
+that key and use a rounded compatibility conversion; they remain diagnostic
+for subsecond claims.
+
 ## Pack Audit
 
 Use the pack auditor when you want to check a generated futures pack without reading each CSV by hand:

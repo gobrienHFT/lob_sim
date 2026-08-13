@@ -182,6 +182,45 @@ def test_fill_model_public_consumption_summary_tracks_overlap_netting():
     }
 
 
+def test_overlap_netting_uses_exact_logical_nanoseconds_not_float_seconds() -> None:
+    model = PassiveFillModel()
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+    model.place_order(
+        Order(
+            order_id="strategy-bid",
+            symbol="BTCUSDT",
+            side="bid",
+            price_tick=10000,
+            qty_lots=2,
+            remaining_lots=2,
+            created_ts=0.0,
+        )
+    )
+
+    # Keep the public float timestamp identical while moving the exact
+    # logical clock just beyond the 125 ms reconciliation window. A float-only
+    # implementation would incorrectly net the depth reduction away.
+    logical_first = 10_000_000_000_000_000
+    logical_second = logical_first + 125_000_001
+    model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10000, qty_lots=1, buyer_is_maker=True, ts_local=1.0),
+        1.0,
+        logical_time_ns=logical_first,
+    )
+    model.apply_depth_changes(
+        "BTCUSDT",
+        [LevelChange("bids", 10000, 1, 0)],
+        1.0,
+        logical_time_ns=logical_second,
+    )
+
+    depth_event = next(event for event in model.drain_public_consumption_events() if event.source == "depth_update")
+    assert depth_event.modeled_lots == 1
+    assert depth_event.overlap_netted_lots == 0
+    assert depth_event.queue_consumed_lots == 1
+    assert depth_event.unmatched_lots == 0
+
+
 def test_passive_fill_carries_trigger_and_order_provenance() -> None:
     model = PassiveFillModel()
     model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])

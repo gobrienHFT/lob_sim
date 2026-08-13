@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from heapq import heapify, heappop, heappush
+import math
 from typing import Any, Deque, Literal, cast
 
 from ..book.types import AggTradeEvent, LevelChange
@@ -20,7 +21,7 @@ PUBLIC_CONSUMPTION_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade
 
 @dataclass
 class _ConsumptionCredit:
-    ts_local: float
+    logical_time_ns: int
     lots: int
     source: FillSource
 
@@ -54,9 +55,7 @@ class PassiveFillModel:
         self._order_index: dict[str, tuple[str, OrderSide, str]] = {}
         self._synthetic_queue_ahead: dict[str, int] = {}
         self._public_consumption_credits: dict[tuple[str, OrderSide, int], Deque[_ConsumptionCredit]] = {}
-        self._public_consumption_expiry_heap: list[
-            tuple[float, int, tuple[str, OrderSide, int], _ConsumptionCredit]
-        ] = []
+        self._public_consumption_expiry_heap: list[tuple[int, int, tuple[str, OrderSide, int], _ConsumptionCredit]] = []
         self._public_consumption_credit_sequence = 0
         self._public_consumption_stats: dict[FillSource, dict[str, int]] = {
             source: {
@@ -206,7 +205,21 @@ class PassiveFillModel:
             return "depth_update"
         return None
 
-    def _expire_public_consumption_credits(self, ts_local: float) -> None:
+    @staticmethod
+    def _logical_time_ns(ts_local: float, logical_time_ns: int | None) -> int:
+        if logical_time_ns is not None:
+            if not isinstance(logical_time_ns, int) or isinstance(logical_time_ns, bool) or logical_time_ns < 0:
+                raise ValueError("logical_time_ns must be a non-negative integer")
+            return logical_time_ns
+        value = float(ts_local)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("ts_local must be finite and non-negative")
+        return int(round(value * 1_000_000_000))
+
+    def _overlap_window_ns(self) -> int:
+        return int(round(self.fill_assumption.overlap_window_seconds * 1_000_000_000))
+
+    def _expire_public_consumption_credits(self, logical_time_ns: int) -> None:
         """Drop overlap credits once their reconciliation window has elapsed.
 
         Credits are indexed by price, so pruning only when the same price is
@@ -223,7 +236,7 @@ class PassiveFillModel:
 
         while self._public_consumption_expiry_heap:
             expiry, _sequence, key, credit = self._public_consumption_expiry_heap[0]
-            if expiry >= ts_local:
+            if expiry >= logical_time_ns:
                 break
             heappop(self._public_consumption_expiry_heap)
             credits = self._public_consumption_credits.get(key)
@@ -250,8 +263,10 @@ class PassiveFillModel:
         lots: int,
         ts_local: float,
         source: FillSource,
+        logical_time_ns: int | None = None,
     ) -> int:
-        self._expire_public_consumption_credits(ts_local)
+        current_time_ns = self._logical_time_ns(ts_local, logical_time_ns)
+        self._expire_public_consumption_credits(current_time_ns)
         opposite_source = self._opposite_public_source(source)
         if (
             opposite_source is None
@@ -266,14 +281,14 @@ class PassiveFillModel:
         if not credits:
             return lots
 
-        overlap_window_seconds = self.fill_assumption.overlap_window_seconds
+        overlap_window_ns = self._overlap_window_ns()
         remaining = lots
         kept: Deque[_ConsumptionCredit] = deque()
         for credit in credits:
-            age = ts_local - credit.ts_local
-            if age > overlap_window_seconds:
+            age_ns = current_time_ns - credit.logical_time_ns
+            if age_ns > overlap_window_ns:
                 continue
-            if age < 0:
+            if age_ns < 0:
                 kept.append(credit)
                 continue
             if credit.source == opposite_source and remaining > 0:
@@ -297,6 +312,7 @@ class PassiveFillModel:
         lots: int,
         ts_local: float,
         source: FillSource,
+        logical_time_ns: int | None = None,
     ) -> None:
         if (
             self._opposite_public_source(source) is None
@@ -305,18 +321,23 @@ class PassiveFillModel:
             or self.fill_assumption.overlap_window_seconds <= 0
         ):
             return
-        self._expire_public_consumption_credits(ts_local)
+        current_time_ns = self._logical_time_ns(ts_local, logical_time_ns)
+        self._expire_public_consumption_credits(current_time_ns)
         key = self._credit_key(symbol, side, price_tick)
         credits = self._public_consumption_credits.setdefault(key, deque())
-        overlap_window_seconds = self.fill_assumption.overlap_window_seconds
-        while credits and ts_local - credits[0].ts_local > overlap_window_seconds:
+        overlap_window_ns = self._overlap_window_ns()
+        while credits and current_time_ns - credits[0].logical_time_ns > overlap_window_ns:
             credits.popleft()
-        credit = _ConsumptionCredit(ts_local=ts_local, lots=lots, source=source)
+        credit = _ConsumptionCredit(
+            logical_time_ns=current_time_ns,
+            lots=lots,
+            source=source,
+        )
         credits.append(credit)
         heappush(
             self._public_consumption_expiry_heap,
             (
-                ts_local + overlap_window_seconds,
+                current_time_ns + overlap_window_ns,
                 self._public_consumption_credit_sequence,
                 key,
                 credit,
@@ -792,6 +813,7 @@ class PassiveFillModel:
         *,
         evidence_ids: tuple[str, ...] = (),
         validity: dict[str, Any] | None = None,
+        logical_time_ns: int | None = None,
     ) -> list[Fill]:
         fills: list[Fill] = []
         for change in changes:
@@ -805,6 +827,7 @@ class PassiveFillModel:
                     lots=dec,
                     ts_local=ts_local,
                     source="depth_update",
+                    logical_time_ns=logical_time_ns,
                 )
                 if not self.fill_assumption.depth_reductions_consume_queue:
                     self._fill_assumption_stats["corroborated_depth_reduction_lots"] += max(
@@ -834,6 +857,7 @@ class PassiveFillModel:
                     lots=lots_to_consume,
                     ts_local=ts_local,
                     source="depth_update",
+                    logical_time_ns=logical_time_ns,
                 )
                 if lots_to_consume <= 0:
                     self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
@@ -893,6 +917,7 @@ class PassiveFillModel:
         *,
         evidence_ids: tuple[str, ...] = (),
         validity: dict[str, Any] | None = None,
+        logical_time_ns: int | None = None,
     ) -> list[Fill]:
         side = "bid" if trade.buyer_is_maker else "ask"
         if not self.fill_assumption.agg_trades_consume_queue:
@@ -915,6 +940,7 @@ class PassiveFillModel:
             lots=trade.qty_lots,
             ts_local=ts_local,
             source="agg_trade",
+            logical_time_ns=logical_time_ns,
         )
         self._record_public_consumption_credit(
             symbol=trade.symbol,
@@ -923,6 +949,7 @@ class PassiveFillModel:
             lots=lots_to_consume,
             ts_local=ts_local,
             source="agg_trade",
+            logical_time_ns=logical_time_ns,
         )
         if lots_to_consume <= 0:
             self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume, 0)
