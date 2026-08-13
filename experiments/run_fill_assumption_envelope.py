@@ -22,6 +22,7 @@ from lob_sim.research.protocol import ResearchRegistry
 ENVELOPE_SCHEMA_VERSION = "lob_sim.fill_assumption_envelope.v1"
 ENVELOPE_FIELDS = [
     "profile",
+    "registry_variant_id",
     "run_id",
     "input_digest",
     "config_digest",
@@ -80,7 +81,13 @@ def _profile_cfg(base_cfg: Any, profile: FillAssumptionProfile, out_dir: Path) -
     )
 
 
-def _run_profile(input_file: Path, base_cfg: Any, profile: FillAssumptionProfile, out_dir: Path) -> dict[str, Any]:
+def _run_profile(
+    input_file: Path,
+    base_cfg: Any,
+    profile: FillAssumptionProfile,
+    out_dir: Path,
+    registry_variant_id: str,
+) -> dict[str, Any]:
     cfg = _profile_cfg(base_cfg, profile, out_dir)
     cfg_snapshot = config_snapshot(cfg)
     started = time.perf_counter()
@@ -92,6 +99,7 @@ def _run_profile(input_file: Path, base_cfg: Any, profile: FillAssumptionProfile
     manifest = json.loads(output_files["manifest"].read_text(encoding="utf-8"))
     return {
         "profile": profile,
+        "registry_variant_id": registry_variant_id,
         "run_id": summary["run_id"],
         "input_digest": summary["input_sha256"],
         "config_digest": config_digest(cfg_snapshot),
@@ -118,10 +126,17 @@ def _run_profile(input_file: Path, base_cfg: Any, profile: FillAssumptionProfile
     }
 
 
-def _validate_envelope(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _validate_envelope(rows: list[dict[str, Any]], registry_snapshot: dict[str, Any]) -> dict[str, Any]:
     profiles = [row["profile"] for row in rows]
     input_digests = {row["input_digest"] for row in rows}
     normalized_config_digests = {row["normalized_config_digest"] for row in rows}
+    variants = registry_snapshot.get("variants", [])
+    registry_by_name = {
+        str(variant["name"]): str(variant["variant_id"])
+        for variant in variants
+        if isinstance(variant, dict) and "name" in variant and "variant_id" in variant
+    }
+    row_registry_ids = [str(row.get("registry_variant_id", "")) for row in rows]
     issues: list[str] = []
     if profiles != list(FILL_ASSUMPTION_PROFILES):
         issues.append("Envelope must contain conservative, base, aggressive in that order")
@@ -129,6 +144,14 @@ def _validate_envelope(rows: list[dict[str, Any]]) -> dict[str, Any]:
         issues.append("Envelope runs have mixed input digests")
     if len(normalized_config_digests) != 1:
         issues.append("Envelope runs have mixed normalized config digests")
+    if set(registry_by_name) != set(profiles):
+        issues.append("Frozen research registry does not cover exactly the envelope profiles")
+    if len(set(row_registry_ids)) != len(row_registry_ids):
+        issues.append("Envelope runs must have distinct registry variant identities")
+    for row in rows:
+        expected_id = registry_by_name.get(str(row["profile"]))
+        if expected_id is None or str(row.get("registry_variant_id")) != expected_id:
+            issues.append(f"Envelope run {row.get('profile')!r} is not bound to its frozen registry variant")
     return {
         "ok": not issues,
         "issues": issues,
@@ -137,6 +160,7 @@ def _validate_envelope(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "normalized_config_digest": (
             next(iter(normalized_config_digests)) if len(normalized_config_digests) == 1 else None
         ),
+        "registry_variant_ids": dict(sorted(registry_by_name.items())),
     }
 
 
@@ -214,10 +238,11 @@ def run_envelope(input_file: Path, env_path: str, out_dir: Path, command: str | 
     out_dir.mkdir(parents=True, exist_ok=True)
     base_cfg = load_config(env_path)
     registry = ResearchRegistry()
+    registry_variant_ids: dict[str, str] = {}
     for profile in FILL_ASSUMPTION_PROFILES:
         profile_cfg = _profile_cfg(base_cfg, profile, out_dir)
         profile_snapshot = config_snapshot(profile_cfg)
-        registry.register(
+        registry_variant_ids[profile] = registry.register(
             profile,
             {
                 "fill_assumption_profile": profile,
@@ -225,8 +250,11 @@ def run_envelope(input_file: Path, env_path: str, out_dir: Path, command: str | 
             },
         )
     registry_snapshot = registry.freeze()
-    rows = [_run_profile(input_file, base_cfg, profile, out_dir) for profile in FILL_ASSUMPTION_PROFILES]
-    audit = _validate_envelope(rows)
+    rows = [
+        _run_profile(input_file, base_cfg, profile, out_dir, registry_variant_ids[profile])
+        for profile in FILL_ASSUMPTION_PROFILES
+    ]
+    audit = _validate_envelope(rows, registry_snapshot)
     payload = {
         "schema_version": ENVELOPE_SCHEMA_VERSION,
         "input_file": input_file.as_posix(),
