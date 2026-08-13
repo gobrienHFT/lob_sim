@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, Tuple, cast
+from typing import Final, Literal, Tuple, cast
 from dotenv import load_dotenv
 import logging
 import math
@@ -113,8 +113,8 @@ FillAssumptionProfile = Literal["conservative", "base", "aggressive"]
 # L2 sensitivity. Keep accepting it when constructing a config so older
 # callers remain loadable, but canonicalize every emitted manifest to the
 # explicit non-historical name below.
-SYNTHETIC_QUEUE_AHEAD_MODE = "consume_synthetic_queue_ahead"
-LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE = "consume_fifo_queue"
+SYNTHETIC_QUEUE_AHEAD_MODE: Final = "consume_synthetic_queue_ahead"
+LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE: Final = "consume_fifo_queue"
 DepthReductionMode = Literal[
     "record_unknown_cancel_like",
     "consume_synthetic_queue_ahead",
