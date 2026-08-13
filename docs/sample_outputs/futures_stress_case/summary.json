@@ -7,7 +7,7 @@
     "agg_trades_consume_queue": true,
     "overlap_netting_enabled": true,
     "overlap_window_seconds": 0.125,
-    "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+    "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
   },
   "event_counts": {
     "records_processed": 14,
@@ -34,6 +34,7 @@
   "unrealized_pnl": 0.0002,
   "valuation_complete": true,
   "missing_mark_symbols": [],
+  "inventory_missing_spec_symbols": [],
   "max_drawdown": 0.00015,
   "fill_count": 1,
   "fill_source_counts": {
@@ -154,6 +155,47 @@
   "markout_invalidated_count": 0,
   "markout_unresolved_count": 0,
   "avg_markout_1s": 0.2,
+  "markout_horizon_summary": {
+    "100": {
+      "horizon_ms": 100,
+      "resolved_samples": 1,
+      "invalidated_samples": 0,
+      "unresolved_samples": 0,
+      "resolved_qty": 0.001,
+      "avg_markout": -0.1,
+      "adverse_samples": 1,
+      "adverse_rate": 1.0,
+      "coverage": 1.0,
+      "mean_resolution_lag_ms": 350.0,
+      "max_resolution_lag_ms": 350.0
+    },
+    "1000": {
+      "horizon_ms": 1000,
+      "resolved_samples": 1,
+      "invalidated_samples": 0,
+      "unresolved_samples": 0,
+      "resolved_qty": 0.001,
+      "avg_markout": 0.2,
+      "adverse_samples": 0,
+      "adverse_rate": 0.0,
+      "coverage": 1.0,
+      "mean_resolution_lag_ms": 1000.0,
+      "max_resolution_lag_ms": 1000.0
+    },
+    "5000": {
+      "horizon_ms": 5000,
+      "resolved_samples": 0,
+      "invalidated_samples": 0,
+      "unresolved_samples": 1,
+      "resolved_qty": 0.0,
+      "avg_markout": 0.0,
+      "adverse_samples": 0,
+      "adverse_rate": 0.0,
+      "coverage": 0.0,
+      "mean_resolution_lag_ms": null,
+      "max_resolution_lag_ms": null
+    }
+  },
   "markout_events": [
     {
       "symbol": "BTCUSDT",
@@ -314,6 +356,15 @@
     "capture_schema_version": 1,
     "clock": "legacy_exchange_or_local_time",
     "clock_regressions_clamped": 0,
+    "receive_clock_regressions": 0,
+    "receive_sequence_gaps": 0,
+    "last_receive_monotonic_ns": null,
+    "clock_invalidated": false,
+    "capture_valid": true,
+    "capture_invalidations": 0,
+    "capture_invalid_reason": null,
+    "capture_trailer_seen": false,
+    "claim_ready": false,
     "book_invalidations": 0,
     "snapshot_attempts_rejected": 0,
     "sync_epoch_transitions": 0,
@@ -339,6 +390,8 @@
         "capture_sync_epoch": null,
         "public_invalid_reason": null,
         "market_invalid_reason": null,
+        "clock_valid": true,
+        "capture_valid": true,
         "execution_inputs_valid": true
       }
     },
@@ -372,16 +425,16 @@
     "sink_memory_bounded": true,
     "memory_bounded_by_tape_duration": false
   },
-  "state_sha256": "c39e5c11e320dc868b9c4cb4fac7818385b3151d859a3ceb0a9d3f84bf248f31",
-  "run_id": "a37841f327a8910f",
+  "state_sha256": "203320ac989abcb93c66fee59783490500d07d80e24879dfd4b6b26b4ce117da",
+  "run_id": "01b621334e2dfe23",
   "input_sha256": "887eb11667da972ec95632b0381e1a78904c38dba3e1607f03f950a0306881c1",
-  "config_sha256": "a0105103e02b386015e2c903e1b9a0d4c13d47b51a1130dc78ea76f3ea6214f9",
+  "config_sha256": "4d642faf995e3c75bf70738d772488e5a8372e6ce855da12b96868ad87a0dbcc",
   "code_identity": {
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 226,
-    "sha256": "e407210c17d11f69c991cb7619654e2890623690f6fc5e59890e7271dafdca51"
+    "file_count": 241,
+    "sha256": "4ae43daa4502be2e0340e533a58235fffc65a40a0253a6c21c54387742e233cf"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -413,7 +466,7 @@
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
-      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
     },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
@@ -446,7 +499,7 @@
     "agg_trades_consume_queue": true,
     "overlap_netting_enabled": true,
     "overlap_window_seconds": 0.125,
-    "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
+    "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead",
     "corroborated_depth_reduction_lots": 0,
     "uncorroborated_depth_reduction_lots": 14,
     "overlap_credit_state": {
