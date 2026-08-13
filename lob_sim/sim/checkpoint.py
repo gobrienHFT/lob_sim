@@ -20,7 +20,7 @@ from typing import Any
 
 from ..oracle import canonical_bytes
 
-CHECKPOINT_SCHEMA_VERSION = "lob_sim.simulation_checkpoint.v1"
+CHECKPOINT_SCHEMA_VERSION = "lob_sim.simulation_checkpoint.v2"
 
 
 def _qualified_name(value: object) -> str:

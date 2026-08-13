@@ -357,7 +357,7 @@ def test_simulation_checkpoint_resume_matches_uninterrupted_replay(
     paused = SimulationEngine(cfg)
     paused.run(fixture, checkpoint_path=checkpoint_path, stop_after_records=3)
     checkpoint = read_checkpoint(checkpoint_path)
-    assert checkpoint.schema_version == "lob_sim.simulation_checkpoint.v1"
+    assert checkpoint.schema_version == "lob_sim.simulation_checkpoint.v2"
     assert checkpoint.event_index == 3
 
     resumed = SimulationEngine(cfg)

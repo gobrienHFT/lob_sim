@@ -69,7 +69,11 @@ metrics/export API). The raw wall-clock `ts_local` remains in market-record
 trace details for audit. A wall-clock adjustment therefore cannot create a
 false schema-v3 clock regression; a receive-monotonic regression still
 invalidates the clock dimension. Legacy rows retain their compatibility
-`ts_local` policy and remain diagnostic for subsecond claims.
+`ts_local` policy and remain diagnostic for subsecond claims. The internal
+action heap compares integer nanoseconds, with receipt sequence preserved by
+insertion order for exact schema-v3 ties. Legacy float rows retain a bounded
+sub-nanosecond compatibility component so binary-float arithmetic artefacts do
+not reorder an old tape; that component is not a claim of clock precision.
 
 ```bash
 python -m lob_sim.cli audit --file data/capture_....manifest.json
@@ -118,7 +122,10 @@ resumed.run(input_path, resume_from="run.checkpoint.json")
 ```
 
 The checkpoint is ordinary JSON with a state hash, input SHA-256, behavioral
-configuration digest, logical time, and the continuation state. Resume rejects
+configuration digest, exact logical time, and the continuation state. The
+current `lob_sim.simulation_checkpoint.v2` schema records the integer action
+heap key; older v1 checkpoints are rejected rather than resumed under a
+different ordering contract. Resume rejects
 input or configuration drift and revalidates the skipped prefix. Compare
 `state_sha256()`, `event_trace`, and the final metrics summary against an
 uninterrupted run. Checkpointing is deliberately restricted to `NullSink`

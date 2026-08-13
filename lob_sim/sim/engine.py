@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from heapq import heapify, heappush, heappop
 from itertools import islice
@@ -49,15 +49,27 @@ STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failu
 # events mean the capture itself can no longer be treated as a lossless input,
 # so execution must fail closed globally.
 CAPTURE_INVALIDATION_EVENTS = frozenset({"parse_failure", "overflow", "writer_failure", "capture_abort"})
+NANOSECONDS_PER_SECOND = 1_000_000_000
 
 
 @dataclass(order=True)
 class _EngineEvent:
-    ts: float
-    order: int
-    kind: str
-    symbol: str
-    payload: Dict[str, Any]
+    """An internal action keyed by exact causal nanoseconds.
+
+    ``ts`` remains a float because metrics, traces and the legacy replay API
+    expose seconds.  It is deliberately excluded from ordering: schema-v3
+    receipt timestamps can be large enough that converting nanoseconds to a
+    float collapses distinct observations onto one value.  ``legacy_subns``
+    only preserves sub-nanosecond float artefacts in old tapes.
+    """
+
+    logical_ns: int = field(default=0)
+    legacy_subns: int = field(default=0)
+    order: int = field(default=0)
+    ts: float = field(default=0.0, compare=False)
+    kind: str = field(default="", compare=False)
+    symbol: str = field(default="", compare=False)
+    payload: Dict[str, Any] = field(default_factory=dict, compare=False)
 
 
 class SimulationEngine:
@@ -107,6 +119,11 @@ class SimulationEngine:
         self._pending_cancel_ack_ts: dict[str, float] = {}
         self._pending_replacement_slots: set[tuple[str, str, str]] = set()
         self._symbol_time_watermark: Dict[str, float] = {}
+        self._active_logical_ns: int | None = None
+        self._active_legacy_subns = 0
+        self._active_event_ts: float | None = None
+        self._last_logical_ns = 0
+        self._last_legacy_subns = 0
         self._clock_regressions = 0
         self._clock_invalidated = False
         self._receive_clock_regressions = 0
@@ -183,6 +200,65 @@ class SimulationEngine:
         if not math.isfinite(value) or value < 0:
             raise ValueError(f"event timestamp must be finite and non-negative: {value!r}")
         return value
+
+    @staticmethod
+    def _timestamp_to_key(ts: float) -> tuple[int, int]:
+        """Convert public seconds to an integer-nanosecond heap key.
+
+        Legacy tapes can contain binary-float arithmetic artefacts smaller
+        than one nanosecond.  ``legacy_subns`` preserves their historical
+        ordering without weakening schema-v3's exact receipt-nanosecond key.
+        """
+
+        value = float(ts)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"event timestamp must be finite and non-negative: {value!r}")
+        scaled = value * NANOSECONDS_PER_SECOND
+        logical_ns = int(math.floor(scaled))
+        legacy_subns = int(round((scaled - logical_ns) * NANOSECONDS_PER_SECOND))
+        if legacy_subns >= NANOSECONDS_PER_SECOND:
+            return logical_ns + 1, 0
+        return logical_ns, legacy_subns
+
+    @staticmethod
+    def _event_time_ns(rec: RecordedEvent) -> int:
+        """Return the exact causal key without passing receipt time through float."""
+
+        capture = rec.data.get("_capture")
+        if SimulationEngine._record_has_receive_clock(rec):
+            assert isinstance(capture, dict)
+            try:
+                monotonic_ns = int(str(capture["recvMonotonicNs"]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid receive monotonic timestamp for {rec.symbol}:{rec.type}: "
+                    f"{capture.get('recvMonotonicNs')!r}"
+                ) from exc
+            if monotonic_ns < 0:
+                raise ValueError(f"receive monotonic timestamp must be non-negative: {monotonic_ns!r}")
+            return monotonic_ns
+        if rec.type == "captureMeta" and rec.data.get("schemaVersion") == 3 and rec.data.get("clock") == "receive_time":
+            return 0
+        return SimulationEngine._timestamp_to_key(float(rec.ts_local))[0]
+
+    @staticmethod
+    def _event_time_key(rec: RecordedEvent) -> tuple[int, int]:
+        """Return the exact scheduler key for a recorded observation."""
+
+        capture = rec.data.get("_capture")
+        if SimulationEngine._record_has_receive_clock(rec):
+            assert isinstance(capture, dict)
+            return (SimulationEngine._event_time_ns(rec), 0)
+        if rec.type == "captureMeta" and rec.data.get("schemaVersion") == 3 and rec.data.get("clock") == "receive_time":
+            return (0, 0)
+        return SimulationEngine._timestamp_to_key(float(rec.ts_local))
+
+    def _schedule_time_key(self, ts: float) -> tuple[int, int]:
+        """Use the active receipt key for zero-delay actions at an observation."""
+
+        if self._active_logical_ns is not None and self._active_event_ts is not None and ts == self._active_event_ts:
+            return self._active_logical_ns, self._active_legacy_subns
+        return self._timestamp_to_key(ts)
 
     def _trade_stream_required(self) -> bool:
         return self.cfg.effective_fill_assumption.agg_trades_consume_queue or self.cfg.mm_strategy_profile in {
@@ -607,10 +683,33 @@ class SimulationEngine:
             if should_recover:
                 self._recover_trade_stream(rec.symbol, now, epoch)
 
-    def _schedule(self, ts: float, kind: str, symbol: str, payload: Dict[str, Any]) -> None:
+    def _schedule(
+        self,
+        ts: float,
+        kind: str,
+        symbol: str,
+        payload: Dict[str, Any],
+        *,
+        logical_ns: int | None = None,
+        legacy_subns: int = 0,
+    ) -> None:
         order = self._id_counter
         self._id_counter += 1
-        heappush(self._actions, _EngineEvent(ts=ts, order=order, kind=kind, symbol=symbol, payload=payload))
+        event_key = self._schedule_time_key(ts) if logical_ns is None else (int(logical_ns), int(legacy_subns))
+        if event_key[0] < 0 or event_key[1] < 0:
+            raise ValueError("logical action time must be non-negative")
+        heappush(
+            self._actions,
+            _EngineEvent(
+                logical_ns=event_key[0],
+                legacy_subns=event_key[1],
+                ts=ts,
+                order=order,
+                kind=kind,
+                symbol=symbol,
+                payload=payload,
+            ),
+        )
 
     def _next_id(self) -> int:
         value = self._id_counter
@@ -1517,17 +1616,40 @@ class SimulationEngine:
                 },
             )
 
-    def _drain_events(self, now: float, *, inclusive: bool = True) -> None:
-        while self._actions and (self._actions[0].ts <= now if inclusive else self._actions[0].ts < now):
+    def _drain_events(
+        self,
+        now: float,
+        *,
+        inclusive: bool = True,
+        logical_ns: int | None = None,
+        legacy_subns: int = 0,
+    ) -> None:
+        now_key = self._schedule_time_key(now) if logical_ns is None else (int(logical_ns), int(legacy_subns))
+        while self._actions and (
+            (self._actions[0].logical_ns, self._actions[0].legacy_subns) <= now_key
+            if inclusive
+            else (self._actions[0].logical_ns, self._actions[0].legacy_subns) < now_key
+        ):
             event = heappop(self._actions)
-            if event.kind == "decision":
-                self._handle_decision(event.symbol, event.ts)
-            elif event.kind == "order_arrival":
-                self._handle_arrival(event.symbol, event.payload, event.ts)
-            elif event.kind == "order_cancel":
-                self._handle_cancel(event.payload, event.ts, event.symbol)
-            elif event.kind == "trade_execution":
-                self._handle_trades(event.payload.get("fills", []))
+            previous_logical_ns = self._active_logical_ns
+            previous_legacy_subns = self._active_legacy_subns
+            previous_event_ts = self._active_event_ts
+            self._active_logical_ns = event.logical_ns
+            self._active_legacy_subns = event.legacy_subns
+            self._active_event_ts = event.ts
+            try:
+                if event.kind == "decision":
+                    self._handle_decision(event.symbol, event.ts)
+                elif event.kind == "order_arrival":
+                    self._handle_arrival(event.symbol, event.payload, event.ts)
+                elif event.kind == "order_cancel":
+                    self._handle_cancel(event.payload, event.ts, event.symbol)
+                elif event.kind == "trade_execution":
+                    self._handle_trades(event.payload.get("fills", []))
+            finally:
+                self._active_logical_ns = previous_logical_ns
+                self._active_legacy_subns = previous_legacy_subns
+                self._active_event_ts = previous_event_ts
 
     def _checkpoint_mutable_state(self) -> dict[str, Any]:
         """Capture every mutable input to the deterministic continuation."""
@@ -1563,6 +1685,8 @@ class SimulationEngine:
             "pending_cancel_ack_ts": self._pending_cancel_ack_ts,
             "pending_replacement_slots": self._pending_replacement_slots,
             "symbol_time_watermark": self._symbol_time_watermark,
+            "last_logical_ns": self._last_logical_ns,
+            "last_legacy_subns": self._last_legacy_subns,
             "stream_epochs": self._stream_epochs,
             "capture_sync_epochs": self._capture_sync_epochs,
             "sync_epoch_transitions": self._sync_epoch_transitions,
@@ -1614,6 +1738,8 @@ class SimulationEngine:
         self._pending_cancel_ack_ts = dict(state["pending_cancel_ack_ts"])
         self._pending_replacement_slots = set(state["pending_replacement_slots"])
         self._symbol_time_watermark = dict(state["symbol_time_watermark"])
+        self._last_logical_ns = int(state.get("last_logical_ns", 0))
+        self._last_legacy_subns = int(state.get("last_legacy_subns", 0))
         self._stream_epochs = dict(state["stream_epochs"])
         self._capture_sync_epochs = dict(state["capture_sync_epochs"])
         self._sync_epoch_transitions = int(state["sync_epoch_transitions"])
@@ -1713,7 +1839,12 @@ class SimulationEngine:
         }
         checkpoint = Checkpoint.create(
             event_index=index,
-            logical_time=(int(round(logical_ts * 1_000_000_000)), int(self._last_receive_seq or index)),
+            logical_time=(
+                self._last_logical_ns
+                if index == self._last_event_index
+                else int(round(logical_ts * NANOSECONDS_PER_SECOND)),
+                int(self._last_receive_seq or index),
+            ),
             state=state,
             schema_version=CHECKPOINT_SCHEMA_VERSION,
         )
@@ -1779,6 +1910,8 @@ class SimulationEngine:
             last_ts = 0.0
             records_processed = 0
             market_data_first = False
+            self._last_logical_ns = 0
+            self._last_legacy_subns = 0
             self._last_ts = last_ts
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
@@ -1799,6 +1932,7 @@ class SimulationEngine:
                 self._market_data_first = market_data_first
 
             observed_ts = self._event_time(rec)
+            observed_logical_ns, observed_legacy_subns = self._event_time_key(rec)
             now = observed_ts
             receive_clock_bootstrap = (
                 self._capture_schema_version >= 3
@@ -1811,6 +1945,7 @@ class SimulationEngine:
                 # captureMeta without receipt metadata.  Do not compare that
                 # wall-clock prefix with the first monotonic receipt value.
                 last_ts = now
+                logical_ns, legacy_subns = observed_logical_ns, observed_legacy_subns
             elif now < last_ts:
                 self._clock_regressions += 1
                 if self._capture_schema_version >= 3:
@@ -1822,8 +1957,13 @@ class SimulationEngine:
                     # the legacy strategy trace that existing fixtures expose.
                     self.metrics.invalidate_all_pending_markouts("legacy_clock_regression", ts_local=last_ts)
                 now = last_ts
+                logical_ns, legacy_subns = self._last_logical_ns, self._last_legacy_subns
             else:
                 last_ts = now
+                logical_ns, legacy_subns = observed_logical_ns, observed_legacy_subns
+            self._active_logical_ns = logical_ns
+            self._active_legacy_subns = legacy_subns
+            self._active_event_ts = now
             symbol_now = max(now, self._symbol_time_watermark.get(rec.symbol, now))
             self._symbol_time_watermark[rec.symbol] = symbol_now
 
@@ -1831,7 +1971,12 @@ class SimulationEngine:
             # policy. Schema-v3 captures use market-data-first ties.
             receipt_checked = self._prevalidate_capture_boundary(rec, now)
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
-            self._drain_events(now, inclusive=not market_data_first)
+            self._drain_events(
+                now,
+                inclusive=not market_data_first,
+                logical_ns=logical_ns,
+                legacy_subns=legacy_subns,
+            )
             self._observe_capture_epoch(rec, now, receipt_checked=receipt_checked)
             self._trace_market_record(rec, now, observed_ts)
             if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
@@ -1957,13 +2102,20 @@ class SimulationEngine:
                     )
 
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
-            self._drain_events(now, inclusive=not market_data_first)
+            self._drain_events(
+                now,
+                inclusive=not market_data_first,
+                logical_ns=logical_ns,
+                legacy_subns=legacy_subns,
+            )
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now, specs=self._specs)
                 self._trace_markout_events(self.metrics.drain_new_markout_events())
             self._handle_kill_switch(now, rec.symbol, "market_record", verbose)
 
             self._last_ts = last_ts
+            self._last_logical_ns = logical_ns
+            self._last_legacy_subns = legacy_subns
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
             should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
@@ -2229,7 +2381,14 @@ class SimulationEngine:
             "realized_pnl": str(self.metrics.realized_pnl),
             "total_fees": str(self.metrics.total_fees),
             "pending_actions": [
-                {"ts": event.ts, "order": event.order, "kind": event.kind, "symbol": event.symbol}
+                {
+                    "logical_ns": event.logical_ns,
+                    "legacy_subns": event.legacy_subns,
+                    "ts": event.ts,
+                    "order": event.order,
+                    "kind": event.kind,
+                    "symbol": event.symbol,
+                }
                 for event in sorted(self._actions)
             ],
             "stream_state": {

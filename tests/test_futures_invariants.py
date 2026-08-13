@@ -324,6 +324,28 @@ def test_schema_v3_event_time_uses_receive_monotonic_clock_not_wall_time() -> No
     assert second_time - first_time == pytest.approx(0.0000001)
 
 
+def test_engine_action_heap_uses_exact_logical_nanoseconds_for_large_receipt_clocks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    base_ns = 1_700_000_000_000_000_000
+    seconds = base_ns / 1_000_000_000
+
+    # At this magnitude adjacent nanoseconds have the same binary float
+    # representation.  The action heap must still preserve their boundary.
+    assert seconds == (base_ns + 1) / 1_000_000_000
+    engine._active_logical_ns = base_ns + 1
+    engine._active_event_ts = seconds
+    engine._schedule(seconds, "noop", "BTCUSDT", {})
+    engine._active_logical_ns = None
+    engine._active_event_ts = None
+    engine._schedule(seconds, "noop", "BTCUSDT", {}, logical_ns=base_ns + 2)
+
+    assert [event.logical_ns for event in sorted(engine._actions)] == [base_ns + 1, base_ns + 2]
+    engine._drain_events(seconds, inclusive=True, logical_ns=base_ns + 1)
+    assert [event.logical_ns for event in engine._actions] == [base_ns + 2]
+
+
 def test_schema_v3_trace_preserves_raw_wall_time_when_using_receive_clock() -> None:
     engine = SimulationEngine.__new__(SimulationEngine)
     engine._last_trace_ts = None
