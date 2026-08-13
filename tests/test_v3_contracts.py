@@ -51,6 +51,39 @@ def test_event_envelope_round_trip_and_validity_dimensions() -> None:
     assert ValidityState(True, False, True, True, trade_stream_required=False).execution_valid is True
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("recv_seq", 1.5),
+        ("recv_wall_ns", "1000000000"),
+        ("recv_monotonic_ns", True),
+        ("stream_epoch", 2.25),
+        ("sync_epoch", False),
+    ],
+)
+def test_event_envelope_rejects_non_integral_receipt_fields(field: str, value: object) -> None:
+    payload = json.loads(_envelope(7).to_json())
+    payload[field] = value
+
+    with pytest.raises(ValueError, match=f"{field} must be an integer"):
+        EventEnvelope.from_dict(payload)
+
+
+def test_event_envelope_rejects_fractional_exchange_timestamp() -> None:
+    payload = json.loads(_envelope(7).to_json())
+    payload["exchange_event_ns"] = 123.5
+
+    with pytest.raises(ValueError, match="exchange_event_ns must be an integer"):
+        EventEnvelope.from_dict(payload)
+
+
+def test_logical_time_rejects_bool_and_fractional_components() -> None:
+    with pytest.raises(ValueError, match="recv_monotonic_ns must be an integer"):
+        LogicalTime(True, 1)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="recv_seq must be an integer"):
+        LogicalTime(1, 1.5)  # type: ignore[arg-type]
+
+
 def test_segment_writer_rotates_atomically_and_writes_hashed_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
