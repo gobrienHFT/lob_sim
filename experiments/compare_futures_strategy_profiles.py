@@ -4,9 +4,14 @@ import argparse
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from lob_sim.config import load_config
+from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, adapter_metadata
+from lob_sim.replay.inspection import file_sha256
+from lob_sim.research.protocol import ResearchRegistry
 from lob_sim.sim.engine import SimulationEngine
+from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
 COMPARISON_FIELDS: list[tuple[str, str]] = [
@@ -27,6 +32,19 @@ COMPARISON_FIELDS: list[tuple[str, str]] = [
     ("kill_switch_triggered", "kill_switch_triggered"),
 ]
 
+PROFILE_COMPARISON_STUDY = "futures_strategy_profile_comparison"
+PROFILE_COMPARISON_REGISTRY_SCHEMA = "lob_sim.futures_strategy_profile_registry.v1"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _portable_path(path: Path) -> str:
+    """Keep committed provenance portable across checkouts and operating systems."""
+
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
 
 def _extract_comparison_metrics(summary: dict) -> dict:
     return {key: summary[key] for _label, key in COMPARISON_FIELDS} | {
@@ -39,22 +57,109 @@ def _extract_comparison_metrics(summary: dict) -> dict:
     }
 
 
-def _run_profile(path: Path, env_path: str, profile: str) -> dict:
-    cfg = replace(load_config(env_path), mm_strategy_profile=profile)
+def _build_profile_registry(
+    base_config: Any,
+    candidate_profile: str,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """Register both comparison profiles before either simulation starts."""
+
+    registry = ResearchRegistry()
+    variant_ids: dict[str, str] = {}
+    for profile in ("baseline", candidate_profile):
+        cfg = replace(base_config, mm_strategy_profile=profile)
+        variant_ids[profile] = registry.register(
+            f"profile:{profile}",
+            {
+                "study": PROFILE_COMPARISON_STUDY,
+                "strategy_profile": profile,
+                "normalized_config": config_snapshot(cfg),
+            },
+        )
+    return variant_ids, registry.freeze()
+
+
+def _run_profile(path: Path, env_path: str, profile: str, *, base_config: Any | None = None) -> dict:
+    cfg = replace(base_config or load_config(env_path), mm_strategy_profile=profile)
     engine = SimulationEngine(cfg)
     metrics = engine.run(path)
     return metrics.get_summary(engine._books)
 
 
 def compare_profiles(path: Path, env_path: str, candidate_profile: str) -> dict:
-    baseline = _run_profile(path, env_path, "baseline")
-    candidate = _run_profile(path, env_path, candidate_profile)
-    return {
-        "input_file": str(path),
+    base_config = load_config(env_path)
+    variant_ids, registry_snapshot = _build_profile_registry(base_config, candidate_profile)
+    baseline = _extract_comparison_metrics(_run_profile(path, env_path, "baseline", base_config=base_config))
+    candidate = _extract_comparison_metrics(_run_profile(path, env_path, candidate_profile, base_config=base_config))
+    baseline["registry_variant_id"] = variant_ids["baseline"]
+    candidate["registry_variant_id"] = variant_ids[candidate_profile]
+    result = {
+        "input_file": _portable_path(path),
+        "input_sha256": file_sha256(path),
+        "env_path": _portable_path(Path(env_path)),
+        "config_digest": config_digest(config_snapshot(base_config)),
+        "feed_adapter": adapter_metadata(DEFAULT_REPLAY_ADAPTER),
+        "source": source_state(),
         "baseline_profile": "baseline",
         "candidate_profile": candidate_profile,
-        "baseline": _extract_comparison_metrics(baseline),
-        "candidate": _extract_comparison_metrics(candidate),
+        "baseline": baseline,
+        "candidate": candidate,
+        "research_registry": registry_snapshot,
+    }
+    _validate_profile_registry_result(result)
+    return result
+
+
+def _validate_profile_registry_result(result: dict[str, Any]) -> None:
+    registry = result.get("research_registry")
+    if not isinstance(registry, dict) or registry.get("frozen") is not True:
+        raise ValueError("strategy profile comparison requires a frozen research registry")
+    variants = registry.get("variants")
+    if not isinstance(variants, list) or len(variants) != 2:
+        raise ValueError("strategy profile comparison registry must contain exactly two variants")
+    by_id = {
+        str(variant.get("variant_id")): variant
+        for variant in variants
+        if isinstance(variant, dict) and variant.get("variant_id")
+    }
+    rows = (result.get("baseline"), result.get("candidate"))
+    row_ids = [str(row.get("registry_variant_id", "")) for row in rows if isinstance(row, dict)]
+    if len(row_ids) != 2 or len(set(row_ids)) != 2 or set(row_ids) != set(by_id):
+        raise ValueError("strategy profile comparison rows do not bind one-to-one to the frozen registry")
+    for row, expected_profile in zip(rows, ("baseline", str(result["candidate_profile"]))):
+        if not isinstance(row, dict):
+            raise ValueError("strategy profile comparison row is not an object")
+        variant = by_id.get(str(row.get("registry_variant_id")))
+        config = variant.get("config", {}) if isinstance(variant, dict) else {}
+        if not isinstance(config, dict) or config.get("strategy_profile") != expected_profile:
+            raise ValueError("strategy profile comparison row is not bound to its registered configuration")
+
+
+def build_profile_registry_sidecar(result: dict[str, Any]) -> dict[str, Any]:
+    """Return the machine-readable provenance for a profile comparison."""
+
+    _validate_profile_registry_result(result)
+    rows = [
+        {
+            "strategy_profile": result["baseline_profile"],
+            "registry_variant_id": result["baseline"]["registry_variant_id"],
+        },
+        {
+            "strategy_profile": result["candidate_profile"],
+            "registry_variant_id": result["candidate"]["registry_variant_id"],
+        },
+    ]
+    return {
+        "schema_version": PROFILE_COMPARISON_REGISTRY_SCHEMA,
+        "study_type": PROFILE_COMPARISON_STUDY,
+        "input_file": result["input_file"],
+        "input_sha256": result["input_sha256"],
+        "env_path": result["env_path"],
+        "config_digest": result["config_digest"],
+        "feed_adapter": result["feed_adapter"],
+        "source": result["source"],
+        "research_registry": result["research_registry"],
+        "rows": rows,
+        "row_registry_variant_ids": [row["registry_variant_id"] for row in rows],
     }
 
 

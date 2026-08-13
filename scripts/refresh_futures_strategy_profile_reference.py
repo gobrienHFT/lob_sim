@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -8,10 +9,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from experiments.compare_futures_strategy_profiles import compare_profiles
+from experiments.compare_futures_strategy_profiles import (
+    build_profile_registry_sidecar,
+    compare_profiles,
+)
 
 
 REFERENCE_DOC = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
+REFERENCE_REGISTRY = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference_registry.json"
 ENV_PATH = REPO_ROOT / ".env.example"
 INPUT_CANDIDATES = (
     REPO_ROOT / "docs" / "sample_outputs" / "futures_recorded_clip_case" / "input_clip.ndjson",
@@ -89,6 +94,13 @@ def _render_reference_doc(result: dict, input_path: Path) -> str:
             "",
             f"- Compared profiles: `{result['baseline_profile']}` vs `{result['candidate_profile']}`",
             f"- Committed input: `{input_file}`",
+            f"- Input SHA-256: `{result['input_sha256']}`",
+            f"- Config digest: `{result['config_digest']}`",
+            f"- Feed adapter: `{result['feed_adapter']['name']}` (`{result['feed_adapter']['venue_label']}`)",
+            f"- Frozen research registry SHA-256: `{result['research_registry']['registry_sha256']}`",
+            f"- Registry sidecar: `{REFERENCE_REGISTRY.name}`",
+            f"- Git commit at run time: `{result['source']['git_commit']}`",
+            f"- Git dirty at run time: `{result['source']['git_dirty']}`",
             "- Input note: this committed recorded clip is short, so the comparison is intentionally modest.",
             "- Refresh command:",
             "",
@@ -130,9 +142,16 @@ def refresh_reference(reference_doc: Path = REFERENCE_DOC) -> dict[str, Path]:
 
     reference_doc.parent.mkdir(parents=True, exist_ok=True)
     reference_doc.write_text(_render_reference_doc(result, input_path), encoding="utf-8", newline="\n")
+    registry_payload = build_profile_registry_sidecar(result)
+    REFERENCE_REGISTRY.write_text(
+        json.dumps(registry_payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     return {
         "input": input_path,
         "reference": reference_doc,
+        "registry": REFERENCE_REGISTRY,
     }
 
 
