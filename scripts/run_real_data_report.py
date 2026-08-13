@@ -262,6 +262,32 @@ def _status_payload(*, ready: bool, reason_codes: list[str]) -> dict[str, Any]:
     }
 
 
+def _fill_source_context(summary: dict[str, Any]) -> dict[str, Any]:
+    raw_counts = _as_dict(summary.get("fill_source_counts"))
+    counts: dict[str, int] = {}
+    for source, value in raw_counts.items():
+        if isinstance(value, bool):
+            continue
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if count >= 0:
+            counts[str(source)] = count
+    total = sum(counts.values())
+    shares = {source: (count / total if total else None) for source, count in sorted(counts.items())}
+    taker_count = counts.get("taker_order", 0)
+    taker_fraction = taker_count / total if total else None
+    return {
+        "counts": counts,
+        "count_total": total,
+        "shares": shares,
+        "taker_order_count": taker_count,
+        "taker_order_fraction": taker_fraction,
+        "taker_order_dominated": bool(taker_fraction is not None and taker_fraction > 0.5),
+    }
+
+
 def _build_evidence_quality(
     *,
     summary: dict[str, Any],
@@ -442,6 +468,7 @@ def _build_report_payload(
         audit_result=audit_result,
         meets_target=meets_target,
     )
+    fill_source_context = _fill_source_context(summary)
     audit_counts = audit_result.get("counts", {})
     if not isinstance(audit_counts, dict):
         audit_counts = {}
@@ -502,14 +529,24 @@ def _build_report_payload(
             "fill_from_top_rate": summary.get("fill_from_top_rate"),
             "avg_fill_wait_ms": summary.get("avg_fill_wait_ms"),
             "fill_source_counts": summary.get("fill_source_counts", {}),
+            "fill_source_context": fill_source_context,
         },
         "markout_by_fill_source": summary.get("markout_by_fill_source", {}),
         "risk": {
             "total_pnl": summary.get("total_pnl"),
             "realized_pnl": summary.get("realized_pnl"),
+            "gross_realized_pnl": summary.get("gross_realized_pnl"),
+            "gross_total_pnl": summary.get("gross_total_pnl"),
             "unrealized_pnl": summary.get("unrealized_pnl"),
+            "total_fees": summary.get("total_fees"),
+            "fee_drag": summary.get("fee_drag"),
+            "valuation_complete": summary.get("valuation_complete"),
+            "missing_mark_symbols": summary.get("missing_mark_symbols", []),
             "max_drawdown": summary.get("max_drawdown"),
             "avg_inventory": summary.get("avg_inventory"),
+            "time_weighted_avg_inventory": summary.get("time_weighted_avg_inventory"),
+            "time_weighted_abs_inventory": summary.get("time_weighted_abs_inventory"),
+            "inventory_observation_basis": summary.get("inventory_observation_basis"),
             "inventory_stdev": summary.get("inventory_stdev"),
             "inventory_by_symbol": summary.get("inventory_by_symbol", {}),
             "self_trade_prevention_count": summary.get("self_trade_prevention_count"),
@@ -674,6 +711,9 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Fill-source mix: `{_json_line(fills.get('fill_source_counts', {}))}`",
             f"- Fill-from-top rate: `{fills.get('fill_from_top_rate')}`",
             f"- Average fill wait ms: `{fills.get('avg_fill_wait_ms')}`",
+            f"- Fill-source shares: `{_json_line(fills.get('fill_source_context', {}).get('shares', {}))}`",
+            f"- Inferred `taker_order` share: `{fills.get('fill_source_context', {}).get('taker_order_fraction')}`",
+            f"- Taker-dominated inference warning: `{str(fills.get('fill_source_context', {}).get('taker_order_dominated')).lower()}`",
             "",
             "## Markouts",
             "",
@@ -681,11 +721,20 @@ def _render_report(payload: dict[str, Any]) -> str:
             "",
             "## Inventory And Drawdown",
             "",
+            f"- Gross total PnL before fees: `{risk.get('gross_total_pnl')}`",
+            f"- Gross realized PnL before fees: `{risk.get('gross_realized_pnl')}`",
+            f"- Total fees/rebates: `{risk.get('total_fees')}`",
+            f"- Fee drag: `{risk.get('fee_drag')}`",
             f"- Total PnL: `{risk.get('total_pnl')}`",
             f"- Realized PnL: `{risk.get('realized_pnl')}`",
             f"- Unrealized PnL: `{risk.get('unrealized_pnl')}`",
+            f"- Valuation complete: `{str(risk.get('valuation_complete')).lower()}`",
+            f"- Missing mark symbols: `{_json_line(risk.get('missing_mark_symbols', []))}`",
             f"- Max drawdown: `{risk.get('max_drawdown')}`",
             f"- Average inventory: `{risk.get('avg_inventory')}`",
+            f"- Time-weighted average inventory: `{risk.get('time_weighted_avg_inventory')}`",
+            f"- Time-weighted absolute inventory: `{risk.get('time_weighted_abs_inventory')}`",
+            f"- Inventory observation basis: `{risk.get('inventory_observation_basis')}`",
             f"- Inventory stdev: `{risk.get('inventory_stdev')}`",
             f"- Final inventory: `{_json_line(risk.get('inventory_by_symbol', {}))}`",
             f"- Self-trade prevention count: `{risk.get('self_trade_prevention_count')}`",
