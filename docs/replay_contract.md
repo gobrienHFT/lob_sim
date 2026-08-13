@@ -63,6 +63,14 @@ replay validity reducer invalidates capture evidence at the first observed gap
 and reports the number of missing sequence values. This catches a missing
 record even when later book events happen to reconstruct cleanly.
 
+The simulation engine uses `recvMonotonicNs` from a schema-v3 receipt envelope
+as its causal event-time source (represented in seconds for the existing
+metrics/export API). The raw wall-clock `ts_local` remains in market-record
+trace details for audit. A wall-clock adjustment therefore cannot create a
+false schema-v3 clock regression; a receive-monotonic regression still
+invalidates the clock dimension. Legacy rows retain their compatibility
+`ts_local` policy and remain diagnostic for subsecond claims.
+
 ```bash
 python -m lob_sim.cli audit --file data/capture_....manifest.json
 ```
