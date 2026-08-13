@@ -75,7 +75,7 @@ Published deterministic reference:
 - Refresh command: `python scripts/refresh_futures_parameter_sweep_reference.py`
 
 The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, fill quality, and queue metrics. Its CSV includes fill-source counts and source-split markout diagnostics so reviewers can see whether fill quality comes from depth-inferred, `aggTrade`-inferred, or taker execution. The score is for inspection only; it is not an alpha or profitability claim.
-Every variant is registered and frozen before the first simulation starts. Each CSV row carries a `registry_variant_id`; the sidecar stores the exact normalized configuration for every variant and its content-addressed registry SHA-256.
+Every variant is registered and frozen before the first simulation starts. Each CSV row carries a `registry_variant_id`; the sidecar stores the exact normalized configuration for every variant and its content-addressed registry SHA-256. The matrix uses aggregate-only metrics with event and audit rows disabled in memory; use bounded streaming export when individual audit rows are required.
 
 ## Latency Sensitivity Tool
 

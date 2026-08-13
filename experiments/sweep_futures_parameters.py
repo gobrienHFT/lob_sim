@@ -49,6 +49,7 @@ SWEEP_FIELDS = [
     "total_fees",
     "kill_switch_triggered",
     "kill_switch_reason",
+    "memory_bounded_by_tape_duration",
 ]
 
 
@@ -168,7 +169,10 @@ def run_sweep(
                     mm_layered_outer_spread_bps=max(half_spread, half_spread * Decimal("3")),
                     mm_queue_repost_lots=queue_repost,
                 )
-                engine = SimulationEngine(cfg)
+                # Parameter matrices only need aggregate diagnostics.  Avoid
+                # retaining a full trace per cell so the sweep's memory use is
+                # bounded by live state rather than tape duration.
+                engine = SimulationEngine(cfg, retain_event_trace=False, retain_audit_rows=False)
                 metrics = engine.run(input_file)
                 summary = metrics.get_summary(engine._books)
                 rows.append(
@@ -178,6 +182,10 @@ def run_sweep(
                         "strategy_profile": profile,
                         "half_spread_bps": str(half_spread),
                         "queue_repost_lots": queue_repost,
+                        "memory_bounded_by_tape_duration": bool(
+                            summary["audit_retention"]["memory_bounded_by_tape_duration"]
+                            and engine.event_trace_retention()["memory_bounded_by_tape_duration"]
+                        ),
                         **{key: summary[key] for key in SWEEP_FIELDS if key in summary},
                     }
                 )
@@ -251,7 +259,7 @@ def write_sweep_outputs(
     if metadata and isinstance(metadata.get("research_registry"), dict):
         registry_path = out_dir / f"{output_stem}_registry.json"
         registry_payload = {
-            "schema_version": "lob_sim.futures_parameter_sweep_registry.v1",
+            "schema_version": "lob_sim.futures_parameter_sweep_registry.v2",
             "study_type": "futures_parameter_sweep",
             "input_file": metadata.get("input_file"),
             "input_sha256": metadata.get("input_sha256"),
@@ -309,6 +317,7 @@ def write_sweep_outputs(
         "- Ranking score is diagnostic only; it is not an alpha or profitability claim.",
         "- `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.",
         "- Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.",
+        "- The sweep uses aggregate-only metrics with event and audit rows disabled in memory; use the bounded streaming runner when individual audit rows are required.",
     ]
     if rows and all(int(row.get("fill_count", 0)) == 0 for row in rows):
         evidence_notes.append(

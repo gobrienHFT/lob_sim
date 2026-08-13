@@ -10,7 +10,7 @@
 - Queue repost lots grid: `0, 5, 99`
 - Frozen research registry SHA-256: `73799a5bca953289f763bffc3740c1e846721ffaee9459805283e29eea5e6b14`
 - Registry sidecar: `futures_parameter_sweep_reference_registry.json`
-- Git commit at run time: `37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb`
+- Git commit at run time: `0b1fdb1f9e1ec9d5f8bf86d8519f73c431160bea`
 - Git dirty at run time: `False`
 
 Exact command:
@@ -22,6 +22,7 @@ python scripts/refresh_futures_parameter_sweep_reference.py
 - Ranking score is diagnostic only; it is not an alpha or profitability claim.
 - `quote_fill_probability` is bounded by arrived orders; `fills_per_quote_request` can exceed one when a single order has multiple partial fills.
 - Use this table to inspect how queue refresh, spread width, fill quality, adverse markout, and inventory variance move together on one deterministic fixture.
+- The sweep uses aggregate-only metrics with event and audit rows disabled in memory; use the bounded streaming runner when individual audit rows are required.
 - This tiny committed clip produced no confirmed-trade fills; it is a zero-fill diagnostic, not economic evidence.
 
 | Rank | Profile | Half-spread bps | Queue repost lots | Score | Fills | Quote-fill probability | Fills / quote request | Avg spread | Adverse 1s | Inventory stdev | Max drawdown |

@@ -73,6 +73,7 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
     assert "fill_source_counts" in rows[0]
     assert "markout_by_fill_source" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
+    assert rows[0]["memory_bounded_by_tape_duration"] is True
     assert metadata["input_sha256"]
     assert metadata["config_digest"]
     assert metadata["feed_adapter"] == {
@@ -95,6 +96,7 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
     assert "Input SHA-256" in markdown
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in markdown
     assert "Public-L2 fill model: `trade`" in markdown
+    assert "aggregate-only metrics with event and audit rows disabled in memory" in markdown
     assert "Frozen research registry SHA-256" in markdown
     assert metadata["research_registry"]["registry_sha256"] in markdown
     tampered = [dict(rows[0])]
