@@ -1,0 +1,170 @@
+{
+  "config_digest": "2f43f17299bcdc1226c8a0d2faf2db33aa073ca969484a86300ec239b7aca811",
+  "env_path": ".env.example",
+  "feed_adapter": {
+    "name": "binance_usdm",
+    "supported_record_types": [
+      "aggTrade",
+      "depthUpdate",
+      "exchangeInfo",
+      "snapshot"
+    ],
+    "venue_label": "BINANCE_USDM"
+  },
+  "input_file": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
+  "input_sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
+  "research_registry": {
+    "frozen": true,
+    "registry_sha256": "6010c87eb60d5dcd6d8ce02577f243d4093007d1c35a46e12d19c17702b03f30",
+    "schema_version": "lob_sim.research_registry.v1",
+    "variants": [
+      {
+        "config": {
+          "normalized_config": {
+            "book_top_n": 20,
+            "capture_schema_version": 3,
+            "fees_maker_bps": "-0.2",
+            "fees_taker_bps": "4.0",
+            "fill_assumption": {
+              "agg_trades_consume_queue": true,
+              "depth_reductions_consume_queue": false,
+              "overlap_netting_enabled": true,
+              "overlap_window_seconds": 0.125,
+              "profile": "base",
+              "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+            },
+            "fill_assumption_profile": "base",
+            "mm_enabled": true,
+            "mm_fee_floor_buffer_bps": "0.02",
+            "mm_half_spread_bps": "0.05",
+            "mm_layered_inner_spread_bps": "0.05",
+            "mm_layered_outer_spread_bps": "0.15",
+            "mm_max_portfolio_notional": "0",
+            "mm_max_position": "0.05",
+            "mm_microstructure_gate_bps": "0.10",
+            "mm_microstructure_gate_threshold": "0.20",
+            "mm_order_qty": "0.001",
+            "mm_queue_repost_lots": 0,
+            "mm_requote_ms": 40.0,
+            "mm_skew_bps_per_unit": "10.0",
+            "mm_strategy_profile": "baseline",
+            "mm_toxicity_spread_factor": "2.0",
+            "mm_trade_imbalance_window": 12,
+            "mm_volatility_spread_factor": "8.0",
+            "mm_volatility_window": 30,
+            "resync_on_gap": true,
+            "sim_adverse_markout_seconds": 1.0,
+            "sim_cancel_latency_ms": 10.0,
+            "sim_fill_model": "trade",
+            "sim_kill_max_consecutive_losses": 0,
+            "sim_kill_max_drawdown": "0",
+            "sim_kill_switch_enabled": false,
+            "sim_latency_mode": "fixed",
+            "sim_latency_samples_ms": [],
+            "sim_latency_stress_multiplier": 1.0,
+            "sim_markout_horizons_ms": [
+              100,
+              1000,
+              5000
+            ],
+            "sim_max_pending_markouts": 100000,
+            "sim_order_latency_ms": 10.0,
+            "sim_seed": 1,
+            "snapshot_limit": 1000,
+            "symbols": [
+              "BTCUSDT"
+            ]
+          },
+          "strategy_profile": "baseline",
+          "study": "futures_strategy_profile_comparison"
+        },
+        "name": "profile:baseline",
+        "variant_id": "24461aadffdc1ae2"
+      },
+      {
+        "config": {
+          "normalized_config": {
+            "book_top_n": 20,
+            "capture_schema_version": 3,
+            "fees_maker_bps": "-0.2",
+            "fees_taker_bps": "4.0",
+            "fill_assumption": {
+              "agg_trades_consume_queue": true,
+              "depth_reductions_consume_queue": false,
+              "overlap_netting_enabled": true,
+              "overlap_window_seconds": 0.125,
+              "profile": "base",
+              "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+            },
+            "fill_assumption_profile": "base",
+            "mm_enabled": true,
+            "mm_fee_floor_buffer_bps": "0.02",
+            "mm_half_spread_bps": "0.05",
+            "mm_layered_inner_spread_bps": "0.05",
+            "mm_layered_outer_spread_bps": "0.15",
+            "mm_max_portfolio_notional": "0",
+            "mm_max_position": "0.05",
+            "mm_microstructure_gate_bps": "0.10",
+            "mm_microstructure_gate_threshold": "0.20",
+            "mm_order_qty": "0.001",
+            "mm_queue_repost_lots": 0,
+            "mm_requote_ms": 40.0,
+            "mm_skew_bps_per_unit": "10.0",
+            "mm_strategy_profile": "research_mm",
+            "mm_toxicity_spread_factor": "2.0",
+            "mm_trade_imbalance_window": 12,
+            "mm_volatility_spread_factor": "8.0",
+            "mm_volatility_window": 30,
+            "resync_on_gap": true,
+            "sim_adverse_markout_seconds": 1.0,
+            "sim_cancel_latency_ms": 10.0,
+            "sim_fill_model": "trade",
+            "sim_kill_max_consecutive_losses": 0,
+            "sim_kill_max_drawdown": "0",
+            "sim_kill_switch_enabled": false,
+            "sim_latency_mode": "fixed",
+            "sim_latency_samples_ms": [],
+            "sim_latency_stress_multiplier": 1.0,
+            "sim_markout_horizons_ms": [
+              100,
+              1000,
+              5000
+            ],
+            "sim_max_pending_markouts": 100000,
+            "sim_order_latency_ms": 10.0,
+            "sim_seed": 1,
+            "snapshot_limit": 1000,
+            "symbols": [
+              "BTCUSDT"
+            ]
+          },
+          "strategy_profile": "research_mm",
+          "study": "futures_strategy_profile_comparison"
+        },
+        "name": "profile:research_mm",
+        "variant_id": "43900aae1a66e1a3"
+      }
+    ]
+  },
+  "row_registry_variant_ids": [
+    "24461aadffdc1ae2",
+    "43900aae1a66e1a3"
+  ],
+  "rows": [
+    {
+      "registry_variant_id": "24461aadffdc1ae2",
+      "strategy_profile": "baseline"
+    },
+    {
+      "registry_variant_id": "43900aae1a66e1a3",
+      "strategy_profile": "research_mm"
+    }
+  ],
+  "schema_version": "lob_sim.futures_strategy_profile_registry.v1",
+  "source": {
+    "git_branch": "codex/profile-registry",
+    "git_commit": "fa1cf7690a0be8b9f0f4a51ce75a0f9d5d6f4b8",
+    "git_dirty": false
+  },
+  "study_type": "futures_strategy_profile_comparison"
+}

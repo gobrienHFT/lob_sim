@@ -26,6 +26,7 @@ REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference.md"
+FUTURES_STRATEGY_REGISTRY = REPO_ROOT / "docs" / "strategy_results" / "futures_strategy_profile_reference_registry.json"
 INTERVIEW_PACKET = REPO_ROOT / "docs" / "interview_packet.md"
 REAL_DATA_RUNBOOK = REPO_ROOT / "docs" / "real_data_runbook.md"
 REAL_DATA_RESULTS_TEMPLATE = REPO_ROOT / "docs" / "real_data_results_template.md"
@@ -1391,6 +1392,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
 
     assert FUTURES_STRATEGY_PROFILES.exists()
     assert FUTURES_STRATEGY_REFERENCE.exists()
+    assert FUTURES_STRATEGY_REGISTRY.exists()
     assert FUTURES_STRATEGY_REFRESH.exists()
     assert FUTURES_PARAMETER_SWEEP_REFERENCE.exists()
     assert FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists()
@@ -1412,9 +1414,19 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert COMMITTED_STRATEGY_INPUT in reference
     assert "research_mm" in reference
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
+    assert "futures_strategy_profile_reference_registry.json" in reference
+    assert "Frozen research registry SHA-256" in reference
     assert "local-only" not in reference
     assert "data/raw_1772633471.ndjson" not in reference
     assert "strategy-profile comparison" in reference
+    strategy_registry = json.loads(FUTURES_STRATEGY_REGISTRY.read_text(encoding="utf-8"))
+    assert strategy_registry["schema_version"] == "lob_sim.futures_strategy_profile_registry.v1"
+    assert strategy_registry["study_type"] == "futures_strategy_profile_comparison"
+    assert strategy_registry["research_registry"]["frozen"] is True
+    assert {row["strategy_profile"] for row in strategy_registry["rows"]} == {"baseline", "research_mm"}
+    assert strategy_registry["row_registry_variant_ids"] == [
+        row["registry_variant_id"] for row in strategy_registry["rows"]
+    ]
     assert COMMITTED_STRATEGY_INPUT in sweep_reference
     assert "python scripts/refresh_futures_parameter_sweep_reference.py" in sweep_reference
     assert "not an alpha or profitability claim" in sweep_reference
