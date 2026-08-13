@@ -92,27 +92,69 @@ def _iter_manifest(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
         writer = runtime.get("writer")
         if isinstance(writer, dict) and writer.get("complete") is False:
             raise RecordValidationError("capture manifest writer is incomplete", path=path)
+    manifest_capture_id = value.get("capture_id")
+    if not isinstance(manifest_capture_id, str) or not manifest_capture_id:
+        raise RecordValidationError("capture manifest capture_id is missing or invalid", path=path)
     previous_seq: int | None = None
     segments = value.get("segments")
     if not isinstance(segments, list):
         raise RecordValidationError("capture manifest segments must be a list", path=path)
+    if value.get("segment_count") != len(segments):
+        raise RecordValidationError("capture manifest segment_count does not match segments", path=path)
+    total_count = 0
+    first_manifest_seq: int | None = None
+    last_manifest_seq: int | None = None
+    capture_root = path.parent.resolve()
     for segment in segments:
         if not isinstance(segment, dict) or not isinstance(segment.get("path"), str):
             raise RecordValidationError("capture manifest contains an invalid segment entry", path=path)
-        segment_path = path.parent / segment["path"]
+        segment_path = (path.parent / segment["path"]).resolve()
+        try:
+            segment_path.relative_to(capture_root)
+        except ValueError as exc:
+            raise RecordValidationError("capture manifest segment path escapes capture directory", path=path) from exc
         if not segment_path.exists():
             raise RecordValidationError(f"capture segment missing: {segment_path.name}", path=path)
         expected_file_hash = segment.get("file_sha256")
         actual_file_hash = _file_sha256(segment_path)
         if expected_file_hash != actual_file_hash:
             raise RecordValidationError(f"capture segment hash mismatch: {segment_path.name}", path=path)
-        for record in _iter_segment(segment_path, validate=validate):
+        segment_report = validate_segment(segment_path) if validate else None
+        if segment_report is not None:
+            if not segment_report.ok:
+                raise RecordValidationError(
+                    "invalid capture segment: " + "; ".join(segment_report.issues),
+                    path=segment_path,
+                )
+            for field_name, actual in (
+                ("count", segment_report.count),
+                ("first_recv_seq", segment_report.first_recv_seq),
+                ("last_recv_seq", segment_report.last_recv_seq),
+                ("content_sha256", segment_report.content_sha256),
+            ):
+                if segment.get(field_name) != actual:
+                    raise RecordValidationError(
+                        f"capture manifest {field_name} does not match segment: {segment_path.name}",
+                        path=path,
+                    )
+        for record in _iter_segment(segment_path, validate=False if segment_report is not None else validate):
             capture = record.data.get("_capture", {})
-            sequence = int(capture["recvSeq"])
+            if capture.get("captureId") != manifest_capture_id:
+                raise RecordValidationError("manifest capture_id does not match segment event", path=path)
+            sequence = capture.get("recvSeq")
+            if isinstance(sequence, bool) or not isinstance(sequence, int):
+                raise RecordValidationError("manifest event receive sequence is not an integer", path=path)
             if previous_seq is not None and sequence <= previous_seq:
                 raise RecordValidationError("manifest receive sequence is not strictly increasing", path=path)
             previous_seq = sequence
+            total_count += 1
+            first_manifest_seq = sequence if first_manifest_seq is None else first_manifest_seq
+            last_manifest_seq = sequence
             yield record
+    if value.get("event_count") != total_count:
+        raise RecordValidationError("capture manifest event_count does not match segments", path=path)
+    if value.get("first_recv_seq") != first_manifest_seq or value.get("last_recv_seq") != last_manifest_seq:
+        raise RecordValidationError("capture manifest receive range does not match segments", path=path)
 
 
 def iter_records(path: str | Path, *, validate: bool = True) -> Iterator[RecordedEvent]:

@@ -368,6 +368,57 @@ def test_segment_validation_binds_event_identity_to_header_and_envelope(tmp_path
         assert "line 2: envelope capture_id does not match segment header" in report.issues
 
 
+def _rewrite_capture_manifest(path: Path, payload: dict) -> None:
+    unsigned = dict(payload)
+    unsigned.pop("manifest_sha256", None)
+    payload["manifest_sha256"] = hashlib.sha256(
+        json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("segment_count", 99, "segment_count does not match segments"),
+        ("event_count", 99, "event_count does not match segments"),
+        ("segment_entry_count", 99, "count does not match segment"),
+    ],
+)
+def test_manifest_cross_checks_declared_segment_metadata(
+    tmp_path: Path,
+    field: str,
+    value: int,
+    message: str,
+) -> None:
+    with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
+        writer.write(_envelope(1))
+
+    manifest_path = tmp_path / "capture-1.manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if field == "segment_entry_count":
+        manifest["segments"][0]["count"] = value
+    else:
+        manifest[field] = value
+    _rewrite_capture_manifest(manifest_path, manifest)
+
+    with pytest.raises(RecordValidationError, match=message):
+        list(iter_records(manifest_path))
+
+
+def test_manifest_rejects_segment_path_escape(tmp_path: Path) -> None:
+    with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
+        writer.write(_envelope(1))
+
+    manifest_path = tmp_path / "capture-1.manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["segments"][0]["path"] = "../outside.ndjson"
+    _rewrite_capture_manifest(manifest_path, manifest)
+
+    with pytest.raises(RecordValidationError, match="segment path escapes capture directory"):
+        list(iter_records(manifest_path))
+
+
 def test_checkpoint_round_trip_and_tamper_detection(tmp_path: Path) -> None:
     checkpoint = Checkpoint.create(
         event_index=12,
