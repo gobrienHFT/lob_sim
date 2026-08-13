@@ -318,6 +318,41 @@ def test_buffer_overflow_discards_prefix_and_invalidates_epoch() -> None:
     assert not sync.buffer
 
 
+@pytest.mark.parametrize(
+    ("first_update_id", "final_update_id", "prev_update_id"),
+    [(-1, 10, 0), (10, -1, 0), (10, 10, -1), (11, 10, 9)],
+)
+def test_malformed_depth_sequence_invalidates_epoch_before_buffering(
+    first_update_id: int, final_update_id: int, prev_update_id: int
+) -> None:
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=True)
+    previous_epoch = sync.epoch
+
+    with pytest.raises(BookSyncGapError, match="Invalid depth sequence"):
+        sync.on_depth_update(
+            DepthUpdateEvent(
+                symbol="BTCUSDT",
+                first_update_id=first_update_id,
+                final_update_id=final_update_id,
+                prev_update_id=prev_update_id,
+                bids=[],
+                asks=[],
+                ts_local=1.0,
+            )
+        )
+
+    assert sync.epoch == previous_epoch + 1
+    assert sync.invalid_reason == "invalid_depth_sequence"
+    assert sync.synced is False
+    assert sync.ready is False
+    assert sync.last_update_id is None
+    assert book.bids == {}
+    assert book.asks == {}
+    assert not sync.buffer
+
+
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():
     spec = SymbolSpec(
         symbol="BTCUSDT",

@@ -109,6 +109,32 @@ class BookSynchronizer:
             f"Invalid snapshot for {self.book.symbol} at u={snapshot.last_update_id}: {error}"
         ) from error
 
+    def _validate_depth_sequence(self, event: DepthUpdateEvent) -> None:
+        """Reject malformed sequence ids before they can enter the buffer."""
+
+        fields = {
+            "U": event.first_update_id,
+            "u": event.final_update_id,
+            "pu": event.prev_update_id,
+        }
+        invalid = next(
+            ((name, value) for name, value in fields.items() if type(value) is not int or value < 0),
+            None,
+        )
+        if invalid is not None:
+            name, value = invalid
+            self.gap_count += 1
+            self.begin_resync("invalid_depth_sequence")
+            raise BookSyncGapError(
+                f"Invalid depth sequence for {self.book.symbol}: {name} must be a non-negative integer, got {value!r}"
+            )
+        if event.first_update_id > event.final_update_id:
+            self.gap_count += 1
+            self.begin_resync("invalid_depth_sequence")
+            raise BookSyncGapError(
+                f"Invalid depth sequence for {self.book.symbol}: U={event.first_update_id} exceeds u={event.final_update_id}"
+            )
+
     def on_snapshot(self, snapshot: SnapshotEvent) -> list[LevelChange]:
         self._validate_symbol(snapshot.symbol)
         buffered = list(self.buffer)
@@ -158,6 +184,7 @@ class BookSynchronizer:
         return changes
 
     def on_depth_update(self, event: DepthUpdateEvent) -> list[LevelChange]:
+        self._validate_depth_sequence(event)
         if not self.ready:
             self._buffer_event(event)
             return []
