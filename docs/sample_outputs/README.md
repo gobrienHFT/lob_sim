@@ -119,6 +119,23 @@ Regenerate with:
 python experiments/run_fill_assumption_envelope.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example --out-dir docs/sample_outputs/futures_fill_assumption_envelope
 ```
 
+## Futures overlap-reconciliation sensitivity
+
+- Guide: [`../futures_overlap_sensitivity.md`](../futures_overlap_sensitivity.md)
+- Pack entry: [`futures_overlap_sensitivity/README.md`](futures_overlap_sensitivity/README.md)
+- Input fixture: [`futures_overlap_sensitivity/input_fixture.ndjson`](futures_overlap_sensitivity/input_fixture.ndjson)
+- JSON: [`futures_overlap_sensitivity/futures_overlap_sensitivity.json`](futures_overlap_sensitivity/futures_overlap_sensitivity.json)
+- CSV: [`futures_overlap_sensitivity/futures_overlap_sensitivity.csv`](futures_overlap_sensitivity/futures_overlap_sensitivity.csv)
+- Report: [`futures_overlap_sensitivity/futures_overlap_sensitivity.md`](futures_overlap_sensitivity/futures_overlap_sensitivity.md)
+
+Public L2 cannot prove private fills. The selected signal is mutually exclusive and the diagnostic is not claim-ready.
+
+Regenerate with:
+
+```bash
+python scripts/refresh_futures_overlap_sensitivity.py
+```
+
 ## Controlled Options Case Study
 
 - Pack: [`toxic_flow_seed7/`](toxic_flow_seed7/)

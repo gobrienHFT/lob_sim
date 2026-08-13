@@ -33,6 +33,9 @@ FUTURES_STRESS_DIR = SAMPLE_ROOT / "futures_stress_case"
 SCHEMA_V3_FIXTURE_DIR = SAMPLE_ROOT / "futures_schema_v3_case"
 FILL_ASSUMPTION_ENVELOPE_DOC = REPO_ROOT / "docs" / "fill_assumption_envelope.md"
 FILL_ASSUMPTION_ENVELOPE_DIR = SAMPLE_ROOT / "futures_fill_assumption_envelope"
+OVERLAP_SENSITIVITY_DOC = REPO_ROOT / "docs" / "futures_overlap_sensitivity.md"
+OVERLAP_SENSITIVITY_DIR = SAMPLE_ROOT / "futures_overlap_sensitivity"
+OVERLAP_SENSITIVITY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_overlap_sensitivity.py"
 CASE_STUDY_DIR = SAMPLE_ROOT / "toxic_flow_seed7"
 SCENARIO_MATRIX_DIR = SAMPLE_ROOT / "scenario_matrix_seed7"
 SENSITIVITY_DIR = SAMPLE_ROOT / "toxicity_spread_sensitivity_seed7"
@@ -83,6 +86,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
         "docs/sample_outputs/futures_stress_case/README.md",
         "docs/sample_outputs/futures_schema_v3_case/README.md",
+        "docs/futures_overlap_sensitivity.md",
         "docs/reviewer_results_memo.md",
     ],
     REPO_ROOT / "WALKTHROUGH.md": [
@@ -94,6 +98,7 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "docs/sample_outputs/futures_recorded_clip_case/README.md",
         "docs/sample_outputs/futures_recorded_clip_case/case_notes.md",
         "docs/sample_outputs/futures_schema_v3_case/README.md",
+        "docs/futures_overlap_sensitivity.md",
     ],
     REPO_ROOT / "docs" / "sample_outputs" / "README.md": [
         "futures_replay_walkthrough/README.md",
@@ -117,6 +122,9 @@ FUTURES_SHOWCASE_FRONT_DOOR_LINKS = {
         "futures_schema_v3_case/README.md",
         "futures_schema_v3_case/input_fixture.ndjson",
         "futures_schema_v3_case/adversarial_fixture.ndjson",
+        "futures_overlap_sensitivity/README.md",
+        "futures_overlap_sensitivity/futures_overlap_sensitivity.md",
+        "futures_overlap_sensitivity/futures_overlap_sensitivity.csv",
     ],
 }
 
@@ -234,6 +242,9 @@ MARKDOWN_AUDIT_FILES = [
     SCHEMA_V3_FIXTURE_DIR / "README.md",
     FILL_ASSUMPTION_ENVELOPE_DIR / "README.md",
     FILL_ASSUMPTION_ENVELOPE_DIR / "fill_envelope_report.md",
+    OVERLAP_SENSITIVITY_DOC,
+    OVERLAP_SENSITIVITY_DIR / "README.md",
+    OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity.md",
     REPO_ROOT / "docs" / "options_case_study_notes.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "case_brief.md",
     REPO_ROOT / "docs" / "sample_outputs" / "toxic_flow_seed7" / "demo_report.md",
@@ -285,6 +296,15 @@ FILL_ASSUMPTION_ENVELOPE_CORE_FILES = [
     "fill_envelope_summary.json",
     "fill_envelope_summary.csv",
     "fill_envelope_report.md",
+]
+
+OVERLAP_SENSITIVITY_CORE_FILES = [
+    "README.md",
+    "input_fixture.ndjson",
+    "futures_overlap_sensitivity.json",
+    "futures_overlap_sensitivity.csv",
+    "futures_overlap_sensitivity.md",
+    "futures_overlap_sensitivity_registry.json",
 ]
 
 FUTURES_FILL_SOURCES = {"depth_update", "agg_trade", "taker_order"}
@@ -990,6 +1010,7 @@ def _verify_core_files() -> list[str]:
         (FUTURES_STRESS_DIR, FUTURES_STRESS_CORE_FILES),
         (SCHEMA_V3_FIXTURE_DIR, SCHEMA_V3_FIXTURE_CORE_FILES),
         (FILL_ASSUMPTION_ENVELOPE_DIR, FILL_ASSUMPTION_ENVELOPE_CORE_FILES),
+        (OVERLAP_SENSITIVITY_DIR, OVERLAP_SENSITIVITY_CORE_FILES),
         (CASE_STUDY_DIR, CASE_STUDY_CORE_FILES),
         (SCENARIO_MATRIX_DIR, SCENARIO_MATRIX_CORE_FILES),
         (SENSITIVITY_DIR, SENSITIVITY_CORE_FILES),
@@ -1934,6 +1955,152 @@ def _verify_fill_assumption_envelope_publication() -> list[str]:
             issues.append(f"{_repo_relative(path)} implies private execution truth")
         if "production gateway" in text or "ready for live trading" in text:
             issues.append(f"{_repo_relative(path)} contains prohibited production/live-trading language")
+    return issues
+
+
+def _verify_overlap_sensitivity_publication() -> list[str]:
+    issues: list[str] = []
+    summary_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity.json"
+    csv_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity.csv"
+    markdown_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity.md"
+    readme_path = OVERLAP_SENSITIVITY_DIR / "README.md"
+    registry_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity_registry.json"
+    expected_windows = [0, 125, 250]
+
+    try:
+        payload = json.loads(_read_text(summary_path))
+    except FileNotFoundError:
+        return [f"Missing overlap-sensitivity summary: {_repo_relative(summary_path)}"]
+    except json.JSONDecodeError as exc:
+        return [f"{_repo_relative(summary_path)} is invalid JSON: {exc}"]
+
+    if payload.get("schema_version") != "lob_sim.futures_overlap_sensitivity.v1":
+        issues.append(f"{_repo_relative(summary_path)} has unexpected schema_version")
+    if payload.get("study_type") != "futures_overlap_sensitivity":
+        issues.append(f"{_repo_relative(summary_path)} has unexpected study_type")
+    if payload.get("windows_ms") != expected_windows:
+        issues.append(f"{_repo_relative(summary_path)} must publish windows 0, 125, 250 ms")
+
+    input_file = payload.get("input_file")
+    if not isinstance(input_file, str) or not input_file:
+        issues.append(f"{_repo_relative(summary_path)} is missing input_file")
+        input_path = None
+    else:
+        input_path = Path(input_file)
+        if input_path.is_absolute():
+            issues.append(f"{_repo_relative(summary_path)} input_file must be repository-relative")
+        input_path = REPO_ROOT / input_path
+        if not input_path.is_file():
+            issues.append(f"{_repo_relative(summary_path)} input_file is missing: {input_file}")
+        elif payload.get("input_sha256") != _file_sha256(input_path):
+            issues.append(f"{_repo_relative(summary_path)} input_sha256 does not match input_file")
+
+    audit = payload.get("audit")
+    if not isinstance(audit, dict) or audit.get("ok") is not True:
+        issues.append(f"{_repo_relative(summary_path)} audit.ok must be true")
+    runs = payload.get("runs")
+    if not isinstance(runs, list) or len(runs) != len(expected_windows):
+        issues.append(f"{_repo_relative(summary_path)} must contain exactly three runs")
+        runs = []
+    if [run.get("overlap_window_ms") for run in runs if isinstance(run, dict)] != expected_windows:
+        issues.append(f"{_repo_relative(summary_path)} rows must preserve 0/125/250 ms order")
+
+    registry = payload.get("research_registry")
+    if not isinstance(registry, dict) or registry.get("frozen") is not True:
+        issues.append(f"{_repo_relative(summary_path)} research_registry must be frozen")
+        registry_variants: list[object] = []
+    else:
+        registry_variants = registry.get("variants", [])
+        if not isinstance(registry_variants, list) or len(registry_variants) != len(expected_windows):
+            issues.append(f"{_repo_relative(summary_path)} research_registry must contain three variants")
+            registry_variants = []
+
+    registry_by_window: dict[int, str] = {}
+    for variant in registry_variants:
+        if not isinstance(variant, dict) or not isinstance(variant.get("config"), dict):
+            issues.append(f"{_repo_relative(summary_path)} has malformed registry variant")
+            continue
+        window = variant["config"].get("overlap_window_ms")
+        variant_id = variant.get("variant_id")
+        if not isinstance(window, int) or window not in expected_windows or not isinstance(variant_id, str):
+            issues.append(f"{_repo_relative(summary_path)} has invalid registry window or variant id")
+            continue
+        if window in registry_by_window:
+            issues.append(f"{_repo_relative(summary_path)} has duplicate registry window {window}")
+        registry_by_window[window] = variant_id
+    if set(registry_by_window) != set(expected_windows):
+        issues.append(f"{_repo_relative(summary_path)} registry does not cover exactly 0/125/250 ms")
+
+    for run in runs:
+        if not isinstance(run, dict):
+            issues.append(f"{_repo_relative(summary_path)} contains a non-object run")
+            continue
+        window = run.get("overlap_window_ms")
+        if registry_by_window.get(window) != run.get("registry_variant_id"):
+            issues.append(f"{_repo_relative(summary_path)} run {window!r} is not bound to its registry variant")
+        if run.get("input_sha256") != payload.get("input_sha256"):
+            issues.append(f"{_repo_relative(summary_path)} run {window!r} has a mixed input hash")
+        if not isinstance(run.get("state_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", run["state_sha256"]):
+            issues.append(f"{_repo_relative(summary_path)} run {window!r} has invalid state_sha256")
+        if not isinstance(run.get("public_consumption_totals"), dict):
+            issues.append(f"{_repo_relative(summary_path)} run {window!r} is missing public consumption totals")
+        for field in [
+            "fill_count",
+            "realized_pnl",
+            "unrealized_pnl",
+            "total_pnl",
+            "total_fees",
+            "corroborated_depth_reduction_lots",
+            "uncorroborated_depth_reduction_lots",
+        ]:
+            value = run.get(field)
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)):
+                issues.append(f"{_repo_relative(summary_path)} run {window!r} has invalid {field}")
+        if run.get("execution_claim_ready") is not False:
+            issues.append(f"{_repo_relative(summary_path)} run {window!r} must remain non-claim-ready")
+
+    try:
+        sidecar = json.loads(_read_text(registry_path))
+    except FileNotFoundError:
+        issues.append(f"Missing overlap-sensitivity registry: {_repo_relative(registry_path)}")
+    except json.JSONDecodeError as exc:
+        issues.append(f"{_repo_relative(registry_path)} is invalid JSON: {exc}")
+    else:
+        if sidecar.get("research_registry") != registry:
+            issues.append(f"{_repo_relative(registry_path)} does not match summary research_registry")
+        if sidecar.get("input_sha256") != payload.get("input_sha256"):
+            issues.append(f"{_repo_relative(registry_path)} input_sha256 does not match summary")
+
+    try:
+        with csv_path.open("r", encoding="utf-8", newline="") as handle:
+            csv_rows = list(csv.DictReader(handle))
+    except FileNotFoundError:
+        issues.append(f"Missing overlap-sensitivity CSV: {_repo_relative(csv_path)}")
+        csv_rows = []
+    if [int(row["overlap_window_ms"]) for row in csv_rows if row.get("overlap_window_ms")] != expected_windows:
+        issues.append(f"{_repo_relative(csv_path)} must contain 0/125/250 ms rows")
+
+    interpretation = payload.get("interpretation")
+    if not isinstance(interpretation, dict) or interpretation.get("claim_ready") is not False:
+        issues.append(f"{_repo_relative(summary_path)} interpretation.claim_ready must be false")
+    required_caveats = [
+        "public l2 cannot prove private fills",
+        "mutually exclusive",
+        "not claim-ready",
+    ]
+    for path in [OVERLAP_SENSITIVITY_DOC, readme_path, markdown_path]:
+        text = _read_text(path).lower()
+        for caveat in required_caveats:
+            if caveat not in text:
+                issues.append(f"{_repo_relative(path)} is missing caveat: {caveat}")
+        if (
+            "private execution truth" in text
+            and "not a private" not in text
+            and "does not establish private" not in text
+        ):
+            issues.append(f"{_repo_relative(path)} implies private execution truth")
+    if not OVERLAP_SENSITIVITY_REFRESH.is_file():
+        issues.append(f"Missing overlap-sensitivity refresh script: {_repo_relative(OVERLAP_SENSITIVITY_REFRESH)}")
     return issues
 
 
@@ -3667,6 +3834,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_futures_markout_by_source())
     issues.extend(_verify_public_consumption_diagnostics())
     issues.extend(_verify_fill_assumption_envelope_publication())
+    issues.extend(_verify_overlap_sensitivity_publication())
     issues.extend(_verify_futures_self_trade_prevention_counts())
     issues.extend(_verify_futures_event_trace_contract())
     issues.extend(_verify_implied_vol_snapshot_references())

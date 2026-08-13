@@ -8,6 +8,7 @@ Fast reviewer links:
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
 - [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
+- [Overlap-Reconciliation Sensitivity](docs/futures_overlap_sensitivity.md): deterministic 0/125/250 ms corroboration diagnostic, explicitly not private-fill evidence.
 - [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
 - [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
 - [Schema-v3 Validity Fixtures](docs/sample_outputs/futures_schema_v3_case/README.md): one clean claim-ready tape and one adversarial fail-closed tape.
@@ -210,7 +211,7 @@ PnL, spread capture, markout, fees, and exported fill notional use the instrumen
 Validation notes live in [docs/futures_validation.md](docs/futures_validation.md). The replay determinism checker lives in [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py) and compares canonical hashes of repeated summaries and event traces using a bounded incremental trace sink. Benchmark scope and the published reference run live in [docs/futures_benchmarks.md](docs/futures_benchmarks.md), human-readable benchmark output is in [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and the lightweight runner lives in [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) with optional machine-readable JSON output via `--json-out`.
 The pack auditor in [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py) checks that futures packs' summary JSON/CSV, trades CSVs, event traces, markout audits, manifests, and public-data assumption contracts agree on replay event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout events, audit-chain identities, per-file hashes, the content-addressed non-manifest bundle digest, and behavioral configuration/code identities. Legacy committed packs retain their compatibility audit; bounded bundles use an independent sequential-row oracle with a temporary on-disk SQLite index for exact evidence-ID and distinct-filled-order checks, so Python detail retention does not grow with tape duration.
 The fill-assumption envelope runner in [experiments/run_fill_assumption_envelope.py](experiments/run_fill_assumption_envelope.py) runs conservative/base/aggressive assumptions on identical input/config except the fill profile and publishes a sensitivity report.
-Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py). Latency sensitivity sweeps live in [experiments/sweep_futures_latency.py](experiments/sweep_futures_latency.py) and vary modeled order-arrival and cancel-ack delays without claiming latency-arbitrage or production gateway behavior. The executable chronological holdout, frozen variant registry, and paired moving-block bootstrap contracts are documented in [docs/research_protocol.md](docs/research_protocol.md) and implemented in [lob_sim/research/protocol.py](lob_sim/research/protocol.py).
+Parameter sweeps over committed fixtures live in [experiments/sweep_futures_parameters.py](experiments/sweep_futures_parameters.py). Latency sensitivity sweeps live in [experiments/sweep_futures_latency.py](experiments/sweep_futures_latency.py) and vary modeled order-arrival and cancel-ack delays without claiming latency-arbitrage or production gateway behavior. The public-L2 overlap diagnostic lives in [experiments/sweep_futures_overlap.py](experiments/sweep_futures_overlap.py); it varies only local corroboration timing and is intentionally non-economic. The executable chronological holdout, frozen variant registry, and paired moving-block bootstrap contracts are documented in [docs/research_protocol.md](docs/research_protocol.md) and implemented in [lob_sim/research/protocol.py](lob_sim/research/protocol.py).
 
 ## Verification And CI
 
@@ -229,6 +230,7 @@ make determinism-fixture
 make audit-futures-packs
 make benchmark-fixture
 make latency-sweep-fixture
+make overlap-sweep-fixture
 ```
 
 `python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
@@ -236,6 +238,7 @@ make latency-sweep-fixture
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.
 `make benchmark-fixture` writes `outputs/futures_benchmark.json` with input/config digests, p50/p99 loop timing, events/sec, memory, runtime, and source metadata.
 `make latency-sweep-fixture` writes a local latency sensitivity table for the recorded futures clip.
+`make overlap-sweep-fixture` writes the local 0/125/250 ms public-L2 corroboration diagnostic.
 
 To refresh the committed futures reviewer artifacts from a clean source tree, run:
 
@@ -260,6 +263,7 @@ Committed futures walkthrough artifacts:
 - Latency sensitivity reference: [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md)
 - Stress evidence pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
 - Fill assumption envelope: [docs/sample_outputs/futures_fill_assumption_envelope/README.md](docs/sample_outputs/futures_fill_assumption_envelope/README.md)
+- Overlap-reconciliation sensitivity: [docs/sample_outputs/futures_overlap_sensitivity/README.md](docs/sample_outputs/futures_overlap_sensitivity/README.md)
 - Reviewer results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
 - Interview packet: [docs/interview_packet.md](docs/interview_packet.md)
 - Larger real-data runbook: [docs/real_data_runbook.md](docs/real_data_runbook.md)
