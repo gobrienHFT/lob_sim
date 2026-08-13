@@ -82,7 +82,7 @@ Every variant is registered and frozen before the first simulation starts. Each 
 Use the latency sweep runner to make the order-arrival and cancel-ack assumptions explicit on a committed fixture:
 
 ```bash
-python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps
+python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson --env .env.example --out-dir outputs/futures_latency_sweeps --fill-models trade,depth
 ```
 
 Published deterministic reference:
@@ -92,8 +92,8 @@ Published deterministic reference:
 - Registry: [docs/strategy_results/futures_latency_sweep_reference_registry.json](strategy_results/futures_latency_sweep_reference_registry.json)
 - Refresh command: `python scripts/refresh_futures_latency_sweep_reference.py`
 
-The latency sweep varies modeled order-arrival and cancel-ack delays inside deterministic replay. It is a sensitivity check for queue position, fill quality, adverse markout, and cancel races; it is not a latency-arbitrage, alpha, or profitability claim.
-Every latency cell is registered before execution and carries a `registry_variant_id` in the CSV, with the full normalized configurations and registry digest in the sidecar.
+The latency sweep varies modeled order-arrival and cancel-ack delays and the mutually exclusive public-L2 `trade`/`depth` execution signals inside deterministic replay. It is a scenario envelope for queue position, fill quality, adverse markout, and cancel races; it is not a latency-arbitrage, alpha, profitability, or true-fill-bound claim.
+Every latency/fill-model cell is registered before execution and carries a `registry_variant_id` plus `scenario_id` in the CSV, with the full normalized configurations and registry digest in the sidecar. The matrix uses aggregate-only metrics and does not retain the event/audit trace in memory.
 
 ## Why The Layered Profile Is More Realistic
 

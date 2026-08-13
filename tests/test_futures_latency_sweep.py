@@ -62,6 +62,7 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
         profile="baseline",
         order_latencies_ms=[0.0, 10.0],
         cancel_latencies_ms=[0.0],
+        fill_models=["trade", "depth"],
     )
     metadata = build_latency_sweep_metadata(
         input_file=fixture,
@@ -69,6 +70,7 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
         profile="baseline",
         order_latencies_ms=[0.0, 10.0],
         cancel_latencies_ms=[0.0],
+        fill_models=["trade", "depth"],
     )
     paths = write_latency_sweep_outputs(
         rows,
@@ -78,12 +80,15 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
         command="python latency",
     )
 
-    assert len(rows) == 2
-    assert [row["rank"] for row in rows] == [1, 2]
+    assert len(rows) == 4
+    assert [row["rank"] for row in rows] == [1, 2, 3, 4]
+    assert {row["fill_model"] for row in rows} == {"trade", "depth"}
     assert {row["order_latency_ms"] for row in rows} == {0.0, 10.0}
     assert {row["cancel_latency_ms"] for row in rows} == {0.0}
     assert "diagnostic_score" in rows[0]
     assert all(row["registry_variant_id"] for row in rows)
+    assert all(row["scenario_id"].startswith("public_l2_latency:") for row in rows)
+    assert all(row["memory_bounded_by_tape_duration"] for row in rows)
     assert "fill_source_counts" in rows[0]
     assert "markout_by_fill_source" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
@@ -94,9 +99,10 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
         "venue_label": "BINANCE_USDM",
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
-    assert metadata["fill_model"] == "trade"
+    assert metadata["fill_model"] == "multiple"
+    assert metadata["fill_models"] == ["trade", "depth"]
     assert metadata["research_registry"]["frozen"] is True
-    assert len(metadata["research_registry"]["variants"]) == 2
+    assert len(metadata["research_registry"]["variants"]) == 4
     assert {row["registry_variant_id"] for row in rows} == {
         variant["variant_id"] for variant in metadata["research_registry"]["variants"]
     }
@@ -113,7 +119,7 @@ def test_latency_sweep_writes_caveated_csv_and_markdown(tmp_path: Path, monkeypa
     assert "modeled order-arrival and cancel-ack delays" in markdown
     assert "not a latency-arbitrage, alpha, or profitability claim" in markdown
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in markdown
-    assert "Public-L2 fill model: `trade`" in markdown
+    assert "Public-L2 fill models: `trade`, `depth`" in markdown
     assert "Frozen research registry SHA-256" in markdown
     assert metadata["research_registry"]["registry_sha256"] in markdown
     tampered = [dict(rows[0])]
