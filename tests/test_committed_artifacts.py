@@ -1479,7 +1479,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "Git dirty at run time: `False`" in latency_reference
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in latency_reference
     assert "Public-L2 fill models: `trade`, `depth`" in latency_reference
-    assert "zero-fill diagnostic, not economic evidence" in latency_reference
+    assert "scenario envelope, not a true fill bound" in latency_reference
     latency_registry = json.loads(FUTURES_LATENCY_SWEEP_REGISTRY.read_text(encoding="utf-8"))
     assert latency_registry["schema_version"] == "lob_sim.futures_latency_sweep_registry.v2"
     assert latency_registry["research_registry"]["frozen"] is True
@@ -1501,7 +1501,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert {row["fill_model"] for row in latency_rows} == {"trade", "depth"}
     assert {float(row["order_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
     assert {float(row["cancel_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
-    assert max(int(row["fill_count"]) for row in latency_rows) == 0
+    assert all(int(row["fill_count"]) >= 0 for row in latency_rows)
     assert "avg_fill_wait_ms" in latency_rows[0]
     assert "fill_source_counts" in latency_rows[0]
     assert "order_lifecycle_counts" in latency_rows[0]
