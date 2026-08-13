@@ -78,7 +78,7 @@ For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer
 
 ## Futures Replay Internals
 
-- The collector writes a deterministic event stream of `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade` records to NDJSON.
+- The collector writes a deterministic event stream of four market-data payloads (`exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`) plus schema-v3 `captureMeta`/`captureEvent` control records to NDJSON.
 - The replay path consumes that same recorded stream; there is no separate replay-only data format.
 - The reader validates the replay contract before yielding events, so malformed rows fail with file and line context instead of leaking into simulation state.
 - `InstrumentSpec` rejects empty symbols, non-positive tick/lot sizes, and non-finite multipliers at the adapter boundary before book or fill code sees them.

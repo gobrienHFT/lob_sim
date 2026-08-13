@@ -2,7 +2,12 @@
 
 ## Scope
 
-This repo records and replays public Binance USD-M market data. The futures core is built around four record types: `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
+This repo records and replays public Binance USD-M market data. The futures
+core has four market-data payload types: `exchangeInfo`, `snapshot`,
+`depthUpdate`, and `aggTrade`. Schema-v3 captures also carry `captureMeta` and
+`captureEvent` control records for receipt identity, stream/sync epochs,
+failure boundaries, and the finalization trailer; those records are part of
+the validity contract, not market observations.
 
 ## Symbol Metadata
 
@@ -47,9 +52,14 @@ Inferred:
 
 ## Passive Fill Attribution
 
-- Book reductions are treated as queue consumption at that price level.
-- `aggTrade` prints are treated as an additional observed execution signal at the traded price.
-- Both signals can be selected explicitly as mutually-exclusive execution scenarios; they feed a synthetic queue-ahead model in [`lob_sim/sim/fill_model.py`](../lob_sim/sim/fill_model.py).
+- Book reductions are an optional queue-consumption signal only in the explicit
+  depth-reduction sensitivity; the default trade-only scenario leaves them as
+  diagnostics and does not use them to infer fills.
+- `aggTrade` prints are an observed execution signal at the traded price when
+  the explicit trade scenario is selected.
+- These mutually-exclusive signals feed a synthetic queue-ahead model in
+  [`lob_sim/sim/fill_model.py`](../lob_sim/sim/fill_model.py); neither signal
+  identifies private participant fills.
 - Recent overlapping depth reductions and `aggTrade` prints at the same symbol, side, and price are reconciled before they consume queue again.
 - Simulation summaries report observed lots, overlap-netted lots, lots eligible for modeled queue consumption, synthetic queue lots consumed, and unmatched lots when a public signal has no remaining internal level to consume.
 - Event traces emit one `queue_consumption` row per public consumption signal so those summary totals can be tied back to timestamp, side, price, and source.
