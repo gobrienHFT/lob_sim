@@ -16,6 +16,7 @@ from lob_sim.config import (
 )
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_digest, config_snapshot
+from lob_sim.research.protocol import ResearchRegistry
 
 
 ENVELOPE_SCHEMA_VERSION = "lob_sim.fill_assumption_envelope.v1"
@@ -180,6 +181,7 @@ def _render_report(payload: dict[str, Any], command: str | None = None) -> str:
         f"- Input digest: `{payload['audit']['input_digest']}`",
         f"- Normalized config digest: `{payload['audit']['normalized_config_digest']}`",
         f"- Profiles: `{', '.join(payload['audit']['profiles'])}`",
+        f"- Frozen research registry SHA-256: `{payload['research_registry']['registry_sha256']}`",
     ]
     if command:
         metadata.extend(["", "Exact command:", "", "```bash", command, "```"])
@@ -211,6 +213,18 @@ def _render_report(payload: dict[str, Any], command: str | None = None) -> str:
 def run_envelope(input_file: Path, env_path: str, out_dir: Path, command: str | None = None) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     base_cfg = load_config(env_path)
+    registry = ResearchRegistry()
+    for profile in FILL_ASSUMPTION_PROFILES:
+        profile_cfg = _profile_cfg(base_cfg, profile, out_dir)
+        profile_snapshot = config_snapshot(profile_cfg)
+        registry.register(
+            profile,
+            {
+                "fill_assumption_profile": profile,
+                "normalized_config": _normalized_config_snapshot(profile_snapshot),
+            },
+        )
+    registry_snapshot = registry.freeze()
     rows = [_run_profile(input_file, base_cfg, profile, out_dir) for profile in FILL_ASSUMPTION_PROFILES]
     audit = _validate_envelope(rows)
     payload = {
@@ -219,6 +233,7 @@ def run_envelope(input_file: Path, env_path: str, out_dir: Path, command: str | 
         "env_path": env_path,
         "profiles": list(FILL_ASSUMPTION_PROFILES),
         "audit": audit,
+        "research_registry": registry_snapshot,
         "runs": rows,
     }
     if not audit["ok"]:

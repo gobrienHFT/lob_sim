@@ -31,7 +31,13 @@ Outputs:
 - `fill_envelope_summary.csv`
 - `fill_envelope_report.md`
 
-The summary compares `fill_count`, realized and unrealized PnL, fees, average spread captured, adverse-fill rate, fill-source counts, public-consumption totals, max inventory, kill-switch state/reason, input digest, raw config digest, normalized config digest, and runtime metadata.
+Before running any profile, the runner freezes a content-addressed research
+registry containing every profile and its normalized configuration. The
+registry is written to `research_registry` in the JSON output and its
+`registry_sha256` is printed in the Markdown report. This makes it auditable
+that no profile was added or changed after the study started.
+
+The summary compares `fill_count`, realized and unrealized PnL, fees, average spread captured, adverse-fill rate, fill-source counts, public-consumption totals, max inventory, kill-switch state/reason, input digest, raw config digest, normalized config digest, the frozen registry identity, and runtime metadata.
 
 Robust conclusions should survive conservative/base/aggressive. Conclusions that only work under aggressive assumptions are weak.
 
