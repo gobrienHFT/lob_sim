@@ -1,13 +1,13 @@
 {
-  "run_id": "f8841b54db621a42",
+  "run_id": "325f8a9693dfa4ac",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-12T16:23:32.299958Z",
+  "created_at_utc": "2026-08-13T13:39:49.481749Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-12T16:23:32.240289Z"
+    "modified_at_utc": "2026-08-13T13:39:49.358109Z"
   },
   "config": {
     "symbols": [
@@ -59,18 +59,18 @@
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
-      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
     },
     "fees_maker_bps": "0",
     "fees_taker_bps": "0"
   },
-  "config_sha256": "4d8842df89542ea87ee93f2d71979a49a18771be8314cabe506c881295c587bf",
+  "config_sha256": "e9ed95625de1b7b58165e8bca3350cd46aff8a7dd0cb97742f42f46cace701c9",
   "code_identity": {
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 226,
-    "sha256": "0ce33de495b5f1be27970da7ac55342efff74f65b75db5bda875e73f900568f6"
+    "file_count": 241,
+    "sha256": "af845205adfc4c2814d3aaad54199129802effbb10bbe7f6c172dc006d064b92"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -102,7 +102,7 @@
       "agg_trades_consume_queue": true,
       "overlap_netting_enabled": true,
       "overlap_window_seconds": 0.125,
-      "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+      "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
     },
     "data_scope": "public_l2_order_book_and_agg_trade_records",
     "private_exchange_execution_reports": false,
@@ -134,8 +134,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "21643818bcde8b695793619d037f7bd13664b41e",
-    "git_branch": "master",
+    "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
+    "git_branch": "codex/synthetic-queue-assumption-label",
     "git_dirty": false
   },
   "outputs": {
@@ -150,28 +150,28 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 7112,
       "sha256": "2dc39da1e1775fb5fddef30910aae2297436b1fffcf852c7a24152950eb8075e",
-      "modified_at_utc": "2026-08-12T16:23:33.748324Z"
+      "modified_at_utc": "2026-08-13T13:39:52.362224Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 16009,
-      "sha256": "29a5e5efc7fad914ac2d583971ed4d02c81258f0c3118b6ecd0eb94668a36473",
-      "modified_at_utc": "2026-08-12T16:23:33.739692Z"
+      "size_bytes": 17516,
+      "sha256": "ca30c97905b99b16c90b67b42c7dfc499337ccebc9b0c03f00c44b3c76f713f4",
+      "modified_at_utc": "2026-08-13T13:39:52.350434Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 12350,
-      "sha256": "eb2535dd10ee4edccaa3412d56e4ffcc5bbc933e5526c2eb94ad8acebe2c37bf",
-      "modified_at_utc": "2026-08-12T16:23:33.741713Z"
+      "size_bytes": 13657,
+      "sha256": "0d9178ade93f3ac0dc995950e159c597cf2e459d076edbbcd35b2233c89dce6d",
+      "modified_at_utc": "2026-08-13T13:39:52.355784Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 1179,
       "sha256": "a6730cbe10029e9161b710333184a2831d316f1b888f807d0c64da407ea9c378",
-      "modified_at_utc": "2026-08-12T16:23:33.744699Z"
+      "modified_at_utc": "2026-08-13T13:39:52.359226Z"
     }
   },
   "fixture_provenance": {

@@ -15,83 +15,189 @@
       "base",
       "aggressive"
     ],
-    "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-    "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4"
+    "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+    "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
+    "registry_variant_ids": {
+      "aggressive": "4f515503d2ede78a",
+      "base": "918586ea80693930",
+      "conservative": "09aa3689576573af"
+    }
+  },
+  "research_registry": {
+    "schema_version": "lob_sim.research_registry.v1",
+    "frozen": true,
+    "variants": [
+      {
+        "variant_id": "09aa3689576573af",
+        "name": "conservative",
+        "config": {
+          "fill_assumption_profile": "conservative",
+          "normalized_config": {
+            "symbols": [
+              "BTCUSDT"
+            ],
+            "book_top_n": 20,
+            "snapshot_limit": 1000,
+            "resync_on_gap": true,
+            "sim_seed": 1,
+            "sim_order_latency_ms": 10.0,
+            "sim_cancel_latency_ms": 10.0,
+            "sim_latency_mode": "fixed",
+            "sim_latency_samples_ms": [],
+            "sim_latency_stress_multiplier": 1.0,
+            "sim_adverse_markout_seconds": 1.0,
+            "sim_markout_horizons_ms": [
+              100,
+              1000,
+              5000
+            ],
+            "sim_max_pending_markouts": 100000,
+            "sim_fill_model": "trade",
+            "capture_schema_version": 3,
+            "sim_kill_switch_enabled": false,
+            "sim_kill_max_drawdown": "0",
+            "sim_kill_max_consecutive_losses": 0,
+            "mm_enabled": true,
+            "mm_strategy_profile": "baseline",
+            "mm_requote_ms": 40.0,
+            "mm_order_qty": "0.001",
+            "mm_max_position": "0.05",
+            "mm_max_portfolio_notional": "0",
+            "mm_half_spread_bps": "0.05",
+            "mm_layered_inner_spread_bps": "0.05",
+            "mm_layered_outer_spread_bps": "0.15",
+            "mm_volatility_window": 30,
+            "mm_volatility_spread_factor": "8.0",
+            "mm_skew_bps_per_unit": "10.0",
+            "mm_queue_repost_lots": 0,
+            "mm_trade_imbalance_window": 12,
+            "mm_microstructure_gate_threshold": "0.20",
+            "mm_microstructure_gate_bps": "0.10",
+            "mm_fee_floor_buffer_bps": "0.02",
+            "mm_toxicity_spread_factor": "2.0",
+            "fees_maker_bps": "-0.2",
+            "fees_taker_bps": "4.0"
+          }
+        }
+      },
+      {
+        "variant_id": "4f515503d2ede78a",
+        "name": "aggressive",
+        "config": {
+          "fill_assumption_profile": "aggressive",
+          "normalized_config": {
+            "symbols": [
+              "BTCUSDT"
+            ],
+            "book_top_n": 20,
+            "snapshot_limit": 1000,
+            "resync_on_gap": true,
+            "sim_seed": 1,
+            "sim_order_latency_ms": 10.0,
+            "sim_cancel_latency_ms": 10.0,
+            "sim_latency_mode": "fixed",
+            "sim_latency_samples_ms": [],
+            "sim_latency_stress_multiplier": 1.0,
+            "sim_adverse_markout_seconds": 1.0,
+            "sim_markout_horizons_ms": [
+              100,
+              1000,
+              5000
+            ],
+            "sim_max_pending_markouts": 100000,
+            "sim_fill_model": "trade",
+            "capture_schema_version": 3,
+            "sim_kill_switch_enabled": false,
+            "sim_kill_max_drawdown": "0",
+            "sim_kill_max_consecutive_losses": 0,
+            "mm_enabled": true,
+            "mm_strategy_profile": "baseline",
+            "mm_requote_ms": 40.0,
+            "mm_order_qty": "0.001",
+            "mm_max_position": "0.05",
+            "mm_max_portfolio_notional": "0",
+            "mm_half_spread_bps": "0.05",
+            "mm_layered_inner_spread_bps": "0.05",
+            "mm_layered_outer_spread_bps": "0.15",
+            "mm_volatility_window": 30,
+            "mm_volatility_spread_factor": "8.0",
+            "mm_skew_bps_per_unit": "10.0",
+            "mm_queue_repost_lots": 0,
+            "mm_trade_imbalance_window": 12,
+            "mm_microstructure_gate_threshold": "0.20",
+            "mm_microstructure_gate_bps": "0.10",
+            "mm_fee_floor_buffer_bps": "0.02",
+            "mm_toxicity_spread_factor": "2.0",
+            "fees_maker_bps": "-0.2",
+            "fees_taker_bps": "4.0"
+          }
+        }
+      },
+      {
+        "variant_id": "918586ea80693930",
+        "name": "base",
+        "config": {
+          "fill_assumption_profile": "base",
+          "normalized_config": {
+            "symbols": [
+              "BTCUSDT"
+            ],
+            "book_top_n": 20,
+            "snapshot_limit": 1000,
+            "resync_on_gap": true,
+            "sim_seed": 1,
+            "sim_order_latency_ms": 10.0,
+            "sim_cancel_latency_ms": 10.0,
+            "sim_latency_mode": "fixed",
+            "sim_latency_samples_ms": [],
+            "sim_latency_stress_multiplier": 1.0,
+            "sim_adverse_markout_seconds": 1.0,
+            "sim_markout_horizons_ms": [
+              100,
+              1000,
+              5000
+            ],
+            "sim_max_pending_markouts": 100000,
+            "sim_fill_model": "trade",
+            "capture_schema_version": 3,
+            "sim_kill_switch_enabled": false,
+            "sim_kill_max_drawdown": "0",
+            "sim_kill_max_consecutive_losses": 0,
+            "mm_enabled": true,
+            "mm_strategy_profile": "baseline",
+            "mm_requote_ms": 40.0,
+            "mm_order_qty": "0.001",
+            "mm_max_position": "0.05",
+            "mm_max_portfolio_notional": "0",
+            "mm_half_spread_bps": "0.05",
+            "mm_layered_inner_spread_bps": "0.05",
+            "mm_layered_outer_spread_bps": "0.15",
+            "mm_volatility_window": 30,
+            "mm_volatility_spread_factor": "8.0",
+            "mm_skew_bps_per_unit": "10.0",
+            "mm_queue_repost_lots": 0,
+            "mm_trade_imbalance_window": 12,
+            "mm_microstructure_gate_threshold": "0.20",
+            "mm_microstructure_gate_bps": "0.10",
+            "mm_fee_floor_buffer_bps": "0.02",
+            "mm_toxicity_spread_factor": "2.0",
+            "fees_maker_bps": "-0.2",
+            "fees_taker_bps": "4.0"
+          }
+        }
+      }
+    ],
+    "registry_sha256": "bb040321692d388b48634399cc510a08bc83820510a1b8e8cb48f88fe967f47d"
   },
   "runs": [
     {
       "profile": "conservative",
-      "run_id": "f459f88cdf476308",
-      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-      "config_digest": "f6a45fc22c68244c2a09a17ec4dd9579ae69c14d8418be3cb7847b6f9f919884",
-      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
-      "wall_time_seconds": 0.31117660000018077,
-      "fill_count": 0,
-      "realized_pnl": 0.0,
-      "unrealized_pnl": 0.0,
-      "total_fees": 0.0,
-      "avg_spread_captured": 0.0,
-      "adverse_fill_rate_1s": 0.0,
-      "fill_source_counts": {
-        "depth_update": 0,
-        "agg_trade": 0,
-        "taker_order": 0
-      },
-      "public_consumption_totals": {
-        "total_observed_lots": 3,
-        "total_modeled_lots": 3,
-        "total_overlap_netted_lots": 0,
-        "total_queue_consumed_lots": 2,
-        "total_unmatched_lots": 1,
-        "sources": {
-          "depth_update": {
-            "observed_lots": 1,
-            "modeled_lots": 1,
-            "overlap_netted_lots": 0,
-            "queue_consumed_lots": 0,
-            "unmatched_lots": 1
-          },
-          "agg_trade": {
-            "observed_lots": 2,
-            "modeled_lots": 2,
-            "overlap_netted_lots": 0,
-            "queue_consumed_lots": 2,
-            "unmatched_lots": 0
-          }
-        }
-      },
-      "max_inventory": 0.0,
-      "kill_switch_triggered": false,
-      "kill_switch_reason": null,
-      "summary_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\summary_input_fixture.json",
-      "trades_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\trades_input_fixture.csv",
-      "event_trace_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\event_trace_input_fixture.csv",
-      "manifest_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\manifest_input_fixture.json",
-      "runtime": {
-        "python_version": "3.13.1",
-        "platform": "Windows-11-10.0.26200-SP0"
-      },
-      "source": {
-        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
-        "git_branch": "master",
-        "git_dirty": false
-      },
-      "fill_assumption": {
-        "profile": "conservative",
-        "depth_reductions_consume_queue": false,
-        "agg_trades_consume_queue": true,
-        "overlap_netting_enabled": true,
-        "overlap_window_seconds": 0.125,
-        "uncorroborated_depth_reduction_mode": "record_unknown_cancel_like"
-      }
-    },
-    {
-      "profile": "base",
-      "run_id": "1a03c0c84f253ea0",
-      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-      "config_digest": "abe054016f6e77e13f503089805dbb3882593608ef926b870713ce494bb7bf79",
-      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
-      "wall_time_seconds": 0.1629417000003741,
+      "registry_variant_id": "09aa3689576573af",
+      "run_id": "f9c7902a239ec16e",
+      "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+      "config_digest": "4b6bd26877c2cf9db2928148b2a33dedd26900e4cafc70beba87845ada69d803",
+      "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
+      "wall_time_seconds": 3.504880200001935,
       "fill_count": 1,
       "realized_pnl": 2e-06,
       "unrealized_pnl": 5e-05,
@@ -104,24 +210,91 @@
         "taker_order": 0
       },
       "public_consumption_totals": {
-        "total_observed_lots": 3,
-        "total_modeled_lots": 3,
+        "total_observed_lots": 4,
+        "total_modeled_lots": 4,
         "total_overlap_netted_lots": 0,
         "total_queue_consumed_lots": 3,
-        "total_unmatched_lots": 0,
+        "total_unmatched_lots": 1,
         "sources": {
           "depth_update": {
             "observed_lots": 1,
             "modeled_lots": 1,
             "overlap_netted_lots": 0,
-            "queue_consumed_lots": 1,
-            "unmatched_lots": 0
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 1
           },
           "agg_trade": {
-            "observed_lots": 2,
-            "modeled_lots": 2,
+            "observed_lots": 3,
+            "modeled_lots": 3,
             "overlap_netted_lots": 0,
-            "queue_consumed_lots": 2,
+            "queue_consumed_lots": 3,
+            "unmatched_lots": 0
+          }
+        }
+      },
+      "max_inventory": 0.001,
+      "kill_switch_triggered": false,
+      "kill_switch_reason": null,
+      "summary_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\summary_input_fixture.json",
+      "trades_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\trades_input_fixture.csv",
+      "event_trace_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\event_trace_input_fixture.csv",
+      "manifest_path": "docs\\sample_outputs\\futures_fill_assumption_envelope\\conservative\\outputs\\manifest_input_fixture.json",
+      "runtime": {
+        "python_version": "3.13.1",
+        "platform": "Windows-11-10.0.26200-SP0"
+      },
+      "source": {
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
+        "git_branch": "codex/synthetic-queue-assumption-label",
+        "git_dirty": true
+      },
+      "fill_assumption": {
+        "profile": "conservative",
+        "depth_reductions_consume_queue": false,
+        "agg_trades_consume_queue": true,
+        "overlap_netting_enabled": true,
+        "overlap_window_seconds": 0.125,
+        "uncorroborated_depth_reduction_mode": "record_unknown_cancel_like"
+      }
+    },
+    {
+      "profile": "base",
+      "registry_variant_id": "918586ea80693930",
+      "run_id": "d0c73b009b17319c",
+      "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+      "config_digest": "6464f09a64dd2d4f6e850dbc45800a137b354271f582815f85d69294d6cfcafd",
+      "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
+      "wall_time_seconds": 3.081187100000534,
+      "fill_count": 1,
+      "realized_pnl": 2e-06,
+      "unrealized_pnl": 5e-05,
+      "total_fees": -2e-06,
+      "avg_spread_captured": 0.05,
+      "adverse_fill_rate_1s": 0.0,
+      "fill_source_counts": {
+        "depth_update": 0,
+        "agg_trade": 1,
+        "taker_order": 0
+      },
+      "public_consumption_totals": {
+        "total_observed_lots": 4,
+        "total_modeled_lots": 4,
+        "total_overlap_netted_lots": 0,
+        "total_queue_consumed_lots": 3,
+        "total_unmatched_lots": 1,
+        "sources": {
+          "depth_update": {
+            "observed_lots": 1,
+            "modeled_lots": 1,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 1
+          },
+          "agg_trade": {
+            "observed_lots": 3,
+            "modeled_lots": 3,
+            "overlap_netted_lots": 0,
+            "queue_consumed_lots": 3,
             "unmatched_lots": 0
           }
         }
@@ -138,26 +311,27 @@
         "platform": "Windows-11-10.0.26200-SP0"
       },
       "source": {
-        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
-        "git_branch": "master",
-        "git_dirty": false
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
+        "git_branch": "codex/synthetic-queue-assumption-label",
+        "git_dirty": true
       },
       "fill_assumption": {
         "profile": "base",
-        "depth_reductions_consume_queue": true,
+        "depth_reductions_consume_queue": false,
         "agg_trades_consume_queue": true,
         "overlap_netting_enabled": true,
         "overlap_window_seconds": 0.125,
-        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+        "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
       }
     },
     {
       "profile": "aggressive",
-      "run_id": "d2f97ed280d4121b",
-      "input_digest": "2e70daffc74c03cd6a29fc92832bc8da040893973e35850bf428502a9bbaaff9",
-      "config_digest": "3b6439f0af39ee52287517c0d5440a348c92e3c0b2dadc21d2b793729ac5ec61",
-      "normalized_config_digest": "96a334750a6d40d0084088ba1c252cb54205c395c3310b9ae54db6f6bf4f33f4",
-      "wall_time_seconds": 0.1425894000003609,
+      "registry_variant_id": "4f515503d2ede78a",
+      "run_id": "99249e2814fde275",
+      "input_digest": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
+      "config_digest": "a18a705f1d1ba4f8eb95464a4720c1534d572ae54485061eb4e7b727ab513a54",
+      "normalized_config_digest": "80cb07036f11efa4938a59d81c359cea0188554588ffe5c9caec9e69ae45c8d9",
+      "wall_time_seconds": 2.875004599998647,
       "fill_count": 1,
       "realized_pnl": 2e-06,
       "unrealized_pnl": 5e-05,
@@ -170,24 +344,24 @@
         "taker_order": 0
       },
       "public_consumption_totals": {
-        "total_observed_lots": 3,
-        "total_modeled_lots": 3,
+        "total_observed_lots": 4,
+        "total_modeled_lots": 4,
         "total_overlap_netted_lots": 0,
         "total_queue_consumed_lots": 3,
-        "total_unmatched_lots": 0,
+        "total_unmatched_lots": 1,
         "sources": {
           "depth_update": {
             "observed_lots": 1,
             "modeled_lots": 1,
             "overlap_netted_lots": 0,
-            "queue_consumed_lots": 1,
-            "unmatched_lots": 0
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 1
           },
           "agg_trade": {
-            "observed_lots": 2,
-            "modeled_lots": 2,
+            "observed_lots": 3,
+            "modeled_lots": 3,
             "overlap_netted_lots": 0,
-            "queue_consumed_lots": 2,
+            "queue_consumed_lots": 3,
             "unmatched_lots": 0
           }
         }
@@ -204,17 +378,17 @@
         "platform": "Windows-11-10.0.26200-SP0"
       },
       "source": {
-        "git_commit": "0697acce8a5f2c782a033666113702c0c3f15fef",
-        "git_branch": "master",
-        "git_dirty": false
+        "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
+        "git_branch": "codex/synthetic-queue-assumption-label",
+        "git_dirty": true
       },
       "fill_assumption": {
         "profile": "aggressive",
-        "depth_reductions_consume_queue": true,
+        "depth_reductions_consume_queue": false,
         "agg_trades_consume_queue": true,
         "overlap_netting_enabled": false,
         "overlap_window_seconds": 0.0,
-        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+        "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
       }
     }
   ],

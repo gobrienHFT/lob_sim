@@ -255,7 +255,7 @@ def _valid_simulation_assumptions() -> dict:
             "agg_trades_consume_queue": True,
             "overlap_netting_enabled": True,
             "overlap_window_seconds": verifier.EXPECTED_PUBLIC_CONSUMPTION_OVERLAP_WINDOW_SECONDS,
-            "uncorroborated_depth_reduction_mode": "consume_fifo_queue",
+            "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead",
         },
         "data_scope": "public_l2_order_book_and_agg_trade_records",
         "private_exchange_execution_reports": False,

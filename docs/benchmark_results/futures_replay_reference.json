@@ -12,7 +12,7 @@
     "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-12T16:23:48.285126Z",
+    "benchmark_created_at_utc": "2026-08-13T13:40:10.014095Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -24,7 +24,7 @@
         "overlap_netting_enabled": true,
         "overlap_window_seconds": 0.125,
         "profile": "base",
-        "uncorroborated_depth_reduction_mode": "consume_fifo_queue"
+        "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
       },
       "fill_assumption_profile": "base",
       "mm_enabled": true,
@@ -68,7 +68,7 @@
         "BTCUSDT"
       ]
     },
-    "config_digest": "2f43f17299bcdc1226c8a0d2faf2db33aa073ca969484a86300ec239b7aca811",
+    "config_digest": "6464f09a64dd2d4f6e850dbc45800a137b354271f582815f85d69294d6cfcafd",
     "feed_adapter": {
       "name": "binance_usdm",
       "supported_record_types": [
@@ -95,16 +95,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "master",
-      "git_commit": "21643818bcde8b695793619d037f7bd13664b41e",
+      "git_branch": "codex/synthetic-queue-assumption-label",
+      "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 115.08820791836024,
-    "loop_latency_p50_us": 174.7,
-    "loop_latency_p99_us": 87593.9079999995,
-    "wall_time_seconds": 0.695118999999977
+    "events_per_second": 92.00387428312551,
+    "loop_latency_p50_us": 279.05,
+    "loop_latency_p99_us": 110312.03699999949,
+    "wall_time_seconds": 0.8695286000001943
   }
 }

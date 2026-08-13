@@ -2,15 +2,15 @@
 
 - Input file: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
-- Config digest: `63c92b5376800ed188842c29a70003d22cc66e3383a1c7612a87c1d925ab9c44`
+- Config digest: `3469b6f8d1f61d23bf3e8157dbb8bab9b3da1552955a298ce84e8d64e1badf5d`
 - Feed adapter: `binance_usdm` (`BINANCE_USDM`)
 - Public-L2 fill model: `trade` (mutually exclusive scenario)
 - Profiles: `baseline, layered_mm, research_mm`
 - Half-spread bps grid: `0.05, 0.10, 0.25`
 - Queue repost lots grid: `0, 5, 99`
-- Frozen research registry SHA-256: `cfa73166fea1392f197de2aed04085a3434e27ba3d3b9dd0df25a66f4a0a656d`
+- Frozen research registry SHA-256: `73799a5bca953289f763bffc3740c1e846721ffaee9459805283e29eea5e6b14`
 - Registry sidecar: `futures_parameter_sweep_reference_registry.json`
-- Git commit at run time: `dff56f217ba284f168971b9eec4864108785a8b9`
+- Git commit at run time: `37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb`
 - Git dirty at run time: `False`
 
 Exact command:
