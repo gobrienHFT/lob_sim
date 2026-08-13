@@ -27,7 +27,8 @@ from lob_sim.sim.run_manifest import artifact_bundle_snapshot, output_artifact_s
 from scripts.audit_futures_pack import audit_futures_pack
 
 
-REAL_DATA_REPORT_SCHEMA_VERSION = "lob_sim.real_data_report.v2"
+REAL_DATA_REPORT_SCHEMA_VERSION = "lob_sim.real_data_report.v3"
+REAL_DATA_EVIDENCE_SCHEMA_VERSION = "lob_sim.real_data_evidence.v1"
 RAW_DATA_POLICY = "local-only raw data; raw NDJSON is not committed"
 LOCAL_ONLY_NOTE = (
     f"{RAW_DATA_POLICY}; publish the input SHA-256, report, and summary artifacts unless the raw file "
@@ -242,6 +243,146 @@ def _benchmark_mode_context(benchmark: dict[str, Any], mode_name: str) -> dict[s
     }
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _as_non_negative_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    return None
+
+
+def _status_payload(*, ready: bool, reason_codes: list[str]) -> dict[str, Any]:
+    return {
+        "status": "claim_ready" if ready else "diagnostic_only",
+        "reason_codes": reason_codes,
+    }
+
+
+def _build_evidence_quality(
+    *,
+    summary: dict[str, Any],
+    audit_result: dict[str, Any],
+    meets_target: bool,
+) -> dict[str, Any]:
+    """Reduce engine validity into a report-level, reviewer-readable gate.
+
+    ``SimulationEngine`` owns the detailed validity semantics.  This report
+    must not silently flatten those semantics into a positive PnL table, so it
+    publishes the source objects and a separate conservative reduction.  A
+    clean short schema-v3 replay can therefore be execution-claim-ready while
+    remaining ineligible for a multi-day economic or strategy claim.
+    """
+
+    integrity = _as_dict(summary.get("integrity"))
+    engine_quality = _as_dict(summary.get("evidence_quality"))
+    engine_claim_matrix = _as_dict(summary.get("claim_matrix"))
+    audit_ok = audit_result.get("ok") is True
+
+    capture_schema_version = _as_non_negative_int(integrity.get("capture_schema_version"))
+    schema_v3_receipt_identity = (
+        capture_schema_version is not None
+        and capture_schema_version >= 3
+        and integrity.get("last_receive_sequence") is not None
+        and integrity.get("clock") == "receive_time"
+    )
+    receive_clock_valid = (
+        integrity.get("clock_invalidated") is not True
+        and integrity.get("receive_clock_regressions", 0) == 0
+        and integrity.get("clock_regressions_clamped", 0) == 0
+    )
+    capture_trailer = integrity.get("capture_trailer_seen") is True
+    capture_valid = integrity.get("capture_valid") is True
+    execution_inputs_valid = integrity.get("all_required_execution_inputs_valid_at_end") is True
+    no_book_invalidations = integrity.get("book_invalidations", 0) == 0
+    no_trade_stream_invalidations = summary.get("trade_stream_invalidation_count", 0) == 0
+
+    checks = {
+        "schema_v3_receipt_identity": schema_v3_receipt_identity,
+        "receive_clock_valid": receive_clock_valid,
+        "capture_trailer": capture_trailer,
+        "capture_valid": capture_valid,
+        "execution_inputs_valid": execution_inputs_valid,
+        "no_book_invalidations": no_book_invalidations,
+        "no_trade_stream_invalidations": no_trade_stream_invalidations,
+        "independent_pack_audit": audit_ok,
+        "target_window_10_to_30_minutes": meets_target,
+    }
+
+    execution_reasons: list[str] = []
+    if not schema_v3_receipt_identity:
+        execution_reasons.append("missing_schema_v3_receipt_identity")
+    if not receive_clock_valid:
+        execution_reasons.append("invalid_or_regressing_receive_clock")
+    if not capture_trailer:
+        execution_reasons.append("capture_trailer_missing")
+    if not capture_valid:
+        execution_reasons.append("capture_invalidated")
+    if not execution_inputs_valid:
+        execution_reasons.append("execution_inputs_invalid_at_end")
+    if not no_book_invalidations:
+        execution_reasons.append("book_invalidations_observed")
+    if not no_trade_stream_invalidations:
+        execution_reasons.append("trade_stream_invalidations_observed")
+    if not audit_ok:
+        execution_reasons.append("independent_pack_audit_failed")
+    if not execution_reasons and integrity.get("claim_ready") is not True:
+        execution_reasons.append("engine_claim_gate_not_ready")
+
+    execution_claim_ready = not execution_reasons and integrity.get("claim_ready") is True
+    markout_claim_ready = execution_claim_ready and engine_quality.get("markouts") == "claim_ready"
+    markout_reasons = list(execution_reasons)
+    if engine_quality.get("markouts") != "claim_ready":
+        reason = engine_quality.get("markout_reason")
+        markout_reasons.append(str(reason) if reason else "markout_quality_not_claim_ready")
+
+    valuation_complete = summary.get("valuation_complete") is True
+    pnl_reasons = ["modeled_execution_output_not_live_or_counterfactual_result"]
+    if not valuation_complete:
+        pnl_reasons.append("valuation_incomplete_or_missing_marks")
+    if not execution_claim_ready:
+        pnl_reasons.append("execution_validity_not_claim_ready")
+
+    research_reasons = [
+        "single_tape_report_is_not_a_registered_holdout_study",
+        "research_protocol_requires_at_least_10_joint_valid_utc_days",
+    ]
+    if not meets_target:
+        research_reasons.append("input_below_10_to_30_minute_report_target")
+
+    return {
+        "schema_version": REAL_DATA_EVIDENCE_SCHEMA_VERSION,
+        "execution_claim_ready": execution_claim_ready,
+        "markout_claim_ready": markout_claim_ready,
+        "checks": checks,
+        "claim_matrix": {
+            "capture_receipt_and_validity": _status_payload(
+                ready=execution_claim_ready,
+                reason_codes=execution_reasons or ["all_receipt_and_execution_validity_checks_passed"],
+            ),
+            "subsecond_markouts": _status_payload(
+                ready=markout_claim_ready,
+                reason_codes=markout_reasons or ["receive-clock markout checks passed"],
+            ),
+            "modeled_pnl": _status_payload(ready=False, reason_codes=pnl_reasons),
+            "strategy_or_profitability": _status_payload(ready=False, reason_codes=research_reasons),
+        },
+        "engine": {
+            "integrity": integrity,
+            "evidence_quality": engine_quality,
+            "claim_matrix": engine_claim_matrix,
+        },
+        "research_readiness": {
+            "status": "diagnostic_only",
+            "reason_codes": research_reasons,
+            "target_window_met": meets_target,
+        },
+    }
+
+
 def _longer_run_commands(symbol: str) -> list[str]:
     return [
         "copy .env.example .env.real-data",
@@ -296,6 +437,11 @@ def _build_report_payload(
         isinstance(duration_seconds, (int, float))
         and TARGET_MIN_DURATION_SECONDS <= float(duration_seconds) <= TARGET_MAX_DURATION_SECONDS
     )
+    evidence_quality = _build_evidence_quality(
+        summary=summary,
+        audit_result=audit_result,
+        meets_target=meets_target,
+    )
     audit_counts = audit_result.get("counts", {})
     if not isinstance(audit_counts, dict):
         audit_counts = {}
@@ -326,6 +472,8 @@ def _build_report_payload(
             "code_identity": summary.get("code_identity", {}),
             "artifact_bundle_sha256": audit_result.get("hashes", {}).get("artifact_bundle_sha256"),
         },
+        "validity": evidence_quality["engine"],
+        "evidence_quality": evidence_quality,
         "local_artifacts": {
             "output_dir": _display_path(output_dir),
             "pack_dir": _display_path(pack_dir),
@@ -419,6 +567,7 @@ def _render_report(payload: dict[str, Any]) -> str:
     audit = payload["audit"]
     benchmark = payload["benchmark"]
     event_counts = payload["event_counts"]
+    evidence_quality = payload["evidence_quality"]
     trade_source_counts = payload.get("public_trade_source_counts", {})
     markouts = payload["markout_by_fill_source"]
     markout_rows = [
@@ -448,6 +597,28 @@ def _render_report(payload: dict[str, Any]) -> str:
             "```",
             "",
         ]
+    gate_checks = evidence_quality.get("checks", {})
+    claim_matrix = evidence_quality.get("claim_matrix", {})
+    gate_rows = [
+        "| Evidence area | Status | Reason codes |",
+        "|---|---|---|",
+    ]
+    for area in (
+        "capture_receipt_and_validity",
+        "subsecond_markouts",
+        "modeled_pnl",
+        "strategy_or_profitability",
+    ):
+        status = claim_matrix.get(area, {})
+        if not isinstance(status, dict):
+            status = {}
+        gate_rows.append(
+            "| `{area}` | `{status}` | `{reasons}` |".format(
+                area=area,
+                status=status.get("status"),
+                reasons=_json_line(status.get("reason_codes", [])),
+            )
+        )
     return "\n".join(
         [
             f"# {input_meta.get('symbol') or 'Local'} Public-Data Report",
@@ -467,6 +638,17 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Source state: `{_json_line(payload.get('source', {}))}`",
             f"- Behavioral config SHA-256: `{payload.get('provenance', {}).get('config_sha256')}`",
             f"- Code identity: `{_json_line(payload.get('provenance', {}).get('code_identity', {}))}`",
+            "",
+            "## Evidence Gate",
+            "",
+            "The engine validity objects are reproduced below instead of being reduced to a PnL headline.",
+            "",
+            f"- Report evidence schema: `{evidence_quality.get('schema_version')}`",
+            f"- Execution claim-ready: `{str(evidence_quality.get('execution_claim_ready')).lower()}`",
+            f"- Subsecond markout claim-ready: `{str(evidence_quality.get('markout_claim_ready')).lower()}`",
+            f"- Target window check: `{str(gate_checks.get('target_window_10_to_30_minutes')).lower()}`",
+            "",
+            *gate_rows,
             "",
             "## Event Counts",
             "",

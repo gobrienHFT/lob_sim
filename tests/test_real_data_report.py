@@ -8,7 +8,14 @@ import pytest
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.record.envelope import EventEnvelope, SCHEMA_V3
 from lob_sim.record.segmented import SegmentedCaptureWriter
-from scripts.run_real_data_report import RAW_DATA_POLICY, REAL_DATA_REPORT_SCHEMA_VERSION, REPO_ROOT, run_report
+from scripts.run_real_data_report import (
+    RAW_DATA_POLICY,
+    REAL_DATA_EVIDENCE_SCHEMA_VERSION,
+    REAL_DATA_REPORT_SCHEMA_VERSION,
+    REPO_ROOT,
+    _build_evidence_quality,
+    run_report,
+)
 
 
 FIXTURE = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "input_fixture.ndjson"
@@ -61,6 +68,7 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
 
     payload = json.loads(paths["published_report_json"].read_text(encoding="utf-8"))
     assert payload["schema_version"] == REAL_DATA_REPORT_SCHEMA_VERSION
+    assert payload["schema_version"] == "lob_sim.real_data_report.v3"
     assert payload["raw_data_policy"] == RAW_DATA_POLICY
     assert payload["input"]["sha256"] == file_sha256(FIXTURE)
     assert payload["input"]["file_size_bytes"] == FIXTURE.stat().st_size
@@ -84,6 +92,16 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert len(payload["audit"]["artifact_bundle_sha256"]) == 64
     assert payload["simulation_export"]["mode"] == "bounded_streaming"
     assert payload["benchmark"]["schema_version"] == "lob_sim.reviewer_benchmark.v2"
+    assert payload["validity"]["integrity"]["capture_schema_version"] == 1
+    assert payload["evidence_quality"]["schema_version"] == REAL_DATA_EVIDENCE_SCHEMA_VERSION
+    assert payload["evidence_quality"]["execution_claim_ready"] is False
+    assert payload["evidence_quality"]["markout_claim_ready"] is False
+    assert payload["evidence_quality"]["checks"]["schema_v3_receipt_identity"] is False
+    assert payload["evidence_quality"]["claim_matrix"]["modeled_pnl"]["status"] == "diagnostic_only"
+    assert (
+        "missing_schema_v3_receipt_identity"
+        in payload["evidence_quality"]["claim_matrix"]["capture_receipt_and_validity"]["reason_codes"]
+    )
 
     pack_files = {path.name for path in paths["pack_dir"].iterdir()}
     assert {
@@ -112,6 +130,8 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert "Raw public trade event types inside `aggTrade` records" in markdown
     assert "raw NDJSON tape is not committed" in markdown
     assert "Meets 10-30 minute target: `false`" in markdown
+    assert "## Evidence Gate" in markdown
+    assert "Execution claim-ready: `false`" in markdown
     assert "python scripts/run_real_data_report.py" in markdown
     assert not any(path.suffix in {".csv", ".ndjson", ".gz"} for path in publish_dir.rglob("*"))
 
@@ -213,3 +233,76 @@ def test_real_data_report_accepts_segmented_schema_v3_capture_manifest(tmp_path:
     assert report["audit"]["mode"] == "bounded_streaming"
     assert report["simulation_export"]["mode"] == "bounded_streaming"
     assert audit["ok"] is True
+
+
+def test_evidence_quality_keeps_clean_schema_v3_execution_distinct_from_research_claim() -> None:
+    quality = _build_evidence_quality(
+        summary={
+            "integrity": {
+                "capture_schema_version": 3,
+                "clock": "receive_time",
+                "last_receive_sequence": 12,
+                "clock_invalidated": False,
+                "clock_regressions_clamped": 0,
+                "receive_clock_regressions": 0,
+                "capture_trailer_seen": True,
+                "capture_valid": True,
+                "all_required_execution_inputs_valid_at_end": True,
+                "book_invalidations": 0,
+                "claim_ready": True,
+            },
+            "evidence_quality": {"markouts": "claim_ready"},
+            "claim_matrix": {"fill_truth": "scenario_envelope_only"},
+            "trade_stream_invalidation_count": 0,
+            "valuation_complete": True,
+        },
+        audit_result={"ok": True},
+        meets_target=True,
+    )
+
+    assert quality["execution_claim_ready"] is True
+    assert quality["markout_claim_ready"] is True
+    assert quality["claim_matrix"]["capture_receipt_and_validity"]["status"] == "claim_ready"
+    assert quality["claim_matrix"]["subsecond_markouts"]["status"] == "claim_ready"
+    assert quality["claim_matrix"]["modeled_pnl"]["status"] == "diagnostic_only"
+    assert quality["claim_matrix"]["strategy_or_profitability"]["status"] == "diagnostic_only"
+
+
+def test_evidence_quality_reports_each_failed_validity_dimension() -> None:
+    quality = _build_evidence_quality(
+        summary={
+            "integrity": {
+                "capture_schema_version": 3,
+                "clock": "receive_time",
+                "last_receive_sequence": 12,
+                "clock_invalidated": True,
+                "clock_regressions_clamped": 1,
+                "receive_clock_regressions": 1,
+                "capture_trailer_seen": False,
+                "capture_valid": False,
+                "all_required_execution_inputs_valid_at_end": False,
+                "book_invalidations": 1,
+                "claim_ready": False,
+            },
+            "evidence_quality": {"markouts": "diagnostic_only", "markout_reason": "gap boundary"},
+            "trade_stream_invalidation_count": 1,
+            "valuation_complete": False,
+        },
+        audit_result={"ok": False},
+        meets_target=False,
+    )
+
+    reasons = quality["claim_matrix"]["capture_receipt_and_validity"]["reason_codes"]
+    assert quality["execution_claim_ready"] is False
+    assert quality["checks"]["independent_pack_audit"] is False
+    assert {
+        "invalid_or_regressing_receive_clock",
+        "capture_trailer_missing",
+        "capture_invalidated",
+        "execution_inputs_invalid_at_end",
+        "book_invalidations_observed",
+        "trade_stream_invalidations_observed",
+        "independent_pack_audit_failed",
+    } <= set(reasons)
+    assert "gap boundary" in quality["claim_matrix"]["subsecond_markouts"]["reason_codes"]
+    assert "valuation_incomplete_or_missing_marks" in quality["claim_matrix"]["modeled_pnl"]["reason_codes"]
