@@ -84,6 +84,14 @@ def test_event_envelope_rejects_fractional_exchange_timestamp() -> None:
         EventEnvelope.from_dict(payload)
 
 
+def test_event_envelope_rejects_payload_checksum_mismatch() -> None:
+    payload = json.loads(_envelope(7).to_json())
+    payload["raw_payload_checksum"] = "crc32c:00000000"
+
+    with pytest.raises(ValueError, match="raw_payload_checksum does not match payload"):
+        EventEnvelope.from_dict(payload)
+
+
 @pytest.mark.parametrize(
     "field",
     ["capture_id", "schema_version", "venue", "instrument", "event_kind", "route", "raw_payload_checksum"],
