@@ -18,6 +18,7 @@ from lob_sim.oracle_kernel import (
     DeterministicSchedulerOracle,
     OracleDecision,
     PortfolioNotionalReservationOracle,
+    PublicQueueScenarioOracle,
     RiskReservationOracle,
     ScenarioLatencyOracle,
 )
@@ -33,6 +34,8 @@ SchedulerOperation = tuple[int, int, int, int, bool]
 RiskOperation = tuple[int, int, bool, int]
 PortfolioOperation = tuple[int, int, int, bool, int]
 AccountingOperation = tuple[int, int, bool, int, int, int]
+PublicQueueOperation = tuple[int, int, int, int]
+PublicQueueTraceRow = tuple[bool, str | None, list[tuple[int, int]], int, int, str | None]
 LatencyTraceRow = tuple[int, int]
 
 
@@ -150,6 +153,69 @@ def _generated_synthetic_operations(rng: random.Random, cases: int) -> list[Synt
             )
         )
     return operations
+
+
+def _generated_public_queue_operations(rng: random.Random, cases: int) -> list[PublicQueueOperation]:
+    operations: list[PublicQueueOperation] = []
+    attempted_order_ids: list[int] = []
+    next_order_id = 1
+    for _ in range(cases):
+        draw = rng.randrange(100)
+        if draw < 48:
+            if attempted_order_ids and rng.randrange(100) < 14:
+                order_id = rng.choice(attempted_order_ids)
+            else:
+                order_id = next_order_id
+                next_order_id += 1
+                attempted_order_ids.append(order_id)
+            queue_draw = rng.randrange(100)
+            queue_ahead = -1 if queue_draw < 6 else rng.randrange(0, 11)
+            quantity_draw = rng.randrange(100)
+            quantity = 0 if quantity_draw < 6 else (-1 if quantity_draw < 9 else rng.randrange(1, 8))
+            operations.append((0, order_id, queue_ahead, quantity))
+        elif draw < 76:
+            order_id = rng.choice(attempted_order_ids) if attempted_order_ids else 0
+            quantity_draw = rng.randrange(100)
+            quantity = 0 if quantity_draw < 5 else (-1 if quantity_draw < 8 else rng.randrange(1, 13))
+            operations.append((1, order_id, 0, quantity))
+        elif draw < 92:
+            order_id = (
+                rng.choice(attempted_order_ids)
+                if attempted_order_ids and rng.randrange(100) < 84
+                else next_order_id + rng.randrange(1, 1000)
+            )
+            operations.append((2, order_id, 0, 0))
+        else:
+            operations.append((3, 0, 0, 0))
+    return operations
+
+
+def _python_public_queue_trace(
+    operations: list[PublicQueueOperation],
+    *,
+    checkpoint_interval: int,
+) -> list[PublicQueueTraceRow]:
+    scenario = PublicQueueScenarioOracle()
+    rows: list[PublicQueueTraceRow] = []
+    for index, (kind, order_id, queue_ahead_lots, qty_lots) in enumerate(operations):
+        fills: list[tuple[int, int]] = []
+        unmatched_lots = 0
+        if kind == 0:
+            decision = scenario.place(order_id, queue_ahead_lots, qty_lots)
+        elif kind == 1:
+            decision, fills, unmatched_lots = scenario.consume(qty_lots)
+        elif kind == 2:
+            decision = scenario.cancel(order_id)
+        elif kind == 3:
+            decision = scenario.invalidate_epoch()
+        else:
+            raise ValueError(f"unsupported public queue operation kind: {kind}")
+        ordinal = index + 1
+        checkpoint = (
+            scenario.state_sha256() if ordinal % checkpoint_interval == 0 or ordinal == len(operations) else None
+        )
+        rows.append((decision.accepted, decision.reason, fills, unmatched_lots, scenario.live_order_count, checkpoint))
+    return rows
 
 
 def _python_synthetic_trace(
@@ -676,6 +742,51 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         json.dumps(final_state, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
 
+    # Keep this new boundary on its own fixed generator stream.  Adding a
+    # parity slice must not silently change the established synthetic,
+    # scheduler, risk, or latency corpora below; otherwise a reviewer cannot
+    # tell whether an unrelated result drifted or the new slice changed.
+    public_queue_seed = 53
+    public_queue_operations = _generated_public_queue_operations(random.Random(public_queue_seed), cases)
+    public_queue_corpus_sha256 = hashlib.sha256(
+        json.dumps(public_queue_operations, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    python_public_queue_trace = _python_public_queue_trace(
+        public_queue_operations,
+        checkpoint_interval=SYNTHETIC_CHECKPOINT_INTERVAL,
+    )
+    rust_public_queue_trace = list(
+        lob_core.run_public_queue_trace(public_queue_operations, SYNTHETIC_CHECKPOINT_INTERVAL)
+    )
+    if len(rust_public_queue_trace) != len(python_public_queue_trace):
+        raise AssertionError(
+            "public queue trace length differs: "
+            f"python={len(python_public_queue_trace)}, rust={len(rust_public_queue_trace)}"
+        )
+    for public_queue_index, (public_python_row, public_rust_row) in enumerate(
+        zip(python_public_queue_trace, rust_public_queue_trace, strict=True)
+    ):
+        if public_python_row != public_rust_row:
+            raise AssertionError(
+                "public queue scenario divergence at operation "
+                f"{public_queue_index}: operation={public_queue_operations[public_queue_index]!r}, "
+                f"python={public_python_row!r}, rust={public_rust_row!r}"
+            )
+    public_queue_accepted = sum(1 for row in python_public_queue_trace if row[0])
+    public_queue_fill_count = sum(len(row[2]) for row in python_public_queue_trace)
+    public_queue_checkpoint_count = sum(1 for row in python_public_queue_trace if row[5] is not None)
+    public_queue_final_hash = python_public_queue_trace[-1][5]
+    assert public_queue_final_hash is not None
+    public_queue_trace_sha256 = hashlib.sha256(
+        json.dumps(python_public_queue_trace, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    public_queue_operation_kind_counts = {
+        "place": sum(1 for operation in public_queue_operations if operation[0] == 0),
+        "consume": sum(1 for operation in public_queue_operations if operation[0] == 1),
+        "cancel": sum(1 for operation in public_queue_operations if operation[0] == 2),
+        "epoch_invalidate": sum(1 for operation in public_queue_operations if operation[0] == 3),
+    }
+
     operations = _generated_synthetic_operations(rng, cases)
     operation_corpus_sha256 = hashlib.sha256(json.dumps(operations, separators=(",", ":")).encode("utf-8")).hexdigest()
     python_trace = _python_synthetic_trace(
@@ -969,6 +1080,16 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "accepted_batches": accepted_batches,
         "rejected_batches": rejected_batches,
         "final_state_sha256": final_hash,
+        "public_queue_operations": len(public_queue_operations),
+        "public_queue_seed": public_queue_seed,
+        "public_queue_operation_kind_counts": public_queue_operation_kind_counts,
+        "public_queue_operation_corpus_sha256": public_queue_corpus_sha256,
+        "public_queue_trace_sha256": public_queue_trace_sha256,
+        "public_queue_accepted_operations": public_queue_accepted,
+        "public_queue_rejected_operations": len(public_queue_operations) - public_queue_accepted,
+        "public_queue_fill_count": public_queue_fill_count,
+        "public_queue_checkpoint_count": public_queue_checkpoint_count,
+        "public_queue_final_state_sha256": public_queue_final_hash,
         "synthetic_operations": len(operations),
         "synthetic_operation_kind_counts": synthetic_operation_kind_counts,
         "synthetic_operation_corpus_sha256": operation_corpus_sha256,
@@ -1039,7 +1160,8 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         "latency_trace_sha256_by_mode": latency_trace_sha256_by_mode,
         "latency_final_state_by_mode": latency_final_state_by_mode,
         "scope": (
-            "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic "
+            "logical time, uncrossed invariant, atomic fixed-point book batches, restricted single-price "
+            "public-L2 trade queue-ahead consumption, and exact synthetic "
             "MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol "
             "live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill "
             "accounting, nullable mark valuation, signed markouts, and deterministic fixed/empirical/stress-tail "
@@ -1047,7 +1169,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
             "full-state hashes"
         ),
         "remaining_full_engine_scope": [
-            "public-L2 execution scenarios",
+            "engine-integrated public-L2 execution scenarios beyond the restricted single-price trade queue",
             "engine-integrated latency and portfolio-notional risk",
             "engine-integrated accounting and markouts",
             "run manifests",

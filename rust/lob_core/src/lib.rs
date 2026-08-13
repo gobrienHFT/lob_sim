@@ -50,6 +50,19 @@ type PythonAccountingTraceRow = (
 );
 #[cfg(feature = "python")]
 type PythonLatencyTraceRow = (i64, u64);
+#[cfg(feature = "python")]
+type PythonPublicQueueOperation = (u8, u64, i64, i64);
+#[cfg(feature = "python")]
+type PythonPublicQueueFill = (u64, i64);
+#[cfg(feature = "python")]
+type PythonPublicQueueTraceRow = (
+    bool,
+    Option<String>,
+    Vec<PythonPublicQueueFill>,
+    i64,
+    usize,
+    Option<String>,
+);
 
 #[cfg(feature = "python")]
 use pyo3::types::PyModuleMethods;
@@ -151,6 +164,175 @@ impl ScenarioLatencySampler {
 
     fn state(&self) -> u64 {
         self.state
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PublicQueueOrderState {
+    Live,
+    Filled,
+    Cancelled,
+    EpochInvalidated,
+}
+
+impl PublicQueueOrderState {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::Filled => "filled",
+            Self::Cancelled => "cancelled",
+            Self::EpochInvalidated => "epoch_invalidated",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PublicQueueOrder {
+    queue_ahead_lots: i64,
+    remaining_lots: i64,
+    state: PublicQueueOrderState,
+}
+
+pub type PublicQueueConsumption = (Vec<(u64, i64)>, i64);
+
+/// Integer queue-ahead transition for a restricted public-L2 trade scenario.
+///
+/// This intentionally does not model participant identity, depth/trade
+/// overlap, or historical FIFO. It is a parity boundary for the observable
+/// single-price queue-consumption arithmetic only.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PublicQueueScenario {
+    orders: BTreeMap<u64, PublicQueueOrder>,
+    queue: VecDeque<u64>,
+    seen_order_ids: BTreeSet<u64>,
+}
+
+impl PublicQueueScenario {
+    pub fn live_order_count(&self) -> usize {
+        self.orders
+            .values()
+            .filter(|order| order.state == PublicQueueOrderState::Live)
+            .count()
+    }
+
+    pub fn place(
+        &mut self,
+        order_id: u64,
+        queue_ahead_lots: i64,
+        qty_lots: i64,
+    ) -> Result<(), &'static str> {
+        if order_id == 0 {
+            return Err("invalid_order_id");
+        }
+        if self.seen_order_ids.contains(&order_id) {
+            return Err("duplicate_order_id");
+        }
+        if queue_ahead_lots < 0 {
+            return Err("invalid_queue_ahead");
+        }
+        if qty_lots <= 0 {
+            return Err("invalid_quantity");
+        }
+        self.seen_order_ids.insert(order_id);
+        self.orders.insert(
+            order_id,
+            PublicQueueOrder {
+                queue_ahead_lots,
+                remaining_lots: qty_lots,
+                state: PublicQueueOrderState::Live,
+            },
+        );
+        self.queue.push_back(order_id);
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, order_id: u64) -> Result<(), &'static str> {
+        let Some(order) = self.orders.get_mut(&order_id) else {
+            return Err("unknown_order");
+        };
+        if order.state != PublicQueueOrderState::Live {
+            return Err("order_not_live");
+        }
+        order.state = PublicQueueOrderState::Cancelled;
+        self.queue.retain(|queued_id| *queued_id != order_id);
+        Ok(())
+    }
+
+    pub fn invalidate_epoch(&mut self) {
+        for order in self.orders.values_mut() {
+            if order.state == PublicQueueOrderState::Live {
+                order.state = PublicQueueOrderState::EpochInvalidated;
+            }
+        }
+        self.queue.clear();
+    }
+
+    pub fn consume(&mut self, observed_lots: i64) -> Result<PublicQueueConsumption, &'static str> {
+        if observed_lots <= 0 {
+            return Err("invalid_consumption");
+        }
+        let mut remaining = observed_lots;
+        let mut fills = Vec::new();
+        while remaining > 0 {
+            let Some(order_id) = self.queue.front().copied() else {
+                break;
+            };
+            let order = self
+                .orders
+                .get_mut(&order_id)
+                .expect("queue order must exist");
+            if order.state != PublicQueueOrderState::Live {
+                self.queue.pop_front();
+                continue;
+            }
+            let consumed_ahead = remaining.min(order.queue_ahead_lots);
+            order.queue_ahead_lots -= consumed_ahead;
+            remaining -= consumed_ahead;
+            if remaining <= 0 {
+                break;
+            }
+            let fill_lots = remaining.min(order.remaining_lots);
+            order.remaining_lots -= fill_lots;
+            remaining -= fill_lots;
+            fills.push((order_id, fill_lots));
+            if order.remaining_lots == 0 {
+                order.state = PublicQueueOrderState::Filled;
+                self.queue.pop_front();
+            }
+        }
+        Ok((fills, remaining))
+    }
+
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut state = String::new();
+        state.push_str("seen:");
+        for (index, order_id) in self.seen_order_ids.iter().enumerate() {
+            if index > 0 {
+                state.push(',');
+            }
+            state.push_str(&order_id.to_string());
+        }
+        state.push_str(";queue:");
+        for (index, order_id) in self.queue.iter().enumerate() {
+            if index > 0 {
+                state.push(',');
+            }
+            state.push_str(&order_id.to_string());
+        }
+        state.push(';');
+        for (order_id, order) in &self.orders {
+            state.push_str(&format!(
+                "order:{order_id}:{}:{}:{};",
+                order.queue_ahead_lots,
+                order.remaining_lots,
+                order.state.as_str()
+            ));
+        }
+        state.into_bytes()
+    }
+
+    pub fn state_sha256(&self) -> String {
+        format!("{:x}", Sha256::digest(self.canonical_bytes()))
     }
 }
 
@@ -1542,6 +1724,70 @@ fn apply_book_batch(
     ))
 }
 
+/// Run the restricted public-L2 single-price queue-ahead trace.
+///
+/// Operations are `(kind, order_id, queue_ahead_lots, qty_lots)`: kind `0`
+/// places a strategy order, kind `1` consumes public trade lots (the final
+/// field), kind `2` cancels an order, and kind `3` invalidates the epoch.
+/// Rows contain acceptance, fills, unmatched public lots, live-order count,
+/// and periodic state hashes. This is not historical participant FIFO.
+#[cfg(feature = "python")]
+#[pyo3::pyfunction]
+fn run_public_queue_trace(
+    operations: Vec<PythonPublicQueueOperation>,
+    checkpoint_interval: usize,
+) -> pyo3::PyResult<Vec<PythonPublicQueueTraceRow>> {
+    if checkpoint_interval == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "checkpoint_interval must be positive",
+        ));
+    }
+    let operation_count = operations.len();
+    let mut scenario = PublicQueueScenario::default();
+    let mut rows = Vec::with_capacity(operation_count);
+    for (index, (kind, order_id, queue_ahead_lots, qty_lots)) in operations.into_iter().enumerate()
+    {
+        let mut fills = Vec::new();
+        let mut unmatched_lots = 0;
+        let decision = match kind {
+            0 => scenario.place(order_id, queue_ahead_lots, qty_lots),
+            1 => match scenario.consume(qty_lots) {
+                Ok((consumed, unmatched)) => {
+                    fills = consumed;
+                    unmatched_lots = unmatched;
+                    Ok(())
+                }
+                Err(reason) => Err(reason),
+            },
+            2 => scenario.cancel(order_id),
+            3 => {
+                scenario.invalidate_epoch();
+                Ok(())
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported public queue operation kind: {kind}"
+                )))
+            }
+        };
+        let ordinal = index + 1;
+        let checkpoint = if ordinal % checkpoint_interval == 0 || ordinal == operation_count {
+            Some(scenario.state_sha256())
+        } else {
+            None
+        };
+        rows.push((
+            decision.is_ok(),
+            decision.err().map(str::to_owned),
+            fills,
+            unmatched_lots,
+            scenario.live_order_count(),
+            checkpoint,
+        ));
+    }
+    Ok(rows)
+}
+
 /// Run a deterministic exact-MBO operation trace for differential testing.
 ///
 /// Operation tuples are `(kind, order_id, participant_id, is_bid,
@@ -1938,6 +2184,7 @@ fn lob_core(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(logical_time_key, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(uncrossed, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_book_batch, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(run_public_queue_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_synthetic_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_scheduler_trace, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_risk_trace, m)?)?;
@@ -1953,8 +2200,9 @@ mod tests {
 
     use super::{
         AccountingMarkoutLedger, BookState, DeterministicScheduler, LogicalTime, OrderState,
-        PortfolioNotionalReservationLedger, RiskReservationLedger, ScenarioLatencySampler, Side,
-        SyntheticExchange, ACCOUNTING_CASH_SCALE, LATENCY_STRESS_SCALE,
+        PortfolioNotionalReservationLedger, PublicQueueScenario, RiskReservationLedger,
+        ScenarioLatencySampler, Side, SyntheticExchange, ACCOUNTING_CASH_SCALE,
+        LATENCY_STRESS_SCALE,
     };
 
     #[test]
@@ -2001,6 +2249,22 @@ mod tests {
                 .expect("valid sampler");
         assert_eq!(sampler.draw(0).expect("stress draw"), 15_000);
         assert_eq!(sampler.state(), 17);
+    }
+
+    #[test]
+    fn public_queue_consumes_ahead_then_fills_and_invalidates_epoch() {
+        let mut scenario = PublicQueueScenario::default();
+        scenario.place(1, 3, 2).expect("place first");
+        scenario.place(2, 1, 2).expect("place second");
+        let (fills, unmatched) = scenario.consume(5).expect("consume public lots");
+        assert_eq!(fills, vec![(1, 2)]);
+        assert_eq!(unmatched, 0);
+        assert_eq!(scenario.live_order_count(), 1);
+        scenario.cancel(2).expect("cancel remaining order");
+        assert_eq!(scenario.state_sha256().len(), 64);
+        scenario.invalidate_epoch();
+        assert_eq!(scenario.live_order_count(), 0);
+        assert_eq!(scenario.queue.len(), 0);
     }
 
     #[test]

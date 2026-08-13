@@ -7,12 +7,14 @@ from lob_sim.sim.synthetic_exchange import SyntheticExchange
 from scripts.check_rust_python_parity import (
     _generated_portfolio_operations,
     _generated_accounting_operations,
+    _generated_public_queue_operations,
     _generated_risk_operations,
     _generated_scheduler_operations,
     _generated_synthetic_operations,
     _python_risk_trace,
     _python_portfolio_trace,
     _python_accounting_trace,
+    _python_public_queue_trace,
     _python_scheduler_trace,
     _python_synthetic_trace,
     _synthetic_state_sha256,
@@ -43,6 +45,20 @@ def test_generated_synthetic_operations_are_seeded_and_mixed() -> None:
     assert {operation[0] for operation in first} == {0, 1, 2}
     assert any(operation[4] is None for operation in first if operation[0] == 0)
     assert any(operation[5] <= 0 for operation in first if operation[0] == 0)
+
+
+def test_public_queue_trace_is_seeded_and_covers_lifecycle_boundaries() -> None:
+    first = _generated_public_queue_operations(random.Random(53), 500)
+    second = _generated_public_queue_operations(random.Random(53), 500)
+
+    assert first == second
+    assert len(first) == 500
+    assert {operation[0] for operation in first} == {0, 1, 2, 3}
+    trace = _python_public_queue_trace(first, checkpoint_interval=17)
+    assert len(trace) == 500
+    assert any(row[2] for row in trace)
+    assert any(row[1] is not None for row in trace)
+    assert trace[-1][5] is not None
 
 
 def test_python_synthetic_trace_reports_lifecycle_fills_and_checkpoints() -> None:

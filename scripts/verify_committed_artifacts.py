@@ -684,6 +684,16 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "book_batches",
         "accepted_batches",
         "rejected_batches",
+        "public_queue_operations",
+        "public_queue_seed",
+        "public_queue_operation_kind_counts",
+        "public_queue_operation_corpus_sha256",
+        "public_queue_trace_sha256",
+        "public_queue_accepted_operations",
+        "public_queue_rejected_operations",
+        "public_queue_fill_count",
+        "public_queue_checkpoint_count",
+        "public_queue_final_state_sha256",
         "synthetic_operations",
         "synthetic_operation_kind_counts",
         "synthetic_accepted_operations",
@@ -766,6 +776,20 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity report must not claim full-engine parity")
     if report["book_batches"] != report["accepted_batches"] + report["rejected_batches"]:
         issues.append("Rust/Python parity book batch counts do not reconcile")
+    if report["public_queue_operations"] != (
+        report["public_queue_accepted_operations"] + report["public_queue_rejected_operations"]
+    ):
+        issues.append("Rust/Python parity public queue operation counts do not reconcile")
+    public_queue_kind_counts = report["public_queue_operation_kind_counts"]
+    expected_public_queue_kinds = {"place", "consume", "cancel", "epoch_invalidate"}
+    if not isinstance(public_queue_kind_counts, dict) or set(public_queue_kind_counts) != expected_public_queue_kinds:
+        issues.append("Rust/Python parity report has invalid public queue operation kind counts")
+    elif report["public_queue_operations"] != sum(public_queue_kind_counts.values()):
+        issues.append("Rust/Python parity public queue operation kind counts do not reconcile")
+    if report["public_queue_seed"] != 53:
+        issues.append("Rust/Python parity public queue generator seed is not the pinned value")
+    if report["public_queue_fill_count"] < 0 or report["public_queue_checkpoint_count"] <= 0:
+        issues.append("Rust/Python parity public queue trace counts are invalid")
     if report["synthetic_operations"] != (
         report["synthetic_accepted_operations"] + report["synthetic_rejected_operations"]
     ):
@@ -876,6 +900,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity final short reservation exceeds its worst-case limit")
     for field in (
         "synthetic_checkpoint_count",
+        "public_queue_checkpoint_count",
         "scheduler_checkpoint_count",
         "risk_checkpoint_count",
         "portfolio_notional_checkpoint_count",
@@ -887,6 +912,9 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "synthetic_operation_corpus_sha256",
         "synthetic_trace_sha256",
         "synthetic_final_state_sha256",
+        "public_queue_operation_corpus_sha256",
+        "public_queue_trace_sha256",
+        "public_queue_final_state_sha256",
         "scheduler_operation_corpus_sha256",
         "scheduler_trace_sha256",
         "scheduler_final_state_sha256",
@@ -927,7 +955,7 @@ def _verify_rust_python_parity_publication() -> list[str]:
     }:
         issues.append("Rust/Python parity report has invalid latency final states")
     expected_remaining = {
-        "public-L2 execution scenarios",
+        "engine-integrated public-L2 execution scenarios beyond the restricted single-price trade queue",
         "engine-integrated latency and portfolio-notional risk",
         "engine-integrated accounting and markouts",
         "run manifests",
