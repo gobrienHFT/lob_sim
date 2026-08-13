@@ -77,6 +77,18 @@ def test_event_envelope_rejects_fractional_exchange_timestamp() -> None:
         EventEnvelope.from_dict(payload)
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["capture_id", "schema_version", "venue", "instrument", "event_kind", "route", "raw_payload_checksum"],
+)
+def test_event_envelope_rejects_coercible_identity_strings(field: str) -> None:
+    payload = json.loads(_envelope(7).to_json())
+    payload[field] = 7
+
+    with pytest.raises(ValueError, match=f"{field} must be a non-empty string"):
+        EventEnvelope.from_dict(payload)
+
+
 def test_envelope_record_writer_rejects_coercible_capture_identity() -> None:
     written: list[EventEnvelope] = []
 

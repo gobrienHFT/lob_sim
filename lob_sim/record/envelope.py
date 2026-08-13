@@ -15,6 +15,14 @@ from typing import Any, Mapping
 SCHEMA_V3 = "lob_sim.record.v3"
 
 
+def require_nonempty_string(value: object, field_name: str) -> str:
+    """Validate a required string without changing its wire representation."""
+
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
 def require_nonnegative_int(value: object, field_name: str) -> int:
     """Validate an exact non-negative JSON integer.
 
@@ -113,16 +121,12 @@ class EventEnvelope:
     raw_payload_checksum: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.capture_id:
-            raise ValueError("capture_id must be non-empty")
-        if not self.schema_version:
-            raise ValueError("schema_version must be non-empty")
-        if not self.venue:
-            raise ValueError("venue must be non-empty")
-        if not self.instrument:
-            raise ValueError("instrument must be non-empty")
-        if not self.event_kind or not self.route:
-            raise ValueError("event_kind and route must be non-empty")
+        require_nonempty_string(self.capture_id, "capture_id")
+        require_nonempty_string(self.schema_version, "schema_version")
+        require_nonempty_string(self.venue, "venue")
+        require_nonempty_string(self.instrument, "instrument")
+        require_nonempty_string(self.event_kind, "event_kind")
+        require_nonempty_string(self.route, "route")
         if not isinstance(self.payload, Mapping):
             raise ValueError("payload must be a mapping")
         require_nonnegative_int(self.recv_seq, "recv_seq")
@@ -136,8 +140,8 @@ class EventEnvelope:
             require_nonnegative_int(self.exchange_transaction_ns, "exchange_transaction_ns")
         if self.raw_payload_checksum is None:
             object.__setattr__(self, "raw_payload_checksum", payload_checksum(self.payload))
-        elif not self.raw_payload_checksum:
-            raise ValueError("raw_payload_checksum must be non-empty")
+        else:
+            require_nonempty_string(self.raw_payload_checksum, "raw_payload_checksum")
 
     @property
     def logical_time(self) -> LogicalTime:
@@ -169,12 +173,12 @@ class EventEnvelope:
         if missing:
             raise ValueError(f"EventEnvelope missing required fields: {', '.join(missing)}")
         return cls(
-            capture_id=str(value["capture_id"]),
-            schema_version=str(value["schema_version"]),
-            venue=str(value["venue"]),
-            instrument=str(value["instrument"]),
-            event_kind=str(value["event_kind"]),
-            route=str(value["route"]),
+            capture_id=require_nonempty_string(value["capture_id"], "capture_id"),
+            schema_version=require_nonempty_string(value["schema_version"], "schema_version"),
+            venue=require_nonempty_string(value["venue"], "venue"),
+            instrument=require_nonempty_string(value["instrument"], "instrument"),
+            event_kind=require_nonempty_string(value["event_kind"], "event_kind"),
+            route=require_nonempty_string(value["route"], "route"),
             recv_seq=require_nonnegative_int(value["recv_seq"], "recv_seq"),
             recv_wall_ns=require_nonnegative_int(value["recv_wall_ns"], "recv_wall_ns"),
             recv_monotonic_ns=require_nonnegative_int(value["recv_monotonic_ns"], "recv_monotonic_ns"),
@@ -186,7 +190,9 @@ class EventEnvelope:
             stream_epoch=require_nonnegative_int(value.get("stream_epoch", 0), "stream_epoch"),
             sync_epoch=require_nonnegative_int(value.get("sync_epoch", 0), "sync_epoch"),
             raw_payload_checksum=(
-                str(value["raw_payload_checksum"]) if value.get("raw_payload_checksum") is not None else None
+                require_nonempty_string(value["raw_payload_checksum"], "raw_payload_checksum")
+                if value.get("raw_payload_checksum") is not None
+                else None
             ),
         )
 
