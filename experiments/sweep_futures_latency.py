@@ -68,8 +68,7 @@ def _variant_key(
 
 def _scenario_id(profile: str, fill_model: str, order_latency_ms: float, cancel_latency_ms: float) -> str:
     return (
-        f"public_l2_latency:{profile}:fill={fill_model}:"
-        f"order_ms={order_latency_ms:g}:cancel_ms={cancel_latency_ms:g}"
+        f"public_l2_latency:{profile}:fill={fill_model}:order_ms={order_latency_ms:g}:cancel_ms={cancel_latency_ms:g}"
     )
 
 
@@ -107,10 +106,7 @@ def _build_latency_registry(
                     sim_order_latency_ms=order_latency,
                     sim_cancel_latency_ms=cancel_latency,
                 )
-                name = (
-                    f"latency:{profile}:fill={fill_model}:"
-                    f"order_ms={order_latency:g}:cancel_ms={cancel_latency:g}"
-                )
+                name = f"latency:{profile}:fill={fill_model}:order_ms={order_latency:g}:cancel_ms={cancel_latency:g}"
                 variant_ids[key] = registry.register(
                     name,
                     {
@@ -226,10 +222,10 @@ def run_latency_sweep(
                         "fill_model": fill_model,
                         "order_latency_ms": order_latency,
                         "cancel_latency_ms": cancel_latency,
-                    "memory_bounded_by_tape_duration": bool(
-                        summary["audit_retention"]["memory_bounded_by_tape_duration"]
-                        and engine.event_trace_retention()["memory_bounded_by_tape_duration"]
-                    ),
+                        "memory_bounded_by_tape_duration": bool(
+                            summary["audit_retention"]["memory_bounded_by_tape_duration"]
+                            and engine.event_trace_retention()["memory_bounded_by_tape_duration"]
+                        ),
                         **{key: summary[key] for key in LATENCY_SWEEP_FIELDS if key in summary},
                     }
                 )
