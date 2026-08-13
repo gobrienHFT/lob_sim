@@ -163,6 +163,12 @@ class EventEnvelope:
             object.__setattr__(self, "raw_payload_checksum", payload_checksum(self.payload))
         else:
             require_nonempty_string(self.raw_payload_checksum, "raw_payload_checksum")
+            expected_checksum = payload_checksum(self.payload)
+            if self.raw_payload_checksum != expected_checksum:
+                raise ValueError(
+                    "raw_payload_checksum does not match payload: "
+                    f"expected {expected_checksum}, got {self.raw_payload_checksum}"
+                )
 
     @property
     def logical_time(self) -> LogicalTime:

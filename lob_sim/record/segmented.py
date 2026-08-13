@@ -382,7 +382,22 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 try:
                     envelope = EventEnvelope.from_dict(event)
                 except (TypeError, ValueError) as exc:
-                    issues.append(f"line {line_number}: invalid envelope: {exc}")
+                    # Keep checksum tampering visible as a checksum issue even
+                    # though EventEnvelope now rejects the inconsistent
+                    # identity during construction.  This preserves a useful
+                    # forensic distinction from malformed envelope metadata.
+                    raw_payload = event.get("payload")
+                    raw_checksum = event.get("raw_payload_checksum")
+                    try:
+                        checksum_mismatch = isinstance(raw_checksum, str) and raw_checksum != payload_checksum(
+                            raw_payload
+                        )
+                    except (TypeError, ValueError):
+                        checksum_mismatch = False
+                    if checksum_mismatch:
+                        issues.append(f"line {line_number}: payload checksum mismatch")
+                    else:
+                        issues.append(f"line {line_number}: invalid envelope: {exc}")
                     continue
                 if envelope.schema_version != SCHEMA_V3:
                     issues.append(f"line {line_number}: unexpected envelope schema version")
