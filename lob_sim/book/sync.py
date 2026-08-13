@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque
 
-from .local_book import LocalOrderBook
+from .local_book import BookInvariantError, LocalOrderBook
 from .types import DepthUpdateEvent, LevelChange, SnapshotEvent
 
 
@@ -153,6 +153,27 @@ class BookSynchronizer:
         # invalidate the previous epoch and observe the error.
         raise BookSyncGapError(message)
 
+    def _invalidate_invalid_update(self, event: DepthUpdateEvent, error: BookInvariantError) -> list[LevelChange]:
+        """Fail closed when a depth batch cannot produce a valid book.
+
+        A malformed or crossed batch is not safe to retain as a bridge event:
+        replaying it after a snapshot would recreate the same invalid state.
+        Discard it, clear the book, and require a fresh snapshot plus future
+        contiguous updates before execution can resume.
+        """
+
+        self.gap_count += 1
+        self.begin_resync("invalid_book_update")
+        raise BookSyncGapError(
+            f"Invalid depth update for {self.book.symbol} at u={event.final_update_id}: {error}"
+        ) from error
+
+    def _apply_book_update(self, event: DepthUpdateEvent) -> list[LevelChange]:
+        try:
+            return self.book.apply_depth_update(event.bids, event.asks)
+        except BookInvariantError as exc:
+            return self._invalidate_invalid_update(event, exc)
+
     def _apply(self, event: DepthUpdateEvent) -> list[LevelChange]:
         if self.snapshot_id is None:
             self._buffer_event(event)
@@ -167,10 +188,10 @@ class BookSynchronizer:
                     f"First depth event does not cover snapshot id {self.snapshot_id}: "
                     f"U={event.first_update_id}, u={event.final_update_id}",
                 )
+            changes = self._apply_book_update(event)
             self.synced = True
             self.invalid_reason = None
             self.last_update_id = event.final_update_id
-            changes = self.book.apply_depth_update(event.bids, event.asks)
             self.book.last_update_id = event.final_update_id
             return changes
 
@@ -183,7 +204,7 @@ class BookSynchronizer:
                 f"Gap detected for {self.book.symbol}: expected pu={self.last_update_id}, got pu={event.prev_update_id}",
             )
 
+        changes = self._apply_book_update(event)
         self.last_update_id = event.final_update_id
-        changes = self.book.apply_depth_update(event.bids, event.asks)
         self.book.last_update_id = event.final_update_id
         return changes
