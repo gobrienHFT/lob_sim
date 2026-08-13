@@ -5,7 +5,14 @@ from decimal import Decimal
 
 from lob_sim.book.local_book import LocalOrderBook
 from lob_sim.book.types import AggTradeEvent, LevelChange, SymbolSpec
-from lob_sim.config import Config, fill_assumption_config_for_profile, load_config
+from lob_sim.config import (
+    LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE,
+    SYNTHETIC_QUEUE_AHEAD_MODE,
+    Config,
+    FillAssumptionConfig,
+    fill_assumption_config_for_profile,
+    load_config,
+)
 from lob_sim.sim.fill_model import PassiveFillModel
 from lob_sim.sim.metrics import SimulationMetrics
 from lob_sim.sim.orders import Order
@@ -48,6 +55,17 @@ def _build_config() -> Config:
     for key, value in values.items():
         os.environ.setdefault(key, value)
     return load_config(".env")
+
+
+def test_fill_assumption_manifest_uses_explicit_synthetic_queue_name() -> None:
+    config = FillAssumptionConfig(uncorroborated_depth_reduction_mode=LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE)
+
+    assert config.uncorroborated_depth_reduction_mode == SYNTHETIC_QUEUE_AHEAD_MODE
+    assert config.as_dict()["uncorroborated_depth_reduction_mode"] == SYNTHETIC_QUEUE_AHEAD_MODE
+    assert (
+        fill_assumption_config_for_profile("aggressive").as_dict()["uncorroborated_depth_reduction_mode"]
+        == SYNTHETIC_QUEUE_AHEAD_MODE
+    )
 
 
 def test_fill_model_queue_ahead_consumption_and_fill():

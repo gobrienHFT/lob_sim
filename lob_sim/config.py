@@ -109,7 +109,17 @@ def _parse_symbols(value: str | None) -> Tuple[str, ...]:
 
 DEFAULT_FILL_OVERLAP_WINDOW_SECONDS = 0.125
 FillAssumptionProfile = Literal["conservative", "base", "aggressive"]
-DepthReductionMode = Literal["record_unknown_cancel_like", "consume_fifo_queue"]
+# ``consume_fifo_queue`` was the pre-review spelling of the optimistic public
+# L2 sensitivity. Keep accepting it when constructing a config so older
+# callers remain loadable, but canonicalize every emitted manifest to the
+# explicit non-historical name below.
+SYNTHETIC_QUEUE_AHEAD_MODE = "consume_synthetic_queue_ahead"
+LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE = "consume_fifo_queue"
+DepthReductionMode = Literal[
+    "record_unknown_cancel_like",
+    "consume_synthetic_queue_ahead",
+    "consume_fifo_queue",
+]
 FILL_ASSUMPTION_PROFILES: tuple[FillAssumptionProfile, ...] = ("conservative", "base", "aggressive")
 
 
@@ -120,7 +130,11 @@ class FillAssumptionConfig:
     agg_trades_consume_queue: bool = True
     overlap_netting_enabled: bool = True
     overlap_window_seconds: float = DEFAULT_FILL_OVERLAP_WINDOW_SECONDS
-    uncorroborated_depth_reduction_mode: DepthReductionMode = "consume_fifo_queue"
+    uncorroborated_depth_reduction_mode: DepthReductionMode = SYNTHETIC_QUEUE_AHEAD_MODE
+
+    def __post_init__(self) -> None:
+        if self.uncorroborated_depth_reduction_mode == LEGACY_SYNTHETIC_QUEUE_AHEAD_MODE:
+            object.__setattr__(self, "uncorroborated_depth_reduction_mode", SYNTHETIC_QUEUE_AHEAD_MODE)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -158,7 +172,7 @@ def fill_assumption_config_for_profile(profile: FillAssumptionProfile | str) -> 
             agg_trades_consume_queue=True,
             overlap_netting_enabled=False,
             overlap_window_seconds=0.0,
-            uncorroborated_depth_reduction_mode="consume_fifo_queue",
+            uncorroborated_depth_reduction_mode=SYNTHETIC_QUEUE_AHEAD_MODE,
         )
     return FillAssumptionConfig()
 
@@ -298,7 +312,7 @@ class Config:
             errs.append("Fill-assumption overlap window must be >= 0")
         if self.fill_assumption.uncorroborated_depth_reduction_mode not in {
             "record_unknown_cancel_like",
-            "consume_fifo_queue",
+            SYNTHETIC_QUEUE_AHEAD_MODE,
         }:
             errs.append("Fill-assumption depth reduction mode is invalid")
         for name, value in (
