@@ -202,7 +202,7 @@ def _validate_capture_metadata(
     if capture is None:
         return
     capture_obj = _require_mapping(capture, f"{context}._capture", path=path, line_number=line_number)
-    for key in ("recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"):
+    for key in ("recvSeq", "recvWallNs", "recvMonotonicNs", "streamEpoch", "syncEpoch"):
         if key in capture_obj:
             _require_exact_nonnegative_int(
                 capture_obj[key],

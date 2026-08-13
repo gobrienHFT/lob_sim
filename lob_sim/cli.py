@@ -35,7 +35,13 @@ from .options.demo import (
     options_scenarios,
 )
 from .record.async_writer import BoundedCaptureWriter
-from .record.envelope import EventEnvelope, SCHEMA_V3, require_nonempty_string, require_nonnegative_int
+from .record.envelope import (
+    EventEnvelope,
+    SCHEMA_V3,
+    require_nonempty_string,
+    require_nonnegative_int,
+    require_nonnegative_timestamp_ns,
+)
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.schema import RECORD_SCHEMA_VERSION, validate_record_object
 from .record.segmented import SegmentedCaptureWriter
@@ -180,7 +186,7 @@ class _EnvelopeRecordWriter:
                 event_kind=record.type,
                 route=route,
                 recv_seq=recv_seq,
-                recv_wall_ns=max(0, int(record.ts_local * 1_000_000_000)),
+                recv_wall_ns=require_nonnegative_timestamp_ns(record.ts_local, "ts_local"),
                 recv_monotonic_ns=require_nonnegative_int(
                     capture.get("recvMonotonicNs", time.monotonic_ns()), "recvMonotonicNs"
                 ),

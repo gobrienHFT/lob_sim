@@ -12,7 +12,14 @@ from lob_sim.cli import _EnvelopeRecordWriter, _capture_trailer_record, _write_c
 from lob_sim.config import load_config
 from lob_sim.oracle import Checkpoint, read_checkpoint, state_hash, write_checkpoint
 from lob_sim.oracle_kernel import ScenarioLatencyOracle
-from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, ValidityState, payload_checksum
+from lob_sim.record.envelope import (
+    EventEnvelope,
+    LogicalTime,
+    SCHEMA_V3,
+    ValidityState,
+    payload_checksum,
+    require_nonnegative_timestamp_ns,
+)
 from lob_sim.record.format import NDJSONRecord
 from lob_sim.record.schema import RecordValidationError
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
@@ -116,6 +123,33 @@ def test_envelope_record_writer_rejects_coercible_capture_identity() -> None:
     with pytest.raises(ValueError, match="recvSeq must be an integer"):
         writer.write(record)
     assert written == []
+
+
+@pytest.mark.parametrize("value", [-0.1, float("nan"), float("inf"), 1.0000000001])
+def test_envelope_record_writer_rejects_invalid_wall_clock_timestamp(value: float) -> None:
+    written: list[EventEnvelope] = []
+
+    class Sink:
+        def write(self, envelope: EventEnvelope) -> None:
+            written.append(envelope)
+
+    writer = _EnvelopeRecordWriter(Sink(), "capture-1", iter([2]).__next__)
+    record = NDJSONRecord(
+        ts_local=value,
+        symbol="BTCUSDT",
+        type="captureEvent",
+        data={"event": "connect", "_capture": {"route": "public"}},
+    )
+
+    with pytest.raises(ValueError, match="ts_local"):
+        writer.write(record)
+    assert written == []
+
+
+def test_timestamp_conversion_preserves_exact_nanoseconds() -> None:
+    assert require_nonnegative_timestamp_ns("1.000000001", "ts_local") == 1_000_000_001
+    with pytest.raises(ValueError, match="integer nanosecond"):
+        require_nonnegative_timestamp_ns("1.0000000001", "ts_local")
 
 
 @pytest.mark.parametrize(
@@ -633,6 +667,7 @@ def test_validated_manifest_normalizes_to_bounded_arrow_ipc(
     assert report["records"] == 2
     assert len(report["output_sha256"]) == 64
     assert [row["recv_seq"] for row in rows] == [1, 2]
+    assert [row["recv_wall_ns"] for row in rows] == [1_000_000_001, 1_000_000_002]
     assert all(row["logical_time_source"] == "capture_receive_clock" for row in rows)
     assert arrow_metadata(arrow_path)["causal_order"] == "recv_monotonic_ns,recv_seq"
 
@@ -684,3 +719,25 @@ def test_arrow_row_rejects_partial_receive_clock(field: str) -> None:
 
     with pytest.raises(ValueError, match="provided together"):
         _row(record, 1)
+
+
+def test_arrow_row_uses_exact_envelope_wall_clock_metadata() -> None:
+    record = RecordedEvent(
+        ts_local=1.0000000019,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={
+            "U": 1,
+            "u": 1,
+            "b": [],
+            "a": [],
+            "_capture": {
+                "recvSeq": 1,
+                "recvWallNs": 1_000_000_001,
+                "recvMonotonicNs": 2,
+                "route": "public",
+            },
+        },
+    )
+
+    assert _row(record, 1)["recv_wall_ns"] == 1_000_000_001
