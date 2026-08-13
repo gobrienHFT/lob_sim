@@ -88,6 +88,25 @@ class BookSynchronizer:
             f"U={first.first_update_id}, u={first.final_update_id}"
         )
 
+    def _invalidate_buffered_gap(self, event: DepthUpdateEvent, previous_id: int) -> None:
+        """Discard a pre-snapshot chain that contains a continuity gap."""
+
+        self.gap_count += 1
+        self.begin_resync("gap_in_snapshot_buffer")
+        raise BookSyncGapError(
+            f"Gap in buffered depth for {self.book.symbol}: "
+            f"expected pu={previous_id}, got pu={event.prev_update_id}"
+        )
+
+    def _invalidate_invalid_snapshot(self, snapshot: SnapshotEvent, error: BookInvariantError) -> None:
+        """Fail closed when a REST snapshot cannot seed a valid book."""
+
+        self.gap_count += 1
+        self.begin_resync("invalid_snapshot")
+        raise BookSyncGapError(
+            f"Invalid snapshot for {self.book.symbol} at u={snapshot.last_update_id}: {error}"
+        ) from error
+
     def on_snapshot(self, snapshot: SnapshotEvent) -> list[LevelChange]:
         self._validate_symbol(snapshot.symbol)
         buffered = list(self.buffer)
@@ -103,22 +122,15 @@ class BookSynchronizer:
                 if event.final_update_id <= previous_id:
                     continue
                 if event.prev_update_id != previous_id:
-                    self.gap_count += 1
-                    self.snapshot_id = None
-                    self.synced = False
-                    self.last_update_id = None
-                    self.ready = False
-                    self.invalid_reason = "gap_in_snapshot_buffer"
-                    self.book.clear()
-                    raise BookSyncGapError(
-                        f"Gap in buffered depth for {self.book.symbol}: "
-                        f"expected pu={previous_id}, got pu={event.prev_update_id}"
-                    )
+                    self._invalidate_buffered_gap(event, previous_id)
                 previous_id = event.final_update_id
 
         bids = {tick: qty for tick, qty in snapshot.bids}
         asks = {tick: qty for tick, qty in snapshot.asks}
-        self.book.reset_from_snapshot(snapshot.last_update_id, bids, asks)
+        try:
+            self.book.reset_from_snapshot(snapshot.last_update_id, bids, asks)
+        except BookInvariantError as exc:
+            self._invalidate_invalid_snapshot(snapshot, exc)
         self.snapshot_id = snapshot.last_update_id
         self.last_update_id = None
         self.synced = False

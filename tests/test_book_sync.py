@@ -185,6 +185,100 @@ def test_invalid_buffered_bridge_invalidates_epoch_without_partial_snapshot_stat
     assert not sync.buffer
 
 
+def test_gap_inside_snapshot_buffer_invalidates_epoch_and_discards_buffer() -> None:
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=True)
+
+    sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=90,
+            final_update_id=110,
+            prev_update_id=80,
+            bids=[],
+            asks=[],
+            ts_local=1.0,
+        )
+    )
+    sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=112,
+            final_update_id=120,
+            prev_update_id=109,
+            bids=[],
+            asks=[],
+            ts_local=2.0,
+        )
+    )
+    previous_epoch = sync.epoch
+
+    with pytest.raises(BookSyncGapError, match="Gap in buffered depth"):
+        sync.on_snapshot(
+            SnapshotEvent(
+                symbol="BTCUSDT",
+                last_update_id=100,
+                bids=[(10000, 10)],
+                asks=[(10100, 10)],
+            )
+        )
+
+    assert sync.epoch == previous_epoch + 1
+    assert sync.synced is False
+    assert sync.ready is False
+    assert sync.last_update_id is None
+    assert sync.invalid_reason == "gap_in_snapshot_buffer"
+    assert book.bids == {}
+    assert book.asks == {}
+    assert not sync.buffer
+
+
+def test_invalid_snapshot_invalidates_existing_book_epoch() -> None:
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=True)
+    sync.on_snapshot(
+        SnapshotEvent(
+            symbol="BTCUSDT",
+            last_update_id=100,
+            bids=[(10000, 10)],
+            asks=[(10100, 10)],
+        )
+    )
+    sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=90,
+            final_update_id=110,
+            prev_update_id=80,
+            bids=[],
+            asks=[],
+            ts_local=1.0,
+        )
+    )
+    previous_epoch = sync.epoch
+
+    with pytest.raises(BookSyncGapError, match="Invalid snapshot"):
+        sync.on_snapshot(
+            SnapshotEvent(
+                symbol="BTCUSDT",
+                last_update_id=200,
+                # Equal best levels are rejected as a locked book.
+                bids=[(10100, 1)],
+                asks=[(10100, 1)],
+            )
+        )
+
+    assert sync.epoch == previous_epoch + 1
+    assert sync.synced is False
+    assert sync.ready is False
+    assert sync.last_update_id is None
+    assert sync.invalid_reason == "invalid_snapshot"
+    assert book.bids == {}
+    assert book.asks == {}
+
+
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():
     spec = SymbolSpec(
         symbol="BTCUSDT",
