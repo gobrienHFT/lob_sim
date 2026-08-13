@@ -35,6 +35,7 @@ def _v3_capture(
         ("recvMonotonicNs", 2.0),
         ("streamEpoch", True),
         ("syncEpoch", -1),
+        ("route", ""),
     ],
 )
 def test_validity_tracker_rejects_coercible_schema_v3_metadata(field: str, value: object) -> None:

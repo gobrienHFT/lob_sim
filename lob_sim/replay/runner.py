@@ -287,7 +287,11 @@ class _ReplayValidityTracker:
             self.last_receive_monotonic_ns = monotonic_ns
 
     def _observe_epoch(self, rec: RecordedEvent, capture: dict[str, object], symbol: _MutableSymbolValidity) -> None:
-        raw_route = capture.get("route") or rec.data.get("route") or ""
+        raw_route = capture.get("route")
+        if raw_route is None:
+            raw_route = rec.data.get("route")
+        if raw_route is None:
+            raw_route = ""
         if self.schema_version >= 3 and (not isinstance(raw_route, str) or not raw_route):
             self._invalidate_capture("invalid_capture_metadata:route", rec, capture)
             return
