@@ -512,6 +512,45 @@ def test_schema_v3_records_require_receipt_identity(
     assert engine._capture_invalid_reason == expected_reason
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("recvSeq", 1.5),
+        ("recvMonotonicNs", "100"),
+        ("streamEpoch", 1.5),
+        ("syncEpoch", True),
+        ("route", 1),
+    ],
+)
+def test_schema_v3_capture_identity_rejects_coercible_metadata(
+    field: str, value: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    engine = SimulationEngine(_build_config(monkeypatch, tmp_path))
+    engine._capture_schema_version = 3
+    capture: dict[str, object] = {
+        "recvSeq": 1,
+        "recvMonotonicNs": 100,
+        "route": "public",
+        "streamEpoch": 1,
+        "syncEpoch": 1,
+    }
+    capture[field] = value
+
+    checked = engine._prevalidate_capture_boundary(
+        RecordedEvent(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"_capture": capture},
+        ),
+        1.0,
+    )
+
+    assert checked is True
+    assert engine._capture_valid is False
+    assert engine._capture_invalid_reason == f"invalid_capture_metadata:{field}"
+
+
 def test_schema_v3_receipt_monotonic_regression_invalidates_clock_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

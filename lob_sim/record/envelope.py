@@ -15,7 +15,7 @@ from typing import Any, Mapping
 SCHEMA_V3 = "lob_sim.record.v3"
 
 
-def _require_nonnegative_int(value: object, field_name: str) -> int:
+def require_nonnegative_int(value: object, field_name: str) -> int:
     """Validate an exact non-negative JSON integer.
 
     Receipt identity is part of the causal key.  Coercing ``1.5`` to ``1`` or
@@ -30,10 +30,10 @@ def _require_nonnegative_int(value: object, field_name: str) -> int:
     return value
 
 
-def _optional_nonnegative_int(value: object, field_name: str) -> int | None:
+def optional_nonnegative_int(value: object, field_name: str) -> int | None:
     if value is None:
         return None
-    return _require_nonnegative_int(value, field_name)
+    return require_nonnegative_int(value, field_name)
 
 
 def _crc32c(data: bytes) -> int:
@@ -62,8 +62,8 @@ class LogicalTime:
     recv_seq: int
 
     def __post_init__(self) -> None:
-        _require_nonnegative_int(self.recv_monotonic_ns, "recv_monotonic_ns")
-        _require_nonnegative_int(self.recv_seq, "recv_seq")
+        require_nonnegative_int(self.recv_monotonic_ns, "recv_monotonic_ns")
+        require_nonnegative_int(self.recv_seq, "recv_seq")
 
 
 @dataclass(frozen=True)
@@ -125,15 +125,15 @@ class EventEnvelope:
             raise ValueError("event_kind and route must be non-empty")
         if not isinstance(self.payload, Mapping):
             raise ValueError("payload must be a mapping")
-        _require_nonnegative_int(self.recv_seq, "recv_seq")
-        _require_nonnegative_int(self.recv_wall_ns, "recv_wall_ns")
-        _require_nonnegative_int(self.recv_monotonic_ns, "recv_monotonic_ns")
-        _require_nonnegative_int(self.stream_epoch, "stream_epoch")
-        _require_nonnegative_int(self.sync_epoch, "sync_epoch")
+        require_nonnegative_int(self.recv_seq, "recv_seq")
+        require_nonnegative_int(self.recv_wall_ns, "recv_wall_ns")
+        require_nonnegative_int(self.recv_monotonic_ns, "recv_monotonic_ns")
+        require_nonnegative_int(self.stream_epoch, "stream_epoch")
+        require_nonnegative_int(self.sync_epoch, "sync_epoch")
         if self.exchange_event_ns is not None:
-            _require_nonnegative_int(self.exchange_event_ns, "exchange_event_ns")
+            require_nonnegative_int(self.exchange_event_ns, "exchange_event_ns")
         if self.exchange_transaction_ns is not None:
-            _require_nonnegative_int(self.exchange_transaction_ns, "exchange_transaction_ns")
+            require_nonnegative_int(self.exchange_transaction_ns, "exchange_transaction_ns")
         if self.raw_payload_checksum is None:
             object.__setattr__(self, "raw_payload_checksum", payload_checksum(self.payload))
         elif not self.raw_payload_checksum:
@@ -175,16 +175,16 @@ class EventEnvelope:
             instrument=str(value["instrument"]),
             event_kind=str(value["event_kind"]),
             route=str(value["route"]),
-            recv_seq=_require_nonnegative_int(value["recv_seq"], "recv_seq"),
-            recv_wall_ns=_require_nonnegative_int(value["recv_wall_ns"], "recv_wall_ns"),
-            recv_monotonic_ns=_require_nonnegative_int(value["recv_monotonic_ns"], "recv_monotonic_ns"),
+            recv_seq=require_nonnegative_int(value["recv_seq"], "recv_seq"),
+            recv_wall_ns=require_nonnegative_int(value["recv_wall_ns"], "recv_wall_ns"),
+            recv_monotonic_ns=require_nonnegative_int(value["recv_monotonic_ns"], "recv_monotonic_ns"),
             payload=value["payload"],
-            exchange_event_ns=_optional_nonnegative_int(value.get("exchange_event_ns"), "exchange_event_ns"),
-            exchange_transaction_ns=_optional_nonnegative_int(
+            exchange_event_ns=optional_nonnegative_int(value.get("exchange_event_ns"), "exchange_event_ns"),
+            exchange_transaction_ns=optional_nonnegative_int(
                 value.get("exchange_transaction_ns"), "exchange_transaction_ns"
             ),
-            stream_epoch=_require_nonnegative_int(value.get("stream_epoch", 0), "stream_epoch"),
-            sync_epoch=_require_nonnegative_int(value.get("sync_epoch", 0), "sync_epoch"),
+            stream_epoch=require_nonnegative_int(value.get("stream_epoch", 0), "stream_epoch"),
+            sync_epoch=require_nonnegative_int(value.get("sync_epoch", 0), "sync_epoch"),
             raw_payload_checksum=(
                 str(value["raw_payload_checksum"]) if value.get("raw_payload_checksum") is not None else None
             ),

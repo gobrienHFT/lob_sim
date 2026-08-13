@@ -35,7 +35,7 @@ from .options.demo import (
     options_scenarios,
 )
 from .record.async_writer import BoundedCaptureWriter
-from .record.envelope import EventEnvelope, SCHEMA_V3
+from .record.envelope import EventEnvelope, SCHEMA_V3, require_nonnegative_int
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.schema import RECORD_SCHEMA_VERSION, validate_record_object
 from .record.segmented import SegmentedCaptureWriter
@@ -162,7 +162,11 @@ class _EnvelopeRecordWriter:
             }
         else:
             capture = {}
-        recv_seq = int(capture["recvSeq"]) if capture.get("recvSeq") is not None else self.next_receive_seq()
+        recv_seq = (
+            require_nonnegative_int(capture["recvSeq"], "recvSeq")
+            if capture.get("recvSeq") is not None
+            else self.next_receive_seq()
+        )
         event_ms = record.data.get("E")
         transaction_ms = record.data.get("T")
         self.writer.write(
@@ -175,11 +179,13 @@ class _EnvelopeRecordWriter:
                 route=str(capture.get("route", "control")),
                 recv_seq=recv_seq,
                 recv_wall_ns=max(0, int(record.ts_local * 1_000_000_000)),
-                recv_monotonic_ns=int(capture.get("recvMonotonicNs", time.monotonic_ns())),
+                recv_monotonic_ns=require_nonnegative_int(
+                    capture.get("recvMonotonicNs", time.monotonic_ns()), "recvMonotonicNs"
+                ),
                 exchange_event_ns=int(event_ms) * 1_000_000 if event_ms is not None else None,
                 exchange_transaction_ns=(int(transaction_ms) * 1_000_000 if transaction_ms is not None else None),
-                stream_epoch=int(capture.get("streamEpoch", 0)),
-                sync_epoch=int(capture.get("syncEpoch", 0)),
+                stream_epoch=require_nonnegative_int(capture.get("streamEpoch", 0), "streamEpoch"),
+                sync_epoch=require_nonnegative_int(capture.get("syncEpoch", 0), "syncEpoch"),
                 payload=record.data,
             )
         )

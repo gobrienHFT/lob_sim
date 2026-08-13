@@ -37,6 +37,29 @@ def test_parse_agg_trade_accepts_raw_trade_payload() -> None:
     assert event.ts_local == 1780500088.697
 
 
+@pytest.mark.parametrize("field", ["recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"])
+def test_parse_agg_trade_rejects_non_integral_capture_identity(field: str) -> None:
+    spec = SymbolSpec(symbol="BTCUSDT", tick_size=Decimal("0.10"), step_size=Decimal("0.001"))
+    payload = {
+        "e": "aggTrade",
+        "E": 1780500088697,
+        "T": 1780500088697,
+        "p": "66240.10",
+        "q": "0.061",
+        "m": False,
+        "_capture": {
+            "recvSeq": 1,
+            "recvMonotonicNs": 2,
+            "streamEpoch": 1,
+            "syncEpoch": 1,
+        },
+    }
+    payload["_capture"][field] = 1.5
+
+    with pytest.raises(ValueError, match=f"{field} must be an integer"):
+        parse_agg_trade("BTCUSDT", spec, payload)
+
+
 class _SocketContext:
     def __init__(self, socket: object) -> None:
         self.socket = socket

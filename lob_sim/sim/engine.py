@@ -14,7 +14,7 @@ from ..book.local_book import BookInvariantError, LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import DepthUpdateEvent, SymbolSpec
 from ..config import Config
-from ..record.envelope import ValidityState
+from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
 from ..replay.inspection import file_sha256
@@ -166,8 +166,16 @@ class SimulationEngine:
     @staticmethod
     def _record_has_receive_clock(rec: RecordedEvent) -> bool:
         capture = rec.data.get("_capture")
-        return isinstance(capture, dict) and all(
-            capture.get(field) is not None for field in ("recvSeq", "recvMonotonicNs", "route")
+        if not isinstance(capture, dict):
+            return False
+        route = capture.get("route")
+        return (
+            type(capture.get("recvSeq")) is int
+            and capture["recvSeq"] >= 0
+            and type(capture.get("recvMonotonicNs")) is int
+            and capture["recvMonotonicNs"] >= 0
+            and isinstance(route, str)
+            and bool(route)
         )
 
     @staticmethod
@@ -505,13 +513,23 @@ class SimulationEngine:
             self._invalidate_capture(now, "missing_capture_metadata:" + ",".join(missing_fields))
             return True
 
+        route = capture.get("route")
+        if not isinstance(route, str) or not route:
+            self._invalidate_capture(now, "invalid_capture_metadata:route")
+            return True
+        for metadata_field in ("recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"):
+            if metadata_field not in capture or capture.get(metadata_field) is None:
+                continue
+            try:
+                require_nonnegative_int(capture[metadata_field], metadata_field)
+            except ValueError:
+                self._invalidate_capture(now, f"invalid_capture_metadata:{metadata_field}")
+                return True
+
         recv_seq = capture.get("recvSeq")
         try:
-            seq = int(str(recv_seq))
-        except (TypeError, ValueError):
-            self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
-            return True
-        if seq < 0:
+            seq = require_nonnegative_int(recv_seq, "recvSeq")
+        except ValueError:
             self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
             return True
         if self._last_receive_seq is not None and seq <= self._last_receive_seq:
@@ -523,11 +541,8 @@ class SimulationEngine:
 
         raw_monotonic_ns = capture.get("recvMonotonicNs")
         try:
-            monotonic_ns = int(str(raw_monotonic_ns))
-        except (TypeError, ValueError):
-            self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
-            return True
-        if monotonic_ns < 0:
+            monotonic_ns = require_nonnegative_int(raw_monotonic_ns, "recvMonotonicNs")
+        except ValueError:
             self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
             return True
         previous_monotonic_ns = self._last_receive_monotonic_ns
@@ -572,11 +587,8 @@ class SimulationEngine:
         recv_seq = capture.get("recvSeq")
         if recv_seq is not None and not receipt_checked:
             try:
-                seq = int(str(recv_seq))
-            except (TypeError, ValueError):
-                self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
-                return
-            if seq < 0:
+                seq = require_nonnegative_int(recv_seq, "recvSeq")
+            except ValueError:
                 self._invalidate_capture(now, "invalid_capture_metadata:recvSeq")
                 return
             if self._last_receive_seq is not None and seq <= self._last_receive_seq:
@@ -589,11 +601,8 @@ class SimulationEngine:
             raw_monotonic_ns = capture.get("recvMonotonicNs")
             if raw_monotonic_ns is not None:
                 try:
-                    monotonic_ns = int(str(raw_monotonic_ns))
-                except (TypeError, ValueError):
-                    self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
-                    return
-                if monotonic_ns < 0:
+                    monotonic_ns = require_nonnegative_int(raw_monotonic_ns, "recvMonotonicNs")
+                except ValueError:
                     self._invalidate_capture(now, "invalid_capture_metadata:recvMonotonicNs")
                     return
                 previous_monotonic_ns = self._last_receive_monotonic_ns
@@ -608,7 +617,11 @@ class SimulationEngine:
                     )
                 if previous_monotonic_ns is None or monotonic_ns >= previous_monotonic_ns:
                     self._last_receive_monotonic_ns = monotonic_ns
-        route = str(capture.get("route", ""))
+        route_value = capture.get("route", "")
+        if self._capture_schema_version >= 3 and (not isinstance(route_value, str) or not route_value):
+            self._invalidate_capture(now, "invalid_capture_metadata:route")
+            return
+        route = route_value if isinstance(route_value, str) else str(route_value)
         event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
         failure_reason = str(
             rec.data.get("validationError")
@@ -626,9 +639,20 @@ class SimulationEngine:
         epoch_changed = False
         if stream_epoch is not None:
             key = (rec.symbol, route)
-            epoch = int(stream_epoch)
-            if epoch < 0:
-                raise ValueError(f"negative stream epoch for {rec.symbol}:{route}: {epoch}")
+            if self._capture_schema_version >= 3:
+                try:
+                    epoch = require_nonnegative_int(stream_epoch, "streamEpoch")
+                except ValueError:
+                    self._invalidate_capture(now, "invalid_capture_metadata:streamEpoch")
+                    return
+            else:
+                try:
+                    epoch = int(stream_epoch)
+                except (TypeError, ValueError):
+                    self._invalidate_capture(now, "invalid_capture_metadata:streamEpoch")
+                    return
+                if epoch < 0:
+                    raise ValueError(f"negative stream epoch for {rec.symbol}:{route}: {epoch}")
             previous = self._stream_epochs.get(key)
             if previous is not None and epoch < previous:
                 raise ValueError(f"regressing stream epoch for {rec.symbol}:{route}: {epoch} after {previous}")
@@ -640,9 +664,20 @@ class SimulationEngine:
         capture_sync_epoch = capture.get("syncEpoch")
         capture_sync_changed = False
         if route == "public" and capture_sync_epoch is not None:
-            sync_epoch = int(capture_sync_epoch)
-            if sync_epoch < 0:
-                raise ValueError(f"negative sync epoch for {rec.symbol}: {sync_epoch}")
+            if self._capture_schema_version >= 3:
+                try:
+                    sync_epoch = require_nonnegative_int(capture_sync_epoch, "syncEpoch")
+                except ValueError:
+                    self._invalidate_capture(now, "invalid_capture_metadata:syncEpoch")
+                    return
+            else:
+                try:
+                    sync_epoch = int(capture_sync_epoch)
+                except (TypeError, ValueError):
+                    self._invalidate_capture(now, "invalid_capture_metadata:syncEpoch")
+                    return
+                if sync_epoch < 0:
+                    raise ValueError(f"negative sync epoch for {rec.symbol}: {sync_epoch}")
             previous_sync = self._capture_sync_epochs.get(rec.symbol)
             if previous_sync is not None and sync_epoch < previous_sync:
                 raise ValueError(f"regressing sync epoch for {rec.symbol}: {sync_epoch} after {previous_sync}")
