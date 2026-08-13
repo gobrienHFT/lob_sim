@@ -128,7 +128,8 @@ python experiments/run_fill_assumption_envelope.py --file docs/sample_outputs/fu
 - CSV: [`futures_overlap_sensitivity/futures_overlap_sensitivity.csv`](futures_overlap_sensitivity/futures_overlap_sensitivity.csv)
 - Report: [`futures_overlap_sensitivity/futures_overlap_sensitivity.md`](futures_overlap_sensitivity/futures_overlap_sensitivity.md)
 
-Public L2 cannot prove private fills. The selected signal is mutually exclusive and the diagnostic is not claim-ready.
+Public L2 cannot prove private fills. The `trade` and `depth` signals are
+mutually exclusive rows in a six-scenario diagnostic, which is not claim-ready.
 
 Regenerate with:
 

@@ -8,7 +8,7 @@ Fast reviewer links:
 - [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
 - [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
 - [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
-- [Overlap-Reconciliation Sensitivity](docs/futures_overlap_sensitivity.md): deterministic 0/125/250 ms corroboration diagnostic, explicitly not private-fill evidence.
+- [Overlap-Reconciliation Sensitivity](docs/futures_overlap_sensitivity.md): deterministic trade/depth × 0/125/250 ms corroboration matrix, explicitly not private-fill evidence.
 - [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
 - [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
 - [Schema-v3 Validity Fixtures](docs/sample_outputs/futures_schema_v3_case/README.md): one clean claim-ready tape and one adversarial fail-closed tape.

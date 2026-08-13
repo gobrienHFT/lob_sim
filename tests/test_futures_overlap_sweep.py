@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 from experiments.sweep_futures_overlap import (
+    DEFAULT_FILL_MODELS,
     DEFAULT_OVERLAP_WINDOWS_MS,
+    _parse_fill_models,
     _parse_windows,
     run_overlap_sweep,
     write_overlap_outputs,
@@ -67,6 +69,20 @@ def _write_replay(path: Path) -> Path:
             type="depthUpdate",
             data={"U": 106, "u": 106, "pu": 105, "b": [["100.0", "0.008"]], "a": []},
         ),
+        # A second pair runs in the opposite arrival order so the depth-only
+        # signal also exercises the overlap window.
+        NDJSONRecord(
+            ts_local=4.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 107, "u": 107, "pu": 106, "b": [], "a": [["100.1", "0.008"]]},
+        ),
+        NDJSONRecord(
+            ts_local=4.05,
+            symbol="BTCUSDT",
+            type="aggTrade",
+            data={"p": "100.1", "q": "0.002", "m": False},
+        ),
     ]
     path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
     return path
@@ -80,6 +96,14 @@ def test_parse_windows_requires_unique_nonnegative_integer_ms() -> None:
         _parse_windows("125,125")
 
 
+def test_parse_fill_models_requires_known_unique_signals() -> None:
+    assert _parse_fill_models("trade, depth") == DEFAULT_FILL_MODELS
+    with pytest.raises(ValueError, match="trade or depth"):
+        _parse_fill_models("trade,other")
+    with pytest.raises(ValueError, match="unique"):
+        _parse_fill_models("depth,depth")
+
+
 def test_overlap_sweep_is_frozen_and_window_changes_corroboration(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -90,20 +114,28 @@ def test_overlap_sweep_is_frozen_and_window_changes_corroboration(
     first = run_overlap_sweep(replay_path, ".env.example")
     second = run_overlap_sweep(replay_path, ".env.example")
 
-    assert first["schema_version"] == "lob_sim.futures_overlap_sensitivity.v1"
+    assert first["schema_version"] == "lob_sim.futures_overlap_sensitivity.v2"
+    assert first["fill_models"] == ["trade", "depth"]
     assert first["windows_ms"] == [0, 125, 250]
     assert first["audit"]["ok"] is True
     assert first["research_registry"]["frozen"] is True
     assert first["research_registry"] == second["research_registry"]
     assert [row["state_sha256"] for row in first["runs"]] == [row["state_sha256"] for row in second["runs"]]
 
-    rows = {row["overlap_window_ms"]: row for row in first["runs"]}
-    assert rows[0]["uncorroborated_depth_reduction_lots"] == 2
-    assert rows[125]["corroborated_depth_reduction_lots"] == 2
-    assert rows[250]["corroborated_depth_reduction_lots"] == 2
-    assert rows[0]["public_consumption_totals"]["total_overlap_netted_lots"] == 0
-    assert rows[125]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
-    assert rows[250]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
+    rows = {(row["fill_model"], row["overlap_window_ms"]): row for row in first["runs"]}
+    assert len(first["runs"]) == 6
+    assert rows[("trade", 0)]["uncorroborated_depth_reduction_lots"] == 4
+    assert rows[("trade", 125)]["corroborated_depth_reduction_lots"] == 2
+    assert rows[("trade", 250)]["corroborated_depth_reduction_lots"] == 2
+    assert rows[("trade", 125)]["uncorroborated_depth_reduction_lots"] == 2
+    assert rows[("trade", 250)]["uncorroborated_depth_reduction_lots"] == 2
+    assert rows[("trade", 0)]["public_consumption_totals"]["total_overlap_netted_lots"] == 0
+    assert rows[("trade", 125)]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
+    assert rows[("trade", 250)]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
+    assert rows[("depth", 0)]["public_consumption_totals"]["total_overlap_netted_lots"] == 0
+    assert rows[("depth", 125)]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
+    assert rows[("depth", 250)]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
+    assert all(row["scenario_id"].startswith("public_l2:profile=base:signal=") for row in first["runs"])
     assert all(row["execution_claim_ready"] is False for row in first["runs"])
 
     outputs = write_overlap_outputs(first, tmp_path / "out")

@@ -351,6 +351,7 @@ class PassiveFillModel:
         observed_lots: int,
         modeled_lots: int,
         queue_consumed_lots: int,
+        overlap_netted_lots: int | None = None,
     ) -> None:
         stats = self._public_consumption_stats.get(source)
         if stats is None:
@@ -360,7 +361,8 @@ class PassiveFillModel:
         queue_consumed = min(modeled, max(0, queue_consumed_lots))
         stats["observed_lots"] += observed
         stats["modeled_lots"] += modeled
-        stats["overlap_netted_lots"] += max(0, observed - modeled)
+        overlap_netted = observed - modeled if overlap_netted_lots is None else overlap_netted_lots
+        stats["overlap_netted_lots"] += min(observed, max(0, overlap_netted))
         stats["queue_consumed_lots"] += queue_consumed
         stats["unmatched_lots"] += max(0, modeled - queue_consumed)
 
@@ -374,10 +376,12 @@ class PassiveFillModel:
         observed_lots: int,
         modeled_lots: int,
         queue_consumed_lots: int,
+        overlap_netted_lots: int | None = None,
     ) -> None:
         observed = max(0, observed_lots)
         modeled = max(0, modeled_lots)
         queue_consumed = min(modeled, max(0, queue_consumed_lots))
+        overlap_netted = observed - modeled if overlap_netted_lots is None else overlap_netted_lots
         self._public_consumption_events.append(
             PublicConsumptionEvent(
                 ts_local=ts_local,
@@ -387,7 +391,7 @@ class PassiveFillModel:
                 source=source,
                 observed_lots=observed,
                 modeled_lots=modeled,
-                overlap_netted_lots=max(0, observed - modeled),
+                overlap_netted_lots=min(observed, max(0, overlap_netted)),
                 queue_consumed_lots=queue_consumed,
                 unmatched_lots=max(0, modeled - queue_consumed),
                 fill_assumption_profile=self.fill_assumption.profile,
@@ -838,7 +842,13 @@ class PassiveFillModel:
                         0,
                         lots_to_consume,
                     )
-                    self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
+                    self._record_public_consumption_stats(
+                        "depth_update",
+                        dec,
+                        lots_to_consume,
+                        0,
+                        overlap_netted_lots=dec - lots_to_consume,
+                    )
                     self._record_public_consumption_event(
                         symbol=symbol,
                         side=side,
@@ -848,6 +858,7 @@ class PassiveFillModel:
                         observed_lots=dec,
                         modeled_lots=lots_to_consume,
                         queue_consumed_lots=0,
+                        overlap_netted_lots=dec - lots_to_consume,
                     )
                     continue
                 self._record_public_consumption_credit(
@@ -860,7 +871,13 @@ class PassiveFillModel:
                     logical_time_ns=logical_time_ns,
                 )
                 if lots_to_consume <= 0:
-                    self._record_public_consumption_stats("depth_update", dec, lots_to_consume, 0)
+                    self._record_public_consumption_stats(
+                        "depth_update",
+                        dec,
+                        lots_to_consume,
+                        0,
+                        overlap_netted_lots=dec - lots_to_consume,
+                    )
                     self._record_public_consumption_event(
                         symbol=symbol,
                         side=side,
@@ -870,6 +887,7 @@ class PassiveFillModel:
                         observed_lots=dec,
                         modeled_lots=lots_to_consume,
                         queue_consumed_lots=0,
+                        overlap_netted_lots=dec - lots_to_consume,
                     )
                     continue
                 level_fills, queue_consumed_lots = self._consume_level(
@@ -888,6 +906,7 @@ class PassiveFillModel:
                     dec,
                     lots_to_consume,
                     queue_consumed_lots,
+                    overlap_netted_lots=dec - lots_to_consume,
                 )
                 self._record_public_consumption_event(
                     symbol=symbol,
@@ -898,6 +917,7 @@ class PassiveFillModel:
                     observed_lots=dec,
                     modeled_lots=lots_to_consume,
                     queue_consumed_lots=queue_consumed_lots,
+                    overlap_netted_lots=dec - lots_to_consume,
                 )
                 fills.extend(level_fills)
             elif change.new_lots > change.previous_lots:
@@ -921,7 +941,23 @@ class PassiveFillModel:
     ) -> list[Fill]:
         side = "bid" if trade.buyer_is_maker else "ask"
         if not self.fill_assumption.agg_trades_consume_queue:
-            self._record_public_consumption_stats("agg_trade", trade.qty_lots, 0, 0)
+            lots_to_reconcile = self._net_recent_public_consumption(
+                symbol=trade.symbol,
+                side=side,
+                price_tick=trade.price_tick,
+                lots=trade.qty_lots,
+                ts_local=ts_local,
+                source="agg_trade",
+                logical_time_ns=logical_time_ns,
+            )
+            overlap_netted_lots = trade.qty_lots - lots_to_reconcile
+            self._record_public_consumption_stats(
+                "agg_trade",
+                trade.qty_lots,
+                0,
+                0,
+                overlap_netted_lots=overlap_netted_lots,
+            )
             self._record_public_consumption_event(
                 symbol=trade.symbol,
                 side=side,
@@ -931,6 +967,7 @@ class PassiveFillModel:
                 observed_lots=trade.qty_lots,
                 modeled_lots=0,
                 queue_consumed_lots=0,
+                overlap_netted_lots=overlap_netted_lots,
             )
             return []
         lots_to_consume = self._net_recent_public_consumption(
@@ -952,7 +989,13 @@ class PassiveFillModel:
             logical_time_ns=logical_time_ns,
         )
         if lots_to_consume <= 0:
-            self._record_public_consumption_stats("agg_trade", trade.qty_lots, lots_to_consume, 0)
+            self._record_public_consumption_stats(
+                "agg_trade",
+                trade.qty_lots,
+                lots_to_consume,
+                0,
+                overlap_netted_lots=trade.qty_lots - lots_to_consume,
+            )
             self._record_public_consumption_event(
                 symbol=trade.symbol,
                 side=side,
@@ -962,6 +1005,7 @@ class PassiveFillModel:
                 observed_lots=trade.qty_lots,
                 modeled_lots=lots_to_consume,
                 queue_consumed_lots=0,
+                overlap_netted_lots=trade.qty_lots - lots_to_consume,
             )
             return []
         fills, queue_consumed_lots = self._consume_level(
@@ -980,6 +1024,7 @@ class PassiveFillModel:
             trade.qty_lots,
             lots_to_consume,
             queue_consumed_lots,
+            overlap_netted_lots=trade.qty_lots - lots_to_consume,
         )
         self._record_public_consumption_event(
             symbol=trade.symbol,
@@ -990,5 +1035,6 @@ class PassiveFillModel:
             observed_lots=trade.qty_lots,
             modeled_lots=lots_to_consume,
             queue_consumed_lots=queue_consumed_lots,
+            overlap_netted_lots=trade.qty_lots - lots_to_consume,
         )
         return fills
