@@ -52,9 +52,11 @@ The microstructure gate is intentionally simple:
 ## Reference Comparison
 
 - Reproducible reference: [docs/strategy_results/futures_strategy_profile_reference.md](strategy_results/futures_strategy_profile_reference.md)
+- Frozen registry: [docs/strategy_results/futures_strategy_profile_reference_registry.json](strategy_results/futures_strategy_profile_reference_registry.json)
 - Committed input: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
 - Refresh command: `python scripts/refresh_futures_strategy_profile_reference.py`
 - Default candidate in the reference doc: `research_mm`
+- The comparison registers baseline and candidate configurations before either simulation starts. The Markdown report publishes the registry SHA and the sidecar stores each normalized configuration and row binding.
 - The committed clip is short, so the comparison is useful for inspecting profile behavior, not for claiming dramatic performance separation.
 
 ## Parameter Sweep Tool

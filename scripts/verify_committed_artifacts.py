@@ -41,6 +41,7 @@ FUTURES_BENCHMARK_REFERENCE = BENCHMARK_RESULTS_DIR / "futures_replay_reference.
 FUTURES_BENCHMARK_REFERENCE_JSON = BENCHMARK_RESULTS_DIR / "futures_replay_reference.json"
 FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
+FUTURES_STRATEGY_REGISTRY = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference_registry.json"
 FUTURES_PARAMETER_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.csv"
 FUTURES_PARAMETER_SWEEP_REGISTRY = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference_registry.json"
@@ -3102,6 +3103,8 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(f"Missing futures strategy profile doc: {_repo_relative(FUTURES_STRATEGY_PROFILES)}")
     if not FUTURES_STRATEGY_REFERENCE.exists():
         issues.append(f"Missing futures strategy reference doc: {_repo_relative(FUTURES_STRATEGY_REFERENCE)}")
+    if not FUTURES_STRATEGY_REGISTRY.exists():
+        issues.append(f"Missing futures strategy registry sidecar: {_repo_relative(FUTURES_STRATEGY_REGISTRY)}")
     if not FUTURES_STRATEGY_REFRESH.exists():
         issues.append(f"Missing futures strategy refresh script: {_repo_relative(FUTURES_STRATEGY_REFRESH)}")
     if not FUTURES_PARAMETER_SWEEP_REFERENCE.exists():
@@ -3158,6 +3161,74 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md must include the research_mm profile"
         )
+    if "Frozen research registry SHA-256" not in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md is missing frozen registry provenance"
+        )
+    if "futures_strategy_profile_reference_registry.json" not in reference:
+        issues.append(
+            "docs/strategy_results/futures_strategy_profile_reference.md is missing the registry sidecar link"
+        )
+
+    if FUTURES_STRATEGY_REGISTRY.exists():
+        try:
+            registry_payload = json.loads(_read_text(FUTURES_STRATEGY_REGISTRY))
+        except json.JSONDecodeError as exc:
+            issues.append(f"futures strategy registry sidecar is not valid JSON: {exc}")
+        else:
+            if not isinstance(registry_payload, dict):
+                issues.append("futures strategy registry sidecar must contain an object")
+            else:
+                rows = registry_payload.get("rows")
+                if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+                    issues.append("futures strategy registry sidecar must contain comparison rows")
+                else:
+                    row_records = [
+                        {
+                            "strategy_profile": str(row.get("strategy_profile", "")),
+                            "registry_variant_id": str(row.get("registry_variant_id", "")),
+                        }
+                        for row in rows
+                    ]
+                    issues.extend(
+                        _verify_study_registry_sidecar(
+                            FUTURES_STRATEGY_REGISTRY,
+                            expected_schema="lob_sim.futures_strategy_profile_registry.v1",
+                            expected_study_type="futures_strategy_profile_comparison",
+                            rows=row_records,
+                            label="futures strategy profile comparison",
+                        )
+                    )
+                    registry = registry_payload.get("research_registry")
+                    variants = registry.get("variants", []) if isinstance(registry, dict) else []
+                    by_id = {
+                        str(variant.get("variant_id")): variant
+                        for variant in variants
+                        if isinstance(variant, dict) and variant.get("variant_id")
+                    }
+                    for row in row_records:
+                        variant = by_id.get(row["registry_variant_id"])
+                        config = variant.get("config", {}) if isinstance(variant, dict) else {}
+                        if not isinstance(config, dict) or config.get("strategy_profile") != row["strategy_profile"]:
+                            issues.append(
+                                "futures strategy profile registry row is not bound to its registered configuration"
+                            )
+                    if {row["strategy_profile"] for row in row_records} != {"baseline", "research_mm"}:
+                        issues.append("futures strategy profile registry must publish baseline and research_mm rows")
+                    source = registry_payload.get("source")
+                    if not isinstance(source, dict) or source.get("git_dirty") is not False:
+                        issues.append("futures strategy profile registry must be refreshed from a clean source tree")
+                    input_file = registry_payload.get("input_file")
+                    if not isinstance(input_file, str) or not input_file:
+                        issues.append("futures strategy profile registry is missing input_file provenance")
+                    else:
+                        input_path = Path(input_file)
+                        if not input_path.is_absolute():
+                            input_path = REPO_ROOT / input_path
+                        if not input_path.exists():
+                            issues.append("futures strategy profile registry input_file does not exist")
+                        elif registry_payload.get("input_sha256") != _file_sha256(input_path):
+                            issues.append("futures strategy profile registry input SHA-256 is stale")
 
     if FUTURES_PARAMETER_SWEEP_REFERENCE.exists() and FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists():
         sweep_doc = _read_text(FUTURES_PARAMETER_SWEEP_REFERENCE)

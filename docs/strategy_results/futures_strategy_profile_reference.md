@@ -2,6 +2,13 @@
 
 - Compared profiles: `baseline` vs `research_mm`
 - Committed input: `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson`
+- Input SHA-256: `e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26`
+- Config digest: `2f43f17299bcdc1226c8a0d2faf2db33aa073ca969484a86300ec239b7aca811`
+- Feed adapter: `binance_usdm` (`BINANCE_USDM`)
+- Frozen research registry SHA-256: `6010c87eb60d5dcd6d8ce02577f243d4093007d1c35a46e12d19c17702b03f30`
+- Registry sidecar: `futures_strategy_profile_reference_registry.json`
+- Git commit at run time: `fa1cf7690a0be8b9f0f4a51ce75a0f9d5d6f4b8`
+- Git dirty at run time: `False`
 - Input note: this committed recorded clip is short, so the comparison is intentionally modest.
 - Refresh command:
 
