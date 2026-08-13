@@ -137,6 +137,8 @@ def test_overlap_sweep_is_frozen_and_window_changes_corroboration(
     assert rows[("depth", 250)]["public_consumption_totals"]["total_overlap_netted_lots"] == 2
     assert all(row["scenario_id"].startswith("public_l2:profile=base:signal=") for row in first["runs"])
     assert all(row["execution_claim_ready"] is False for row in first["runs"])
+    assert all(row["memory_bounded_by_tape_duration"] is True for row in first["runs"])
+    assert first["interpretation"]["memory_bounded_by_tape_duration"] is True
 
     outputs = write_overlap_outputs(first, tmp_path / "out")
     assert set(outputs) == {"json", "csv", "markdown", "registry"}

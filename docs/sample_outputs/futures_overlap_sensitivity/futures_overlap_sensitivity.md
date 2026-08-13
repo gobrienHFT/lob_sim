@@ -15,6 +15,7 @@ python scripts/refresh_futures_overlap_sensitivity.py
 
 Public L2 cannot prove private fills. This is a local corroboration diagnostic, not a private FIFO or execution-truth claim.
 Trade-only and depth-only signals are run separately; the window only controls whether the other public feed is treated as corroborating evidence.
+The sweep uses aggregate-only metrics with event and audit rows disabled in memory; use bounded streaming export when individual audit rows are required.
 The study is intentionally non-economic (`MM_ENABLED=0`) and is not claim-ready even if the input has no detected gap.
 
 | Signal | Scenario ID | Window ms | Fills | Total PnL | Fees | Overlap-netted lots | Corroborated depth lots | Uncorroborated depth lots | State SHA-256 |
