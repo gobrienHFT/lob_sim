@@ -6,6 +6,10 @@ Python oracle and the Rust kernel over:
 
 - 10,000 logical-time cases;
 - 10,000 generated atomic fixed-point book batches, including invalid batches;
+- 10,000 generated restricted single-price public-L2 trade-consumption
+  operations covering place, cancel, epoch invalidation, queue-ahead depletion,
+  partial fills, unmatched public lots, invalid requests, and periodic state
+  hashes;
 - 10,000 generated exact-synthetic MBO operations (6,633 new, 1,895 cancel,
   and 1,472 replace);
 - 10,000 generated scheduler operations covering strict/inclusive drains,
@@ -41,9 +45,12 @@ The reviewer gate passes the same file through `--expected`, so behavioral or
 corpus drift fails until the evidence is reviewed and intentionally refreshed.
 
 This report keeps `full_engine_parity=false`. It does not compare the public-L2
-scenario venue, the engine-integrated latency path, engine-integrated
-portfolio-notional risk, engine-integrated accounting/markouts, or run
-manifests, and it does not claim historical Binance FIFO. Scheduler,
+scenario venue beyond this restricted single-price trade queue boundary, the
+engine-integrated latency path, engine-integrated portfolio-notional risk,
+engine-integrated accounting/markouts, or run manifests, and it does not claim
+historical Binance FIFO. The public queue slice is deliberately a
+single-price integer transition proof; it does not infer participant identity,
+depth/trade overlap, private FIFO, or venue-wide fill truth. Scheduler,
 reservation, accounting, and latency results are kernel-primitive proofs, not
 a claim that the whole Python engine already executes through Rust.
 

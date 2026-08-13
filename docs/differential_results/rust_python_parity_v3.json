@@ -46,6 +46,21 @@
   },
   "logical_time_cases": 10000,
   "ok": true,
+  "public_queue_accepted_operations": 6943,
+  "public_queue_checkpoint_count": 39,
+  "public_queue_fill_count": 1818,
+  "public_queue_final_state_sha256": "220dcb98be510552c44643a34001916da4a87818ee77524f72f4a258c5b7b675",
+  "public_queue_operation_corpus_sha256": "5c0f1ba3259247c28cc27724bdeffa53db3c03f04845046c31e085eb8e069231",
+  "public_queue_operation_kind_counts": {
+    "cancel": 1614,
+    "consume": 2806,
+    "epoch_invalidate": 786,
+    "place": 4794
+  },
+  "public_queue_operations": 10000,
+  "public_queue_rejected_operations": 3057,
+  "public_queue_seed": 53,
+  "public_queue_trace_sha256": "70451bd2de0443ec7a41ad738e7fa301bbe0cf03908d73b475a037f84e4592c2",
   "portfolio_notional_accepted_operation_kind_counts": {
     "cancel_ack": 625,
     "epoch_invalidate": 773,
@@ -75,7 +90,7 @@
   "portfolio_notional_trace_sha256": "6cff2ef94b754cb6942648e5ed8ff1c5bb569ee92b6ae1928fe1f2ce66ffcbfb",
   "rejected_batches": 6798,
   "remaining_full_engine_scope": [
-    "public-L2 execution scenarios",
+    "engine-integrated public-L2 execution scenarios beyond the restricted single-price trade queue",
     "engine-integrated latency and portfolio-notional risk",
     "engine-integrated accounting and markouts",
     "run manifests"
@@ -124,7 +139,7 @@
   "scheduler_rejected_operations": 2071,
   "scheduler_trace_sha256": "7207edb898467b8e5640dd8ae89f9f5a5874ea7301055b62d3fe26f7b1600c11",
   "schema_version": "lob_sim.rust_python_parity.v3",
-  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill accounting, nullable mark valuation, signed markouts, and deterministic fixed/empirical/stress-tail scenario latency sampling, with transition traces and periodic full-state hashes",
+  "scope": "logical time, uncrossed invariant, atomic fixed-point book batches, restricted single-price public-L2 trade queue-ahead consumption, and exact synthetic MBO new/cancel/replace lifecycle, deterministic integer-nanosecond scheduling, and per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations, fixed-point fill accounting, nullable mark valuation, signed markouts, and deterministic fixed/empirical/stress-tail scenario latency sampling, with transition traces and periodic full-state hashes",
   "seed": 17,
   "synthetic_accepted_operations": 4772,
   "synthetic_checkpoint_count": 39,
