@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
-from experiments.sweep_futures_parameters import build_sweep_metadata, run_sweep, write_sweep_outputs
+import pytest
+
+from experiments.sweep_futures_parameters import (
+    _validate_registry_rows,
+    build_sweep_metadata,
+    run_sweep,
+    write_sweep_outputs,
+)
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
 
 
@@ -61,6 +69,7 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
     assert len(rows) == 1
     assert rows[0]["rank"] == 1
     assert "diagnostic_score" in rows[0]
+    assert rows[0]["registry_variant_id"]
     assert "fill_source_counts" in rows[0]
     assert "markout_by_fill_source" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
@@ -72,13 +81,26 @@ def test_parameter_sweep_writes_ranked_csv_and_markdown(tmp_path: Path, monkeypa
         "supported_record_types": ["aggTrade", "depthUpdate", "exchangeInfo", "snapshot"],
     }
     assert metadata["fill_model"] == "trade"
+    assert metadata["research_registry"]["frozen"] is True
+    assert len(metadata["research_registry"]["variants"]) == 1
+    assert rows[0]["registry_variant_id"] == metadata["research_registry"]["variants"][0]["variant_id"]
     assert paths["csv"].exists()
     assert paths["markdown"].exists()
+    assert paths["registry"].exists()
+    registry = json.loads(paths["registry"].read_text(encoding="utf-8"))
+    assert registry["research_registry"] == metadata["research_registry"]
+    assert registry["row_registry_variant_ids"] == [rows[0]["registry_variant_id"]]
     markdown = paths["markdown"].read_text(encoding="utf-8")
     assert "not an alpha or profitability claim" in markdown
     assert "Input SHA-256" in markdown
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in markdown
     assert "Public-L2 fill model: `trade`" in markdown
+    assert "Frozen research registry SHA-256" in markdown
+    assert metadata["research_registry"]["registry_sha256"] in markdown
+    tampered = [dict(rows[0])]
+    tampered[0]["registry_variant_id"] = "tampered"
+    with pytest.raises(ValueError, match="one-to-one"):
+        _validate_registry_rows(tampered, metadata["research_registry"])
     if all(row["fill_count"] == 0 for row in rows):
         assert "zero-fill diagnostic, not economic evidence" in markdown
     assert "python sweep" in markdown

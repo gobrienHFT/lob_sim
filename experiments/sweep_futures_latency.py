@@ -10,12 +10,14 @@ from typing import Any
 from lob_sim.config import load_config
 from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.research.protocol import ResearchRegistry
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
 LATENCY_SWEEP_FIELDS = [
     "rank",
+    "registry_variant_id",
     "diagnostic_score",
     "strategy_profile",
     "order_latency_ms",
@@ -47,6 +49,64 @@ LATENCY_SWEEP_FIELDS = [
     "kill_switch_triggered",
     "kill_switch_reason",
 ]
+
+
+def _variant_key(profile: str, order_latency_ms: float, cancel_latency_ms: float) -> tuple[str, float, float]:
+    return profile, order_latency_ms, cancel_latency_ms
+
+
+def _build_latency_registry(
+    base_cfg: Any,
+    profile: str,
+    order_latencies_ms: list[float],
+    cancel_latencies_ms: list[float],
+) -> tuple[dict[tuple[str, float, float], str], dict[str, Any]]:
+    registry = ResearchRegistry()
+    variant_ids: dict[tuple[str, float, float], str] = {}
+    for order_latency in order_latencies_ms:
+        for cancel_latency in cancel_latencies_ms:
+            key = _variant_key(profile, order_latency, cancel_latency)
+            if key in variant_ids:
+                raise ValueError(f"duplicate latency-sweep variant: {key!r}")
+            cfg = replace(
+                base_cfg,
+                mm_strategy_profile=profile,
+                sim_order_latency_ms=order_latency,
+                sim_cancel_latency_ms=cancel_latency,
+            )
+            name = f"latency:{profile}:order_ms={order_latency:g}:cancel_ms={cancel_latency:g}"
+            variant_ids[key] = registry.register(
+                name,
+                {
+                    "study": "futures_latency_sweep",
+                    "strategy_profile": profile,
+                    "order_latency_ms": order_latency,
+                    "cancel_latency_ms": cancel_latency,
+                    "normalized_config": config_snapshot(cfg),
+                },
+            )
+    return variant_ids, registry.freeze()
+
+
+def _validate_registry_rows(rows: list[dict[str, Any]], registry_snapshot: dict[str, Any]) -> None:
+    variants = registry_snapshot.get("variants", [])
+    by_id = {
+        str(variant["variant_id"]): variant
+        for variant in variants
+        if isinstance(variant, dict) and "variant_id" in variant
+    }
+    row_ids = [str(row.get("registry_variant_id", "")) for row in rows]
+    if len(row_ids) != len(set(row_ids)) or set(row_ids) != set(by_id):
+        raise ValueError("latency-sweep rows do not bind one-to-one to the frozen research registry")
+    for row in rows:
+        variant = by_id.get(str(row["registry_variant_id"]))
+        config = variant.get("config", {}) if variant else {}
+        if (
+            config.get("strategy_profile") != row.get("strategy_profile")
+            or config.get("order_latency_ms") != row.get("order_latency_ms")
+            or config.get("cancel_latency_ms") != row.get("cancel_latency_ms")
+        ):
+            raise ValueError(f"latency-sweep row is not bound to its registered configuration: {row!r}")
 
 
 def _parse_floats(raw: str) -> list[float]:
@@ -83,6 +143,12 @@ def run_latency_sweep(
     cancel_latencies_ms: list[float],
 ) -> list[dict[str, Any]]:
     base_cfg = load_config(env_path)
+    registry_variant_ids, registry_snapshot = _build_latency_registry(
+        base_cfg,
+        profile,
+        order_latencies_ms,
+        cancel_latencies_ms,
+    )
     rows: list[dict[str, Any]] = []
 
     for order_latency in order_latencies_ms:
@@ -98,6 +164,7 @@ def run_latency_sweep(
             summary = metrics.get_summary(engine._books)
             rows.append(
                 {
+                    "registry_variant_id": registry_variant_ids[_variant_key(profile, order_latency, cancel_latency)],
                     "diagnostic_score": _diagnostic_score(summary, order_latency, cancel_latency),
                     "strategy_profile": profile,
                     "order_latency_ms": order_latency,
@@ -116,6 +183,7 @@ def run_latency_sweep(
     )
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
+    _validate_registry_rows(rows, registry_snapshot)
     return rows
 
 
@@ -136,6 +204,12 @@ def build_latency_sweep_metadata(
 ) -> dict[str, Any]:
     cfg = load_config(env_path)
     cfg_snapshot = config_snapshot(cfg)
+    _, registry_snapshot = _build_latency_registry(
+        cfg,
+        profile,
+        order_latencies_ms,
+        cancel_latencies_ms,
+    )
     return {
         "input_file": input_file.as_posix(),
         "input_sha256": file_sha256(input_file),
@@ -146,6 +220,7 @@ def build_latency_sweep_metadata(
         "profile": profile,
         "order_latencies_ms": order_latencies_ms,
         "cancel_latencies_ms": cancel_latencies_ms,
+        "research_registry": registry_snapshot,
         "source": source_state(),
     }
 
@@ -166,6 +241,26 @@ def write_latency_sweep_outputs(
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"{output_stem}.csv"
     md_path = out_dir / f"{output_stem}.md"
+    registry_path: Path | None = None
+
+    if metadata and isinstance(metadata.get("research_registry"), dict):
+        registry_path = out_dir / f"{output_stem}_registry.json"
+        registry_payload = {
+            "schema_version": "lob_sim.futures_latency_sweep_registry.v1",
+            "study_type": "futures_latency_sweep",
+            "input_file": metadata.get("input_file"),
+            "input_sha256": metadata.get("input_sha256"),
+            "base_config_digest": metadata.get("base_config_digest"),
+            "research_registry": metadata["research_registry"],
+            "row_registry_variant_ids": sorted(
+                {str(row["registry_variant_id"]) for row in rows if row.get("registry_variant_id")}
+            ),
+        }
+        registry_path.write_text(
+            json.dumps(registry_payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=LATENCY_SWEEP_FIELDS)
@@ -202,6 +297,8 @@ def write_latency_sweep_outputs(
                 "- Cancel latency grid ms: `"
                 + ", ".join(_format_latency(value) for value in metadata["cancel_latencies_ms"])
                 + "`",
+                f"- Frozen research registry SHA-256: `{metadata['research_registry']['registry_sha256']}`",
+                f"- Registry sidecar: `{registry_path.name if registry_path else output_stem + '_registry.json'}`",
                 f"- Git commit at run time: `{metadata['source']['git_commit']}`",
                 f"- Git dirty at run time: `{metadata['source']['git_dirty']}`",
             ]
@@ -236,7 +333,10 @@ def write_latency_sweep_outputs(
         encoding="utf-8",
         newline="\n",
     )
-    return {"csv": csv_path, "markdown": md_path}
+    outputs = {"csv": csv_path, "markdown": md_path}
+    if registry_path is not None:
+        outputs["registry"] = registry_path
+    return outputs
 
 
 def main() -> int:

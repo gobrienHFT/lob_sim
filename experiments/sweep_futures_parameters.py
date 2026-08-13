@@ -11,12 +11,14 @@ from typing import Any
 from lob_sim.config import load_config
 from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter, adapter_metadata
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.research.protocol import ResearchRegistry
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
 SWEEP_FIELDS = [
     "rank",
+    "registry_variant_id",
     "diagnostic_score",
     "strategy_profile",
     "half_spread_bps",
@@ -48,6 +50,67 @@ SWEEP_FIELDS = [
     "kill_switch_triggered",
     "kill_switch_reason",
 ]
+
+
+def _variant_key(profile: str, half_spread_bps: Decimal, queue_repost_lots: int) -> tuple[str, str, int]:
+    return profile, str(half_spread_bps), queue_repost_lots
+
+
+def _build_sweep_registry(
+    base_cfg: Any,
+    profiles: list[str],
+    half_spreads_bps: list[Decimal],
+    queue_repost_lots: list[int],
+) -> tuple[dict[tuple[str, str, int], str], dict[str, Any]]:
+    registry = ResearchRegistry()
+    variant_ids: dict[tuple[str, str, int], str] = {}
+    for profile in profiles:
+        for half_spread in half_spreads_bps:
+            for queue_repost in queue_repost_lots:
+                key = _variant_key(profile, half_spread, queue_repost)
+                if key in variant_ids:
+                    raise ValueError(f"duplicate parameter-sweep variant: {key!r}")
+                cfg = replace(
+                    base_cfg,
+                    mm_strategy_profile=profile,
+                    mm_half_spread_bps=half_spread,
+                    mm_layered_inner_spread_bps=half_spread,
+                    mm_layered_outer_spread_bps=max(half_spread, half_spread * Decimal("3")),
+                    mm_queue_repost_lots=queue_repost,
+                )
+                name = f"parameter:{profile}:half_spread_bps={half_spread}:queue_repost_lots={queue_repost}"
+                variant_ids[key] = registry.register(
+                    name,
+                    {
+                        "study": "futures_parameter_sweep",
+                        "strategy_profile": profile,
+                        "half_spread_bps": str(half_spread),
+                        "queue_repost_lots": queue_repost,
+                        "normalized_config": config_snapshot(cfg),
+                    },
+                )
+    return variant_ids, registry.freeze()
+
+
+def _validate_registry_rows(rows: list[dict[str, Any]], registry_snapshot: dict[str, Any]) -> None:
+    variants = registry_snapshot.get("variants", [])
+    by_id = {
+        str(variant["variant_id"]): variant
+        for variant in variants
+        if isinstance(variant, dict) and "variant_id" in variant
+    }
+    row_ids = [str(row.get("registry_variant_id", "")) for row in rows]
+    if len(row_ids) != len(set(row_ids)) or set(row_ids) != set(by_id):
+        raise ValueError("parameter-sweep rows do not bind one-to-one to the frozen research registry")
+    for row in rows:
+        variant = by_id.get(str(row["registry_variant_id"]))
+        config = variant.get("config", {}) if variant else {}
+        if (
+            config.get("strategy_profile") != row.get("strategy_profile")
+            or config.get("half_spread_bps") != row.get("half_spread_bps")
+            or config.get("queue_repost_lots") != row.get("queue_repost_lots")
+        ):
+            raise ValueError(f"parameter-sweep row is not bound to its registered configuration: {row!r}")
 
 
 def _parse_decimals(raw: str) -> list[Decimal]:
@@ -86,6 +149,12 @@ def run_sweep(
     queue_repost_lots: list[int],
 ) -> list[dict]:
     base_cfg = load_config(env_path)
+    registry_variant_ids, registry_snapshot = _build_sweep_registry(
+        base_cfg,
+        profiles,
+        half_spreads_bps,
+        queue_repost_lots,
+    )
     rows: list[dict] = []
 
     for profile in profiles:
@@ -104,6 +173,7 @@ def run_sweep(
                 summary = metrics.get_summary(engine._books)
                 rows.append(
                     {
+                        "registry_variant_id": registry_variant_ids[_variant_key(profile, half_spread, queue_repost)],
                         "diagnostic_score": _diagnostic_score(summary),
                         "strategy_profile": profile,
                         "half_spread_bps": str(half_spread),
@@ -123,6 +193,7 @@ def run_sweep(
     )
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
+    _validate_registry_rows(rows, registry_snapshot)
     return rows
 
 
@@ -142,6 +213,12 @@ def build_sweep_metadata(
 ) -> dict[str, Any]:
     cfg = load_config(env_path)
     cfg_snapshot = config_snapshot(cfg)
+    _, registry_snapshot = _build_sweep_registry(
+        cfg,
+        profiles,
+        half_spreads_bps,
+        queue_repost_lots,
+    )
     return {
         "input_file": input_file.as_posix(),
         "input_sha256": file_sha256(input_file),
@@ -152,6 +229,7 @@ def build_sweep_metadata(
         "profiles": profiles,
         "half_spreads_bps": [str(value) for value in half_spreads_bps],
         "queue_repost_lots": queue_repost_lots,
+        "research_registry": registry_snapshot,
         "source": source_state(),
     }
 
@@ -168,6 +246,26 @@ def write_sweep_outputs(
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"{output_stem}.csv"
     md_path = out_dir / f"{output_stem}.md"
+    registry_path: Path | None = None
+
+    if metadata and isinstance(metadata.get("research_registry"), dict):
+        registry_path = out_dir / f"{output_stem}_registry.json"
+        registry_payload = {
+            "schema_version": "lob_sim.futures_parameter_sweep_registry.v1",
+            "study_type": "futures_parameter_sweep",
+            "input_file": metadata.get("input_file"),
+            "input_sha256": metadata.get("input_sha256"),
+            "config_digest": metadata.get("config_digest"),
+            "research_registry": metadata["research_registry"],
+            "row_registry_variant_ids": sorted(
+                {str(row["registry_variant_id"]) for row in rows if row.get("registry_variant_id")}
+            ),
+        }
+        registry_path.write_text(
+            json.dumps(registry_payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=SWEEP_FIELDS)
@@ -198,6 +296,8 @@ def write_sweep_outputs(
                 f"- Profiles: `{', '.join(metadata['profiles'])}`",
                 f"- Half-spread bps grid: `{', '.join(metadata['half_spreads_bps'])}`",
                 f"- Queue repost lots grid: `{', '.join(str(value) for value in metadata['queue_repost_lots'])}`",
+                f"- Frozen research registry SHA-256: `{metadata['research_registry']['registry_sha256']}`",
+                f"- Registry sidecar: `{registry_path.name if registry_path else output_stem + '_registry.json'}`",
                 f"- Git commit at run time: `{metadata['source']['git_commit']}`",
                 f"- Git dirty at run time: `{metadata['source']['git_dirty']}`",
             ]
@@ -231,7 +331,10 @@ def write_sweep_outputs(
         encoding="utf-8",
         newline="\n",
     )
-    return {"csv": csv_path, "markdown": md_path}
+    outputs = {"csv": csv_path, "markdown": md_path}
+    if registry_path is not None:
+        outputs["registry"] = registry_path
+    return outputs
 
 
 def main() -> int:

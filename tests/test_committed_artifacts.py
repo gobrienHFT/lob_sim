@@ -37,8 +37,14 @@ FUTURES_PARAMETER_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "f
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = (
     REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference.csv"
 )
+FUTURES_PARAMETER_SWEEP_REGISTRY = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_parameter_sweep_reference_registry.json"
+)
 FUTURES_LATENCY_SWEEP_REFERENCE = REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.md"
 FUTURES_LATENCY_SWEEP_REFERENCE_CSV = REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference.csv"
+FUTURES_LATENCY_SWEEP_REGISTRY = (
+    REPO_ROOT / "docs" / "strategy_results" / "futures_latency_sweep_reference_registry.json"
+)
 FUTURES_STRESS_DIR = REPO_ROOT / "docs" / "sample_outputs" / "futures_stress_case"
 FUTURES_STRESS_SUMMARY = FUTURES_STRESS_DIR / "summary.json"
 FUTURES_STRATEGY_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_strategy_profile_reference.py"
@@ -1388,17 +1394,21 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert FUTURES_STRATEGY_REFRESH.exists()
     assert FUTURES_PARAMETER_SWEEP_REFERENCE.exists()
     assert FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.exists()
+    assert FUTURES_PARAMETER_SWEEP_REGISTRY.exists()
     assert FUTURES_PARAMETER_SWEEP_REFRESH.exists()
     assert FUTURES_LATENCY_SWEEP_REFERENCE.exists()
     assert FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists()
+    assert FUTURES_LATENCY_SWEEP_REGISTRY.exists()
     assert FUTURES_LATENCY_SWEEP_REFRESH.exists()
     assert "baseline" in profiles
     assert "layered_mm" in profiles
     assert "research_mm" in profiles
     assert "futures_parameter_sweep_reference.md" in profiles
     assert "futures_parameter_sweep_reference.csv" in profiles
+    assert "futures_parameter_sweep_reference_registry.json" in profiles
     assert "futures_latency_sweep_reference.md" in profiles
     assert "futures_latency_sweep_reference.csv" in profiles
+    assert "futures_latency_sweep_reference_registry.json" in profiles
     assert COMMITTED_STRATEGY_INPUT in reference
     assert "research_mm" in reference
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
@@ -1412,6 +1422,9 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
     assert "Public-L2 fill model: `trade`" in sweep_reference
     assert "zero-fill diagnostic, not economic evidence" in sweep_reference
+    parameter_registry = json.loads(FUTURES_PARAMETER_SWEEP_REGISTRY.read_text(encoding="utf-8"))
+    assert parameter_registry["schema_version"] == "lob_sim.futures_parameter_sweep_registry.v1"
+    assert parameter_registry["research_registry"]["frozen"] is True
     latency_reference = FUTURES_LATENCY_SWEEP_REFERENCE.read_text(encoding="utf-8")
     assert COMMITTED_STRATEGY_INPUT in latency_reference
     assert "python scripts/refresh_futures_latency_sweep_reference.py" in latency_reference
@@ -1421,6 +1434,9 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in latency_reference
     assert "Public-L2 fill model: `trade`" in latency_reference
     assert "zero-fill diagnostic, not economic evidence" in latency_reference
+    latency_registry = json.loads(FUTURES_LATENCY_SWEEP_REGISTRY.read_text(encoding="utf-8"))
+    assert latency_registry["schema_version"] == "lob_sim.futures_latency_sweep_registry.v1"
+    assert latency_registry["research_registry"]["frozen"] is True
 
     with FUTURES_PARAMETER_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
@@ -1433,6 +1449,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert max(int(row["fill_count"]) for row in rows) == 0
     assert "fill_source_counts" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
+    assert {row["registry_variant_id"] for row in rows} == set(parameter_registry["row_registry_variant_ids"])
     assert len(latency_rows) == 9
     assert [int(row["rank"]) for row in latency_rows] == list(range(1, 10))
     assert {float(row["order_latency_ms"]) for row in latency_rows} == {0.0, 10.0, 50.0}
@@ -1441,3 +1458,4 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "avg_fill_wait_ms" in latency_rows[0]
     assert "fill_source_counts" in latency_rows[0]
     assert "order_lifecycle_counts" in latency_rows[0]
+    assert {row["registry_variant_id"] for row in latency_rows} == set(latency_registry["row_registry_variant_ids"])
