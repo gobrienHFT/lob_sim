@@ -782,6 +782,13 @@ class SimulationEngine:
         self._last_trace_key = trace_key
         sequence = self._trace_counter
         self._trace_counter += 1
+        self._event_trace_count += 1
+        # The null sink is the explicit kernel-benchmark path.  When callers
+        # also disable in-memory retention, constructing a full audit mapping
+        # only to have a no-op sink discard it is pure hot-path overhead. Keep
+        # the causal counters/state identical while avoiding that allocation.
+        if type(self._event_sink) is NullSink and not self._retain_event_trace:
+            return
         event = {
             "ts_local": ts,
             "seq": sequence,
@@ -796,7 +803,6 @@ class SimulationEngine:
             "fill_source": fill_source,
             "details": details or {},
         }
-        self._event_trace_count += 1
         self._event_sink.write(event)
         if self._retain_event_trace:
             self.event_trace.append(event)

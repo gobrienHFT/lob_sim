@@ -19,6 +19,7 @@ from lob_sim.sim.metrics import PositionState, SimulationMetrics
 from lob_sim.sim.mm_strategy import QuoteTarget, StrategyDecision
 from lob_sim.sim.orders import Fill, Order
 from lob_sim.sim.checkpoint import encode as encode_checkpoint
+from lob_sim.sim.sinks import NullSink
 
 
 def _build_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: str) -> Config:
@@ -370,6 +371,32 @@ def test_event_trace_uses_exact_logical_key_when_receipt_floats_collapse() -> No
     engine._active_logical_ns = base_ns
     with pytest.raises(RuntimeError, match="event trace violated causal order"):
         engine._trace(seconds, "BTCUSDT", "regression", "test")
+
+
+def test_null_sink_without_trace_retention_skips_row_materialization() -> None:
+    engine = SimulationEngine.__new__(SimulationEngine)
+    engine._last_trace_ts = None
+    engine._last_trace_key = None
+    engine._active_logical_ns = None
+    engine._active_legacy_subns = 0
+    engine._active_event_ts = None
+    engine._trace_counter = 0
+    engine._event_trace_count = 0
+    engine._retain_event_trace = False
+    engine.event_trace = []
+    sink = NullSink()
+
+    def fail_if_called(_event: object) -> None:
+        raise AssertionError("the explicit null sink hot path should not materialize a row")
+
+    sink.write = fail_if_called  # type: ignore[method-assign]
+    engine._event_sink = sink
+
+    engine._trace(1.0, "BTCUSDT", "market_record", "test", details={"large": "payload"})
+
+    assert engine._trace_counter == 1
+    assert engine._event_trace_count == 1
+    assert engine.event_trace == []
 
 
 def test_schema_v3_trace_preserves_raw_wall_time_when_using_receive_clock() -> None:
