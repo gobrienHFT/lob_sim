@@ -221,10 +221,10 @@ class _ReplayValidityTracker:
                 route=(str(capture.get("route")) if capture.get("route") is not None else None),
                 reason=reason,
                 ts_local=rec.ts_local,
-                recv_seq=self._int_or_none(capture.get("recvSeq")),
-                recv_monotonic_ns=self._int_or_none(capture.get("recvMonotonicNs")),
-                stream_epoch=self._int_or_none(capture.get("streamEpoch")),
-                sync_epoch=self._int_or_none(capture.get("syncEpoch")),
+                recv_seq=self._int_or_none(capture.get("recvSeq"), exact=self.schema_version >= 3),
+                recv_monotonic_ns=self._int_or_none(capture.get("recvMonotonicNs"), exact=self.schema_version >= 3),
+                stream_epoch=self._int_or_none(capture.get("streamEpoch"), exact=self.schema_version >= 3),
+                sync_epoch=self._int_or_none(capture.get("syncEpoch"), exact=self.schema_version >= 3),
             )
         )
 
@@ -243,7 +243,9 @@ class _ReplayValidityTracker:
         self._record_boundary(rec, capture, kind="invalidated", scope="clock", reason=reason)
 
     @staticmethod
-    def _int_or_none(value: object) -> int | None:
+    def _int_or_none(value: object, *, exact: bool = False) -> int | None:
+        if exact:
+            return value if type(value) is int and value >= 0 else None
         try:
             parsed = int(str(value))
         except (TypeError, ValueError):
@@ -258,7 +260,12 @@ class _ReplayValidityTracker:
             self._invalidate_capture("missing_capture_metadata:" + ",".join(missing), rec, capture)
             return
 
-        sequence = self._int_or_none(capture.get("recvSeq"))
+        route = capture.get("route")
+        if not isinstance(route, str) or not route:
+            self._invalidate_capture("invalid_capture_metadata:route", rec, capture)
+            return
+
+        sequence = self._int_or_none(capture.get("recvSeq"), exact=True)
         if sequence is None or sequence < 0:
             self._invalidate_capture("invalid_capture_metadata:recvSeq", rec, capture)
         elif self.last_receive_seq is not None and sequence <= self.last_receive_seq:
@@ -270,7 +277,7 @@ class _ReplayValidityTracker:
                 self._invalidate_capture("receive_sequence_gap", rec, capture)
             self.last_receive_seq = sequence
 
-        monotonic_ns = self._int_or_none(capture.get("recvMonotonicNs"))
+        monotonic_ns = self._int_or_none(capture.get("recvMonotonicNs"), exact=True)
         if monotonic_ns is None or monotonic_ns < 0:
             self._invalidate_capture("invalid_capture_metadata:recvMonotonicNs", rec, capture)
         elif self.last_receive_monotonic_ns is not None and monotonic_ns < self.last_receive_monotonic_ns:
@@ -280,9 +287,25 @@ class _ReplayValidityTracker:
             self.last_receive_monotonic_ns = monotonic_ns
 
     def _observe_epoch(self, rec: RecordedEvent, capture: dict[str, object], symbol: _MutableSymbolValidity) -> None:
-        route = str(capture.get("route") or rec.data.get("route") or "")
-        stream_epoch = self._int_or_none(capture.get("streamEpoch"))
-        sync_epoch = self._int_or_none(capture.get("syncEpoch"))
+        raw_route = capture.get("route") or rec.data.get("route") or ""
+        if self.schema_version >= 3 and (not isinstance(raw_route, str) or not raw_route):
+            self._invalidate_capture("invalid_capture_metadata:route", rec, capture)
+            return
+        route = raw_route if isinstance(raw_route, str) else str(raw_route)
+
+        stream_epoch: int | None = None
+        if "streamEpoch" in capture and capture.get("streamEpoch") is not None:
+            stream_epoch = self._int_or_none(capture.get("streamEpoch"), exact=self.schema_version >= 3)
+            if stream_epoch is None:
+                self._invalidate_capture("invalid_capture_metadata:streamEpoch", rec, capture)
+                return
+
+        sync_epoch: int | None = None
+        if "syncEpoch" in capture and capture.get("syncEpoch") is not None:
+            sync_epoch = self._int_or_none(capture.get("syncEpoch"), exact=self.schema_version >= 3)
+            if sync_epoch is None:
+                self._invalidate_capture("invalid_capture_metadata:syncEpoch", rec, capture)
+                return
         event_name = str(rec.data.get("event", "")) if rec.type == "captureEvent" else ""
         if route == "public":
             previous_epoch = symbol.public_stream_epoch
@@ -355,7 +378,7 @@ class _ReplayValidityTracker:
 
     def observe(self, rec: RecordedEvent) -> None:
         if rec.type == "captureMeta":
-            version = self._int_or_none(rec.data.get("schemaVersion"))
+            version = self._int_or_none(rec.data.get("schemaVersion"), exact=True)
             if version is None or version < 1:
                 self._invalidate_capture("invalid_capture_schema_version", rec, {})
                 return

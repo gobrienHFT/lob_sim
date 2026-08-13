@@ -3,8 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from dataclasses import replace
 
+import pytest
+
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
-from lob_sim.replay.runner import replay
+from lob_sim.replay.reader import RecordedEvent
+from lob_sim.replay.runner import _ReplayValidityTracker, replay
 from lob_sim.config import load_config
 
 
@@ -23,6 +26,56 @@ def _v3_capture(
         "recvSeq": sequence,
         "recvMonotonicNs": sequence if monotonic_ns is None else monotonic_ns,
     }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("recvSeq", "2"),
+        ("recvMonotonicNs", 2.0),
+        ("streamEpoch", True),
+        ("syncEpoch", -1),
+    ],
+)
+def test_validity_tracker_rejects_coercible_schema_v3_metadata(field: str, value: object) -> None:
+    tracker = _ReplayValidityTracker(trade_stream_required=True)
+    tracker.observe(
+        RecordedEvent(
+            ts_local=0.0,
+            symbol="*",
+            type="captureMeta",
+            data={"schemaVersion": 3, "clock": "receive_time"},
+        )
+    )
+    capture = _v3_capture(2, "public")
+    capture[field] = value
+    tracker.observe(
+        RecordedEvent(
+            ts_local=0.1,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"_capture": capture},
+        )
+    )
+
+    assert tracker.capture_valid is False
+    assert f"invalid_capture_metadata:{field}" in tracker.invalid_reasons
+
+
+def test_validity_tracker_rejects_coercible_schema_version() -> None:
+    tracker = _ReplayValidityTracker(trade_stream_required=False)
+    tracker.observe(
+        RecordedEvent(
+            ts_local=0.0,
+            symbol="*",
+            type="captureMeta",
+            data={"schemaVersion": "3", "clock": "receive_time"},
+        )
+    )
+
+    assert tracker.capture_valid is False
+    assert tracker.schema_version == 1
+    assert "invalid_capture_schema_version" in tracker.invalid_reasons
 
 
 def test_replay_returns_structured_symbol_diagnostics(tmp_path: Path, capsys) -> None:
