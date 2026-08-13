@@ -146,6 +146,45 @@ def test_invalid_depth_batch_invalidates_epoch_without_advancing_sequence() -> N
     assert not sync.buffer
 
 
+def test_invalid_buffered_bridge_invalidates_epoch_without_partial_snapshot_state() -> None:
+    spec = _spec()
+    book = LocalOrderBook(symbol="BTCUSDT", spec=spec)
+    sync = BookSynchronizer(book=book, resync_on_gap=True)
+
+    sync.on_depth_update(
+        DepthUpdateEvent(
+            symbol="BTCUSDT",
+            first_update_id=90,
+            final_update_id=110,
+            prev_update_id=80,
+            # This update would cross the snapshot ask once applied.
+            bids=[(10100, 1)],
+            asks=[],
+            ts_local=1.0,
+        )
+    )
+    previous_epoch = sync.epoch
+
+    with pytest.raises(BookSyncGapError, match="Invalid depth update"):
+        sync.on_snapshot(
+            SnapshotEvent(
+                symbol="BTCUSDT",
+                last_update_id=100,
+                bids=[(10000, 10)],
+                asks=[(10100, 10)],
+            )
+        )
+
+    assert sync.epoch == previous_epoch + 1
+    assert sync.synced is False
+    assert sync.ready is False
+    assert sync.last_update_id is None
+    assert sync.invalid_reason == "invalid_book_update"
+    assert book.bids == {}
+    assert book.asks == {}
+    assert not sync.buffer
+
+
 def test_symbol_spec_is_compatibility_alias_for_instrument_spec():
     spec = SymbolSpec(
         symbol="BTCUSDT",

@@ -130,7 +130,11 @@ class BookSynchronizer:
         for event in usable:
             if self.last_update_id is not None and event.final_update_id <= self.last_update_id:
                 continue
-            changes.extend(self.book.apply_depth_update(event.bids, event.asks))
+            # Buffered events must use the same fail-closed mutation boundary
+            # as live updates.  Otherwise an invalid bridge batch could leave
+            # a snapshot-seeded book partially applied without invalidating
+            # the sync epoch.
+            changes.extend(self._apply_book_update(event))
             self.last_update_id = event.final_update_id
             self.book.last_update_id = event.final_update_id
 
