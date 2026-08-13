@@ -3621,9 +3621,9 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_latency_sweep_reference.md must explain fill-frequency metrics"
             )
-        if "Public-L2 fill model: `trade`" not in latency_doc:
+        if "Public-L2 fill models: `trade`, `depth`" not in latency_doc:
             issues.append(
-                "docs/strategy_results/futures_latency_sweep_reference.md must identify the trade-only fill model"
+                "docs/strategy_results/futures_latency_sweep_reference.md must identify both mutually exclusive fill models"
             )
         if "Frozen research registry SHA-256" not in latency_doc:
             issues.append(
@@ -3635,8 +3635,10 @@ def _verify_strategy_profile_publication() -> list[str]:
         required_latency_columns = {
             "rank",
             "registry_variant_id",
+            "scenario_id",
             "diagnostic_score",
             "strategy_profile",
+            "fill_model",
             "order_latency_ms",
             "cancel_latency_ms",
             "fill_count",
@@ -3650,6 +3652,7 @@ def _verify_strategy_profile_publication() -> list[str]:
             "avg_fill_wait_ms",
             "fill_source_counts",
             "order_lifecycle_counts",
+            "memory_bounded_by_tape_duration",
         }
         latency_fieldnames = set(latency_rows[0].keys()) if latency_rows else set()
         if "fill_rate" in latency_fieldnames:
@@ -3660,7 +3663,7 @@ def _verify_strategy_profile_publication() -> list[str]:
                 "docs/strategy_results/futures_latency_sweep_reference.csv missing column(s): "
                 + ", ".join(missing_latency_columns)
             )
-        if len(latency_rows) < 3:
+        if len(latency_rows) < 6:
             issues.append(
                 "docs/strategy_results/futures_latency_sweep_reference.csv must include multiple latency rows"
             )
@@ -3694,10 +3697,19 @@ def _verify_strategy_profile_publication() -> list[str]:
                     issues.append(
                         "docs/strategy_results/futures_latency_sweep_reference.md must label its zero-fill evidence"
                     )
+                fill_models = {row.get("fill_model") for row in latency_rows}
+                if fill_models != {"trade", "depth"}:
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.csv must include trade and depth scenarios"
+                    )
+                if any(row.get("memory_bounded_by_tape_duration") != "True" for row in latency_rows):
+                    issues.append(
+                        "docs/strategy_results/futures_latency_sweep_reference.csv must prove bounded aggregate-only retention"
+                    )
         issues.extend(
             _verify_study_registry_sidecar(
                 FUTURES_LATENCY_SWEEP_REGISTRY,
-                expected_schema="lob_sim.futures_latency_sweep_registry.v1",
+                expected_schema="lob_sim.futures_latency_sweep_registry.v2",
                 expected_study_type="futures_latency_sweep",
                 rows=latency_rows,
                 label="futures latency sweep",

@@ -22,6 +22,7 @@ ENV_PATH = ".env.example"
 OUTPUT_DIR = REPO_ROOT / "docs" / "strategy_results"
 OUTPUT_STEM = "futures_latency_sweep_reference"
 PROFILE = "baseline"
+FILL_MODELS = ["trade", "depth"]
 ORDER_LATENCIES_MS = [0.0, 10.0, 50.0]
 CANCEL_LATENCIES_MS = [0.0, 10.0, 50.0]
 REFERENCE_ENV = {
@@ -72,6 +73,7 @@ def refresh_futures_latency_sweep_reference() -> dict[str, Path]:
                 profile=PROFILE,
                 order_latencies_ms=ORDER_LATENCIES_MS,
                 cancel_latencies_ms=CANCEL_LATENCIES_MS,
+                fill_models=FILL_MODELS,
             )
             metadata = build_latency_sweep_metadata(
                 input_file=INPUT_FILE,
@@ -79,6 +81,7 @@ def refresh_futures_latency_sweep_reference() -> dict[str, Path]:
                 profile=PROFILE,
                 order_latencies_ms=ORDER_LATENCIES_MS,
                 cancel_latencies_ms=CANCEL_LATENCIES_MS,
+                fill_models=FILL_MODELS,
             )
         return write_latency_sweep_outputs(
             rows,

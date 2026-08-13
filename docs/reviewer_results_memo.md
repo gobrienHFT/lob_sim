@@ -83,7 +83,7 @@ Stress-pack inventory/risk summary:
 
 ## Latency Sensitivity
 
-The published latency reference is `docs/strategy_results/futures_latency_sweep_reference.md`. It varies modeled order-arrival and cancel-ack delays over `0, 10, 50` ms grids. These are simulator assumptions, not gateway latency measurements or latency-arbitrage claims.
+The published latency reference is `docs/strategy_results/futures_latency_sweep_reference.md`. It varies modeled order-arrival and cancel-ack delays over `0, 10, 50` ms grids across mutually exclusive public-L2 `trade` and `depth` execution signals. These are simulator assumptions and scenario-envelope cells, not gateway latency measurements, true fill bounds, or latency-arbitrage claims.
 
 ## Benchmark Caveats
 
