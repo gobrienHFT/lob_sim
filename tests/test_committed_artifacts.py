@@ -1468,8 +1468,9 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "Feed adapter: `binance_usdm` (`BINANCE_USDM`)" in sweep_reference
     assert "Public-L2 fill model: `trade`" in sweep_reference
     assert "zero-fill diagnostic, not economic evidence" in sweep_reference
+    assert "aggregate-only metrics with event and audit rows disabled in memory" in sweep_reference
     parameter_registry = json.loads(FUTURES_PARAMETER_SWEEP_REGISTRY.read_text(encoding="utf-8"))
-    assert parameter_registry["schema_version"] == "lob_sim.futures_parameter_sweep_registry.v1"
+    assert parameter_registry["schema_version"] == "lob_sim.futures_parameter_sweep_registry.v2"
     assert parameter_registry["research_registry"]["frozen"] is True
     latency_reference = FUTURES_LATENCY_SWEEP_REFERENCE.read_text(encoding="utf-8")
     assert COMMITTED_STRATEGY_INPUT in latency_reference
@@ -1493,6 +1494,7 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert [int(row["rank"]) for row in rows] == list(range(1, 28))
     assert {"baseline", "layered_mm", "research_mm"} <= {row["strategy_profile"] for row in rows}
     assert max(int(row["fill_count"]) for row in rows) == 0
+    assert {row["memory_bounded_by_tape_duration"] for row in rows} == {"True"}
     assert "fill_source_counts" in rows[0]
     assert "order_lifecycle_counts" in rows[0]
     assert {row["registry_variant_id"] for row in rows} == set(parameter_registry["row_registry_variant_ids"])

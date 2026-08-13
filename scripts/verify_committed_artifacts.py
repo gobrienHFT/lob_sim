@@ -3509,6 +3509,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md is missing frozen registry provenance"
             )
+        if "aggregate-only metrics with event and audit rows disabled in memory" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md must document bounded aggregate-only retention"
+            )
         if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md still depends on a local-only input"
@@ -3539,6 +3543,7 @@ def _verify_strategy_profile_publication() -> list[str]:
             "max_arrival_queue_ahead_lots",
             "fill_source_counts",
             "order_lifecycle_counts",
+            "memory_bounded_by_tape_duration",
         }
         fieldnames = set(rows[0].keys()) if rows else set()
         if "fill_rate" in fieldnames:
@@ -3585,10 +3590,14 @@ def _verify_strategy_profile_publication() -> list[str]:
                     issues.append(
                         "docs/strategy_results/futures_parameter_sweep_reference.md must label its zero-fill evidence"
                     )
+                if any(row.get("memory_bounded_by_tape_duration") != "True" for row in rows):
+                    issues.append(
+                        "docs/strategy_results/futures_parameter_sweep_reference.csv must prove bounded aggregate-only retention"
+                    )
         issues.extend(
             _verify_study_registry_sidecar(
                 FUTURES_PARAMETER_SWEEP_REGISTRY,
-                expected_schema="lob_sim.futures_parameter_sweep_registry.v1",
+                expected_schema="lob_sim.futures_parameter_sweep_registry.v2",
                 expected_study_type="futures_parameter_sweep",
                 rows=rows,
                 label="futures parameter sweep",
