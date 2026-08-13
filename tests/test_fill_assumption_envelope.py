@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from experiments.run_fill_assumption_envelope import run_envelope
+from experiments.run_fill_assumption_envelope import _validate_envelope, run_envelope
 from lob_sim.record.format import NDJSONRecord, snapshot_payload
 
 
@@ -120,6 +120,14 @@ def test_fill_assumption_envelope_is_deterministic_and_digest_clean(
     assert first["research_registry"]["registry_sha256"]
     assert {row["name"] for row in first["research_registry"]["variants"]} == set(first["profiles"])
     assert first["research_registry"] == second["research_registry"]
+    registry_ids = {row["name"]: row["variant_id"] for row in first["research_registry"]["variants"]}
+    assert first["audit"]["registry_variant_ids"] == dict(sorted(registry_ids.items()))
+    assert {row["profile"]: row["registry_variant_id"] for row in first["runs"]} == registry_ids
+    tampered_rows = [dict(row) for row in first["runs"]]
+    tampered_rows[0]["registry_variant_id"] = "tampered"
+    tampered_audit = _validate_envelope(tampered_rows, first["research_registry"])
+    assert tampered_audit["ok"] is False
+    assert any("not bound" in issue for issue in tampered_audit["issues"])
     report = (tmp_path / "first" / "fill_envelope_report.md").read_text(encoding="utf-8")
     assert first["research_registry"]["registry_sha256"] in report
     assert {row["input_digest"] for row in first["runs"]} == {first["audit"]["input_digest"]}
@@ -128,3 +136,5 @@ def test_fill_assumption_envelope_is_deterministic_and_digest_clean(
     assert (tmp_path / "first" / "fill_envelope_summary.json").exists()
     assert (tmp_path / "first" / "fill_envelope_summary.csv").exists()
     assert (tmp_path / "first" / "fill_envelope_report.md").exists()
+    csv_header = (tmp_path / "first" / "fill_envelope_summary.csv").read_text(encoding="utf-8").splitlines()[0]
+    assert "registry_variant_id" in csv_header.split(",")
