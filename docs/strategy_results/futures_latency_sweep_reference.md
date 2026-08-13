@@ -8,7 +8,9 @@
 - Strategy profile: `baseline`
 - Order latency grid ms: `0, 10, 50`
 - Cancel latency grid ms: `0, 10, 50`
-- Git commit at run time: `21643818bcde8b695793619d037f7bd13664b41e`
+- Frozen research registry SHA-256: `61cb355878ed84d92d1936b75ecb289886f4fa65fb381c2a33b4fcbd82a7c373`
+- Registry sidecar: `futures_latency_sweep_reference_registry.json`
+- Git commit at run time: `dff56f217ba284f168971b9eec4864108785a8b9`
 - Git dirty at run time: `False`
 
 Exact command:

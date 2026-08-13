@@ -69,9 +69,11 @@ Published deterministic reference:
 
 - Markdown: [docs/strategy_results/futures_parameter_sweep_reference.md](strategy_results/futures_parameter_sweep_reference.md)
 - CSV: [docs/strategy_results/futures_parameter_sweep_reference.csv](strategy_results/futures_parameter_sweep_reference.csv)
+- Registry: [docs/strategy_results/futures_parameter_sweep_reference_registry.json](strategy_results/futures_parameter_sweep_reference_registry.json)
 - Refresh command: `python scripts/refresh_futures_parameter_sweep_reference.py`
 
 The sweep ranks baseline, `layered_mm`, and `research_mm` runs by a diagnostic score combining spread capture, signed markout, adverse markout rate, inventory variance, drawdown, fill quality, and queue metrics. Its CSV includes fill-source counts and source-split markout diagnostics so reviewers can see whether fill quality comes from depth-inferred, `aggTrade`-inferred, or taker execution. The score is for inspection only; it is not an alpha or profitability claim.
+Every variant is registered and frozen before the first simulation starts. Each CSV row carries a `registry_variant_id`; the sidecar stores the exact normalized configuration for every variant and its content-addressed registry SHA-256.
 
 ## Latency Sensitivity Tool
 
@@ -85,9 +87,11 @@ Published deterministic reference:
 
 - Markdown: [docs/strategy_results/futures_latency_sweep_reference.md](strategy_results/futures_latency_sweep_reference.md)
 - CSV: [docs/strategy_results/futures_latency_sweep_reference.csv](strategy_results/futures_latency_sweep_reference.csv)
+- Registry: [docs/strategy_results/futures_latency_sweep_reference_registry.json](strategy_results/futures_latency_sweep_reference_registry.json)
 - Refresh command: `python scripts/refresh_futures_latency_sweep_reference.py`
 
 The latency sweep varies modeled order-arrival and cancel-ack delays inside deterministic replay. It is a sensitivity check for queue position, fill quality, adverse markout, and cancel races; it is not a latency-arbitrage, alpha, or profitability claim.
+Every latency cell is registered before execution and carries a `registry_variant_id` in the CSV, with the full normalized configurations and registry digest in the sidecar.
 
 ## Why The Layered Profile Is More Realistic
 

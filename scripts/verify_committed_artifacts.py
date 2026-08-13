@@ -43,9 +43,11 @@ FUTURES_STRATEGY_PROFILES = REPO_ROOT / "docs" / "futures_strategy_profiles.md"
 FUTURES_STRATEGY_REFERENCE = STRATEGY_RESULTS_DIR / "futures_strategy_profile_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.md"
 FUTURES_PARAMETER_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference.csv"
+FUTURES_PARAMETER_SWEEP_REGISTRY = STRATEGY_RESULTS_DIR / "futures_parameter_sweep_reference_registry.json"
 FUTURES_PARAMETER_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_parameter_sweep_reference.py"
 FUTURES_LATENCY_SWEEP_REFERENCE = STRATEGY_RESULTS_DIR / "futures_latency_sweep_reference.md"
 FUTURES_LATENCY_SWEEP_REFERENCE_CSV = STRATEGY_RESULTS_DIR / "futures_latency_sweep_reference.csv"
+FUTURES_LATENCY_SWEEP_REGISTRY = STRATEGY_RESULTS_DIR / "futures_latency_sweep_reference_registry.json"
 FUTURES_LATENCY_SWEEP_REFRESH = REPO_ROOT / "scripts" / "refresh_futures_latency_sweep_reference.py"
 REPLAY_CONTRACT = REPO_ROOT / "docs" / "replay_contract.md"
 HFT_REVIEWER_GUIDE = REPO_ROOT / "docs" / "hft_reviewer_guide.md"
@@ -560,6 +562,64 @@ def _file_sha256(path: Path) -> str:
 def _config_digest(config: dict) -> str:
     payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
     return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _verify_study_registry_sidecar(
+    path: Path,
+    *,
+    expected_schema: str,
+    expected_study_type: str,
+    rows: list[dict[str, str]],
+    label: str,
+) -> list[str]:
+    issues: list[str] = []
+    if not path.exists():
+        return [f"Missing {label} registry sidecar: {_repo_relative(path)}"]
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"{label} registry sidecar is not valid JSON: {exc}"]
+    if not isinstance(payload, dict):
+        return [f"{label} registry sidecar must contain an object"]
+    if payload.get("schema_version") != expected_schema:
+        issues.append(f"{label} registry sidecar has an unexpected schema version")
+    if payload.get("study_type") != expected_study_type:
+        issues.append(f"{label} registry sidecar has an unexpected study type")
+    registry = payload.get("research_registry")
+    if not isinstance(registry, dict):
+        return issues + [f"{label} registry sidecar is missing research_registry"]
+    if registry.get("frozen") is not True:
+        issues.append(f"{label} research registry is not frozen")
+    variants = registry.get("variants")
+    registry_digest = registry.get("registry_sha256")
+    if not isinstance(variants, list) or not isinstance(registry_digest, str):
+        return issues + [f"{label} research registry is missing variants or registry_sha256"]
+    digest_payload = {key: value for key, value in registry.items() if key != "registry_sha256"}
+    expected_digest = sha256(
+        json.dumps(
+            digest_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    if registry_digest != expected_digest:
+        issues.append(f"{label} research registry SHA-256 does not match its content")
+    variant_ids = {
+        str(variant.get("variant_id"))
+        for variant in variants
+        if isinstance(variant, dict) and variant.get("variant_id")
+    }
+    row_ids = [str(row.get("registry_variant_id", "")) for row in rows]
+    sidecar_ids = payload.get("row_registry_variant_ids")
+    if len(variant_ids) != len(variants):
+        issues.append(f"{label} research registry contains duplicate or invalid variant IDs")
+    if len(row_ids) != len(set(row_ids)) or set(row_ids) != variant_ids:
+        issues.append(f"{label} CSV rows do not bind one-to-one to the research registry")
+    if not isinstance(sidecar_ids, list) or sorted(str(value) for value in sidecar_ids) != sorted(row_ids):
+        issues.append(f"{label} registry sidecar row IDs do not match the CSV")
+    return issues
 
 
 def _has_explicit_deprecated_fill_rate(summary: dict) -> bool:
@@ -3052,6 +3112,10 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             f"Missing futures parameter sweep reference CSV: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFERENCE_CSV)}"
         )
+    if not FUTURES_PARAMETER_SWEEP_REGISTRY.exists():
+        issues.append(
+            f"Missing futures parameter sweep registry sidecar: {_repo_relative(FUTURES_PARAMETER_SWEEP_REGISTRY)}"
+        )
     if not FUTURES_PARAMETER_SWEEP_REFRESH.exists():
         issues.append(
             f"Missing futures parameter sweep refresh script: {_repo_relative(FUTURES_PARAMETER_SWEEP_REFRESH)}"
@@ -3061,6 +3125,10 @@ def _verify_strategy_profile_publication() -> list[str]:
     if not FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
         issues.append(
             f"Missing futures latency sweep reference CSV: {_repo_relative(FUTURES_LATENCY_SWEEP_REFERENCE_CSV)}"
+        )
+    if not FUTURES_LATENCY_SWEEP_REGISTRY.exists():
+        issues.append(
+            f"Missing futures latency sweep registry sidecar: {_repo_relative(FUTURES_LATENCY_SWEEP_REGISTRY)}"
         )
     if not FUTURES_LATENCY_SWEEP_REFRESH.exists():
         issues.append(f"Missing futures latency sweep refresh script: {_repo_relative(FUTURES_LATENCY_SWEEP_REFRESH)}")
@@ -3117,6 +3185,10 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md must identify the trade-only fill model"
             )
+        if "Frozen research registry SHA-256" not in sweep_doc:
+            issues.append(
+                "docs/strategy_results/futures_parameter_sweep_reference.md is missing frozen registry provenance"
+            )
         if "local-only" in sweep_doc or "data/raw_1772633471.ndjson" in sweep_doc:
             issues.append(
                 "docs/strategy_results/futures_parameter_sweep_reference.md still depends on a local-only input"
@@ -3126,6 +3198,7 @@ def _verify_strategy_profile_publication() -> list[str]:
             rows = list(csv.DictReader(handle))
         required_columns = {
             "rank",
+            "registry_variant_id",
             "diagnostic_score",
             "strategy_profile",
             "half_spread_bps",
@@ -3192,6 +3265,15 @@ def _verify_strategy_profile_publication() -> list[str]:
                     issues.append(
                         "docs/strategy_results/futures_parameter_sweep_reference.md must label its zero-fill evidence"
                     )
+        issues.extend(
+            _verify_study_registry_sidecar(
+                FUTURES_PARAMETER_SWEEP_REGISTRY,
+                expected_schema="lob_sim.futures_parameter_sweep_registry.v1",
+                expected_study_type="futures_parameter_sweep",
+                rows=rows,
+                label="futures parameter sweep",
+            )
+        )
 
     if FUTURES_LATENCY_SWEEP_REFERENCE.exists() and FUTURES_LATENCY_SWEEP_REFERENCE_CSV.exists():
         latency_doc = _read_text(FUTURES_LATENCY_SWEEP_REFERENCE)
@@ -3223,11 +3305,16 @@ def _verify_strategy_profile_publication() -> list[str]:
             issues.append(
                 "docs/strategy_results/futures_latency_sweep_reference.md must identify the trade-only fill model"
             )
+        if "Frozen research registry SHA-256" not in latency_doc:
+            issues.append(
+                "docs/strategy_results/futures_latency_sweep_reference.md is missing frozen registry provenance"
+            )
 
         with FUTURES_LATENCY_SWEEP_REFERENCE_CSV.open("r", encoding="utf-8", newline="") as handle:
             latency_rows = list(csv.DictReader(handle))
         required_latency_columns = {
             "rank",
+            "registry_variant_id",
             "diagnostic_score",
             "strategy_profile",
             "order_latency_ms",
@@ -3287,6 +3374,15 @@ def _verify_strategy_profile_publication() -> list[str]:
                     issues.append(
                         "docs/strategy_results/futures_latency_sweep_reference.md must label its zero-fill evidence"
                     )
+        issues.extend(
+            _verify_study_registry_sidecar(
+                FUTURES_LATENCY_SWEEP_REGISTRY,
+                expected_schema="lob_sim.futures_latency_sweep_registry.v1",
+                expected_study_type="futures_latency_sweep",
+                rows=latency_rows,
+                label="futures latency sweep",
+            )
+        )
 
     section_expectations = [
         (
