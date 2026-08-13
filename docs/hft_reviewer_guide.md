@@ -90,6 +90,11 @@ make refresh-artifacts
 ```
 
 `python scripts/reviewer_gate.py` is the portable all-in local evidence gate; `make reviewer-gate` delegates to that same script. CI mirrors that local contract with a GitHub Actions matrix for Python 3.11, 3.12, and 3.13: each job installs the package with dev dependencies, runs a CLI smoke test, then runs `make reviewer-gate`. The mypy surface includes the bounded audit oracle, book, replay, record, CLI, independent Python oracle, deterministic simulation kernel, bounded export transaction, runner, metrics, manifests, sinks, and synthetic exchange/demo modules. `make refresh-artifacts` should be run from a clean source tree; it refreshes all committed futures reviewer artifacts with one source-provenance snapshot.
+The gate also writes `outputs/reviewer_gate_report.json` by default. It binds
+the result to the tested commit and dirty-tree state, records runtime/toolchain
+metadata, and lists every command with pass/fail status and duration. CI
+uploads this report for the matrix and Windows smoke jobs, making a review
+handoff inspectable without relying on copied terminal output.
 
 `python -m lob_sim.cli --env .env.example demo` adds a compact exact-synthetic
 MBO proof to the public-L2 walkthrough. It shows the known maker order IDs,

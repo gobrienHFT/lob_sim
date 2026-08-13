@@ -4,6 +4,7 @@ FIXTURE ?= docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson
 RECORDED_FIXTURE ?= docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson
 BENCHMARK_JSON ?= outputs/futures_benchmark.json
 DETERMINISM_JSON ?= outputs/futures_determinism.json
+REVIEWER_REPORT_JSON ?= outputs/reviewer_gate_report.json
 LATENCY_SWEEP_DIR ?= outputs/futures_latency_sweeps
 OVERLAP_SWEEP_DIR ?= outputs/futures_overlap_sensitivity
 AUDIT_PACK ?= docs/sample_outputs/futures_replay_walkthrough
@@ -36,7 +37,7 @@ check-whitespace:
 ci: reviewer-gate
 
 reviewer-gate:
-	$(PY) scripts/reviewer_gate.py --python $(PY) --file $(FIXTURE) --recorded-file $(RECORDED_FIXTURE) --env $(ENV) --determinism-json $(DETERMINISM_JSON) --benchmark-json $(BENCHMARK_JSON)
+	$(PY) scripts/reviewer_gate.py --python $(PY) --file $(FIXTURE) --recorded-file $(RECORDED_FIXTURE) --env $(ENV) --determinism-json $(DETERMINISM_JSON) --benchmark-json $(BENCHMARK_JSON) --report-out $(REVIEWER_REPORT_JSON)
 
 inspect-fixture:
 	$(PY) -m lob_sim.cli inspect --file $(FIXTURE)

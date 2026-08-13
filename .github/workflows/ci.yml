@@ -44,6 +44,14 @@ jobs:
       - name: Run reviewer gate
         run: make reviewer-gate
 
+      - name: Upload reviewer gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-gate-${{ matrix.python-version }}
+          path: outputs/reviewer_gate_report.json
+          if-no-files-found: error
+
   windows-smoke:
     name: Windows reviewer smoke
     runs-on: windows-latest
@@ -70,3 +78,11 @@ jobs:
 
       - name: Run cross-language reviewer smoke
         run: python scripts/reviewer_gate.py --skip-benchmark
+
+      - name: Upload reviewer gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-gate-windows
+          path: outputs/reviewer_gate_report.json
+          if-no-files-found: error

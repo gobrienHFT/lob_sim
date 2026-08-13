@@ -34,6 +34,12 @@ With `make` available:
 make reviewer-gate
 ```
 
+The command writes `outputs/reviewer_gate_report.json`, which is a compact,
+machine-readable handoff containing the tested commit, clean/dirty status,
+runtime/toolchain identity, each gate command, result, and duration. In CI it
+is uploaded as a workflow artifact. This makes the evidence reproducible and
+auditable without presenting a local benchmark as trading latency.
+
 ## Strongest Files
 
 - `lob_sim/book/sync.py`: snapshot/diff continuity and gap policy.

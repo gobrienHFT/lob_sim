@@ -28,6 +28,13 @@ Reviewer quickstart:
 python scripts/reviewer_gate.py
 ```
 
+The gate also writes `outputs/reviewer_gate_report.json`: a machine-readable,
+atomically written release record containing the tested commit, dirty-tree
+status, runtime/toolchain metadata, every gate command, pass/fail status, and
+step timing. CI publishes the same report as a workflow artifact. It is
+evidence about this repository revision and test environment, not a claim of
+production trading performance.
+
 The compact reviewer demo also shows the separation between inferred public-L2
 execution and exact synthetic ground truth:
 
@@ -234,6 +241,13 @@ make overlap-sweep-fixture
 ```
 
 `python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
+The gate writes `outputs/reviewer_gate_report.json` by default (override with
+`--report-out` or `REVIEWER_REPORT_JSON`). The report is a concise release
+record for a hiring-manager or code-review handoff: it binds the result to a
+commit, records whether the source tree was dirty, captures runtime/toolchain
+identity, and records every executed command with status and elapsed time.
+GitHub Actions uploads this report for each Python matrix job and the Windows
+reviewer smoke job.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
 `make audit-fixture` audits one configured pack; `make audit-futures-packs` audits both committed futures packs.
 `make benchmark-fixture` writes `outputs/futures_benchmark.json` with input/config digests, p50/p99 loop timing, events/sec, memory, runtime, and source metadata.
