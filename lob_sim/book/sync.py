@@ -94,8 +94,7 @@ class BookSynchronizer:
         self.gap_count += 1
         self.begin_resync("gap_in_snapshot_buffer")
         raise BookSyncGapError(
-            f"Gap in buffered depth for {self.book.symbol}: "
-            f"expected pu={previous_id}, got pu={event.prev_update_id}"
+            f"Gap in buffered depth for {self.book.symbol}: expected pu={previous_id}, got pu={event.prev_update_id}"
         )
 
     def _invalidate_invalid_snapshot(self, snapshot: SnapshotEvent, error: BookInvariantError) -> None:
