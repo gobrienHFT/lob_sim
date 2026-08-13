@@ -35,7 +35,7 @@ from .options.demo import (
     options_scenarios,
 )
 from .record.async_writer import BoundedCaptureWriter
-from .record.envelope import EventEnvelope, SCHEMA_V3, require_nonnegative_int
+from .record.envelope import EventEnvelope, SCHEMA_V3, require_nonempty_string, require_nonnegative_int
 from .record.format import NDJSONRecord, snapshot_payload
 from .record.schema import RECORD_SCHEMA_VERSION, validate_record_object
 from .record.segmented import SegmentedCaptureWriter
@@ -169,21 +169,27 @@ class _EnvelopeRecordWriter:
         )
         event_ms = record.data.get("E")
         transaction_ms = record.data.get("T")
+        venue = require_nonempty_string(record.data.get("venue", "BINANCE_USDM"), "venue")
+        route = require_nonempty_string(capture.get("route", "control"), "route")
         self.writer.write(
             EventEnvelope(
                 capture_id=self.capture_id,
                 schema_version=SCHEMA_V3,
-                venue=str(record.data.get("venue", "BINANCE_USDM")),
+                venue=venue,
                 instrument=record.symbol,
                 event_kind=record.type,
-                route=str(capture.get("route", "control")),
+                route=route,
                 recv_seq=recv_seq,
                 recv_wall_ns=max(0, int(record.ts_local * 1_000_000_000)),
                 recv_monotonic_ns=require_nonnegative_int(
                     capture.get("recvMonotonicNs", time.monotonic_ns()), "recvMonotonicNs"
                 ),
-                exchange_event_ns=int(event_ms) * 1_000_000 if event_ms is not None else None,
-                exchange_transaction_ns=(int(transaction_ms) * 1_000_000 if transaction_ms is not None else None),
+                exchange_event_ns=(
+                    require_nonnegative_int(event_ms, "E") * 1_000_000 if event_ms is not None else None
+                ),
+                exchange_transaction_ns=(
+                    require_nonnegative_int(transaction_ms, "T") * 1_000_000 if transaction_ms is not None else None
+                ),
                 stream_epoch=require_nonnegative_int(capture.get("streamEpoch", 0), "streamEpoch"),
                 sync_epoch=require_nonnegative_int(capture.get("syncEpoch", 0), "syncEpoch"),
                 payload=record.data,
