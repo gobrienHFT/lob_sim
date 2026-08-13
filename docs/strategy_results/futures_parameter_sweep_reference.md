@@ -8,7 +8,9 @@
 - Profiles: `baseline, layered_mm, research_mm`
 - Half-spread bps grid: `0.05, 0.10, 0.25`
 - Queue repost lots grid: `0, 5, 99`
-- Git commit at run time: `21643818bcde8b695793619d037f7bd13664b41e`
+- Frozen research registry SHA-256: `cfa73166fea1392f197de2aed04085a3434e27ba3d3b9dd0df25a66f4a0a656d`
+- Registry sidecar: `futures_parameter_sweep_reference_registry.json`
+- Git commit at run time: `dff56f217ba284f168971b9eec4864108785a8b9`
 - Git dirty at run time: `False`
 
 Exact command:
