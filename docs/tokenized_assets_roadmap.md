@@ -7,7 +7,7 @@ This repo can support tokenized equities or other exchange-listed synthetic asse
 - Event-time replay.
 - Snapshot plus diff continuity validation.
 - Integer tick/lot normalization.
-- Queue-ahead and FIFO price-time assumptions.
+- Synthetic queue-ahead assumptions, with exact FIFO price-time priority reserved for the separate synthetic exchange.
 - Signed markout, inventory, drawdown, and kill-switch metrics.
 - Contract-multiplier-aware PnL, spread capture, fees, and markout once product metadata is normalized.
 - Manifested input/config/source provenance.

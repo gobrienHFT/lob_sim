@@ -25,7 +25,7 @@ python scripts/refresh_futures_showcase.py
 - At `ts_local=2.0`, the baseline strategy posts a passive bid at `100.0` for `0.001`.
 - The visible bid queue ahead at `100.0` is `0.002` from the seeded snapshot.
 - At `ts_local=2.2`, the depth diff updates the bid level from `0.002` to `0.001`.
-- Under the FIFO price-time model, that reduction consumes one visible lot ahead of the strategy order, so queue ahead falls from `2` lots to `1` lot at the same price level.
+- Under the synthetic visible queue-ahead model, that reduction consumes one modeled lot ahead of the strategy order, so queue ahead falls from `2` lots to `1` lot at the same price level. This does not identify historical participant FIFO.
 
 ## Passive-Fill Example
 

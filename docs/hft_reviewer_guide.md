@@ -142,7 +142,7 @@ Inferred:
 - Cancel-before-fill races are modeled through event-time ordering and explicit cancel latency.
 - A no-quote strategy decision is a quote pull, not a no-op; existing live quotes are canceled through the same latency path.
 - Replacement quotes are not allowed to leapfrog pending cancel acknowledgements for the same slot.
-- During cancel latency the old quote remains fillable; a cancel acknowledgement at the exact timestamp of a public market row is applied before that row consumes queue.
+- During cancel latency the old quote remains fillable. Schema-v3 receipt-order ties apply the public market observation before same-time actions; legacy coarse-timestamp rows retain action-first ordering, so the same-time cancel acknowledgement is applied before that row consumes queue only in that compatibility mode.
 - Strategy decisions are gated on synchronized books and never timestamped before the snapshot row that made buffered diffs usable; decisions due before a later market row are drained before that row, while same-timestamp reactions run after the row and its fills.
 - Schema-v3 route failures are replayed as validity boundaries. A trade outage leaves an independently synchronized depth book intact but clears stale flow history and, when trades are required, terminates old orders/actions and blocks decisions until a fresh epoch connects. Summary `integrity.stream_state` and trace rows expose invalidation, ignored records, and recovery.
 - Decision trace rows carry the strategy inputs and reason used to produce quote targets or pull quotes, so reservation-price and spread/gate logic can be inspected after the run.

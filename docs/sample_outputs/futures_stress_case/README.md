@@ -12,7 +12,7 @@ The fixture uses Binance USD-M-style `exchangeInfo`, `snapshot`, `depthUpdate`, 
 - Per-fill scenario, resolvable input evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, and fee-model provenance.
 - Signed post-fill markout accounting.
 - Cancel latency, including an old quote fill before acknowledgement.
-- Same-timestamp cancel acknowledgement before public trade consumption.
+- Same-timestamp cancel acknowledgement before public trade consumption in the legacy coarse-timestamp compatibility policy.
 - Arrival-time post-only rejection and conservative self-trade prevention.
 - No-gap replay continuity; `book_gap_count` stays zero.
 

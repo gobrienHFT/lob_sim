@@ -54,7 +54,7 @@ Stress-pack public queue-consumption summary:
 - Observed lots: `19`
 - Modeled lots: `18`
 - Overlap-netted lots: `1`
-- FIFO queue-consumed lots: `16`
+- Synthetic queue-consumed lots: `16` (a public-L2 queue-ahead scenario, not historical participant FIFO)
 - Unmatched lots: `2`
 - Overlap window: `0.125s`
 
