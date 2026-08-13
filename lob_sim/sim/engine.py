@@ -799,8 +799,15 @@ class SimulationEngine:
         if enabled:
             print(message, flush=True)
 
-    def _emit_trade_event(self, ts: float, symbol: str, fills: list) -> None:
+    def _emit_trade_event(self, ts: float, symbol: str, fills: list, *, market_observation: bool = False) -> None:
         if not fills:
+            return
+        if market_observation and self._market_data_first:
+            # A public market observation is applied before venue actions in
+            # schema-v3. Execute its modeled queue fills now; scheduling them
+            # behind a same-time cancel acknowledgement would reintroduce an
+            # action-first race inside a single receipt timestamp.
+            self._handle_trades(fills)
             return
         self._schedule(ts, "trade_execution", symbol, {"fills": fills})
 
@@ -1891,7 +1898,7 @@ class SimulationEngine:
                                 )
                                 self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                                 if buffered_fills:
-                                    self._emit_trade_event(now, rec.symbol, buffered_fills)
+                                    self._emit_trade_event(now, rec.symbol, buffered_fills, market_observation=True)
                             self._verbose(
                                 verbose,
                                 f"[simulate] snapshot synced for {rec.symbol} "
@@ -1923,7 +1930,7 @@ class SimulationEngine:
                         )
                         self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                         if fills:
-                            self._emit_trade_event(now, rec.symbol, fills)
+                            self._emit_trade_event(now, rec.symbol, fills, market_observation=True)
 
             elif rec.type == "aggTrade":
                 if self._trade_stream_is_valid(rec.symbol):
@@ -1939,7 +1946,7 @@ class SimulationEngine:
                     )
                     self._trace_public_consumption(self.fill_model.drain_public_consumption_events())
                     if fills:
-                        self._emit_trade_event(now, rec.symbol, fills)
+                        self._emit_trade_event(now, rec.symbol, fills, market_observation=True)
                 else:
                     self._trace(
                         now,
@@ -1950,7 +1957,7 @@ class SimulationEngine:
                     )
 
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
-            self._drain_events(now, inclusive=True)
+            self._drain_events(now, inclusive=not market_data_first)
             if self._books:
                 self.metrics.update_unrealized(self._books, now_ts=now, specs=self._specs)
                 self._trace_markout_events(self.metrics.drain_new_markout_events())
