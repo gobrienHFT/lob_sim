@@ -27,6 +27,11 @@ Python oracle and the Rust kernel over:
 - 10,000 generated scenario-latency component draws across fixed, empirical,
   and stress-tail modes using an explicit integer-microsecond SplitMix64
   sampler, including post-draw sampler state;
+- one composed deterministic engine-contract trace that applies book batches,
+  integer-nanosecond scheduling, public queue consumption, live-plus-pending
+  risk reservations, fixed-point fills/marks/markouts, and epoch invalidation
+  in one sequence through both implementations, including four deliberate
+  rejection cases; and
 - every lifecycle result, fill, drain, reservation decision, position, and
   outstanding reservation total from those operations; and
 - independently computed trace hashes and sampler-state evidence for each
@@ -52,7 +57,9 @@ historical Binance FIFO. The public queue slice is deliberately a
 single-price integer transition proof; it does not infer participant identity,
 depth/trade overlap, private FIFO, or venue-wide fill truth. Scheduler,
 reservation, accounting, and latency results are kernel-primitive proofs, not
-a claim that the whole Python engine already executes through Rust.
+a claim that the whole Python engine already executes through Rust. The
+composed engine-contract trace is a smoke contract over those primitives; it
+does not establish end-to-end `SimulationEngine` replay or manifest parity.
 
 The CLI `compare` command has the same intentionally narrow live Rust surface:
 its `rust_differential` object reports only an optional `logical_time_key` smoke

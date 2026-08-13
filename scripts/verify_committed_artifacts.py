@@ -783,6 +783,14 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "latency_resolution_us",
         "latency_trace_sha256_by_mode",
         "latency_final_state_by_mode",
+        "engine_contract_operations",
+        "engine_contract_operation_corpus_sha256",
+        "engine_contract_trace_sha256",
+        "engine_contract_accepted_operations",
+        "engine_contract_rejected_operations",
+        "engine_contract_fill_count",
+        "engine_contract_final_state_sha256",
+        "engine_contract_scope",
         "remaining_full_engine_scope",
         "full_engine_parity",
     }
@@ -794,6 +802,14 @@ def _verify_rust_python_parity_publication() -> list[str]:
         issues.append("Rust/Python parity report has an invalid schema or failed status")
     if report["full_engine_parity"] is not False:
         issues.append("Rust/Python parity report must not claim full-engine parity")
+    if report["engine_contract_operations"] != (
+        report["engine_contract_accepted_operations"] + report["engine_contract_rejected_operations"]
+    ):
+        issues.append("Rust/Python composed engine-contract counts do not reconcile")
+    if report["engine_contract_operations"] <= 0 or report["engine_contract_fill_count"] <= 0:
+        issues.append("Rust/Python composed engine-contract trace is empty or has no fill")
+    if "not full SimulationEngine replay parity" not in report["engine_contract_scope"]:
+        issues.append("Rust/Python composed engine-contract scope is not explicitly bounded")
     if report["book_batches"] != report["accepted_batches"] + report["rejected_batches"]:
         issues.append("Rust/Python parity book batch counts do not reconcile")
     if report["public_queue_operations"] != (
@@ -948,6 +964,9 @@ def _verify_rust_python_parity_publication() -> list[str]:
         "accounting_trace_sha256",
         "accounting_final_state_sha256",
         "latency_operation_corpus_sha256",
+        "engine_contract_operation_corpus_sha256",
+        "engine_contract_trace_sha256",
+        "engine_contract_final_state_sha256",
     ):
         value = report[field]
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
