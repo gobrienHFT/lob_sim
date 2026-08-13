@@ -854,6 +854,25 @@ class SimulationEngine:
             },
         )
 
+    def _record_normalization_failure(self, rec: RecordedEvent, now: float, exc: Exception) -> None:
+        """Fail closed when a validated row cannot be normalized for replay.
+
+        Record-schema validation proves JSON shape and finite scalar fields; it
+        cannot validate instrument-specific tick/lot grids until exchangeInfo
+        has been applied. Keep those adapter failures auditable without
+        serializing raw payloads or exception messages into a public trace.
+        """
+
+        reason = f"{rec.type}_parse_failure: {type(exc).__name__}"
+        self._invalidate_capture(now, reason)
+        self._trace(
+            now,
+            rec.symbol,
+            "record_parse_failure",
+            "replay_normalizer",
+            details={"record_type": rec.type, "error_type": type(exc).__name__},
+        )
+
     def _trace_public_consumption(self, events: list[PublicConsumptionEvent]) -> None:
         for event in events:
             self._trace(
@@ -2007,7 +2026,11 @@ class SimulationEngine:
             if rec.type in {"captureMeta", "captureEvent"}:
                 continue
             if rec.type == "exchangeInfo":
-                spec = self._parse_exchange_info(rec)
+                try:
+                    spec = self._parse_exchange_info(rec)
+                except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+                    self._record_normalization_failure(rec, now, exc)
+                    continue
                 self._get_or_create_book(rec.symbol)
                 self._verbose(
                     verbose,
@@ -2042,7 +2065,11 @@ class SimulationEngine:
                     )
                 else:
                     spec = self._specs[rec.symbol]
-                    snapshot = self.adapter.snapshot_from_record(rec, spec)
+                    try:
+                        snapshot = self.adapter.snapshot_from_record(rec, spec)
+                    except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+                        self._record_normalization_failure(rec, now, exc)
+                        continue
                     syncer = self._get_sync(rec.symbol)
                     if syncer is not None:
                         if syncer.synced:
@@ -2078,7 +2105,11 @@ class SimulationEngine:
                 spec = self._specs[rec.symbol]
                 syncer = self._get_sync(rec.symbol)
                 if syncer is not None:
-                    event = self.adapter.depth_update_from_record(rec, spec)
+                    try:
+                        event = self.adapter.depth_update_from_record(rec, spec)
+                    except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+                        self._record_normalization_failure(rec, now, exc)
+                        continue
                     try:
                         changes = syncer.on_depth_update(event)
                     except (BookSyncGapError, BookInvariantError) as exc:
@@ -2105,7 +2136,11 @@ class SimulationEngine:
             elif rec.type == "aggTrade":
                 if self._trade_stream_is_valid(rec.symbol):
                     spec = self._specs[rec.symbol]
-                    trade = self.adapter.agg_trade_from_record(rec, spec)
+                    try:
+                        trade = self.adapter.agg_trade_from_record(rec, spec)
+                    except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+                        self._record_normalization_failure(rec, now, exc)
+                        continue
                     self._latest_trade_evidence[rec.symbol] = record_evidence_id
                     self.strategy.observe_trade(trade)
                     fills = self.fill_model.apply_agg_trade(
