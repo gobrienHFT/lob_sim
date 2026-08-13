@@ -14,6 +14,7 @@ from scripts.run_real_data_report import (
     REAL_DATA_REPORT_SCHEMA_VERSION,
     REPO_ROOT,
     _build_evidence_quality,
+    _fill_source_context,
     run_report,
 )
 
@@ -82,6 +83,14 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert "quote_fill_probability" in payload["fills"]
     assert "fills_per_quote_request" in payload["fills"]
     assert "fills_per_arrived_order" in payload["fills"]
+    assert set(payload["fills"]["fill_source_context"]["shares"]) == {
+        "depth_update",
+        "agg_trade",
+        "taker_order",
+    }
+    assert "gross_total_pnl" in payload["risk"]
+    assert "total_fees" in payload["risk"]
+    assert "valuation_complete" in payload["risk"]
     assert set(payload["markout_by_fill_source"]) == {"depth_update", "agg_trade", "taker_order"}
     assert payload["target_window"]["meets_target"] is False
     assert payload["target_window"]["env_overrides"]["COLLECT_SECONDS"] == "1800"
@@ -134,6 +143,21 @@ def test_real_data_report_generation_writes_schema_and_report_only_publish(tmp_p
     assert "Execution claim-ready: `false`" in markdown
     assert "python scripts/run_real_data_report.py" in markdown
     assert not any(path.suffix in {".csv", ".ndjson", ".gz"} for path in publish_dir.rglob("*"))
+
+
+def test_fill_source_context_exposes_inferred_taker_mix_without_claiming_fill_truth() -> None:
+    context = _fill_source_context({"fill_source_counts": {"depth_update": 2, "agg_trade": 1, "taker_order": 7}})
+
+    assert context["count_total"] == 10
+    assert context["shares"] == {"agg_trade": 0.1, "depth_update": 0.2, "taker_order": 0.7}
+    assert context["taker_order_fraction"] == 0.7
+    assert context["taker_order_dominated"] is True
+
+    empty = _fill_source_context({"fill_source_counts": {"taker_order": 0}})
+    assert empty["count_total"] == 0
+    assert empty["shares"] == {"taker_order": None}
+    assert empty["taker_order_fraction"] is None
+    assert empty["taker_order_dominated"] is False
 
 
 def test_real_data_report_validates_input_and_keeps_local_packs_out_of_docs(tmp_path: Path) -> None:
