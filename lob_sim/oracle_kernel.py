@@ -22,6 +22,102 @@ class OracleDecision:
     reason: str | None = None
 
 
+@dataclass
+class _PublicQueueOrder:
+    order_id: int
+    queue_ahead_lots: int
+    remaining_lots: int
+    state: Literal["live", "filled", "cancelled", "epoch_invalidated"] = "live"
+
+
+class PublicQueueScenarioOracle:
+    """Independent single-price public-L2 trade-consumption oracle.
+
+    This is deliberately narrower than :class:`PassiveFillModel`: it proves
+    the integer queue-ahead transition for a trade-only scenario, without
+    pretending to infer participant FIFO, depth/trade overlap, or venue-side
+    order identity from market-by-price data.
+    """
+
+    def __init__(self) -> None:
+        self._orders: dict[int, _PublicQueueOrder] = {}
+        self._queue: list[int] = []
+        self._seen_order_ids: set[int] = set()
+
+    @property
+    def live_order_count(self) -> int:
+        return sum(order.state == "live" for order in self._orders.values())
+
+    def place(self, order_id: int, queue_ahead_lots: int, qty_lots: int) -> OracleDecision:
+        if order_id <= 0:
+            return OracleDecision(False, "invalid_order_id")
+        if order_id in self._seen_order_ids:
+            return OracleDecision(False, "duplicate_order_id")
+        if queue_ahead_lots < 0:
+            return OracleDecision(False, "invalid_queue_ahead")
+        if qty_lots <= 0:
+            return OracleDecision(False, "invalid_quantity")
+        self._seen_order_ids.add(order_id)
+        self._orders[order_id] = _PublicQueueOrder(order_id, queue_ahead_lots, qty_lots)
+        self._queue.append(order_id)
+        return OracleDecision(True)
+
+    def cancel(self, order_id: int) -> OracleDecision:
+        order = self._orders.get(order_id)
+        if order is None:
+            return OracleDecision(False, "unknown_order")
+        if order.state != "live":
+            return OracleDecision(False, "order_not_live")
+        order.state = "cancelled"
+        self._queue.remove(order_id)
+        return OracleDecision(True)
+
+    def invalidate_epoch(self) -> OracleDecision:
+        for order in self._orders.values():
+            if order.state == "live":
+                order.state = "epoch_invalidated"
+        self._queue.clear()
+        return OracleDecision(True)
+
+    def consume(self, observed_lots: int) -> tuple[OracleDecision, list[tuple[int, int]], int]:
+        if observed_lots <= 0:
+            return OracleDecision(False, "invalid_consumption"), [], 0
+        remaining = observed_lots
+        fills: list[tuple[int, int]] = []
+        while remaining > 0 and self._queue:
+            order_id = self._queue[0]
+            order = self._orders[order_id]
+            if order.state != "live":
+                self._queue.pop(0)
+                continue
+            consumed_ahead = min(remaining, order.queue_ahead_lots)
+            order.queue_ahead_lots -= consumed_ahead
+            remaining -= consumed_ahead
+            if remaining <= 0:
+                break
+            fill_lots = min(remaining, order.remaining_lots)
+            order.remaining_lots -= fill_lots
+            remaining -= fill_lots
+            fills.append((order_id, fill_lots))
+            if order.remaining_lots == 0:
+                order.state = "filled"
+                self._queue.pop(0)
+        return OracleDecision(True), fills, remaining
+
+    def canonical_bytes(self) -> bytes:
+        pieces = [
+            "seen:" + ",".join(str(order_id) for order_id in sorted(self._seen_order_ids)) + ";",
+            "queue:" + ",".join(str(order_id) for order_id in self._queue) + ";",
+        ]
+        for order_id in sorted(self._orders):
+            order = self._orders[order_id]
+            pieces.append(f"order:{order_id}:{order.queue_ahead_lots}:{order.remaining_lots}:{order.state};")
+        return "".join(pieces).encode("utf-8")
+
+    def state_sha256(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+
 # Scenario latency is represented as integer microseconds at the parity
 # boundary.  The sampler is deliberately a tiny, language-neutral SplitMix64
 # stream rather than a host-language PRNG whose output sequence can change

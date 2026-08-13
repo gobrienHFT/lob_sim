@@ -5,6 +5,7 @@ from lob_sim.oracle_kernel import (
     AccountingMarkoutOracle,
     DeterministicSchedulerOracle,
     PortfolioNotionalReservationOracle,
+    PublicQueueScenarioOracle,
     RiskReservationOracle,
 )
 from lob_sim.record.envelope import LogicalTime
@@ -20,6 +21,21 @@ def test_scheduler_separates_strict_before_from_same_time_actions() -> None:
     assert scheduler.drain(LogicalTime(100, 5), inclusive=True) == (1, 2)
     assert scheduler.drain(LogicalTime(100, 6), inclusive=True) == (3,)
     assert scheduler.pending_count == 0
+
+
+def test_public_queue_oracle_consumes_ahead_then_fills_and_invalidates() -> None:
+    scenario = PublicQueueScenarioOracle()
+    assert scenario.place(1, queue_ahead_lots=3, qty_lots=2).accepted
+    assert scenario.place(2, queue_ahead_lots=1, qty_lots=2).accepted
+
+    decision, fills, unmatched = scenario.consume(5)
+    assert decision.accepted
+    assert fills == [(1, 2)]
+    assert unmatched == 0
+    assert scenario.live_order_count == 1
+
+    assert scenario.invalidate_epoch().accepted
+    assert scenario.live_order_count == 0
 
 
 def test_scheduler_rejects_reused_identity_after_cancel() -> None:
