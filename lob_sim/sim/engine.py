@@ -146,7 +146,36 @@ class SimulationEngine:
         }
 
     @staticmethod
+    def _record_has_receive_clock(rec: RecordedEvent) -> bool:
+        capture = rec.data.get("_capture")
+        return isinstance(capture, dict) and all(
+            capture.get(field) is not None for field in ("recvSeq", "recvMonotonicNs", "route")
+        )
+
+    @staticmethod
     def _event_time(rec: RecordedEvent) -> float:
+        capture = rec.data.get("_capture")
+        if SimulationEngine._record_has_receive_clock(rec):
+            assert isinstance(capture, dict)
+            try:
+                monotonic_ns = int(str(capture["recvMonotonicNs"]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid receive monotonic timestamp for {rec.symbol}:{rec.type}: "
+                    f"{capture.get('recvMonotonicNs')!r}"
+                ) from exc
+            if monotonic_ns < 0:
+                raise ValueError(f"receive monotonic timestamp must be non-negative: {monotonic_ns!r}")
+            # Schema-v3's receipt clock is the causal simulation clock.  Keep
+            # the public float API for downstream metrics, but derive it from
+            # monotonic nanoseconds instead of wall-clock ``ts_local`` so a
+            # wall-clock adjustment cannot manufacture a false regression.
+            return monotonic_ns / 1_000_000_000.0
+        if rec.type == "captureMeta" and rec.data.get("schemaVersion") == 3 and rec.data.get("clock") == "receive_time":
+            # Legacy-shaped schema-v3 fixtures can declare the clock before
+            # the first receipt envelope. Keep that declaration at the
+            # logical origin until a monotonic receipt timestamp arrives.
+            return 0.0
         try:
             value = float(rec.ts_local)
         except (TypeError, ValueError) as exc:
@@ -629,6 +658,16 @@ class SimulationEngine:
 
     def _trace_market_record(self, rec: RecordedEvent, logical_ts: float, observed_ts: float) -> None:
         details: dict[str, Any] = {"record_type": rec.type}
+        capture = rec.data.get("_capture")
+        if isinstance(capture, dict) and capture.get("recvMonotonicNs") is not None:
+            details.update(
+                {
+                    "logical_time_source": "capture_receive_monotonic_ns",
+                    "observed_wall_ts_local": rec.ts_local,
+                    "recv_monotonic_ns": capture.get("recvMonotonicNs"),
+                    "recv_seq": capture.get("recvSeq"),
+                }
+            )
         if logical_ts != observed_ts:
             details.update({"observed_ts_local": observed_ts, "clock_clamped": True})
         if rec.type == "exchangeInfo":
@@ -1754,7 +1793,18 @@ class SimulationEngine:
 
             observed_ts = self._event_time(rec)
             now = observed_ts
-            if now < last_ts:
+            receive_clock_bootstrap = (
+                self._capture_schema_version >= 3
+                and self._receive_clock
+                and self._record_has_receive_clock(rec)
+                and self._last_receive_monotonic_ns is None
+            )
+            if receive_clock_bootstrap:
+                # A legacy-shaped schema-v3 NDJSON fixture may declare
+                # captureMeta without receipt metadata.  Do not compare that
+                # wall-clock prefix with the first monotonic receipt value.
+                last_ts = now
+            elif now < last_ts:
                 self._clock_regressions += 1
                 if self._capture_schema_version >= 3:
                     self._invalidate_clock(last_ts, observed_ts)

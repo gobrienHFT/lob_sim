@@ -302,6 +302,52 @@ def test_clock_regression_invalidates_pending_markouts_and_live_execution_state(
     assert clock_rows[0]["details"]["invalidated_markout_count"] == 1
 
 
+def test_schema_v3_event_time_uses_receive_monotonic_clock_not_wall_time() -> None:
+    first = RecordedEvent(
+        ts_local=100.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"_capture": {"recvSeq": 1, "recvMonotonicNs": 1_000_000_000, "route": "public"}},
+    )
+    second = RecordedEvent(
+        ts_local=90.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"_capture": {"recvSeq": 2, "recvMonotonicNs": 1_000_000_100, "route": "public"}},
+    )
+
+    first_time = SimulationEngine._event_time(first)
+    second_time = SimulationEngine._event_time(second)
+
+    assert first_time == 1.0
+    assert second_time > first_time
+    assert second_time - first_time == pytest.approx(0.0000001)
+
+
+def test_schema_v3_trace_preserves_raw_wall_time_when_using_receive_clock() -> None:
+    engine = SimulationEngine.__new__(SimulationEngine)
+    engine._last_trace_ts = None
+    engine._trace_counter = 0
+    engine._event_trace_count = 0
+    engine._event_sink = type("Sink", (), {"write": lambda self, event: None})()
+    engine._retain_event_trace = True
+    engine.event_trace = []
+    record = RecordedEvent(
+        ts_local=90.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"_capture": {"recvSeq": 2, "recvMonotonicNs": 1_000_000_100, "route": "public"}},
+    )
+
+    engine._trace_market_record(record, 1.0000001, 1.0000001)
+
+    details = engine.event_trace[0]["details"]
+    assert details["logical_time_source"] == "capture_receive_monotonic_ns"
+    assert details["observed_wall_ts_local"] == 90.0
+    assert details["recv_monotonic_ns"] == 1_000_000_100
+    assert details["recv_seq"] == 2
+
+
 def _capture_event(
     *,
     ts_local: float,
