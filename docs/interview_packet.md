@@ -63,7 +63,7 @@ The committed reports under `docs/real_data_runs/` are retained only as pre-sema
 - The selected public-L2 scenario is explicit and mutually exclusive: confirmed trade prints consume synthetic queue in trade mode, while displayed decreases do so only in the optimistic depth sensitivity.
 - Same-side depth/aggTrade overlap is netted before consumption.
 - Cancel latency leaves old quotes fillable until acknowledgement.
-- Same-timestamp cancel acknowledgements are applied before the corresponding market row.
+- Same-timestamp ordering is explicit rather than universal: schema-v3 receipt-order ties apply market observations before same-time actions, while legacy coarse-timestamp rows retain action-first ordering as a labeled compatibility sensitivity.
 - Marketable strategy orders are taker fills and cannot self-trade with own resting liquidity.
 - Every fill's scenario, input-record evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, fee model, economics, and artifact hashes agree across summary, trades, and trace outputs.
 - Deterministic fixture runs produce identical summary and event-trace hashes.

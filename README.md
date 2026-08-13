@@ -129,7 +129,7 @@ flowchart LR
 - Overlap-reconciliation credits expire through a global time-ordered heap, so one-sided tapes with ever-changing prices do not retain one stale queue per historical price. The run's `fill_assumption_diagnostics.overlap_credit_state` exposes the active bounded state.
 - `--fill-profile conservative|base|aggressive` and `SIM_FILL_MODEL=trade|depth` make the public-L2 execution scenario explicit and mutually exclusive.
 - Run summaries expose observed public-consumption lots, overlap-netted lots, modeled queue-consumption candidates, synthetic queue lots consumed, and unmatched lots for both public sources.
-- Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, FIFO-consumed, and unmatched lots behind the summary totals.
+- Event traces include per-price `queue_consumption` rows tying each public depth/trade signal to the observed, netted, synthetically queue-consumed, and unmatched lots behind the summary totals. This is queue-ahead accounting over market-by-price data, not historical participant FIFO.
 - Trade-stream outages clear stale flow signals and invalidate live/pending execution state whenever the chosen fill or strategy scenario requires trades. Reconnect recovery starts a fresh prospective epoch; the still-valid depth book is not falsely marked broken, and pre-outage queue evidence cannot fill in the new epoch.
 - Fill trace rows carry notional, fee, spread-capture, mid-at-fill, queue, and regime fields so a fill can be audited without leaving the event timeline.
 - Markout summaries are split by fill source, so adverse selection can be inspected separately for depth-inferred, aggregate-trade, and taker-order fills.
@@ -137,7 +137,7 @@ flowchart LR
 - Queue-ahead tracking is explicit: a resting strategy order only fills after the modeled visible queue in front of it has been reduced.
 - Strategy decisions are only scheduled after the book is synchronized and never before the snapshot timestamp that made buffered diffs usable; overdue decisions before the next market row use the prior book, while same-timestamp reactions run after that market row and any fills it produced.
 - A strategy decision with no desired quotes pulls stale live quotes instead of silently leaving them in the book.
-- Cancel latency is explicit: old quotes remain fillable until the modeled acknowledgement time, and a same-timestamp cancel acknowledgement is applied before the corresponding public market row.
+- Cancel latency is explicit: old quotes remain fillable until the modeled acknowledgement time. Schema-v3 receipt-order ties apply market observations before actions at the same logical time; legacy coarse-timestamp rows retain the explicit action-first compatibility sensitivity, where a same-time cancel acknowledgement is applied before the corresponding public market row.
 
 See [docs/futures_validation.md](docs/futures_validation.md) for the assumptions that are currently tested.
 

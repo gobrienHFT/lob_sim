@@ -21,7 +21,7 @@ post-`SIM_FILL_MODEL` configuration.
 
 At the profile level, the envelope is:
 
-- `conservative`: `aggTrade` prints may consume visible FIFO queue. Depth-only reductions are recorded as unknown/cancel-like public consumption unless same-price trade prints corroborate them inside the overlap window.
+- `conservative`: `aggTrade` prints may consume a synthetic visible queue-ahead. Depth-only reductions are recorded as unknown/cancel-like public consumption unless same-price trade prints corroborate them inside the overlap window.
 - `base`: enables both observed signals for profile construction with the existing overlap-netting window; the per-run `SIM_FILL_MODEL` filter above still makes the executed scenario mutually exclusive.
 - `aggressive`: depth reductions and `aggTrade` prints can both consume queue without overlap netting. This is an upper-bound model, not truth.
 
