@@ -54,6 +54,8 @@ def _extract_comparison_metrics(summary: dict) -> dict:
         "fills_per_quote_request": summary["fills_per_quote_request"],
         "fills_per_arrived_order": summary["fills_per_arrived_order"],
         "adverse_fill_rate_1s": summary["adverse_fill_rate_1s"],
+        "integrity": summary.get("integrity", {}),
+        "evidence_quality": summary.get("evidence_quality", {}),
     }
 
 
@@ -82,7 +84,13 @@ def _run_profile(path: Path, env_path: str, profile: str, *, base_config: Any | 
     cfg = replace(base_config or load_config(env_path), mm_strategy_profile=profile)
     engine = SimulationEngine(cfg)
     metrics = engine.run(path)
-    return metrics.get_summary(engine._books)
+    summary = metrics.get_summary(engine._books)
+    # The profile comparison is a compact research report, but it must carry
+    # the same validity boundary as a full simulation artifact.  In particular,
+    # legacy clips can produce useful diagnostics while remaining non-claim-ready.
+    annotations = engine._summary_annotations()
+    summary.update({"integrity": annotations["integrity"], "evidence_quality": annotations["evidence_quality"]})
+    return summary
 
 
 def compare_profiles(path: Path, env_path: str, candidate_profile: str) -> dict:
@@ -142,10 +150,14 @@ def build_profile_registry_sidecar(result: dict[str, Any]) -> dict[str, Any]:
         {
             "strategy_profile": result["baseline_profile"],
             "registry_variant_id": result["baseline"]["registry_variant_id"],
+            "claim_ready": result["baseline"]["integrity"].get("claim_ready"),
+            "markout_evidence": result["baseline"]["evidence_quality"].get("markouts"),
         },
         {
             "strategy_profile": result["candidate_profile"],
             "registry_variant_id": result["candidate"]["registry_variant_id"],
+            "claim_ready": result["candidate"]["integrity"].get("claim_ready"),
+            "markout_evidence": result["candidate"]["evidence_quality"].get("markouts"),
         },
     ]
     return {

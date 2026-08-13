@@ -3169,6 +3169,11 @@ def _verify_strategy_profile_publication() -> list[str]:
         issues.append(
             "docs/strategy_results/futures_strategy_profile_reference.md is missing the registry sidecar link"
         )
+    for token in ["## Evidence Status", "claim_ready=False", "diagnostic_only"]:
+        if token not in reference:
+            issues.append(
+                f"docs/strategy_results/futures_strategy_profile_reference.md is missing evidence token: {token}"
+            )
 
     if FUTURES_STRATEGY_REGISTRY.exists():
         try:
@@ -3187,6 +3192,8 @@ def _verify_strategy_profile_publication() -> list[str]:
                         {
                             "strategy_profile": str(row.get("strategy_profile", "")),
                             "registry_variant_id": str(row.get("registry_variant_id", "")),
+                            "claim_ready": row.get("claim_ready"),
+                            "markout_evidence": row.get("markout_evidence"),
                         }
                         for row in rows
                     ]
@@ -3215,6 +3222,14 @@ def _verify_strategy_profile_publication() -> list[str]:
                             )
                     if {row["strategy_profile"] for row in row_records} != {"baseline", "research_mm"}:
                         issues.append("futures strategy profile registry must publish baseline and research_mm rows")
+                    if any(not isinstance(row.get("claim_ready"), bool) for row in row_records):
+                        issues.append("futures strategy profile registry rows must publish boolean claim_ready status")
+                    if any(not isinstance(row.get("markout_evidence"), str) for row in row_records):
+                        issues.append("futures strategy profile registry rows must publish markout evidence status")
+                    if any(row.get("claim_ready") is not False for row in row_records):
+                        issues.append("short committed strategy profile reference must remain non-claim-ready")
+                    if any(row.get("markout_evidence") != "diagnostic_only" for row in row_records):
+                        issues.append("short committed strategy profile reference must label markouts diagnostic-only")
                     source = registry_payload.get("source")
                     if not isinstance(source, dict) or source.get("git_dirty") is not False:
                         issues.append("futures strategy profile registry must be refreshed from a clean source tree")

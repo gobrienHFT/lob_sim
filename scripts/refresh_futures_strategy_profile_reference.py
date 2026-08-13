@@ -77,6 +77,26 @@ def _render_table(result: dict) -> str:
     return "\n".join(rows)
 
 
+def _render_evidence_status(result: dict) -> str:
+    rows = [
+        "| Evidence field | Baseline | Candidate |",
+        "|---|---|---|",
+    ]
+    for label, key in (
+        ("claim_ready", "claim_ready"),
+        ("capture_valid", "capture_valid"),
+        ("clock_invalidated", "clock_invalidated"),
+    ):
+        baseline = result["baseline"]["integrity"].get(key)
+        candidate = result["candidate"]["integrity"].get(key)
+        rows.append(f"| {label} | {_format_value(baseline)} | {_format_value(candidate)} |")
+    for label, key in (("markout evidence", "markouts"), ("PnL scope", "pnl")):
+        baseline = result["baseline"]["evidence_quality"].get(key)
+        candidate = result["candidate"]["evidence_quality"].get(key)
+        rows.append(f"| {label} | {_format_value(baseline)} | {_format_value(candidate)} |")
+    return "\n".join(rows)
+
+
 def _render_reference_doc(result: dict, input_path: Path) -> str:
     input_file = _repo_relative(input_path)
     comparison_command = COMPARISON_COMMAND_TEMPLATE.format(input_file=input_file)
@@ -117,6 +137,12 @@ def _render_reference_doc(result: dict, input_path: Path) -> str:
             "## Baseline vs Candidate",
             "",
             _render_table(result),
+            "",
+            "## Evidence Status",
+            "",
+            _render_evidence_status(result),
+            "",
+            "The comparison inherits the simulator validity boundary. `claim_ready=False` or `markout evidence=diagnostic_only` means the numbers are behavior diagnostics, not claim-bearing economic evidence.",
             "",
             "## Interpretation",
             "",

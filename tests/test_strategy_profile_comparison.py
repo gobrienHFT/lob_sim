@@ -15,6 +15,8 @@ def _summary(profile: str) -> dict[str, object]:
             "strategy_profile": profile,
             "total_pnl": 0.0,
             "adverse_fill_rate_1s": 0.0,
+            "integrity": {"claim_ready": False},
+            "evidence_quality": {"markouts": "diagnostic_only"},
         }
     )
     return values
@@ -36,6 +38,8 @@ def test_profile_comparison_freezes_and_binds_registry(
     assert result["research_registry"]["frozen"] is True
     assert len(result["research_registry"]["variants"]) == 2
     assert result["baseline"]["registry_variant_id"] != result["candidate"]["registry_variant_id"]
+    assert result["baseline"]["integrity"]["claim_ready"] is False
+    assert result["candidate"]["evidence_quality"]["markouts"] == "diagnostic_only"
 
     sidecar = comparison.build_profile_registry_sidecar(result)
     assert sidecar["schema_version"] == "lob_sim.futures_strategy_profile_registry.v1"
@@ -43,6 +47,7 @@ def test_profile_comparison_freezes_and_binds_registry(
         result["baseline"]["registry_variant_id"],
         result["candidate"]["registry_variant_id"],
     ]
+    assert all(row["claim_ready"] is False for row in sidecar["rows"])
     json.dumps(sidecar, allow_nan=False)
 
 

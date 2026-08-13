@@ -1416,6 +1416,9 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert "python scripts/refresh_futures_strategy_profile_reference.py" in reference
     assert "futures_strategy_profile_reference_registry.json" in reference
     assert "Frozen research registry SHA-256" in reference
+    assert "## Evidence Status" in reference
+    assert "claim_ready=False" in reference
+    assert "diagnostic_only" in reference
     assert "local-only" not in reference
     assert "data/raw_1772633471.ndjson" not in reference
     assert "strategy-profile comparison" in reference
@@ -1424,6 +1427,8 @@ def test_futures_strategy_profile_docs_are_published() -> None:
     assert strategy_registry["study_type"] == "futures_strategy_profile_comparison"
     assert strategy_registry["research_registry"]["frozen"] is True
     assert {row["strategy_profile"] for row in strategy_registry["rows"]} == {"baseline", "research_mm"}
+    assert all(row["claim_ready"] is False for row in strategy_registry["rows"])
+    assert {row["markout_evidence"] for row in strategy_registry["rows"]} == {"diagnostic_only"}
     assert strategy_registry["row_registry_variant_ids"] == [
         row["registry_variant_id"] for row in strategy_registry["rows"]
     ]
