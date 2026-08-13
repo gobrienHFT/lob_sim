@@ -74,6 +74,23 @@ def test_iter_records_rejects_negative_book_sequence_ids(
         list(iter_records(path))
 
 
+def test_iter_records_rejects_reversed_depth_sequence_ids(tmp_path: Path) -> None:
+    path = tmp_path / "reversed_depth_sequence.ndjson"
+    path.write_text(
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 101, "u": 100, "pu": 99, "b": [], "a": []},
+        ).to_json()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RecordValidationError, match="depthUpdate.U must be <= depthUpdate.u"):
+        list(iter_records(path))
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
