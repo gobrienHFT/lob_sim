@@ -19,10 +19,10 @@ The executable contracts live in `lob_sim.research.protocol`:
 - `chronological_day_split(...)` sorts and deduplicates whole UTC days without
   shuffling, returns disjoint 60/20/20 partitions, and marks fewer than ten
   joint-valid days as diagnostic-only.
-- `ResearchRegistry` content-addresses each strategy/configuration and rejects
-  registrations after `freeze()`. Freeze the registry before opening the test
-  partition and include its `registry_sha256` in the study manifest or report
-  alongside the simulator run manifest.
+- `ResearchRegistry` content-addresses each strategy/configuration using strict
+  finite JSON metadata and rejects registrations after `freeze()`. Freeze the
+  registry before opening the test partition and include its `registry_sha256`
+  in the study manifest or report alongside the simulator run manifest.
 - `moving_block_bootstrap_mean(...)` and
   `paired_moving_block_bootstrap_mean_delta(...)` use overlapping blocks and a
   pinned SplitMix64 sampler. The interval is uncertainty for the supplied

@@ -59,6 +59,19 @@ def test_registry_is_content_addressed_and_freezes_before_test() -> None:
         registry.register("late_variant", {})
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"set_value": {1}},
+        {"bytes_value": b"not-json"},
+        {"nan_value": float("nan")},
+    ],
+)
+def test_registry_rejects_non_finite_or_non_json_metadata(metadata: dict) -> None:
+    with pytest.raises(ValueError, match="finite JSON-compatible"):
+        ResearchRegistry().register("invalid", metadata)
+
+
 def test_moving_block_bootstrap_is_reproducible_and_has_mean_in_interval() -> None:
     values = [float(index) for index in range(20)]
     first = moving_block_bootstrap_mean(values, block_size=4, replicates=200, seed=19)
