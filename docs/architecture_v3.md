@@ -19,6 +19,8 @@ collapsing distinct large receipt timestamps through binary floating point;
 legacy rows use a compatibility sub-nanosecond tie component solely to retain
 their historical float ordering. This is an engine scheduling invariant, not a
 claim that legacy wall-clock rows have nanosecond accuracy.
+Event-trace causality is checked against that same internal key, while exported
+`ts_local` remains a reporting field.
 
 Every exported fill uses `lob_sim.fill_provenance.v1`. The record includes the
 public-L2 scenario ID, the order-decision/arrival and triggering market-record
