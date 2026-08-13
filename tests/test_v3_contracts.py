@@ -346,6 +346,28 @@ def test_partial_recovery_recomputes_payload_checksum(tmp_path: Path) -> None:
     assert "line 2: payload checksum mismatch" in report.issues
 
 
+@pytest.mark.parametrize("tamper", ["row_sequence", "capture_id"])
+def test_segment_validation_binds_event_identity_to_header_and_envelope(tmp_path: Path, tamper: str) -> None:
+    with SegmentedCaptureWriter(tmp_path, "capture-1", compression="none") as writer:
+        writer.write(_envelope(1))
+
+    segment = next(tmp_path.glob("*.ndjson"))
+    rows = [json.loads(line) for line in segment.read_text(encoding="utf-8").splitlines()]
+    event_row = next(row for row in rows if row.get("record") == "event")
+    if tamper == "row_sequence":
+        event_row["recv_seq"] = 99
+    else:
+        event_row["event"]["capture_id"] = "other-capture"
+    segment.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+
+    assert list(recover_valid_envelopes(segment)) == []
+    report = validate_segment(segment)
+    if tamper == "row_sequence":
+        assert "line 2: row recv_seq does not match envelope recv_seq" in report.issues
+    else:
+        assert "line 2: envelope capture_id does not match segment header" in report.issues
+
+
 def test_checkpoint_round_trip_and_tamper_detection(tmp_path: Path) -> None:
     checkpoint = Checkpoint.create(
         event_index=12,

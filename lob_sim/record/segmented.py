@@ -290,20 +290,42 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
     source = Path(path)
     handle, _raw = _open_text(source)
     previous_seq: int | None = None
+    header_capture_id: str | None = None
+    header_seen = False
     try:
         for line in handle:
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 break
-            if row.get("record") != "event":
+            record = row.get("record")
+            if record == "segment_header":
+                if header_seen or not isinstance(row.get("capture_id"), str) or not row["capture_id"]:
+                    break
+                header_capture_id = row["capture_id"]
+                header_seen = True
                 continue
+            if record == "segment_trailer":
+                break
+            if record != "event":
+                continue
+            if not header_seen or header_capture_id is None:
+                break
             event = row.get("event")
             if not isinstance(event, dict):
                 break
             try:
                 envelope = EventEnvelope.from_dict(event)
             except (TypeError, ValueError):
+                break
+            row_seq = row.get("recv_seq")
+            if (
+                isinstance(row_seq, bool)
+                or not isinstance(row_seq, int)
+                or row_seq != envelope.recv_seq
+                or envelope.schema_version != SCHEMA_V3
+                or envelope.capture_id != header_capture_id
+            ):
                 break
             checksum = row.get("payload_checksum")
             computed_checksum = payload_checksum(envelope.payload)
@@ -327,6 +349,7 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
     last_seq: int | None = None
     digest = hashlib.sha256()
     header: dict[str, Any] | None = None
+    header_capture_id: str | None = None
     trailer: dict[str, Any] | None = None
     handle, _raw = _open_text(source)
     try:
@@ -343,6 +366,11 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 header = row
                 if row.get("schema_version") != SCHEMA_V3:
                     issues.append(f"line {line_number}: unexpected schema version")
+                capture_id = row.get("capture_id")
+                if not isinstance(capture_id, str) or not capture_id:
+                    issues.append(f"line {line_number}: segment header capture_id is missing or invalid")
+                else:
+                    header_capture_id = capture_id
             elif record == "event":
                 if header is None or trailer is not None:
                     issues.append(f"line {line_number}: event outside header/trailer boundary")
@@ -356,6 +384,13 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 except (TypeError, ValueError) as exc:
                     issues.append(f"line {line_number}: invalid envelope: {exc}")
                     continue
+                if envelope.schema_version != SCHEMA_V3:
+                    issues.append(f"line {line_number}: unexpected envelope schema version")
+                if header_capture_id is not None and envelope.capture_id != header_capture_id:
+                    issues.append(f"line {line_number}: envelope capture_id does not match segment header")
+                row_seq = row.get("recv_seq")
+                if isinstance(row_seq, bool) or not isinstance(row_seq, int) or row_seq != envelope.recv_seq:
+                    issues.append(f"line {line_number}: row recv_seq does not match envelope recv_seq")
                 computed_checksum = payload_checksum(envelope.payload)
                 if (
                     row.get("payload_checksum") != computed_checksum
