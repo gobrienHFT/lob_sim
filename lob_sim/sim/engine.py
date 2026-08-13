@@ -1995,6 +1995,15 @@ class SimulationEngine:
             self._trace_market_record(rec, now, observed_ts)
             if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
                 self._capture_trailer_seen = True
+            # Persist the exact observation key before any metadata/control
+            # record takes an early-return path below.  A legacy clock clamp
+            # must compare against the preceding record, including exchange
+            # metadata and capture events.
+            self._last_ts = last_ts
+            self._last_logical_ns = logical_ns
+            self._last_legacy_subns = legacy_subns
+            self._last_event_index = records_processed
+            self._market_data_first = market_data_first
             if rec.type in {"captureMeta", "captureEvent"}:
                 continue
             if rec.type == "exchangeInfo":
