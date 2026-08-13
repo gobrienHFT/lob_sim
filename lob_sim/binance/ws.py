@@ -110,9 +110,7 @@ def parse_depth_update(
         event_ts=_optional_exchange_ts(payload, "E"),
         transaction_ts=_optional_exchange_ts(payload, "T"),
         receive_seq=(
-            require_nonnegative_int(capture["recvSeq"], "recvSeq")
-            if capture.get("recvSeq") is not None
-            else None
+            require_nonnegative_int(capture["recvSeq"], "recvSeq") if capture.get("recvSeq") is not None else None
         ),
         receive_monotonic_ns=(
             require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
@@ -125,9 +123,7 @@ def parse_depth_update(
             else None
         ),
         sync_epoch=(
-            require_nonnegative_int(capture["syncEpoch"], "syncEpoch")
-            if capture.get("syncEpoch") is not None
-            else None
+            require_nonnegative_int(capture["syncEpoch"], "syncEpoch") if capture.get("syncEpoch") is not None else None
         ),
     )
 
@@ -149,9 +145,7 @@ def parse_agg_trade(
         event_ts=_optional_exchange_ts(payload, "E"),
         transaction_ts=_optional_exchange_ts(payload, "T"),
         receive_seq=(
-            require_nonnegative_int(capture["recvSeq"], "recvSeq")
-            if capture.get("recvSeq") is not None
-            else None
+            require_nonnegative_int(capture["recvSeq"], "recvSeq") if capture.get("recvSeq") is not None else None
         ),
         receive_monotonic_ns=(
             require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
@@ -164,9 +158,7 @@ def parse_agg_trade(
             else None
         ),
         sync_epoch=(
-            require_nonnegative_int(capture["syncEpoch"], "syncEpoch")
-            if capture.get("syncEpoch") is not None
-            else None
+            require_nonnegative_int(capture["syncEpoch"], "syncEpoch") if capture.get("syncEpoch") is not None else None
         ),
     )
 
