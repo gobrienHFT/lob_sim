@@ -13,6 +13,13 @@ scenario. Schema-v3 replay rejects missing receipt identity and fails closed on
 a regressing receipt-monotonic clock; logical receipt order is never inferred
 from exchange timestamps.
 
+The Python engine keeps seconds at the metrics/export boundary but orders its
+internal action heap by `(recv_monotonic_ns, insertion_order)`. This avoids
+collapsing distinct large receipt timestamps through binary floating point;
+legacy rows use a compatibility sub-nanosecond tie component solely to retain
+their historical float ordering. This is an engine scheduling invariant, not a
+claim that legacy wall-clock rows have nanosecond accuracy.
+
 Every exported fill uses `lob_sim.fill_provenance.v1`. The record includes the
 public-L2 scenario ID, the order-decision/arrival and triggering market-record
 IDs, the source-specific validity intersection, the synthetic queue trajectory,
