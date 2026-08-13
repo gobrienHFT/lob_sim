@@ -622,6 +622,7 @@ def replay(
                 continue
             evt = adapter.snapshot_from_record(rec, spec)
             if syncer is not None:
+                gap_count_before = syncer.gap_count
                 try:
                     if syncer.synced:
                         reason = "snapshot_replaced_synced_book"
@@ -629,6 +630,11 @@ def replay(
                         validity_tracker.note_symbol_boundary(rec, capture, reason=reason)
                     syncer.on_snapshot(evt)
                 except (BookSyncGapError, BookInvariantError) as exc:
+                    # Snapshot bridging can discover a gap in the buffered
+                    # prefix (or reject an invalid bridge batch).  Keep the
+                    # aggregate replay diagnostic consistent with the
+                    # authoritative per-symbol synchronizer counter.
+                    gap_count += max(0, syncer.gap_count - gap_count_before)
                     logger.warning("Invalid snapshot while replaying %s: %s", rec.symbol, exc)
             continue
 

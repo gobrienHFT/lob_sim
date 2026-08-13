@@ -161,6 +161,44 @@ def test_replay_counts_non_resync_gap_without_advancing_book(tmp_path: Path, mon
     assert result.symbols["BTCUSDT"].total_levels == 0
 
 
+def test_replay_counts_gap_discovered_while_bridging_snapshot_buffer(tmp_path: Path) -> None:
+    path = tmp_path / "buffer_gap.ndjson"
+    records = [
+        NDJSONRecord(
+            ts_local=0.0,
+            symbol="BTCUSDT",
+            type="exchangeInfo",
+            data={"tickSize": "0.1", "stepSize": "0.001"},
+        ),
+        NDJSONRecord(
+            ts_local=1.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 90, "u": 100, "pu": 89, "b": [], "a": []},
+        ),
+        NDJSONRecord(
+            ts_local=2.0,
+            symbol="BTCUSDT",
+            type="depthUpdate",
+            data={"U": 102, "u": 110, "pu": 999, "b": [], "a": []},
+        ),
+        NDJSONRecord(
+            ts_local=3.0,
+            symbol="BTCUSDT",
+            type="snapshot",
+            data=snapshot_payload(95, [("100.0", "0.010")], [("100.1", "0.010")]),
+        ),
+    ]
+    path.write_text("\n".join(record.to_json() for record in records) + "\n", encoding="utf-8")
+
+    result = replay(path)
+
+    assert result.gap_count == 1
+    assert result.symbols["BTCUSDT"].gap_count == 1
+    assert result.symbols["BTCUSDT"].synced is False
+    assert result.symbols["BTCUSDT"].total_levels == 0
+
+
 def test_replay_reports_claim_ready_schema_v3_validity(tmp_path: Path) -> None:
     path = tmp_path / "schema_v3.ndjson"
     records = [
