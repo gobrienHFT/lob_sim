@@ -16,7 +16,7 @@ from lob_sim.record.envelope import EventEnvelope, LogicalTime, SCHEMA_V3, Valid
 from lob_sim.record.format import NDJSONRecord
 from lob_sim.record.schema import RecordValidationError
 from lob_sim.record.segmented import SegmentedCaptureWriter, recover_valid_envelopes, validate_segment
-from lob_sim.replay.arrow_store import arrow_metadata, iter_arrow_rows, normalize_to_arrow
+from lob_sim.replay.arrow_store import _row, arrow_metadata, iter_arrow_rows, normalize_to_arrow
 from lob_sim.replay.reader import RecordedEvent, iter_records
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.latency import LatencyModel
@@ -635,3 +635,52 @@ def test_validated_manifest_normalizes_to_bounded_arrow_ipc(
     assert [row["recv_seq"] for row in rows] == [1, 2]
     assert all(row["logical_time_source"] == "capture_receive_clock" for row in rows)
     assert arrow_metadata(arrow_path)["causal_order"] == "recv_monotonic_ns,recv_seq"
+
+
+@pytest.mark.parametrize("field", ["recvSeq", "recvMonotonicNs", "streamEpoch", "syncEpoch"])
+@pytest.mark.parametrize("value", ["7", 7.0, True, -1])
+def test_arrow_row_rejects_coercible_capture_metadata(field: str, value: object) -> None:
+    capture = {"recvSeq": 1, "recvMonotonicNs": 2, "streamEpoch": 3, "syncEpoch": 4, "route": "public"}
+    capture[field] = value
+    record = RecordedEvent(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"U": 1, "u": 1, "b": [], "a": [], "_capture": capture},
+    )
+
+    with pytest.raises(ValueError, match=field):
+        _row(record, 1)
+
+
+def test_arrow_row_rejects_coercible_route_metadata() -> None:
+    record = RecordedEvent(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={
+            "U": 1,
+            "u": 1,
+            "b": [],
+            "a": [],
+            "_capture": {"recvSeq": 1, "recvMonotonicNs": 2, "route": 7},
+        },
+    )
+
+    with pytest.raises(ValueError, match="route must be a non-empty string"):
+        _row(record, 1)
+
+
+@pytest.mark.parametrize("field", ["recvSeq", "recvMonotonicNs"])
+def test_arrow_row_rejects_partial_receive_clock(field: str) -> None:
+    capture = {"recvSeq": 1, "recvMonotonicNs": 2, "route": "public"}
+    del capture["recvMonotonicNs" if field == "recvSeq" else "recvSeq"]
+    record = RecordedEvent(
+        ts_local=1.0,
+        symbol="BTCUSDT",
+        type="depthUpdate",
+        data={"U": 1, "u": 1, "b": [], "a": [], "_capture": capture},
+    )
+
+    with pytest.raises(ValueError, match="provided together"):
+        _row(record, 1)
