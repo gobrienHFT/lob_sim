@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from experiments.sweep_futures_overlap import (
+    DEFAULT_FILL_MODELS,
     DEFAULT_OVERLAP_WINDOWS_MS,
     run_overlap_sweep,
     write_overlap_outputs,
@@ -52,6 +53,7 @@ def refresh_futures_overlap_sensitivity() -> dict[str, Path]:
             payload = run_overlap_sweep(
                 INPUT_FILE,
                 ENV_PATH,
+                fill_models=DEFAULT_FILL_MODELS,
                 windows_ms=DEFAULT_OVERLAP_WINDOWS_MS,
             )
         return write_overlap_outputs(

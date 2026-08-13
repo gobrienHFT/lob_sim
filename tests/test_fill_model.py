@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from decimal import Decimal
 
 from lob_sim.book.local_book import LocalOrderBook
@@ -180,6 +181,27 @@ def test_fill_model_public_consumption_summary_tracks_overlap_netting():
         "total_queue_consumed_lots": 2,
         "total_unmatched_lots": 0,
     }
+
+
+def test_depth_signal_reconciles_later_trade_without_modeling_it() -> None:
+    assumption = replace(
+        fill_assumption_config_for_profile("base"),
+        agg_trades_consume_queue=False,
+    )
+    model = PassiveFillModel(assumption)
+    model.seed_from_snapshot("BTCUSDT", bids=[(10000, 1)], asks=[(10010, 1)])
+
+    model.apply_depth_changes("BTCUSDT", [LevelChange("asks", 10010, 1, 0)], 1.0)
+    model.apply_agg_trade(
+        AggTradeEvent(symbol="BTCUSDT", price_tick=10010, qty_lots=1, buyer_is_maker=False, ts_local=1.05),
+        1.05,
+    )
+
+    summary = model.public_consumption_summary()
+    assert summary["sources"]["depth_update"]["modeled_lots"] == 1
+    assert summary["sources"]["agg_trade"]["modeled_lots"] == 0
+    assert summary["sources"]["agg_trade"]["overlap_netted_lots"] == 1
+    assert summary["total_overlap_netted_lots"] == 1
 
 
 def test_overlap_netting_uses_exact_logical_nanoseconds_not_float_seconds() -> None:

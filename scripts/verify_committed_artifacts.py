@@ -1965,7 +1965,9 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
     markdown_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity.md"
     readme_path = OVERLAP_SENSITIVITY_DIR / "README.md"
     registry_path = OVERLAP_SENSITIVITY_DIR / "futures_overlap_sensitivity_registry.json"
+    expected_models = ["trade", "depth"]
     expected_windows = [0, 125, 250]
+    expected_pairs = [(model, window) for model in expected_models for window in expected_windows]
 
     try:
         payload = json.loads(_read_text(summary_path))
@@ -1974,10 +1976,12 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
     except json.JSONDecodeError as exc:
         return [f"{_repo_relative(summary_path)} is invalid JSON: {exc}"]
 
-    if payload.get("schema_version") != "lob_sim.futures_overlap_sensitivity.v1":
+    if payload.get("schema_version") != "lob_sim.futures_overlap_sensitivity.v2":
         issues.append(f"{_repo_relative(summary_path)} has unexpected schema_version")
     if payload.get("study_type") != "futures_overlap_sensitivity":
         issues.append(f"{_repo_relative(summary_path)} has unexpected study_type")
+    if payload.get("fill_models") != expected_models:
+        issues.append(f"{_repo_relative(summary_path)} must publish trade and depth signals")
     if payload.get("windows_ms") != expected_windows:
         issues.append(f"{_repo_relative(summary_path)} must publish windows 0, 125, 250 ms")
 
@@ -1999,11 +2003,12 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
     if not isinstance(audit, dict) or audit.get("ok") is not True:
         issues.append(f"{_repo_relative(summary_path)} audit.ok must be true")
     runs = payload.get("runs")
-    if not isinstance(runs, list) or len(runs) != len(expected_windows):
-        issues.append(f"{_repo_relative(summary_path)} must contain exactly three runs")
+    if not isinstance(runs, list) or len(runs) != len(expected_pairs):
+        issues.append(f"{_repo_relative(summary_path)} must contain exactly six runs")
         runs = []
-    if [run.get("overlap_window_ms") for run in runs if isinstance(run, dict)] != expected_windows:
-        issues.append(f"{_repo_relative(summary_path)} rows must preserve 0/125/250 ms order")
+    observed_pairs = [(run.get("fill_model"), run.get("overlap_window_ms")) for run in runs if isinstance(run, dict)]
+    if observed_pairs != expected_pairs:
+        issues.append(f"{_repo_relative(summary_path)} rows must preserve trade/depth × 0/125/250 ms order")
 
     registry = payload.get("research_registry")
     if not isinstance(registry, dict) or registry.get("frozen") is not True:
@@ -2011,39 +2016,53 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
         registry_variants: list[object] = []
     else:
         registry_variants = registry.get("variants", [])
-        if not isinstance(registry_variants, list) or len(registry_variants) != len(expected_windows):
-            issues.append(f"{_repo_relative(summary_path)} research_registry must contain three variants")
+        if not isinstance(registry_variants, list) or len(registry_variants) != len(expected_pairs):
+            issues.append(f"{_repo_relative(summary_path)} research_registry must contain six variants")
             registry_variants = []
 
-    registry_by_window: dict[int, str] = {}
+    registry_by_pair: dict[tuple[str, int], str] = {}
     for variant in registry_variants:
         if not isinstance(variant, dict) or not isinstance(variant.get("config"), dict):
             issues.append(f"{_repo_relative(summary_path)} has malformed registry variant")
             continue
+        fill_model = variant["config"].get("sim_fill_model")
         window = variant["config"].get("overlap_window_ms")
         variant_id = variant.get("variant_id")
-        if not isinstance(window, int) or window not in expected_windows or not isinstance(variant_id, str):
-            issues.append(f"{_repo_relative(summary_path)} has invalid registry window or variant id")
+        scenario_id = variant["config"].get("scenario_id")
+        if (
+            not isinstance(fill_model, str)
+            or fill_model not in expected_models
+            or not isinstance(window, int)
+            or window not in expected_windows
+            or not isinstance(variant_id, str)
+            or scenario_id != f"public_l2:profile=base:signal={fill_model}:overlap_window_ms={window}"
+        ):
+            issues.append(f"{_repo_relative(summary_path)} has invalid registry signal, window, scenario, or id")
             continue
-        if window in registry_by_window:
-            issues.append(f"{_repo_relative(summary_path)} has duplicate registry window {window}")
-        registry_by_window[window] = variant_id
-    if set(registry_by_window) != set(expected_windows):
-        issues.append(f"{_repo_relative(summary_path)} registry does not cover exactly 0/125/250 ms")
+        pair = (fill_model, window)
+        if pair in registry_by_pair:
+            issues.append(f"{_repo_relative(summary_path)} has duplicate registry scenario {pair!r}")
+        registry_by_pair[pair] = variant_id
+    if set(registry_by_pair) != set(expected_pairs):
+        issues.append(f"{_repo_relative(summary_path)} registry does not cover exactly six scenarios")
 
     for run in runs:
         if not isinstance(run, dict):
             issues.append(f"{_repo_relative(summary_path)} contains a non-object run")
             continue
+        fill_model = run.get("fill_model")
         window = run.get("overlap_window_ms")
-        if registry_by_window.get(window) != run.get("registry_variant_id"):
-            issues.append(f"{_repo_relative(summary_path)} run {window!r} is not bound to its registry variant")
+        pair = (fill_model, window)
+        if registry_by_pair.get(pair) != run.get("registry_variant_id"):
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} is not bound to its registry variant")
+        if run.get("scenario_id") != f"public_l2:profile=base:signal={fill_model}:overlap_window_ms={window}":
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} has an invalid scenario_id")
         if run.get("input_sha256") != payload.get("input_sha256"):
-            issues.append(f"{_repo_relative(summary_path)} run {window!r} has a mixed input hash")
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} has a mixed input hash")
         if not isinstance(run.get("state_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", run["state_sha256"]):
-            issues.append(f"{_repo_relative(summary_path)} run {window!r} has invalid state_sha256")
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} has invalid state_sha256")
         if not isinstance(run.get("public_consumption_totals"), dict):
-            issues.append(f"{_repo_relative(summary_path)} run {window!r} is missing public consumption totals")
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} is missing public consumption totals")
         for field in [
             "fill_count",
             "realized_pnl",
@@ -2055,9 +2074,9 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
         ]:
             value = run.get(field)
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)):
-                issues.append(f"{_repo_relative(summary_path)} run {window!r} has invalid {field}")
+                issues.append(f"{_repo_relative(summary_path)} run {pair!r} has invalid {field}")
         if run.get("execution_claim_ready") is not False:
-            issues.append(f"{_repo_relative(summary_path)} run {window!r} must remain non-claim-ready")
+            issues.append(f"{_repo_relative(summary_path)} run {pair!r} must remain non-claim-ready")
 
     try:
         sidecar = json.loads(_read_text(registry_path))
@@ -2066,6 +2085,8 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
     except json.JSONDecodeError as exc:
         issues.append(f"{_repo_relative(registry_path)} is invalid JSON: {exc}")
     else:
+        if sidecar.get("schema_version") != "lob_sim.futures_overlap_sensitivity_registry.v2":
+            issues.append(f"{_repo_relative(registry_path)} has unexpected schema_version")
         if sidecar.get("research_registry") != registry:
             issues.append(f"{_repo_relative(registry_path)} does not match summary research_registry")
         if sidecar.get("input_sha256") != payload.get("input_sha256"):
@@ -2077,11 +2098,20 @@ def _verify_overlap_sensitivity_publication() -> list[str]:
     except FileNotFoundError:
         issues.append(f"Missing overlap-sensitivity CSV: {_repo_relative(csv_path)}")
         csv_rows = []
-    if [int(row["overlap_window_ms"]) for row in csv_rows if row.get("overlap_window_ms")] != expected_windows:
-        issues.append(f"{_repo_relative(csv_path)} must contain 0/125/250 ms rows")
+    csv_pairs = [
+        (row.get("fill_model"), int(row["overlap_window_ms"]))
+        for row in csv_rows
+        if row.get("fill_model") and row.get("overlap_window_ms")
+    ]
+    if csv_pairs != expected_pairs:
+        issues.append(f"{_repo_relative(csv_path)} must contain trade/depth × 0/125/250 ms rows")
 
     interpretation = payload.get("interpretation")
-    if not isinstance(interpretation, dict) or interpretation.get("claim_ready") is not False:
+    if (
+        not isinstance(interpretation, dict)
+        or interpretation.get("claim_ready") is not False
+        or interpretation.get("economic_fill_signals") != expected_models
+    ):
         issues.append(f"{_repo_relative(summary_path)} interpretation.claim_ready must be false")
     required_caveats = [
         "public l2 cannot prove private fills",

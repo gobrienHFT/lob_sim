@@ -15,9 +15,14 @@ from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_digest, config_snapshot, source_state
 
 
-OVERLAP_SWEEP_SCHEMA_VERSION = "lob_sim.futures_overlap_sensitivity.v1"
+OVERLAP_SWEEP_SCHEMA_VERSION = "lob_sim.futures_overlap_sensitivity.v2"
+OVERLAP_REGISTRY_SCHEMA_VERSION = "lob_sim.futures_overlap_sensitivity_registry.v2"
 DEFAULT_OVERLAP_WINDOWS_MS: tuple[int, ...] = (0, 125, 250)
+DEFAULT_FILL_MODELS: tuple[str, ...] = ("trade", "depth")
+_VALID_FILL_MODELS = frozenset(DEFAULT_FILL_MODELS)
 OVERLAP_SWEEP_FIELDS = [
+    "fill_model",
+    "scenario_id",
     "overlap_window_ms",
     "registry_variant_id",
     "input_sha256",
@@ -56,45 +61,72 @@ def _parse_windows(raw: str) -> tuple[int, ...]:
     return tuple(values)
 
 
-def _window_config(base_cfg: Any, window_ms: int) -> Any:
+def _parse_fill_models(raw: str) -> tuple[str, ...]:
+    values: list[str] = []
+    for part in raw.split(","):
+        model = part.strip().lower()
+        if not model:
+            continue
+        if model not in _VALID_FILL_MODELS:
+            raise ValueError(f"fill models must be trade or depth: {model!r}")
+        values.append(model)
+    if not values:
+        raise ValueError("at least one fill model is required")
+    if len(set(values)) != len(values):
+        raise ValueError("fill models must be unique")
+    return tuple(values)
+
+
+def _scenario_id(fill_model: str, window_ms: int) -> str:
+    return f"public_l2:profile=base:signal={fill_model}:overlap_window_ms={window_ms}"
+
+
+def _window_config(base_cfg: Any, window_ms: int, fill_model: str) -> Any:
     if window_ms < 0:
         raise ValueError("overlap window must be non-negative")
-    # Freeze the study to the base profile.  The selected SIM_FILL_MODEL still
-    # controls the economic signal; this sweep changes only local trade/depth
-    # corroboration timing.
+    if fill_model not in _VALID_FILL_MODELS:
+        raise ValueError(f"unsupported fill model: {fill_model!r}")
+    # Freeze the study to the base profile. Each row explicitly selects one
+    # mutually exclusive public-L2 economic signal and one corroboration window.
     assumption = fill_assumption_config_for_profile("base")
     assumption = replace(
         assumption,
         overlap_netting_enabled=window_ms > 0,
         overlap_window_seconds=window_ms / 1_000.0,
     )
-    return replace(base_cfg, fill_assumption=assumption, mm_enabled=False)
+    return replace(base_cfg, fill_assumption=assumption, mm_enabled=False, sim_fill_model=fill_model)
 
 
-def _variant_name(profile: FillAssumptionProfile, window_ms: int) -> str:
-    return f"overlap:{profile}:window_ms={window_ms}"
+def _variant_name(profile: FillAssumptionProfile, fill_model: str, window_ms: int) -> str:
+    return f"overlap:{profile}:signal={fill_model}:window_ms={window_ms}"
 
 
 def _build_registry(
     base_cfg: Any,
+    fill_models: Iterable[str],
     windows_ms: Iterable[int],
-) -> tuple[dict[int, str], dict[str, Any]]:
+) -> tuple[dict[tuple[str, int], str], dict[str, Any]]:
     registry = ResearchRegistry()
-    variant_ids: dict[int, str] = {}
-    for window_ms in windows_ms:
-        if window_ms in variant_ids:
-            raise ValueError(f"duplicate overlap window: {window_ms}")
-        cfg = _window_config(base_cfg, window_ms)
-        variant_ids[window_ms] = registry.register(
-            _variant_name(cfg.fill_assumption.profile, window_ms),
-            {
-                "study": "futures_overlap_sensitivity",
-                "fill_assumption_profile": cfg.fill_assumption.profile,
-                "sim_fill_model": cfg.sim_fill_model,
-                "overlap_window_ms": window_ms,
-                "normalized_config": config_snapshot(cfg),
-            },
-        )
+    variant_ids: dict[tuple[str, int], str] = {}
+    for fill_model in fill_models:
+        if fill_model not in _VALID_FILL_MODELS:
+            raise ValueError(f"unsupported fill model: {fill_model!r}")
+        for window_ms in windows_ms:
+            key = (fill_model, window_ms)
+            if key in variant_ids:
+                raise ValueError(f"duplicate overlap scenario: {key!r}")
+            cfg = _window_config(base_cfg, window_ms, fill_model)
+            variant_ids[key] = registry.register(
+                _variant_name(cfg.fill_assumption.profile, fill_model, window_ms),
+                {
+                    "study": "futures_overlap_sensitivity",
+                    "fill_assumption_profile": cfg.fill_assumption.profile,
+                    "sim_fill_model": cfg.sim_fill_model,
+                    "overlap_window_ms": window_ms,
+                    "scenario_id": _scenario_id(fill_model, window_ms),
+                    "normalized_config": config_snapshot(cfg),
+                },
+            )
     return variant_ids, registry.freeze()
 
 
@@ -122,10 +154,11 @@ def _summary_for_engine(engine: SimulationEngine, metrics: Any) -> dict[str, Any
 def _run_window(
     input_file: Path,
     base_cfg: Any,
+    fill_model: str,
     window_ms: int,
     registry_variant_id: str,
 ) -> dict[str, Any]:
-    cfg = _window_config(base_cfg, window_ms)
+    cfg = _window_config(base_cfg, window_ms, fill_model)
     engine = SimulationEngine(cfg, retain_event_trace=False)
     metrics = engine.run(input_file)
     summary = _summary_for_engine(engine, metrics)
@@ -138,6 +171,8 @@ def _run_window(
     integrity = summary.get("integrity", {})
     claim_ready = integrity.get("claim_ready") if isinstance(integrity, dict) else None
     return {
+        "fill_model": fill_model,
+        "scenario_id": _scenario_id(fill_model, window_ms),
         "overlap_window_ms": window_ms,
         "registry_variant_id": registry_variant_id,
         "input_sha256": file_sha256(input_file),
@@ -158,40 +193,49 @@ def _run_window(
 
 def _validate_rows(
     rows: list[dict[str, Any]],
+    fill_models: tuple[str, ...],
     windows_ms: tuple[int, ...],
     registry_snapshot: dict[str, Any],
 ) -> dict[str, Any]:
     issues: list[str] = []
-    observed_windows = tuple(int(row.get("overlap_window_ms", -1)) for row in rows)
-    if observed_windows != windows_ms:
-        issues.append(f"rows must preserve requested overlap-window order: {windows_ms!r}")
+    expected_pairs = tuple((fill_model, window_ms) for fill_model in fill_models for window_ms in windows_ms)
+    observed_pairs = tuple((str(row.get("fill_model", "")), int(row.get("overlap_window_ms", -1))) for row in rows)
+    if observed_pairs != expected_pairs:
+        issues.append(f"rows must preserve requested fill-model/window order: {expected_pairs!r}")
     input_hashes = {row.get("input_sha256") for row in rows}
     if len(input_hashes) != 1:
         issues.append("overlap runs have mixed input hashes")
     variants = registry_snapshot.get("variants", [])
-    by_window = {
-        int(variant["config"]["overlap_window_ms"]): str(variant["variant_id"])
+    by_pair = {
+        (str(variant["config"].get("sim_fill_model", "")), int(variant["config"]["overlap_window_ms"])): str(
+            variant["variant_id"]
+        )
         for variant in variants
         if isinstance(variant, dict)
         and isinstance(variant.get("config"), dict)
         and "overlap_window_ms" in variant["config"]
         and "variant_id" in variant
     }
-    if tuple(sorted(by_window)) != tuple(sorted(windows_ms)):
-        issues.append("frozen registry does not cover exactly the requested windows")
+    if set(by_pair) != set(expected_pairs):
+        issues.append("frozen registry does not cover exactly the requested fill-model/window scenarios")
     row_ids = [str(row.get("registry_variant_id", "")) for row in rows]
-    if len(row_ids) != len(set(row_ids)) or set(row_ids) != set(by_window.values()):
+    if len(row_ids) != len(set(row_ids)) or set(row_ids) != set(by_pair.values()):
         issues.append("overlap rows must bind one-to-one to the frozen registry")
     for row in rows:
+        fill_model = str(row.get("fill_model", ""))
         window_ms = int(row.get("overlap_window_ms", -1))
-        if by_window.get(window_ms) != str(row.get("registry_variant_id")):
-            issues.append(f"overlap row {window_ms} ms is not bound to its registry variant")
+        pair = (fill_model, window_ms)
+        if by_pair.get(pair) != str(row.get("registry_variant_id")):
+            issues.append(f"overlap row {pair!r} is not bound to its registry variant")
+        if row.get("scenario_id") != _scenario_id(fill_model, window_ms):
+            issues.append(f"overlap row {pair!r} has an invalid scenario id")
     return {
         "ok": not issues,
         "issues": issues,
+        "fill_models": list(fill_models),
         "windows_ms": list(windows_ms),
         "input_sha256": next(iter(input_hashes)) if len(input_hashes) == 1 else None,
-        "registry_variant_ids": {str(key): value for key, value in sorted(by_window.items())},
+        "registry_variant_ids": {f"{model}:{window}": by_pair[(model, window)] for model, window in expected_pairs},
     }
 
 
@@ -199,17 +243,30 @@ def run_overlap_sweep(
     input_file: Path,
     env_path: str,
     *,
+    fill_models: tuple[str, ...] = DEFAULT_FILL_MODELS,
     windows_ms: tuple[int, ...] = DEFAULT_OVERLAP_WINDOWS_MS,
 ) -> dict[str, Any]:
+    if not fill_models:
+        raise ValueError("at least one fill model is required")
     if not windows_ms:
         raise ValueError("at least one overlap window is required")
+    if len(set(fill_models)) != len(fill_models):
+        raise ValueError("fill models must be unique")
+    if any(fill_model not in _VALID_FILL_MODELS for fill_model in fill_models):
+        raise ValueError("fill models must be trade or depth")
+    fill_models = tuple(fill_models)
+    windows_ms = tuple(windows_ms)
     base_cfg = load_config(env_path)
-    variant_ids, registry_snapshot = _build_registry(base_cfg, windows_ms)
-    rows = [_run_window(input_file, base_cfg, window_ms, variant_ids[window_ms]) for window_ms in windows_ms]
-    audit = _validate_rows(rows, windows_ms, registry_snapshot)
+    variant_ids, registry_snapshot = _build_registry(base_cfg, fill_models, windows_ms)
+    rows = [
+        _run_window(input_file, base_cfg, fill_model, window_ms, variant_ids[(fill_model, window_ms)])
+        for fill_model in fill_models
+        for window_ms in windows_ms
+    ]
+    audit = _validate_rows(rows, fill_models, windows_ms, registry_snapshot)
     if not audit["ok"]:
         raise RuntimeError("; ".join(audit["issues"]))
-    cfg = _window_config(base_cfg, windows_ms[0])
+    cfg = _window_config(base_cfg, windows_ms[0], fill_models[0])
     return {
         "schema_version": OVERLAP_SWEEP_SCHEMA_VERSION,
         "study_type": "futures_overlap_sensitivity",
@@ -218,7 +275,7 @@ def run_overlap_sweep(
         "env_path": env_path,
         "base_config_digest": config_digest(config_snapshot(cfg)),
         "feed_adapter": adapter_metadata(DEFAULT_REPLAY_ADAPTER),
-        "fill_model": cfg.sim_fill_model,
+        "fill_models": list(fill_models),
         "fill_assumption_profile": cfg.fill_assumption.profile,
         "windows_ms": list(windows_ms),
         "audit": audit,
@@ -227,7 +284,8 @@ def run_overlap_sweep(
         "runs": rows,
         "interpretation": {
             "scope": "local public trade/depth corroboration diagnostics",
-            "economic_fill_signal": cfg.sim_fill_model,
+            "economic_fill_signals": list(fill_models),
+            "scenario_count": len(rows),
             "private_fifo_claim": False,
             "private_execution_truth": False,
             "claim_ready": False,
@@ -258,7 +316,7 @@ def write_overlap_outputs(
     registry_path.write_text(
         json.dumps(
             {
-                "schema_version": "lob_sim.futures_overlap_sensitivity_registry.v1",
+                "schema_version": OVERLAP_REGISTRY_SCHEMA_VERSION,
                 "study_type": payload["study_type"],
                 "input_sha256": payload["input_sha256"],
                 "base_config_digest": payload["base_config_digest"],
@@ -279,13 +337,15 @@ def write_overlap_outputs(
             writer.writerow({field: _csv_cell(row.get(field, "")) for field in OVERLAP_SWEEP_FIELDS})
 
     table = [
-        "| Window ms | Fills | Total PnL | Fees | Overlap-netted lots | Corroborated depth lots | Uncorroborated depth lots | State SHA-256 |",
-        "|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Signal | Scenario ID | Window ms | Fills | Total PnL | Fees | Overlap-netted lots | Corroborated depth lots | Uncorroborated depth lots | State SHA-256 |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in payload["runs"]:
         public = row["public_consumption_totals"]
         table.append(
-            "| {window:g} | {fills} | {pnl:.10g} | {fees:.10g} | {overlap} | {corr} | {uncorr} | `{state}` |".format(
+            "| {model} | `{scenario}` | {window:g} | {fills} | {pnl:.10g} | {fees:.10g} | {overlap} | {corr} | {uncorr} | `{state}` |".format(
+                model=row["fill_model"],
+                scenario=row["scenario_id"],
                 window=float(row["overlap_window_ms"]),
                 fills=row["fill_count"],
                 pnl=float(row["total_pnl"]),
@@ -302,7 +362,7 @@ def write_overlap_outputs(
         f"- Input file: `{payload['input_file']}`",
         f"- Input SHA-256: `{payload['input_sha256']}`",
         f"- Base config digest: `{payload['base_config_digest']}`",
-        f"- Public-L2 economic signal: `{payload['fill_model']}` (mutually exclusive scenario)",
+        f"- Public-L2 signals: `{', '.join(payload['fill_models'])}` (mutually exclusive scenarios)",
         f"- Frozen research registry SHA-256: `{payload['research_registry']['registry_sha256']}`",
         f"- Registry sidecar: `{registry_path.name}`",
     ]
@@ -312,7 +372,7 @@ def write_overlap_outputs(
         [
             "",
             "Public L2 cannot prove private fills. This is a local corroboration diagnostic, not a private FIFO or execution-truth claim.",
-            "The selected trade/depth signal remains mutually exclusive; the window only controls whether the other public feed is treated as corroborating evidence.",
+            "Trade-only and depth-only signals are run separately; the window only controls whether the other public feed is treated as corroborating evidence.",
             "The study is intentionally non-economic (`MM_ENABLED=0`) and is not claim-ready even if the input has no detected gap.",
             "",
             *table,
@@ -333,12 +393,18 @@ def main() -> int:
         default=",".join(str(value) for value in DEFAULT_OVERLAP_WINDOWS_MS),
         help="Comma-separated local overlap windows in milliseconds",
     )
+    parser.add_argument(
+        "--fill-models",
+        default=",".join(DEFAULT_FILL_MODELS),
+        help="Comma-separated mutually exclusive public-L2 signals: trade,depth",
+    )
     args = parser.parse_args()
     windows_ms = _parse_windows(args.windows_ms)
-    payload = run_overlap_sweep(Path(args.file), args.env, windows_ms=windows_ms)
+    fill_models = _parse_fill_models(args.fill_models)
+    payload = run_overlap_sweep(Path(args.file), args.env, fill_models=fill_models, windows_ms=windows_ms)
     command = (
         f"python experiments/sweep_futures_overlap.py --file {args.file} --env {args.env} "
-        f"--out-dir {args.out_dir} --windows-ms {args.windows_ms}"
+        f"--out-dir {args.out_dir} --fill-models {args.fill_models} --windows-ms {args.windows_ms}"
     )
     paths = write_overlap_outputs(payload, Path(args.out_dir), command=command)
     print(f"Wrote {len(payload['runs'])} overlap sensitivity rows")

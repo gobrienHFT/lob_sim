@@ -3,3 +3,5 @@
 {"ts_local":2.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":95,"u":105,"pu":94,"b":[["100.0","0.010"]],"a":[["100.1","0.010"]]}}
 {"ts_local":3.0,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.0","q":"0.002","m":true}}
 {"ts_local":3.05,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":106,"u":106,"pu":105,"b":[["100.0","0.008"]],"a":[]}}
+{"ts_local":4.0,"symbol":"BTCUSDT","type":"depthUpdate","data":{"U":107,"u":107,"pu":106,"b":[],"a":[["100.1","0.008"]]}}
+{"ts_local":4.05,"symbol":"BTCUSDT","type":"aggTrade","data":{"p":"100.1","q":"0.002","m":false}}
