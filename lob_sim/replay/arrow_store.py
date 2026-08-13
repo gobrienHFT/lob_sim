@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from decimal import Decimal
 from pathlib import Path
 from collections.abc import Mapping
 from typing import Any, Iterator
@@ -14,6 +13,7 @@ from ..record.envelope import (
     payload_checksum,
     require_nonempty_string,
     require_nonnegative_int,
+    require_nonnegative_timestamp_ns,
 )
 from .inspection import file_sha256
 from .reader import iter_records
@@ -74,7 +74,11 @@ def _row(record: Any, source_row_seq: int) -> dict[str, Any]:
     recv_seq = (
         require_nonnegative_int(capture["recvSeq"], "recvSeq") if capture.get("recvSeq") is not None else source_row_seq
     )
-    recv_wall_ns = int(Decimal(str(record.ts_local)) * Decimal(1_000_000_000))
+    recv_wall_ns = (
+        require_nonnegative_int(capture["recvWallNs"], "recvWallNs")
+        if capture.get("recvWallNs") is not None
+        else require_nonnegative_timestamp_ns(record.ts_local, "ts_local")
+    )
     recv_monotonic_ns = (
         require_nonnegative_int(capture["recvMonotonicNs"], "recvMonotonicNs")
         if capture.get("recvMonotonicNs") is not None

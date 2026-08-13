@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
 
 SCHEMA_V3 = "lob_sim.record.v3"
@@ -36,6 +37,26 @@ def require_nonnegative_int(value: object, field_name: str) -> int:
     if value < 0:
         raise ValueError(f"{field_name} must be >= 0")
     return value
+
+
+def require_nonnegative_timestamp_ns(value: object, field_name: str) -> int:
+    """Convert a decimal-seconds timestamp to exact non-negative nanoseconds.
+
+    Receipt wall-clock time is part of the capture identity.  Clamping a
+    negative value or truncating a fractional nanosecond would silently change
+    that identity, so conversion is deliberately fail-closed.
+    """
+
+    try:
+        seconds = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a finite non-negative timestamp") from exc
+    if not seconds.is_finite() or seconds < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative timestamp")
+    nanoseconds = seconds * Decimal(1_000_000_000)
+    if nanoseconds != nanoseconds.to_integral_value():
+        raise ValueError(f"{field_name} must resolve to an integer nanosecond")
+    return require_nonnegative_int(int(nanoseconds), field_name)
 
 
 def optional_nonnegative_int(value: object, field_name: str) -> int | None:

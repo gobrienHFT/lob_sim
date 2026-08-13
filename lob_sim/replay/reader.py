@@ -31,6 +31,7 @@ def _record_from_envelope(envelope: object) -> RecordedEvent:
         {
             "captureId": envelope.capture_id,
             "recvSeq": envelope.recv_seq,
+            "recvWallNs": envelope.recv_wall_ns,
             "recvMonotonicNs": envelope.recv_monotonic_ns,
             "streamEpoch": envelope.stream_epoch,
             "syncEpoch": envelope.sync_epoch,
