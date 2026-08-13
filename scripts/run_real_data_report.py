@@ -501,6 +501,13 @@ def _build_report_payload(
         },
         "validity": evidence_quality["engine"],
         "evidence_quality": evidence_quality,
+        "assumptions": {
+            "execution_model": summary.get("execution_model", {}),
+            "economic": summary.get("economic_assumptions", {}),
+            "simulation": summary.get("simulation_assumptions", {}),
+            "feed_adapter": summary.get("feed_adapter", {}),
+            "instrument_specs": summary.get("instrument_specs", {}),
+        },
         "local_artifacts": {
             "output_dir": _display_path(output_dir),
             "pack_dir": _display_path(pack_dir),
@@ -605,6 +612,7 @@ def _render_report(payload: dict[str, Any]) -> str:
     benchmark = payload["benchmark"]
     event_counts = payload["event_counts"]
     evidence_quality = payload["evidence_quality"]
+    assumptions = payload.get("assumptions", {})
     trade_source_counts = payload.get("public_trade_source_counts", {})
     markouts = payload["markout_by_fill_source"]
     markout_rows = [
@@ -686,6 +694,16 @@ def _render_report(payload: dict[str, Any]) -> str:
             f"- Target window check: `{str(gate_checks.get('target_window_10_to_30_minutes')).lower()}`",
             "",
             *gate_rows,
+            "",
+            "## Model Assumptions",
+            "",
+            "These are the exact public-L2 execution and economic assumptions used for this report; they are not exchange measurements.",
+            "",
+            f"- Execution model: `{_json_line(assumptions.get('execution_model', {}))}`",
+            f"- Economic assumptions: `{_json_line(assumptions.get('economic', {}))}`",
+            f"- Simulation assumptions: `{_json_line(assumptions.get('simulation', {}))}`",
+            f"- Feed adapter: `{_json_line(assumptions.get('feed_adapter', {}))}`",
+            f"- Instrument specs: `{_json_line(assumptions.get('instrument_specs', {}))}`",
             "",
             "## Event Counts",
             "",
