@@ -2068,6 +2068,80 @@ def test_cancel_ack_at_same_timestamp_precedes_public_trade_fill(
     assert {row["details"]["reason"] for row in pull_decision} == {"pull_quotes"}
 
 
+def test_schema_v3_same_receipt_time_applies_all_market_records_before_actions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_path = _write_cancel_latency_boundary_replay(tmp_path / "schema_v3_same_time_base.ndjson", 2.2)
+    rows = [json.loads(line) for line in legacy_path.read_text(encoding="utf-8").splitlines()]
+    duplicate_depth = next(row for row in rows if row["type"] == "depthUpdate" and row["ts_local"] == 2.1)
+    duplicate_depth = json.loads(json.dumps(duplicate_depth))
+    duplicate_depth["ts_local"] = 2.2
+    rows.insert(len(rows) - 1, duplicate_depth)
+    rows.insert(
+        0,
+        {
+            "ts_local": 0.1,
+            "symbol": "*",
+            "type": "captureMeta",
+            "data": {"schemaVersion": 3, "clock": "receive_time"},
+        },
+    )
+    rows.insert(
+        1,
+        {
+            "ts_local": 0.2,
+            "symbol": "BTCUSDT",
+            "type": "captureEvent",
+            "data": {"event": "connect", "route": "market"},
+        },
+    )
+    rows.append(
+        {
+            "ts_local": 2.3,
+            "symbol": "*",
+            "type": "captureEvent",
+            "data": {"event": "capture_trailer", "route": "control"},
+        }
+    )
+    for sequence, row in enumerate(rows[1:], start=1):
+        route = {
+            "exchangeInfo": "control",
+            "captureEvent": str(row["data"].get("route", "control")),
+            "snapshot": "public",
+            "depthUpdate": "public",
+            "aggTrade": "market",
+        }[row["type"]]
+        row["data"]["_capture"] = {
+            "route": route,
+            "recvSeq": sequence,
+            "recvMonotonicNs": int(float(row["ts_local"]) * 1_000_000_000),
+            "streamEpoch": 0 if route == "control" else 1,
+            "syncEpoch": 0 if route == "control" else 1,
+        }
+    replay_path = tmp_path / "schema_v3_same_time.ndjson"
+    replay_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    cfg = _cancel_latency_boundary_config(monkeypatch, tmp_path)
+    engine = SimulationEngine(cfg)
+    engine.strategy = _CancelAfterFirstQuoteStrategy()
+    metrics = engine.run(replay_path)
+    summary = metrics.get_summary(engine._books)
+
+    assert summary["fill_count"] == 1
+    same_time_rows = [
+        row
+        for row in engine.event_trace
+        if row["ts_local"] == pytest.approx(2.2) and row["event_type"] in {"market_record", "fill", "cancel_ack"}
+    ]
+    assert [row["event_type"] for row in same_time_rows] == [
+        "market_record",
+        "market_record",
+        "fill",
+        "cancel_ack",
+    ]
+
+
 def test_simulation_engine_is_deterministic_for_same_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     replay_path = _write_replay_file(tmp_path / "deterministic.ndjson")
     cfg = _build_config(monkeypatch, tmp_path)
