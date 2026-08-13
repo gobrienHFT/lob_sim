@@ -1793,6 +1793,6 @@
     "ef6dbedba7831a63",
     "ef79f7c26269c9ca"
   ],
-  "schema_version": "lob_sim.futures_parameter_sweep_registry.v1",
+  "schema_version": "lob_sim.futures_parameter_sweep_registry.v2",
   "study_type": "futures_parameter_sweep"
 }
