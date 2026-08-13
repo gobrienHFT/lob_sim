@@ -30,7 +30,6 @@ def _canonical_bytes(value: Any) -> bytes:
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
-            default=str,
             allow_nan=False,
         ).encode("utf-8")
     except (TypeError, ValueError) as exc:
