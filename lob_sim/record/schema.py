@@ -335,6 +335,12 @@ def validate_record_object(
         _require_keys(data, ("U", "u", "b", "a"), "depthUpdate payload", path=path, line_number=line_number)
         _require_nonnegative_intish(data["U"], "depthUpdate.U", path=path, line_number=line_number)
         _require_nonnegative_intish(data["u"], "depthUpdate.u", path=path, line_number=line_number)
+        if int(str(data["U"])) > int(str(data["u"])):
+            _fail(
+                f"depthUpdate.U must be <= depthUpdate.u, got U={data['U']!r}, u={data['u']!r}",
+                path=path,
+                line_number=line_number,
+            )
         if "pu" in data:
             _require_nonnegative_intish(data["pu"], "depthUpdate.pu", path=path, line_number=line_number)
         _require_level_list(data["b"], "depthUpdate.b", path=path, line_number=line_number)
