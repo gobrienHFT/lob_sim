@@ -20,6 +20,7 @@ from ..replay.inspection import file_sha256
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
 ARTIFACT_BUNDLE_SCHEMA_VERSION = "lob_sim.artifact_bundle.v1"
+CLAIM_GATE_SCHEMA_VERSION = "lob_sim.simulation_claim_gate.v1"
 SOURCE_STATE_OVERRIDE_ENV = "LOB_SIM_SOURCE_STATE_JSON"
 
 
@@ -297,6 +298,112 @@ def simulation_assumptions_snapshot(fill_assumption: FillAssumptionConfig | None
     }
 
 
+def claim_gate_snapshot(summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Project run validity into a portable, reviewer-facing decision record.
+
+    ``summary.json`` remains the detailed accounting and diagnostics surface.
+    This smaller projection is copied into the manifest so a run cannot lose
+    its claim status when a reviewer only receives the manifest or moves the
+    artifact bundle to another machine.  The statuses deliberately describe
+    evidence quality, not live trading or profitability.
+    """
+
+    def mapping(value: object) -> Mapping[str, Any]:
+        return value if isinstance(value, Mapping) else {}
+
+    def status(ready: bool) -> str:
+        return "claim_ready" if ready else "diagnostic_only"
+
+    integrity = mapping(summary.get("integrity"))
+    evidence_quality = mapping(summary.get("evidence_quality"))
+    provenance = mapping(summary.get("fill_provenance"))
+    retention = mapping(summary.get("audit_retention"))
+    execution_ready = integrity.get("claim_ready") is True
+    markout_clock_ready = evidence_quality.get("markouts") == "claim_ready"
+    valuation_complete = summary.get("valuation_complete") is True
+    provenance_complete = provenance.get("complete") is True
+
+    fill_hash = retention.get("fill_audit_sha256")
+    markout_hash = retention.get("markout_audit_sha256")
+    audit_complete = (
+        provenance_complete
+        and isinstance(fill_hash, str)
+        and len(fill_hash) == 64
+        and isinstance(markout_hash, str)
+        and len(markout_hash) == 64
+    )
+
+    execution_reasons: list[str] = []
+    if not execution_ready:
+        execution_reasons.append("execution_validity_not_claim_ready")
+    markout_reasons: list[str] = []
+    if not markout_clock_ready:
+        reason = evidence_quality.get("markout_reason")
+        markout_reasons.append(str(reason) if reason else "markout_clock_not_claim_ready")
+    valuation_reasons: list[str] = []
+    if not valuation_complete:
+        valuation_reasons.append("valuation_incomplete_or_missing_marks")
+    output_reasons = list(execution_reasons)
+    if not valuation_complete:
+        output_reasons.append("valuation_incomplete_or_missing_marks")
+    if not provenance_complete:
+        output_reasons.append("fill_provenance_incomplete")
+    if not audit_complete:
+        output_reasons.append("audit_chain_incomplete_or_missing")
+
+    coverage: dict[str, dict[str, Any]] = {}
+    for raw_horizon, raw_stats in mapping(summary.get("markout_horizon_summary")).items():
+        stats = mapping(raw_stats)
+        coverage[str(raw_horizon)] = {
+            "horizon_ms": stats.get("horizon_ms"),
+            "resolved_samples": stats.get("resolved_samples", 0),
+            "invalidated_samples": stats.get("invalidated_samples", 0),
+            "unresolved_samples": stats.get("unresolved_samples", 0),
+            "coverage": stats.get("coverage", 0.0),
+            "mean_resolution_lag_ms": stats.get("mean_resolution_lag_ms"),
+            "max_resolution_lag_ms": stats.get("max_resolution_lag_ms"),
+        }
+
+    return {
+        "schema_version": CLAIM_GATE_SCHEMA_VERSION,
+        "execution_claim_ready": execution_ready,
+        "markout_clock_claim_ready": markout_clock_ready,
+        "valuation_complete": valuation_complete,
+        "fill_provenance_complete": provenance_complete,
+        "audit_complete": audit_complete,
+        "model_output_complete": not output_reasons,
+        "markout_coverage": coverage,
+        "claim_matrix": {
+            "capture_receipt_and_validity": {
+                "status": status(execution_ready),
+                "reason_codes": execution_reasons or ["all_receipt_and_execution_validity_checks_passed"],
+            },
+            "subsecond_markouts": {
+                "status": status(markout_clock_ready),
+                "reason_codes": markout_reasons or ["receive_clock_markout_checks_passed"],
+            },
+            "valuation": {
+                "status": "complete" if valuation_complete else "incomplete",
+                "reason_codes": valuation_reasons or ["all_open_inventory_has_a_valid_mark"],
+            },
+            "modeled_pnl": {
+                "status": "diagnostic_only",
+                "reason_codes": [
+                    "modeled_execution_output_not_live_or_counterfactual_result",
+                    *output_reasons,
+                ],
+            },
+            "strategy_or_profitability": {
+                "status": "diagnostic_only",
+                "reason_codes": [
+                    "not_a_registered_holdout_study",
+                    "research_protocol_requires_at_least_10_joint_valid_utc_days",
+                ],
+            },
+        },
+    }
+
+
 def _run_id(input_sha: str, cfg: Config, feed_adapter: dict[str, Any]) -> str:
     payload = json.dumps(
         {
@@ -329,9 +436,10 @@ class RunManifest:
     source: dict[str, Any]
     outputs: dict[str, str]
     output_artifacts: dict[str, dict[str, Any]]
+    claim_gate: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "run_id": self.run_id,
             "schema_version": self.schema_version,
             "created_at_utc": self.created_at_utc,
@@ -348,6 +456,9 @@ class RunManifest:
             "outputs": self.outputs,
             "output_artifacts": self.output_artifacts,
         }
+        if self.claim_gate is not None:
+            payload["claim_gate"] = self.claim_gate
+        return payload
 
 
 def build_run_manifest(
@@ -359,6 +470,7 @@ def build_run_manifest(
     source: dict[str, Any] | None = None,
     adapter: ReplayFeedAdapter = DEFAULT_REPLAY_ADAPTER,
     instrument_specs: Mapping[str, InstrumentSpec] | None = None,
+    claim_gate: dict[str, Any] | None = None,
 ) -> RunManifest:
     path = Path(input_path)
     input_sha = file_sha256(path)
@@ -388,4 +500,5 @@ def build_run_manifest(
         source=source if source is not None else source_state(),
         outputs={name: str(path) for name, path in sorted(output_files.items())},
         output_artifacts=output_artifact_snapshot(output_files),
+        claim_gate=claim_gate,
     )

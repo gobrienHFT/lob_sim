@@ -34,6 +34,7 @@ from .run_manifest import (
     RunManifest,
     artifact_bundle_snapshot,
     build_run_manifest,
+    claim_gate_snapshot,
     config_digest,
     config_snapshot,
     instrument_specs_snapshot,
@@ -2590,6 +2591,7 @@ class SimulationEngine:
                 else "small_fixture_and_committed_evidence_generation"
             ),
         }
+        summary["claim_gate"] = claim_gate_snapshot(summary)
         return summary, seed
 
     def _write_manifest(
@@ -2599,6 +2601,7 @@ class SimulationEngine:
         manifest_seed: RunManifest,
         *,
         include_artifact_bundle: bool = False,
+        claim_gate: dict[str, Any] | None = None,
     ) -> None:
         manifest = build_run_manifest(
             file_path,
@@ -2608,6 +2611,7 @@ class SimulationEngine:
             source=manifest_seed.source,
             adapter=self.adapter,
             instrument_specs=self._specs,
+            claim_gate=claim_gate,
         )
         if manifest.run_id != manifest_seed.run_id:
             raise RuntimeError(f"run identity changed during export: {manifest_seed.run_id!r} -> {manifest.run_id!r}")
@@ -2651,7 +2655,7 @@ class SimulationEngine:
             for row in summary.get("fills", []):
                 sink.write(row)
         self._write_event_trace(event_trace_path)
-        self._write_manifest(file_path, output_files, manifest_seed)
+        self._write_manifest(file_path, output_files, manifest_seed, claim_gate=summary["claim_gate"])
         return output_files, summary
 
     def finalize_streaming_outputs(
@@ -2697,5 +2701,11 @@ class SimulationEngine:
         )
         atomic_write_json(output_files["summary"], summary)
         atomic_write_summary_csv(output_files["summary_csv"], summary)
-        self._write_manifest(file_path, output_files, seed, include_artifact_bundle=True)
+        self._write_manifest(
+            file_path,
+            output_files,
+            seed,
+            include_artifact_bundle=True,
+            claim_gate=summary["claim_gate"],
+        )
         return output_files, summary

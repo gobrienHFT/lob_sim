@@ -49,6 +49,38 @@ def test_simulation_assumptions_snapshot_documents_public_data_limits() -> None:
     assert "public_l2_cannot_distinguish_all_cancels_from_trades" in assumptions["limitations"]
 
 
+def test_claim_gate_snapshot_is_portable_and_never_a_profitability_claim() -> None:
+    gate = run_manifest.claim_gate_snapshot(
+        {
+            "integrity": {"claim_ready": False},
+            "evidence_quality": {"markouts": "diagnostic_only", "markout_reason": "legacy clock"},
+            "valuation_complete": False,
+            "fill_provenance": {"complete": False},
+            "audit_retention": {},
+            "markout_horizon_summary": {
+                "100": {
+                    "horizon_ms": 100,
+                    "resolved_samples": 1,
+                    "invalidated_samples": 1,
+                    "unresolved_samples": 1,
+                    "coverage": 0.5,
+                    "mean_resolution_lag_ms": 12.0,
+                    "max_resolution_lag_ms": 12.0,
+                }
+            },
+        }
+    )
+
+    assert gate["schema_version"] == run_manifest.CLAIM_GATE_SCHEMA_VERSION
+    assert gate["execution_claim_ready"] is False
+    assert gate["markout_clock_claim_ready"] is False
+    assert gate["valuation_complete"] is False
+    assert gate["model_output_complete"] is False
+    assert gate["markout_coverage"]["100"]["coverage"] == 0.5
+    assert gate["claim_matrix"]["modeled_pnl"]["status"] == "diagnostic_only"
+    assert "legacy clock" in gate["claim_matrix"]["subsecond_markouts"]["reason_codes"]
+
+
 def test_source_state_uses_json_override(monkeypatch: pytest.MonkeyPatch) -> None:
     source = {"git_commit": "abc123", "git_branch": "master", "git_dirty": False}
     monkeypatch.setenv(run_manifest.SOURCE_STATE_OVERRIDE_ENV, json.dumps(source))

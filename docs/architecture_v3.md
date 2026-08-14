@@ -165,6 +165,15 @@ and a streamed `lob_sim.code_identity.v1` over tracked repository files. These
 are provenance identities, not a claim that a clean Git label alone proves
 semantic equivalence or that the repository contains proprietary venue code.
 
+Every completed simulation manifest also carries a
+`lob_sim.simulation_claim_gate.v1` projection copied byte-for-byte from
+`summary.json`. It records execution and receive-clock readiness, markout
+coverage and resolution lag by horizon, valuation completeness, fill-provenance
+coverage, audit-chain completeness, and explicit diagnostic-only reasons for
+modeled PnL and strategy claims. The gate is a portable evidence decision; it
+never upgrades a public-L2 scenario into private fill truth or a profitability
+claim. The independent bounded auditor rejects any manifest/summary gate drift.
+
 Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
 single Python bytes object merely to produce provenance.

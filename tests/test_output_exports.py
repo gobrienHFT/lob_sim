@@ -283,6 +283,8 @@ def test_engine_write_outputs_writes_excel_friendly_csvs(tmp_path: Path, monkeyp
     assert manifest["feed_adapter"] == summary["feed_adapter"]
     assert manifest["instrument_specs"] == summary["instrument_specs"]
     assert manifest["simulation_assumptions"] == summary["simulation_assumptions"]
+    assert manifest["claim_gate"] == summary["claim_gate"]
+    assert manifest["claim_gate"]["claim_matrix"]["modeled_pnl"]["status"] == "diagnostic_only"
     assert manifest["source"] == {"git_commit": "abc123", "git_branch": "test", "git_dirty": False}
     assert source_calls == 1
     assert "binance_api_key" not in manifest["config"]
