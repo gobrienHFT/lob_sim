@@ -113,6 +113,7 @@ Observed:
 - adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created.
 - generated summary and manifest `instrument_specs`, matching the replay input metadata used for units and multiplier economics.
 - generated summary and manifest `simulation_assumptions`, explicitly stating public-data scope, synthetic queue-ahead assumptions, overlap netting, cancel-latency behavior, and no private execution-report claim.
+- generated summary and manifest `simulation_claim_gate`, a portable equality-checked decision record for execution validity, markout coverage/lag, missing marks, fill provenance, and audit completeness; modeled PnL and strategy claims remain diagnostic-only.
 - shared normalized replay events in integer ticks/lots before simulation code mutates state.
 - replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
 - event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.

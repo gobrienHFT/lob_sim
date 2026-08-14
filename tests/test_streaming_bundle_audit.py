@@ -102,6 +102,22 @@ def test_streaming_bundle_audit_detects_serialized_fill_tampering(
     assert any("artifact_bundle" in issue for issue in result["issues"])
 
 
+def test_streaming_bundle_audit_rejects_manifest_claim_gate_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle, _ = _create_bundle(tmp_path, monkeypatch)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["claim_gate"]["execution_claim_ready"] = not manifest["claim_gate"]["execution_claim_ready"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = audit_streaming_bundle(bundle)
+
+    assert result["ok"] is False
+    assert any("claim_gate does not match summary.json" in issue for issue in result["issues"])
+
+
 def test_streaming_bundle_audit_caps_corruption_diagnostics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -205,6 +205,7 @@ Tracked metrics include:
 - public-consumption diagnostics that show how much depth/print consumption was modeled versus netted away
 - summary and manifest instrument specs for venue, tick size, lot size, units, and contract multiplier
 - summary and manifest simulation assumptions that state public-data limits and no private-fill truth claim
+- summary and manifest `lob_sim.simulation_claim_gate.v1` evidence decisions, including validity, markout coverage and lag, valuation completeness, provenance/audit completeness, and diagnostic-only PnL/research reasons
 - fill-assumption profile/config labels for every futures simulation run
 - self-trade prevention count for marketable strategy orders stopped before own resting liquidity
 - per-fill fee rate, amount, and currency

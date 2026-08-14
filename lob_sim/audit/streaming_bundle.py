@@ -28,7 +28,7 @@ from ..record.schema import RecordValidationError
 from ..replay.inspection import file_sha256
 from ..replay.reader import iter_records
 from ..sim.metrics import FILL_AUDIT_CHAIN_DOMAIN, MARKOUT_AUDIT_CHAIN_DOMAIN
-from ..sim.run_manifest import RUN_MANIFEST_SCHEMA_VERSION, config_digest
+from ..sim.run_manifest import CLAIM_GATE_SCHEMA_VERSION, RUN_MANIFEST_SCHEMA_VERSION, config_digest
 
 
 STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION = "lob_sim.streaming_bundle_audit.v1"
@@ -817,6 +817,20 @@ def _audit_manifest_and_artifacts(
     ):
         if manifest.get(field_name) != summary.get(field_name):
             issues.add(f"{_display(manifest_path)} {field_name} does not match summary.json")
+    summary_claim_gate = summary.get("claim_gate")
+    manifest_claim_gate = manifest.get("claim_gate")
+    if summary_claim_gate is not None:
+        if (
+            not isinstance(summary_claim_gate, dict)
+            or summary_claim_gate.get("schema_version") != CLAIM_GATE_SCHEMA_VERSION
+        ):
+            issues.add("summary.claim_gate has unexpected schema_version")
+        if not isinstance(manifest_claim_gate, dict):
+            issues.add(f"{_display(manifest_path)} is missing claim_gate")
+        elif manifest_claim_gate != summary_claim_gate:
+            issues.add(f"{_display(manifest_path)} claim_gate does not match summary.json")
+    elif manifest_claim_gate is not None:
+        issues.add(f"{_display(manifest_path)} claim_gate has no matching summary.claim_gate")
     manifest_input = manifest.get("input")
     if not isinstance(manifest_input, dict):
         issues.add(f"{_display(manifest_path)} is missing input metadata")
