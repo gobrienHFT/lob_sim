@@ -30,6 +30,7 @@ from lob_sim.sim.metrics import (
 PACK_AUDIT_SCHEMA_VERSION = "lob_sim.futures_pack_audit.v1"
 RUN_MANIFEST_SCHEMA_VERSION = "lob_sim.simulation_run.v2"
 SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
+CLAIM_GATE_SCHEMA_VERSION = "lob_sim.simulation_claim_gate.v1"
 FILL_SOURCES = ("depth_update", "agg_trade", "taker_order")
 FILL_ASSUMPTION_PROFILES = ("conservative", "base", "aggressive")
 PUBLIC_CONSUMPTION_SOURCES = ("depth_update", "agg_trade")
@@ -219,13 +220,92 @@ SUMMARY_CSV_JSON_FIELDS = (
     "feed_adapter",
     "instrument_specs",
     "simulation_assumptions",
+    "claim_gate",
     "output_files",
 )
+CLAIM_GATE_FIELDS = {
+    "schema_version",
+    "execution_claim_ready",
+    "markout_clock_claim_ready",
+    "valuation_complete",
+    "fill_provenance_complete",
+    "audit_complete",
+    "model_output_complete",
+    "markout_coverage",
+    "claim_matrix",
+}
+CLAIM_GATE_BOOLEAN_FIELDS = {
+    "execution_claim_ready",
+    "markout_clock_claim_ready",
+    "valuation_complete",
+    "fill_provenance_complete",
+    "audit_complete",
+    "model_output_complete",
+}
+CLAIM_MATRIX_KEYS = {
+    "capture_receipt_and_validity",
+    "subsecond_markouts",
+    "valuation",
+    "modeled_pnl",
+    "strategy_or_profitability",
+}
 FILL_FREQUENCY_REPLACEMENT_FIELDS = {
     "quote_fill_probability",
     "fills_per_quote_request",
     "fills_per_arrived_order",
 }
+
+
+def _audit_claim_gate(path: Path, gate: object, issues: list[str]) -> None:
+    if not isinstance(gate, dict):
+        issues.append(f"{_display_path(path)} is missing claim_gate")
+        return
+    if set(gate) != CLAIM_GATE_FIELDS:
+        issues.append(f"{_display_path(path)} claim_gate has unexpected fields")
+    if gate.get("schema_version") != CLAIM_GATE_SCHEMA_VERSION:
+        issues.append(f"{_display_path(path)} claim_gate has unexpected schema_version")
+    for field in CLAIM_GATE_BOOLEAN_FIELDS:
+        if type(gate.get(field)) is not bool:
+            issues.append(f"{_display_path(path)} claim_gate.{field} must be boolean")
+    coverage = gate.get("markout_coverage")
+    if not isinstance(coverage, dict):
+        issues.append(f"{_display_path(path)} claim_gate.markout_coverage must be an object")
+    else:
+        for horizon, stats in coverage.items():
+            if not isinstance(stats, dict):
+                issues.append(f"{_display_path(path)} claim_gate.markout_coverage[{horizon!r}] must be an object")
+                continue
+            required = {
+                "horizon_ms",
+                "resolved_samples",
+                "invalidated_samples",
+                "unresolved_samples",
+                "coverage",
+                "mean_resolution_lag_ms",
+                "max_resolution_lag_ms",
+            }
+            if set(stats) != required:
+                issues.append(f"{_display_path(path)} claim_gate.markout_coverage[{horizon!r}] has unexpected fields")
+    matrix = gate.get("claim_matrix")
+    if not isinstance(matrix, dict) or set(matrix) != CLAIM_MATRIX_KEYS:
+        issues.append(f"{_display_path(path)} claim_gate.claim_matrix has unexpected fields")
+        return
+    for name, decision in matrix.items():
+        if not isinstance(decision, dict) or set(decision) != {"status", "reason_codes"}:
+            issues.append(f"{_display_path(path)} claim_gate.claim_matrix.{name} is malformed")
+            continue
+        if not isinstance(decision.get("status"), str):
+            issues.append(f"{_display_path(path)} claim_gate.claim_matrix.{name}.status is invalid")
+        reasons = decision.get("reason_codes")
+        if not isinstance(reasons, list) or not reasons or not all(isinstance(reason, str) for reason in reasons):
+            issues.append(f"{_display_path(path)} claim_gate.claim_matrix.{name}.reason_codes is invalid")
+    if isinstance(matrix.get("modeled_pnl"), dict) and matrix["modeled_pnl"].get("status") != "diagnostic_only":
+        issues.append(f"{_display_path(path)} claim_gate modeled_pnl must remain diagnostic_only")
+    if (
+        isinstance(matrix.get("strategy_or_profitability"), dict)
+        and matrix["strategy_or_profitability"].get("status") != "diagnostic_only"
+    ):
+        issues.append(f"{_display_path(path)} claim_gate strategy_or_profitability must remain diagnostic_only")
 
 
 def _audit_retention_contract(
@@ -460,12 +540,24 @@ def _has_explicit_deprecated_fill_rate(summary: dict[str, Any]) -> bool:
 def _audit_manifest(pack_dir: Path, summary: dict[str, Any], manifest: dict[str, Any], issues: list[str]) -> None:
     if not manifest:
         return
+    summary_path = pack_dir / "summary.json"
     manifest_path = pack_dir / "manifest.json"
     if manifest.get("schema_version") != RUN_MANIFEST_SCHEMA_VERSION:
         issues.append(f"{_display_path(manifest_path)} has unexpected schema_version")
     for field in ("run_id", "feed_adapter", "instrument_specs", "simulation_assumptions"):
         if manifest.get(field) != summary.get(field):
             issues.append(f"{_display_path(manifest_path)} {field} does not match summary.json")
+    summary_gate = summary.get("claim_gate")
+    manifest_gate = manifest.get("claim_gate")
+    if summary_gate is not None:
+        if not isinstance(summary_gate, dict) or summary_gate.get("schema_version") != CLAIM_GATE_SCHEMA_VERSION:
+            issues.append(f"{_display_path(summary_path)} claim_gate has unexpected schema_version")
+        if not isinstance(manifest_gate, dict):
+            issues.append(f"{_display_path(manifest_path)} is missing claim_gate")
+        elif manifest_gate != summary_gate:
+            issues.append(f"{_display_path(manifest_path)} claim_gate does not match summary.json")
+    elif manifest_gate is not None:
+        issues.append(f"{_display_path(manifest_path)} claim_gate has no matching summary.claim_gate")
     manifest_input = manifest.get("input")
     if isinstance(manifest_input, dict) and manifest_input.get("sha256") != summary.get("input_sha256"):
         issues.append(f"{_display_path(manifest_path)} input.sha256 does not match summary input_sha256")
@@ -1210,6 +1302,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
             _audit_fixture_provenance(pack_dir, summary, manifest, bounded_issues)
             _audit_fill_assumption_metadata(pack_dir, summary, manifest, bounded_issues)
             _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), bounded_issues)
+            _audit_claim_gate(summary_path, summary.get("claim_gate"), bounded_issues)
         bounded_result["bundle_audit_schema_version"] = STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION
         bounded_result["schema_version"] = PACK_AUDIT_SCHEMA_VERSION
         bounded_result["issues"] = bounded_issues
@@ -1224,6 +1317,7 @@ def audit_futures_pack(pack_dir: Path) -> dict[str, Any]:
         _audit_fixture_provenance(pack_dir, summary, manifest, issues)
         _audit_fill_assumption_metadata(pack_dir, summary, manifest, issues)
         _audit_simulation_assumptions(summary_path, summary.get("simulation_assumptions"), issues)
+        _audit_claim_gate(summary_path, summary.get("claim_gate"), issues)
         _audit_summary_csv(pack_dir, summary, issues)
         _audit_fill_frequency_metrics(pack_dir, summary, trade_rows, issues)
         _audit_retention_contract(summary, manifest, issues)

@@ -5,6 +5,8 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from scripts.audit_futures_pack import (
     PACK_AUDIT_SCHEMA_VERSION,
     audit_futures_pack,
@@ -83,6 +85,23 @@ def test_futures_pack_audit_rejects_stale_summary_csv(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert any("summary.csv fill_count='99' does not match summary value 1" in issue for issue in result["issues"])
     assert any("output_artifacts[summary_csv].sha256 is stale" in issue for issue in result["issues"])
+
+
+def test_futures_pack_audit_rejects_claim_gate_drift(tmp_path: Path) -> None:
+    copied_pack = tmp_path / "pack"
+    shutil.copytree(SHOWCASE_PACK, copied_pack)
+    summary = json.loads((copied_pack / "summary.json").read_text(encoding="utf-8"))
+    if "claim_gate" not in summary:
+        pytest.skip("committed fixture predates the claim-gate contract")
+    manifest_path = copied_pack / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["claim_gate"]["execution_claim_ready"] = not manifest["claim_gate"]["execution_claim_ready"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = audit_futures_pack(copied_pack)
+
+    assert result["ok"] is False
+    assert any("claim_gate does not match summary.json" in issue for issue in result["issues"])
 
 
 def test_futures_pack_audit_rejects_stale_replay_event_count(tmp_path: Path) -> None:

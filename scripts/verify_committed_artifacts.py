@@ -361,6 +361,7 @@ EXPECTED_FUTURES_FEED_ADAPTER = {
 }
 EXPECTED_BENCHMARK_SCHEMA_VERSION = "lob_sim.replay_benchmark.v2"
 EXPECTED_SIMULATION_ASSUMPTIONS_SCHEMA_VERSION = "lob_sim.simulation_assumptions.v2"
+EXPECTED_CLAIM_GATE_SCHEMA_VERSION = "lob_sim.simulation_claim_gate.v1"
 EXPECTED_INSTRUMENT_SPEC_FIELDS = {
     "symbol",
     "venue",
@@ -388,6 +389,32 @@ EXPECTED_SIMULATION_ASSUMPTION_FIELDS = {
     "self_trade_prevention",
     "markout",
     "limitations",
+}
+EXPECTED_CLAIM_GATE_FIELDS = {
+    "schema_version",
+    "execution_claim_ready",
+    "markout_clock_claim_ready",
+    "valuation_complete",
+    "fill_provenance_complete",
+    "audit_complete",
+    "model_output_complete",
+    "markout_coverage",
+    "claim_matrix",
+}
+EXPECTED_CLAIM_GATE_BOOLEAN_FIELDS = {
+    "execution_claim_ready",
+    "markout_clock_claim_ready",
+    "valuation_complete",
+    "fill_provenance_complete",
+    "audit_complete",
+    "model_output_complete",
+}
+EXPECTED_CLAIM_MATRIX_KEYS = {
+    "capture_receipt_and_validity",
+    "subsecond_markouts",
+    "valuation",
+    "modeled_pnl",
+    "strategy_or_profitability",
 }
 EXPECTED_SIMULATION_LIMITATIONS = {
     "no_private_queue_ids",
@@ -1326,6 +1353,86 @@ def _validate_simulation_assumptions_shape(path: Path, assumptions: object) -> l
         issues.append(f"{_repo_relative(path)} simulation_assumptions.limitations must be a list")
     elif not EXPECTED_SIMULATION_LIMITATIONS <= set(limitations):
         issues.append(f"{_repo_relative(path)} simulation_assumptions is missing required limitation token(s)")
+    return issues
+
+
+def _validate_claim_gate_shape(path: Path, gate: object) -> list[str]:
+    issues: list[str] = []
+    display = _repo_relative(path)
+    if not isinstance(gate, dict):
+        return [f"{display} is missing claim_gate"]
+    if set(gate) != EXPECTED_CLAIM_GATE_FIELDS:
+        issues.append(f"{display} claim_gate has unexpected fields")
+    if gate.get("schema_version") != EXPECTED_CLAIM_GATE_SCHEMA_VERSION:
+        issues.append(f"{display} claim_gate has unexpected schema_version")
+    for field in EXPECTED_CLAIM_GATE_BOOLEAN_FIELDS:
+        if type(gate.get(field)) is not bool:
+            issues.append(f"{display} claim_gate.{field} must be boolean")
+    coverage = gate.get("markout_coverage")
+    if not isinstance(coverage, dict):
+        issues.append(f"{display} claim_gate.markout_coverage must be an object")
+    else:
+        expected_coverage_fields = {
+            "horizon_ms",
+            "resolved_samples",
+            "invalidated_samples",
+            "unresolved_samples",
+            "coverage",
+            "mean_resolution_lag_ms",
+            "max_resolution_lag_ms",
+        }
+        for horizon, stats in coverage.items():
+            if not isinstance(stats, dict) or set(stats) != expected_coverage_fields:
+                issues.append(f"{display} claim_gate.markout_coverage[{horizon!r}] is malformed")
+    matrix = gate.get("claim_matrix")
+    if not isinstance(matrix, dict) or set(matrix) != EXPECTED_CLAIM_MATRIX_KEYS:
+        issues.append(f"{display} claim_gate.claim_matrix has unexpected fields")
+    else:
+        for name, decision in matrix.items():
+            if not isinstance(decision, dict) or set(decision) != {"status", "reason_codes"}:
+                issues.append(f"{display} claim_gate.claim_matrix.{name} is malformed")
+                continue
+            if not isinstance(decision.get("status"), str):
+                issues.append(f"{display} claim_gate.claim_matrix.{name}.status is invalid")
+            reasons = decision.get("reason_codes")
+            if not isinstance(reasons, list) or not reasons or not all(isinstance(reason, str) for reason in reasons):
+                issues.append(f"{display} claim_gate.claim_matrix.{name}.reason_codes is invalid")
+        if isinstance(matrix.get("modeled_pnl"), dict) and matrix["modeled_pnl"].get("status") != "diagnostic_only":
+            issues.append(f"{display} claim_gate modeled_pnl must remain diagnostic_only")
+        if (
+            isinstance(matrix.get("strategy_or_profitability"), dict)
+            and matrix["strategy_or_profitability"].get("status") != "diagnostic_only"
+        ):
+            issues.append(f"{display} claim_gate strategy_or_profitability must remain diagnostic_only")
+    return issues
+
+
+def _verify_futures_claim_gate_metadata() -> list[str]:
+    issues: list[str] = []
+    for directory in [FUTURES_SHOWCASE_DIR, RECORDED_CLIP_DIR, FUTURES_STRESS_DIR]:
+        manifest_path = directory / "manifest.json"
+        summary_path = directory / "summary.json"
+        summary_csv_path = directory / "summary.csv"
+        manifest = json.loads(_read_text(manifest_path))
+        summary = json.loads(_read_text(summary_path))
+        manifest_gate = manifest.get("claim_gate")
+        summary_gate = summary.get("claim_gate")
+        issues.extend(_validate_claim_gate_shape(manifest_path, manifest_gate))
+        issues.extend(_validate_claim_gate_shape(summary_path, summary_gate))
+        if manifest_gate != summary_gate:
+            issues.append(f"{_repo_relative(manifest_path)} claim_gate does not match summary.json")
+        with summary_csv_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or "claim_gate" not in rows[0]:
+            issues.append(f"{_repo_relative(summary_csv_path)} is missing claim_gate")
+            continue
+        try:
+            csv_gate = json.loads(rows[0]["claim_gate"])
+        except json.JSONDecodeError as exc:
+            issues.append(f"{_repo_relative(summary_csv_path)} claim_gate is not valid JSON: {exc}")
+        else:
+            if csv_gate != summary_gate:
+                issues.append(f"{_repo_relative(summary_csv_path)} claim_gate does not match summary.json")
     return issues
 
 
@@ -3902,6 +4009,7 @@ def collect_artifact_issues() -> list[str]:
     issues.extend(_verify_futures_feed_adapter_metadata())
     issues.extend(_verify_futures_instrument_specs_metadata())
     issues.extend(_verify_futures_simulation_assumptions_metadata())
+    issues.extend(_verify_futures_claim_gate_metadata())
     issues.extend(_verify_futures_fill_assumption_metadata())
     issues.extend(_verify_core_files())
     issues.extend(_verify_futures_trade_audit_fields())

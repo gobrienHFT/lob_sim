@@ -356,6 +356,47 @@ def test_futures_simulation_assumption_verifier_rejects_legacy_fifo_mode(tmp_pat
     ]
 
 
+def test_futures_claim_gate_verifier_rejects_manifest_drift(tmp_path, monkeypatch) -> None:
+    directories = [tmp_path / "showcase", tmp_path / "recorded", tmp_path / "stress"]
+    gate = {
+        "schema_version": verifier.EXPECTED_CLAIM_GATE_SCHEMA_VERSION,
+        "execution_claim_ready": False,
+        "markout_clock_claim_ready": False,
+        "valuation_complete": True,
+        "fill_provenance_complete": True,
+        "audit_complete": True,
+        "model_output_complete": False,
+        "markout_coverage": {},
+        "claim_matrix": {
+            name: {
+                "status": "diagnostic_only" if name != "valuation" else "complete",
+                "reason_codes": ["test"],
+            }
+            for name in verifier.EXPECTED_CLAIM_MATRIX_KEYS
+        },
+    }
+    for directory in directories:
+        directory.mkdir()
+        (directory / "manifest.json").write_text(json.dumps({"claim_gate": gate}), encoding="utf-8")
+        (directory / "summary.json").write_text(json.dumps({"claim_gate": gate}), encoding="utf-8")
+        with (directory / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["claim_gate"])
+            writer.writeheader()
+            writer.writerow({"claim_gate": json.dumps(gate, sort_keys=True)})
+
+    stale = json.loads(json.dumps(gate))
+    stale["execution_claim_ready"] = True
+    (directories[0] / "manifest.json").write_text(json.dumps({"claim_gate": stale}), encoding="utf-8")
+    monkeypatch.setattr(verifier, "FUTURES_SHOWCASE_DIR", directories[0])
+    monkeypatch.setattr(verifier, "RECORDED_CLIP_DIR", directories[1])
+    monkeypatch.setattr(verifier, "FUTURES_STRESS_DIR", directories[2])
+    monkeypatch.setattr(verifier, "_repo_relative", lambda path: str(path))
+
+    issues = verifier._verify_futures_claim_gate_metadata()
+
+    assert any("claim_gate does not match summary.json" in issue for issue in issues)
+
+
 def test_futures_trade_audit_verifier_requires_economics_and_provenance(tmp_path, monkeypatch) -> None:
     showcase = tmp_path / "showcase"
     recorded = tmp_path / "recorded"
