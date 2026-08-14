@@ -327,7 +327,7 @@
     "sink_memory_bounded": true,
     "memory_bounded_by_tape_duration": false
   },
-  "state_sha256": "fd78ca877f77ee5a3ec11a35aac576e1bda444694f6e8eaf9c42f7861ca432fd",
+  "state_sha256": "e60e41b55dacde2b5233ef4dd10af01be08ff87cba2c1d9f2653580478081ffa",
   "run_id": "6d71dc95e0a5d6a3",
   "input_sha256": "e69072b718b871a4437e321dbd9fb26892ab08e97543f42f9661f2bc39af5a26",
   "config_sha256": "e9ed95625de1b7b58165e8bca3350cd46aff8a7dd0cb97742f42f46cace701c9",
@@ -335,8 +335,8 @@
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 241,
-    "sha256": "526b0c47f4640c89a50d368bbcf8f64c0688b8c83611bef6d31db7a767541e8d"
+    "file_count": 251,
+    "sha256": "b6d5cfc7c309a980461d94d16353bb8f3e304b9b5084e3915321a516b18a3551"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -429,6 +429,78 @@
     "markout_audit_file": null,
     "completion_record": "manifest",
     "intended_use": "small_fixture_and_committed_evidence_generation"
+  },
+  "claim_gate": {
+    "schema_version": "lob_sim.simulation_claim_gate.v1",
+    "execution_claim_ready": false,
+    "markout_clock_claim_ready": false,
+    "valuation_complete": true,
+    "fill_provenance_complete": true,
+    "audit_complete": true,
+    "model_output_complete": false,
+    "markout_coverage": {
+      "100": {
+        "horizon_ms": 100,
+        "resolved_samples": 0,
+        "invalidated_samples": 0,
+        "unresolved_samples": 0,
+        "coverage": 0.0,
+        "mean_resolution_lag_ms": null,
+        "max_resolution_lag_ms": null
+      },
+      "1000": {
+        "horizon_ms": 1000,
+        "resolved_samples": 0,
+        "invalidated_samples": 0,
+        "unresolved_samples": 0,
+        "coverage": 0.0,
+        "mean_resolution_lag_ms": null,
+        "max_resolution_lag_ms": null
+      },
+      "5000": {
+        "horizon_ms": 5000,
+        "resolved_samples": 0,
+        "invalidated_samples": 0,
+        "unresolved_samples": 0,
+        "coverage": 0.0,
+        "mean_resolution_lag_ms": null,
+        "max_resolution_lag_ms": null
+      }
+    },
+    "claim_matrix": {
+      "capture_receipt_and_validity": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "execution_validity_not_claim_ready"
+        ]
+      },
+      "subsecond_markouts": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "legacy/exchange clock or invalid intervals make subsecond horizons non-claimable"
+        ]
+      },
+      "valuation": {
+        "status": "complete",
+        "reason_codes": [
+          "all_open_inventory_has_a_valid_mark"
+        ]
+      },
+      "modeled_pnl": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "modeled_execution_output_not_live_or_counterfactual_result",
+          "execution_validity_not_claim_ready"
+        ]
+      },
+      "strategy_or_profitability": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "not_a_registered_holdout_study",
+          "research_protocol_requires_at_least_10_joint_valid_utc_days"
+        ]
+      }
+    }
   },
   "fixture_provenance": {
     "data_class": "recorded_public_data",

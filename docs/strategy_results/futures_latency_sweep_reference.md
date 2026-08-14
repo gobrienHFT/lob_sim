@@ -10,7 +10,7 @@
 - Cancel latency grid ms: `0, 10, 50`
 - Frozen research registry SHA-256: `bbad043b990515781c2392faeabd7e696be7c459e28b4a322c591488630c0ea2`
 - Registry sidecar: `futures_latency_sweep_reference_registry.json`
-- Git commit at run time: `02b699f94d967bd961b23cd231261951ad0b706b`
+- Git commit at run time: `8c6ca24cdd7c2885a57ffabd8b6f5bbd9063eeff`
 - Git dirty at run time: `False`
 
 Exact command:

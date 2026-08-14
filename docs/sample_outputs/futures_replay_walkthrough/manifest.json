@@ -1,13 +1,13 @@
 {
   "run_id": "325f8a9693dfa4ac",
   "schema_version": "lob_sim.simulation_run.v2",
-  "created_at_utc": "2026-08-13T13:39:49.481749Z",
+  "created_at_utc": "2026-08-14T00:45:39.990759Z",
   "lob_sim_version": "0.1.0",
   "input": {
     "path": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
     "size_bytes": 830,
     "sha256": "eb05f24537fa1b1fc7672050f88b926719c79ff886e39df361e15c5c32095e65",
-    "modified_at_utc": "2026-08-13T13:39:49.358109Z"
+    "modified_at_utc": "2026-08-14T00:45:39.930121Z"
   },
   "config": {
     "symbols": [
@@ -69,8 +69,8 @@
     "schema_version": "lob_sim.code_identity.v1",
     "algorithm": "sha256",
     "complete": true,
-    "file_count": 241,
-    "sha256": "af845205adfc4c2814d3aaad54199129802effbb10bbe7f6c172dc006d064b92"
+    "file_count": 251,
+    "sha256": "59d2fced8a40e654f1ef7769865824e2866efe6f1ce60400b84c121d8efd1a83"
   },
   "feed_adapter": {
     "name": "binance_usdm",
@@ -134,8 +134,8 @@
     "platform": "Windows-11-10.0.26200-SP0"
   },
   "source": {
-    "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
-    "git_branch": "codex/synthetic-queue-assumption-label",
+    "git_commit": "8c6ca24cdd7c2885a57ffabd8b6f5bbd9063eeff",
+    "git_branch": "codex/verify-claim-gate-artifacts",
     "git_dirty": false
   },
   "outputs": {
@@ -150,28 +150,100 @@
       "path": "docs/sample_outputs/futures_replay_walkthrough/event_trace.csv",
       "size_bytes": 7112,
       "sha256": "2dc39da1e1775fb5fddef30910aae2297436b1fffcf852c7a24152950eb8075e",
-      "modified_at_utc": "2026-08-13T13:39:52.362224Z"
+      "modified_at_utc": "2026-08-14T00:45:42.633298Z"
     },
     "manifest": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/manifest.json"
     },
     "summary": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.json",
-      "size_bytes": 17516,
-      "sha256": "ca30c97905b99b16c90b67b42c7dfc499337ccebc9b0c03f00c44b3c76f713f4",
-      "modified_at_utc": "2026-08-13T13:39:52.350434Z"
+      "size_bytes": 19611,
+      "sha256": "9f413de4447023ec74f4b2585dcb79439ba10f0efb1b433bf4de747b0d46e101",
+      "modified_at_utc": "2026-08-14T00:45:42.624816Z"
     },
     "summary_csv": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/summary.csv",
-      "size_bytes": 13657,
-      "sha256": "0d9178ade93f3ac0dc995950e159c597cf2e459d076edbbcd35b2233c89dce6d",
-      "modified_at_utc": "2026-08-13T13:39:52.355784Z"
+      "size_bytes": 15338,
+      "sha256": "f665b890dc4e4b1d8e2abfb6133e52469402e05f328d6be887cac2fc8159d252",
+      "modified_at_utc": "2026-08-14T00:45:42.631561Z"
     },
     "trades": {
       "path": "docs/sample_outputs/futures_replay_walkthrough/trades.csv",
       "size_bytes": 1179,
       "sha256": "a6730cbe10029e9161b710333184a2831d316f1b888f807d0c64da407ea9c378",
-      "modified_at_utc": "2026-08-13T13:39:52.359226Z"
+      "modified_at_utc": "2026-08-14T00:45:42.633298Z"
+    }
+  },
+  "claim_gate": {
+    "schema_version": "lob_sim.simulation_claim_gate.v1",
+    "execution_claim_ready": false,
+    "markout_clock_claim_ready": false,
+    "valuation_complete": true,
+    "fill_provenance_complete": true,
+    "audit_complete": true,
+    "model_output_complete": false,
+    "markout_coverage": {
+      "100": {
+        "horizon_ms": 100,
+        "resolved_samples": 1,
+        "invalidated_samples": 0,
+        "unresolved_samples": 0,
+        "coverage": 1.0,
+        "mean_resolution_lag_ms": 1200.0,
+        "max_resolution_lag_ms": 1200.0
+      },
+      "1000": {
+        "horizon_ms": 1000,
+        "resolved_samples": 1,
+        "invalidated_samples": 0,
+        "unresolved_samples": 0,
+        "coverage": 1.0,
+        "mean_resolution_lag_ms": 1200.0,
+        "max_resolution_lag_ms": 1200.0
+      },
+      "5000": {
+        "horizon_ms": 5000,
+        "resolved_samples": 0,
+        "invalidated_samples": 0,
+        "unresolved_samples": 1,
+        "coverage": 0.0,
+        "mean_resolution_lag_ms": null,
+        "max_resolution_lag_ms": null
+      }
+    },
+    "claim_matrix": {
+      "capture_receipt_and_validity": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "execution_validity_not_claim_ready"
+        ]
+      },
+      "subsecond_markouts": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "legacy/exchange clock or invalid intervals make subsecond horizons non-claimable"
+        ]
+      },
+      "valuation": {
+        "status": "complete",
+        "reason_codes": [
+          "all_open_inventory_has_a_valid_mark"
+        ]
+      },
+      "modeled_pnl": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "modeled_execution_output_not_live_or_counterfactual_result",
+          "execution_validity_not_claim_ready"
+        ]
+      },
+      "strategy_or_profitability": {
+        "status": "diagnostic_only",
+        "reason_codes": [
+          "not_a_registered_holdout_study",
+          "research_protocol_requires_at_least_10_joint_valid_utc_days"
+        ]
+      }
     }
   },
   "fixture_provenance": {

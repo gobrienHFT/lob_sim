@@ -735,8 +735,8 @@
   ],
   "schema_version": "lob_sim.futures_overlap_sensitivity.v2",
   "source": {
-    "git_branch": "codex/bounded-overlap-sweep",
-    "git_commit": "5b1312462e5f3f174e4601d20fad87901abda9f8",
+    "git_branch": "codex/verify-claim-gate-artifacts",
+    "git_commit": "8c6ca24cdd7c2885a57ffabd8b6f5bbd9063eeff",
     "git_dirty": false
   },
   "study_type": "futures_overlap_sensitivity",

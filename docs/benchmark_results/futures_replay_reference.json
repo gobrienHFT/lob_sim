@@ -8,11 +8,11 @@
     "total_events": 80
   },
   "memory": {
-    "peak_traced_bytes": 824259,
-    "peak_traced_mib": 0.7860746383666992
+    "peak_traced_bytes": 713500,
+    "peak_traced_mib": 0.6804466247558594
   },
   "metadata": {
-    "benchmark_created_at_utc": "2026-08-13T18:17:31.023527Z",
+    "benchmark_created_at_utc": "2026-08-14T00:45:59.289762Z",
     "config": {
       "book_top_n": 20,
       "capture_schema_version": 3,
@@ -95,16 +95,16 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.1",
     "source": {
-      "git_branch": "codex/refresh-benchmark-provenance",
-      "git_commit": "2b0cbe8b7ffe8b295d6a8722165e7bc2e0138eec",
+      "git_branch": "codex/verify-claim-gate-artifacts",
+      "git_commit": "8c6ca24cdd7c2885a57ffabd8b6f5bbd9063eeff",
       "git_dirty": false
     }
   },
   "schema_version": "lob_sim.replay_benchmark.v2",
   "timing": {
-    "events_per_second": 294.09018422388766,
-    "loop_latency_p50_us": 77.0,
-    "loop_latency_p99_us": 37367.79999999983,
-    "wall_time_seconds": 0.27202540000143927
+    "events_per_second": 122.8887897932836,
+    "loop_latency_p50_us": 150.7,
+    "loop_latency_p99_us": 84400.68299999983,
+    "wall_time_seconds": 0.6509950999970897
   }
 }

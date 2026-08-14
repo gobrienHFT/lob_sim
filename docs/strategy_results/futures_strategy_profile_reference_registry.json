@@ -166,8 +166,8 @@
   ],
   "schema_version": "lob_sim.futures_strategy_profile_registry.v1",
   "source": {
-    "git_branch": "codex/synthetic-queue-assumption-label",
-    "git_commit": "37a9afd34eaee131ecd3aa8df0d08d9386f2d3eb",
+    "git_branch": "codex/verify-claim-gate-artifacts",
+    "git_commit": "8c6ca24cdd7c2885a57ffabd8b6f5bbd9063eeff",
     "git_dirty": false
   },
   "study_type": "futures_strategy_profile_comparison"
