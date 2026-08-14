@@ -65,7 +65,8 @@ The CLI `compare` command has the same intentionally narrow live Rust surface:
 its `rust_differential` object reports only an optional `logical_time_key` smoke
 check and explicitly lists the remaining scope. It also includes a
 `committed_report` pointer with the report path, SHA-256, schema, operation
-counts and remaining scope, so a comparison result is self-describing without
-rerunning the longer differential suite. The command's repeated-run
+counts, the composed engine-contract smoke result, and remaining scope, so a
+comparison result is self-describing without rerunning the longer differential
+suite. The command's repeated-run
 `python_repeat_parity` result is not whole-engine Python/Rust parity, and the
 committed report continues to state `full_engine_parity=false`.
