@@ -228,6 +228,13 @@ def test_cli_compare_reports_scoped_rust_status(tmp_path: Path) -> None:
     assert report["full_engine_parity"] is False
     assert len(report["sha256"]) == 64
     assert report["operation_counts"]["book_batches"] == 10_000
+    composed = report["composed_engine_contract"]
+    assert composed["engine_contract_operations"] == 18
+    assert composed["engine_contract_accepted_operations"] == 14
+    assert composed["engine_contract_rejected_operations"] == 4
+    assert composed["engine_contract_fill_count"] == 1
+    assert len(composed["engine_contract_trace_sha256"]) == 64
+    assert "not full SimulationEngine replay parity" in composed["engine_contract_scope"]
     assert "run manifests" in report["remaining_full_engine_scope"]
 
 

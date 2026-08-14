@@ -965,6 +965,17 @@ def _committed_parity_evidence() -> dict[str, object]:
     }
     remaining = value.get("remaining_full_engine_scope")
     remaining_scope = [item for item in remaining if isinstance(item, str)] if isinstance(remaining, list) else []
+    composed_fields = (
+        "engine_contract_operations",
+        "engine_contract_accepted_operations",
+        "engine_contract_rejected_operations",
+        "engine_contract_fill_count",
+        "engine_contract_operation_corpus_sha256",
+        "engine_contract_trace_sha256",
+        "engine_contract_final_state_sha256",
+        "engine_contract_scope",
+    )
+    composed_engine_contract = {field: value[field] for field in composed_fields if field in value}
     schema_version = value.get("schema_version")
     scope = value.get("scope")
     return {
@@ -977,6 +988,7 @@ def _committed_parity_evidence() -> dict[str, object]:
         "scope": scope if isinstance(scope, str) else None,
         "remaining_full_engine_scope": remaining_scope,
         "operation_counts": operation_counts,
+        "composed_engine_contract": composed_engine_contract,
     }
 
 
