@@ -2,7 +2,17 @@
 
 ## 60-Second Pitch
 
-`lob_sim` is a deterministic Binance USD-M public L2 replay and execution-sensitivity laboratory. It records schema-v3 receipt metadata, reconstructs validity epochs with explicit continuity checks, runs causal strategy/order/risk/accounting lifecycles, and exports bounded audit artifacts with manifests. It does not claim alpha, profitability, private fill truth, historical participant FIFO, or production latency. The signal is engineering discipline: replay correctness, explicit public-data assumptions, reproducibility, and reviewer-grade evidence.
+I built `lob_sim` to answer a practical market-microstructure question: what can
+we learn about passive execution from a public Binance USD-M L2 feed when the
+feed does not reveal private order IDs or exchange execution reports? The system
+captures the feed, reconstructs valid book epochs, replays events in receipt
+order, and runs explicit queue-ahead, latency, cancellation, risk, and
+accounting scenarios. Every modeled fill carries its input evidence and
+assumptions, and every run can be checked from its manifest and audit files. A
+separate synthetic venue owns participant IDs and exact price-time matching, so
+I can demonstrate true FIFO mechanics without pretending that public Binance
+data contains them. The project is deliberately about reproducible execution
+research, not alpha, profitability, or production gateway performance.
 
 ## Architecture
 
@@ -22,7 +32,7 @@ flowchart LR
   K --> L["artifact verifier and pack auditor"]
 ```
 
-## Exact Reviewer Command
+## Run the gate
 
 ```bash
 python scripts/reviewer_gate.py
@@ -40,7 +50,7 @@ runtime/toolchain identity, each gate command, result, and duration. In CI it
 is uploaded as a workflow artifact. This makes the evidence reproducible and
 auditable without presenting a local benchmark as trading latency.
 
-## Strongest Files
+## Where to look in the code
 
 - `lob_sim/book/sync.py`: snapshot/diff continuity and gap policy.
 - `lob_sim/record/async_writer.py`: hard-bounded off-event-loop capture persistence and fail-closed overflow/I/O semantics.

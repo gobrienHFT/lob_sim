@@ -1,8 +1,13 @@
 # Reviewer Results Memo
 
-## Thesis
+## How to read this memo
 
-`lob_sim` is a deterministic Binance USD-M L2 replay and queue-aware passive-fill simulator. The artifact is meant to show order-book mechanics, replay determinism, public-data fill assumptions, adverse-selection measurement, inventory/risk accounting, benchmark provenance, and extensible research infrastructure. It is not an alpha model, profitability claim, production gateway, or private exchange fill validator.
+`lob_sim` is a deterministic Binance USD-M L2 replay and queue-aware
+passive-execution simulator. This memo records what the committed packs make
+inspectable: book mechanics, replay determinism, public-data fill assumptions,
+adverse-selection markouts, inventory and risk accounting, and benchmark
+provenance. It does not turn those measurements into an alpha, profitability,
+production-gateway, or private-execution claim.
 
 ## Commands
 

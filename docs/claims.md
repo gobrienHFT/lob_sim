@@ -1,7 +1,9 @@
-# Claim / non-claim matrix
+# Assumptions and claim boundaries
 
 `lob_sim` is a deterministic research laboratory, not a live trading stack. The
-public evidence should be read using this matrix:
+matrix below separates what the tape directly observes, what the simulator
+models, and what a careful report may say. A result that falls outside the
+listed conditions is diagnostic evidence only.
 
 | Area | Defensible claim | Explicit non-claim |
 | --- | --- | --- |

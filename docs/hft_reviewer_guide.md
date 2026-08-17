@@ -2,36 +2,25 @@
 
 ## 60-Second Pitch
 
-`lob_sim` is a deterministic, validity-aware Binance USD-M L2 capture/replay and execution-sensitivity laboratory. The center of the repo is not alpha; it is infrastructure that proves careful thinking about book reconstruction, receipt-time causality, synthetic queue-ahead assumptions, public-data fill uncertainty, adverse selection, inventory/risk metrics, reproducibility, and benchmark provenance.
+`lob_sim` starts with a limitation of public market data: Binance market-by-price
+events show visible levels and public prints, but not the private orders behind
+them. The system captures that feed, reconstructs only valid book epochs, and
+replays receipt-ordered events through explicit order, queue, latency,
+cancellation, risk, accounting, and markout rules. The result is a set of
+repeatable execution scenarios whose assumptions and source records are visible
+in the output. A separate synthetic MBO venue owns participant IDs and exact
+price-time matching, which lets the project demonstrate FIFO mechanics without
+calling them historical Binance behavior. It is an execution-research tool, not
+an alpha, profitability, or production-latency claim.
 
-The options material is secondary: a controlled dealer-pricing case study for reservation price, signed markout, and hedging logic under synthetic assumptions.
+The options material is secondary: a controlled dealer-pricing case study for
+reservation price, signed markout, and hedging logic under synthetic assumptions.
 
-Repository shortcut paths: `docs/interview_packet.md`, `docs/real_data_runbook.md`, and `docs/real_data_results_template.md`.
+## Five-minute path
 
-## What To Inspect First
+Start with the [replay contract](replay_contract.md), [Binance feed semantics](binance_usdm_feed_semantics.md), and [futures validation](futures_validation.md). Then trace the implementation through the [adapter and normalization boundary](../lob_sim/replay/adapters.py), [book synchronizer](../lob_sim/book/sync.py), [queue/fill model](../lob_sim/sim/fill_model.py), and [simulation engine](../lob_sim/sim/engine.py). Finally, inspect the [walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md), [recorded clip](sample_outputs/futures_recorded_clip_case/README.md), and [stress pack](sample_outputs/futures_stress_case/README.md), then read the [results memo](reviewer_results_memo.md) and [claim matrix](claims.md).
 
-1. [Replay contract](replay_contract.md)
-2. [Binance feed semantics](binance_usdm_feed_semantics.md)
-3. [Futures validation](futures_validation.md)
-4. [Replay adapter boundary](../lob_sim/replay/adapters.py)
-5. [Replay normalization boundary](../lob_sim/replay/normalization.py)
-6. [Queue/fill model](../lob_sim/sim/fill_model.py)
-7. [Simulation engine](../lob_sim/sim/engine.py)
-8. [Futures walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md)
-9. [Recorded futures clip case](sample_outputs/futures_recorded_clip_case/README.md)
-10. [Strategy profile comparison](strategy_results/futures_strategy_profile_reference.md)
-11. [Parameter sweep reference](strategy_results/futures_parameter_sweep_reference.md)
-12. [Latency sensitivity reference](strategy_results/futures_latency_sweep_reference.md)
-13. [Overlap-reconciliation sensitivity](futures_overlap_sensitivity.md)
-14. [Benchmark notes](futures_benchmarks.md)
-15. [Determinism checker](../scripts/check_futures_determinism.py)
-16. [Extension points](extension_points.md)
-17. [Synthetic stress evidence pack](sample_outputs/futures_stress_case/README.md)
-18. [Reviewer results memo](reviewer_results_memo.md)
-19. [Architecture decisions](architecture_decisions.md)
-20. [Interview packet](interview_packet.md)
-21. [Larger real-data runbook](real_data_runbook.md)
-22. [Real-data results template](real_data_results_template.md)
+The deeper references cover [latency sensitivity](strategy_results/futures_latency_sweep_reference.md), [overlap reconciliation](futures_overlap_sensitivity.md), [benchmark notes](futures_benchmarks.md), [determinism](../scripts/check_futures_determinism.py), [architecture decisions](architecture_decisions.md), [real-data collection](real_data_runbook.md), and the [results template](real_data_results_template.md).
 
 ## Architecture
 
@@ -172,7 +161,7 @@ Inferred:
 - `research_mm` adds reservation-price inventory skew, toxicity-sensitive spread, and a fee-aware spread floor for inspection; it is still a research profile, not a trading system.
 - Benchmarks are machine/dataset specific and include Python overhead.
 
-## What This Proves
+## What the current artifacts demonstrate
 
 - Event-time replay discipline.
 - Feed-specific sequence handling and gap policy.

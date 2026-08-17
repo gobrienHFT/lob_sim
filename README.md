@@ -1,61 +1,106 @@
 # lob_sim
 
-lob_sim is a deterministic, validity-aware Binance USD-M market-by-price replay and execution-sensitivity laboratory for market-making research. A secondary controlled options case study is included for reservation price, inventory skew, signed markout, and hedging logic.
+`lob_sim` reconstructs public Binance USD-M L2 market data into a deterministic,
+event-time replay and execution-sensitivity laboratory. It is built for the
+questions that a public feed can actually answer: how book continuity, event
+ordering, queue assumptions, latency, cancellations, risk limits, and marking
+choices change a simulated market-making run.
 
-Fast reviewer links:
+## Why it exists
 
-- [Interview Packet](docs/interview_packet.md): 60-second pitch, architecture, strongest files, assumptions, non-claims, and Q&A.
-- [Reviewer Results Memo](docs/reviewer_results_memo.md): factual evidence summary, stress-pack counts, markouts, benchmark caveats, and limits.
-- [Real Data Runbook](docs/real_data_runbook.md): collect, inspect, simulate, audit, benchmark, and publish larger public-data tape runs.
-- [Fill Assumption Envelope](docs/fill_assumption_envelope.md): conservative/base/aggressive sensitivity for public-L2 passive-fill assumptions.
-- [Overlap-Reconciliation Sensitivity](docs/futures_overlap_sensitivity.md): deterministic trade/depth × 0/125/250 ms corroboration matrix, explicitly not private-fill evidence.
-- [Claim / Non-Claim Matrix](docs/claims.md): the language this project can defend in a technical review.
-- [Schema-v3 Architecture](docs/architecture_v3.md): envelope fields, validity epochs, and causal event priority.
-- [Schema-v3 Validity Fixtures](docs/sample_outputs/futures_schema_v3_case/README.md): one clean claim-ready tape and one adversarial fail-closed tape.
+Market-by-price data does not expose participant order IDs, private queue
+position, hidden liquidity, or exchange execution reports. A passive fill from
+that data is therefore an inference, not historical FIFO truth. The useful
+engineering problem is to make that inference explicit, replayable, and easy
+to challenge.
 
-## Overview
+The futures core captures and validates the feed, reconstructs valid book
+epochs, replays causal order lifecycles, applies named public-L2 fill scenarios,
+and writes accounting and audit evidence. A separate exact synthetic venue
+provides participant-level price-time matching when ground truth is required.
 
-The repo has two artifacts:
+## 60-second demo
 
-- A futures core that records public Binance USD-M market data, reconstructs the local book from snapshots and depth diffs, and replays that stream through an event-driven queue-aware passive-fill simulation.
-- A controlled options case study that keeps pricing and inventory logic explicit instead of claiming venue-calibrated options microstructure.
-
-For a reviewer-focused path through the futures core, start with [docs/hft_reviewer_guide.md](docs/hft_reviewer_guide.md). For a condensed interview script, open [docs/interview_packet.md](docs/interview_packet.md).
-
-Reviewer quickstart:
-
-```bash
-python scripts/reviewer_gate.py
-```
-
-The gate also writes `outputs/reviewer_gate_report.json`: a machine-readable,
-atomically written release record containing the tested commit, dirty-tree
-status, runtime/toolchain metadata, every gate command, pass/fail status, and
-step timing. CI publishes the same report as a workflow artifact. It is
-evidence about this repository revision and test environment, not a claim of
-production trading performance.
-
-The compact reviewer demo also shows the separation between inferred public-L2
-execution and exact synthetic ground truth:
+Run the compact demonstration first:
 
 ```bash
 python -m lob_sim.cli --env .env.example demo
 ```
 
-For the factual results memo, open [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md). The memo points to the real recorded clip, the synthetic stress pack, the larger-tape path in [docs/real_data_runbook.md](docs/real_data_runbook.md), the publication checklist in [docs/real_data_results_template.md](docs/real_data_results_template.md), benchmark commands, and limitations.
+It prints the inferred public-L2 result beside the exact synthetic result; the
+two modes are deliberately labelled separately. For the full local evidence
+gate, run:
 
-### Why this stands out
+```bash
+python scripts/reviewer_gate.py
+```
 
-- Event-time replay rather than bar backtest.
-- Explicit book reconstruction from `exchangeInfo`, `snapshot`, `depthUpdate`, and `aggTrade`.
-- Explicit public-L2 execution scenarios with synthetic queue-ahead tracking; historical Binance participant FIFO is not claimed.
-- A separate exact synthetic MBO venue with participant IDs and price-time priority; `demo` prints its FIFO ground-truth result separately from public-L2 replay.
-- Deterministic artifacts, reproducible runs, and a hash-based replay determinism checker for recorded NDJSON inputs.
-- JSON-only checkpoint/resume for interrupted long replays, including active venue state, pending actions, markouts, accounting, strategy features, explicit SplitMix64 scenario-latency state, and input/config identity checks.
-- Line-numbered replay schema validation, stream inspection, and run manifests with input digests.
-- Schema-v3 `inspect`/`validate` output includes bounded receipt-liveness diagnostics: route coverage, sequence gaps/regressions, monotonic-clock health, inter-arrival extremes, lifecycle invalidations, and trailer completeness. These are capture-side coherence checks, not proof of venue-side packet completeness or trading performance.
-- `validate` exits non-zero for a structurally readable schema-v3 tape with incomplete receipt identity, sequence gaps/regressions, a missing trailer, or capture-invalidation events; legacy tapes remain readable under an explicitly weaker record-schema-only scope.
-- Explicit assumptions, validation notes, and limitations instead of hidden realism claims.
+The gate writes `outputs/reviewer_gate_report.json`, binding each result to the
+tested commit, source-tree state, runtime/toolchain, commands, and timings. It
+is a reproducibility record for this repository revision, not a trading-latency
+or profitability claim.
+
+Read next:
+
+- [Interview Packet](docs/interview_packet.md): a spoken project summary and the strongest technical questions to ask.
+- [Reviewer Results Memo](docs/reviewer_results_memo.md): the committed evidence, measurements, and historical-data caveats.
+- [Assumptions and Claims](docs/claims.md): the boundary between observed data, modeled execution, and claims this project can defend.
+
+## Core mechanics
+
+```mermaid
+flowchart LR
+  A["CAPTURE"] --> B["VALIDATE"]
+  B --> C["RECONSTRUCT BOOK"]
+  C --> D["REPLAY EVENTS"]
+  D --> E["MODEL EXECUTION"]
+  E --> F["ACCOUNT / MARKOUT"]
+  F --> G["AUDIT"]
+```
+
+- Schema-v3 assigns receipt sequence and monotonic time before parsing, keeps depth and trade validity independent, and records stream/sync epochs and capture boundaries.
+- Snapshot bridging, `U/u/pu` continuity, off-grid rejection, crossed-book checks, and invalidation boundaries fail closed instead of fabricating state.
+- The event priority is explicit: drain actions strictly earlier than the next observation, then apply market observations in receipt order, marks and markouts, strategy observation, and actions due at that time.
+- Public-L2 execution uses named queue-ahead and overlap assumptions. Cancel latency leaves an old quote fillable until acknowledgement; pending exposure is reserved before new risk is accepted.
+- Gross, fee, net, inventory, markout, missing-mark, and kill-switch outcomes are exported with fill provenance and reproducible audit hashes.
+- Ordinary runs stream bounded event, fill, and markout sinks; manifests record input, configuration, code, and artifact identities so a result can be rerun and checked.
+- The exact synthetic MBO venue owns participant and order identity and is ground truth only inside that controlled venue. It must never be described as historical Binance FIFO.
+
+## Evidence orientation
+
+The committed walkthrough, recorded clip, and stress pack exercise the mechanics
+at fixture scale. Historical real-data reports under `docs/real_data_runs/` are
+kept as pre-semantic-repair regression history and are not current economic
+evidence. Any stronger claim requires a finalized capture, complete validity
+interval, resolvable fill provenance, and a clean pack audit.
+
+## What a completed run gives you
+
+A normal futures run creates one self-describing output directory rather than
+one headline number. The bundle contains:
+
+- a summary of counts, validity, inventory, gross and net economics, fees, and markout coverage;
+- streamed `trades.csv`, `markouts.csv`, and `event_trace.csv` audits;
+- a manifest with input, configuration, code, instrument, and artifact hashes;
+- visible `.partial` files and an `_INCOMPLETE.json` sentinel until every sink is flushed and finalized.
+
+The summary distinguishes observed feed facts from modeled execution and keeps
+missing marks, invalid epochs, unresolved horizons, and diagnostic-only reasons
+visible. A completed pack can therefore be compared across fill profiles,
+latency assumptions, and strategy settings without silently changing the
+underlying tape. The compact options case study remains a separate, synthetic
+pricing exercise rather than part of the futures evidence path.
+
+## Scope boundary
+
+The public-data path is intentionally narrower than a live venue integration:
+it models visible liquidity and explicit timing assumptions, while the exact
+synthetic path supplies the private identities needed for true MBO matching.
+The strategy profiles are baseline controls for exercising those mechanics.
+They are useful for paired sensitivity studies, but they are not presented as
+an optimized alpha model. The options case study is kept separate for the same
+reason: its pricing and hedging assumptions are inspectable, not venue
+calibrated.
 
 ## What Is Implemented
 
@@ -244,9 +289,9 @@ make overlap-sweep-fixture
 `python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
 The gate writes `outputs/reviewer_gate_report.json` by default (override with
 `--report-out` or `REVIEWER_REPORT_JSON`). The report is a concise release
-record for a hiring-manager or code-review handoff: it binds the result to a
-commit, records whether the source tree was dirty, captures runtime/toolchain
-identity, and records every executed command with status and elapsed time.
+  record for reproducing the run: it binds the result to a commit, records
+  whether the source tree was dirty, captures runtime/toolchain identity, and
+  records every executed command with status and elapsed time.
 GitHub Actions uploads this report for each Python matrix job and the Windows
 reviewer smoke job.
 `make determinism-fixture` writes `outputs/futures_determinism.json` after proving the committed walkthrough fixture produces identical summary and event-trace hashes across repeated simulator runs.
