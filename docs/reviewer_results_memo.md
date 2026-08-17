@@ -1,4 +1,4 @@
-# Reviewer Results Memo
+# Results Memo
 
 ## How to read this memo
 
@@ -24,12 +24,12 @@ python scripts/run_real_data_report.py --file data/capture_....manifest.json --e
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
-- `docs/real_data_runs/raw_1780500354_10m.md` is historical pre-semantic-repair evidence retained for regression comparison only; its fills, PnL, and performance are excluded from reviewer claims.
+- `docs/real_data_runs/raw_1780500354_10m.md` is historical pre-semantic-repair material retained for regression comparison only; its fills, PnL, and performance are excluded from current conclusions.
 - Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
 
 ## Historical Local Real-Data Reports
 
-Both files under `docs/real_data_runs/` are preserved as pre-semantic-repair regression history, not current reviewer evidence. They predate stream-first capture, independent validity epochs, repaired arrival-time risk semantics, and resolvable per-fill provenance. Do not cite their fill counts, PnL, or replay throughput as current results. A replacement report must come from a schema-v3 tape with complete validity coverage, pass the current pack auditor, and show `lob_sim.fill_provenance.v1` coverage for every modeled fill.
+Both files under `docs/real_data_runs/` are preserved as pre-semantic-repair regression history, not current results. They predate stream-first capture, independent validity epochs, repaired arrival-time risk semantics, and resolvable per-fill provenance. Do not cite their fill counts, PnL, or replay throughput as current measurements. A replacement report must come from a schema-v3 tape with complete validity coverage, pass the current pack auditor, and show `lob_sim.fill_provenance.v1` coverage for every modeled fill.
 
 ## Stress Pack Event Counts
 
@@ -50,7 +50,7 @@ The stress pack has all three fill sources:
 - `agg_trade`: `2`
 - `taker_order`: `2`
 
-This matters because a reviewer can inspect passive public-consumption fills and explicit marketable strategy fills in the same trace.
+This matters because the same trace exposes passive public-consumption fills alongside explicit marketable strategy fills.
 
 ## Queue Consumption
 

@@ -69,7 +69,7 @@ auditable without presenting a local benchmark as trading latency.
 
 ## Historical Real-Data Reports
 
-The committed reports under `docs/real_data_runs/` are retained only as pre-semantic-repair regression history. They predate the current stream-first capture, validity-epoch, arrival-risk, and per-fill provenance gates, so their fill counts, PnL, and throughput-expanded full traces are not reviewer economic evidence and should not be cited in an interview. A replacement claim-ready report requires a schema-v3 capture, a complete validity interval, resolvable `lob_sim.fill_provenance.v1` coverage, and a clean current pack audit.
+The committed reports under `docs/real_data_runs/` are retained only as pre-semantic-repair regression history. They predate the current stream-first capture, validity-epoch, arrival-risk, and per-fill provenance gates, so their fill counts, PnL, and throughput-expanded full traces are not current economic evidence and should not be cited as present-day results. A replacement report requires a schema-v3 capture, a complete validity interval, resolvable `lob_sim.fill_provenance.v1` coverage, and a clean current pack audit.
 
 ## Assumptions Tested
 
@@ -97,7 +97,7 @@ The committed reports under `docs/real_data_runs/` are retained only as pre-sema
 
 ### Why is this better than a bar backtest?
 
-It keeps event ordering, book continuity, queue-ahead state, cancel latency, and fill attribution in the replay. The exported event trace lets a reviewer inspect the exact path from public depth/trade signal to modeled fill.
+It keeps event ordering, book continuity, queue-ahead state, cancel latency, and fill attribution in the replay. The exported event trace lets a technical reader inspect the exact path from public depth/trade signal to modeled fill.
 
 ### How do you avoid overstating passive fills?
 

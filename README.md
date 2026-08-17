@@ -16,8 +16,8 @@ to challenge.
 
 The futures core captures and validates the feed, reconstructs valid book
 epochs, replays causal order lifecycles, applies named public-L2 fill scenarios,
-and writes accounting and audit evidence. A separate exact synthetic venue
-provides participant-level price-time matching when ground truth is required.
+and writes accounting and audit evidence. A separate synthetic venue provides
+order-level price-time matching for controlled tests.
 
 ## 60-second demo
 
@@ -28,7 +28,7 @@ python -m lob_sim.cli --env .env.example demo
 ```
 
 It prints the inferred public-L2 result beside the exact synthetic result; the
-two modes are deliberately labelled separately. For the full local evidence
+two modes are deliberately labelled separately. For the full local release
 gate, run:
 
 ```bash
@@ -43,7 +43,7 @@ or profitability claim.
 Read next:
 
 - [Interview Packet](docs/interview_packet.md): a spoken project summary and the strongest technical questions to ask.
-- [Reviewer Results Memo](docs/reviewer_results_memo.md): the committed evidence, measurements, and historical-data caveats.
+- [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and Claims](docs/claims.md): the boundary between observed data, modeled execution, and claims this project can defend.
 
 ## Core mechanics
@@ -66,7 +66,7 @@ flowchart LR
 - Ordinary runs stream bounded event, fill, and markout sinks; manifests record input, configuration, code, and artifact identities so a result can be rerun and checked.
 - The exact synthetic MBO venue owns participant and order identity and is ground truth only inside that controlled venue. It must never be described as historical Binance FIFO.
 
-## Evidence orientation
+## Evidence and results
 
 The committed walkthrough, recorded clip, and stress pack exercise the mechanics
 at fixture scale. Historical real-data reports under `docs/real_data_runs/` are
@@ -88,21 +88,18 @@ The summary distinguishes observed feed facts from modeled execution and keeps
 missing marks, invalid epochs, unresolved horizons, and diagnostic-only reasons
 visible. A completed pack can therefore be compared across fill profiles,
 latency assumptions, and strategy settings without silently changing the
-underlying tape. The compact options case study remains a separate, synthetic
-pricing exercise rather than part of the futures evidence path.
+underlying tape.
 
-## Scope boundary
+## Assumptions and limitations
 
 The public-data path is intentionally narrower than a live venue integration:
 it models visible liquidity and explicit timing assumptions, while the exact
 synthetic path supplies the private identities needed for true MBO matching.
 The strategy profiles are baseline controls for exercising those mechanics.
 They are useful for paired sensitivity studies, but they are not presented as
-an optimized alpha model. The options case study is kept separate for the same
-reason: its pricing and hedging assumptions are inspectable, not venue
-calibrated.
+an optimized alpha model.
 
-## What Is Implemented
+## Deeper implementation
 
 ### Futures replay core
 
@@ -116,7 +113,7 @@ calibrated.
 - Shared replay-row adapter/normalization in [`lob_sim/replay/adapters.py`](lob_sim/replay/adapters.py) and [`lob_sim/replay/normalization.py`](lob_sim/replay/normalization.py), so replay, simulation, and benchmarks consume the same `InstrumentSpec`, snapshot, depth, and trade event contract. Instrument-specific normalization failures (such as off-grid prices) fail closed into a sanitized capture-validity boundary before book or fill state is mutated.
 - Queue-aware passive-fill attribution in [`lob_sim/sim/fill_model.py`](lob_sim/sim/fill_model.py).
 - PnL, inventory, fee, markout, queue, and kill-switch metrics in [`lob_sim/sim/metrics.py`](lob_sim/sim/metrics.py), with fee assessment isolated in [`lob_sim/sim/fees.py`](lob_sim/sim/fees.py). Open inventory without a current book or instrument mark is reported as explicitly unvalued; it never becomes numeric zero PnL or zero exposure. Configured 100/1,000/5,000 ms horizons resolve as bounded aggregate evidence with coverage and observation lag, while the legacy one-second detailed markout audit remains available for compatibility.
-- Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the reviewer contract. Ordinary `simulate` runs stream event, fill, and markout audits without retaining those rows, publish deterministic audit-chain hashes, and fail before a fill if the configured pending-markout cap is exhausted. The old full-detail path is available only through the explicit `--in-memory-export` fixture compatibility flag.
+- Gross/net/fee PnL, missing-mark nullability, gap-invalidated markouts, arrival-time post-only/risk checks, and bounded event sinks are part of the simulation contract. Ordinary `simulate` runs stream event, fill, and markout audits without retaining those rows, publish deterministic audit-chain hashes, and fail before a fill if the configured pending-markout cap is exhausted. The old full-detail path is available only through the explicit `--in-memory-export` fixture compatibility flag.
 - Engine accounting handles partial closes and over-reversals explicitly: residual inventory keeps its original cost basis, while any new opposite-side quantity opens at the reversal fill price.
 - Risk can optionally enforce `MM_MAX_PORTFOLIO_NOTIONAL` at modeled order arrival. A positive cap reserves absolute marked inventory plus every live and pending order across symbols, uses limit prices for order reservations, and fails closed when an existing exposure cannot be marked. The default `0` keeps the per-symbol lot cap only; the reservation is deliberately conservative and is not a margin model.
 - `rust/lob_core` is the pinned, unsafe-free kernel boundary. The independent Python oracle and Rust agree on generated fixed-point book batches, a restricted single-price public-L2 trade queue-ahead transition, exact-synthetic new/cancel/replace lifecycles, integer-nanosecond scheduler transitions, per-symbol live-plus-pending lot reservations, cross-symbol gross-notional reservations over externally marked inventory, fixed-point fill accounting/markouts, fixed/empirical/stress-tail scenario-latency sampler traces, and a composed smoke contract that exercises those boundaries in one deterministic sequence; the [committed report](docs/differential_results/rust_python_parity_v3.json) explicitly keeps full-engine parity false.
@@ -141,7 +138,7 @@ calibrated.
 - `replay` and `audit` expose a separate validity reduction for receipt sequence, monotonic receive-clock, capture lifecycle, stream epochs, rejected snapshots, and per-symbol execution inputs. Audit status explicitly separates structural book validity, selected execution-input validity, and the stricter `claim_ready` evidence gate. `claim_ready` requires a complete schema-v3 trailer and valid execution inputs; legacy tapes remain diagnostic-only even when their books sync.
 - Schema-v3 audit output retains a bounded receipt-anchored validity-boundary timeline. Reconnects, rejected snapshots, clock regressions, and capture failures remain explicit invalidated epochs; recovered final books do not erase the evidence or turn an interrupted tape into claim-ready data.
 - Simulation integrity carries the same finalized-capture boundary: schema-v3 `integrity.claim_ready` stays false until a complete `capture_trailer` is observed, even if receipt clocks and final books are coherent.
-- The reviewer gate runs [`scripts/check_fault_injection.py`](scripts/check_fault_injection.py), a deterministic six-case matrix covering capture failures, receipt gaps, clock regressions, truncated segments, and payload checksum corruption. It proves the local fail-closed contracts without claiming venue-side zero loss or private execution truth; see [docs/fault_injection.md](docs/fault_injection.md).
+- The release gate runs [`scripts/check_fault_injection.py`](scripts/check_fault_injection.py), a deterministic six-case matrix covering capture failures, receipt gaps, clock regressions, truncated segments, and payload checksum corruption. It exercises the local fail-closed contracts without making a venue-side zero-loss or private-execution assertion; see [docs/fault_injection.md](docs/fault_injection.md).
 
 Run the futures paths with:
 
@@ -286,7 +283,7 @@ make latency-sweep-fixture
 make overlap-sweep-fixture
 ```
 
-`python scripts/reviewer_gate.py` is the cross-platform reviewer evidence path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-artifact verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`python scripts/reviewer_gate.py` is the cross-platform release path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-pack verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
 The gate writes `outputs/reviewer_gate_report.json` by default (override with
 `--report-out` or `REVIEWER_REPORT_JSON`). The report is a concise release
   record for reproducing the run: it binds the result to a commit, records
@@ -300,7 +297,7 @@ reviewer smoke job.
 `make latency-sweep-fixture` writes a local latency sensitivity table for the recorded futures clip.
 `make overlap-sweep-fixture` writes the local 0/125/250 ms public-L2 corroboration diagnostic.
 
-To refresh the committed futures reviewer artifacts from a clean source tree, run:
+To refresh the committed futures packs from a clean source tree, run:
 
 ```bash
 make refresh-artifacts
@@ -308,7 +305,7 @@ make refresh-artifacts
 
 That target uses one source-provenance snapshot for the walkthrough pack, recorded clip pack, strategy comparison, parameter sweep reference, and benchmark reference, so later generated files are not stamped dirty just because earlier generated files changed.
 
-Committed futures walkthrough artifacts:
+Committed futures walkthrough pack:
 
 - Pack entry: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)
 - Summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
@@ -321,10 +318,10 @@ Committed futures walkthrough artifacts:
 - Strategy profile reference: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
 - Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
 - Latency sensitivity reference: [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md)
-- Stress evidence pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
+- Stress pack: [docs/sample_outputs/futures_stress_case/README.md](docs/sample_outputs/futures_stress_case/README.md)
 - Fill assumption envelope: [docs/sample_outputs/futures_fill_assumption_envelope/README.md](docs/sample_outputs/futures_fill_assumption_envelope/README.md)
 - Overlap-reconciliation sensitivity: [docs/sample_outputs/futures_overlap_sensitivity/README.md](docs/sample_outputs/futures_overlap_sensitivity/README.md)
-- Reviewer results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
+- Results memo: [docs/reviewer_results_memo.md](docs/reviewer_results_memo.md)
 - Interview packet: [docs/interview_packet.md](docs/interview_packet.md)
 - Larger real-data runbook: [docs/real_data_runbook.md](docs/real_data_runbook.md)
 - Larger real-data results template: [docs/real_data_results_template.md](docs/real_data_results_template.md)
@@ -376,7 +373,7 @@ python -m experiments.run_options_scenario_matrix --steps 180 --seed 7 --out-dir
 python -m experiments.run_options_toxicity_spread_sensitivity --steps 180 --seed 7 --out-dir outputs
 ```
 
-Committed artifacts:
+Committed options outputs:
 
 - Controlled case-study pack: [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/)
 - Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
@@ -388,7 +385,7 @@ Committed artifacts:
 
 Start with [WALKTHROUGH.md](WALKTHROUGH.md).
 
-Technical read, then zero-click futures artifacts, then the options case study:
+Technical read, then zero-click futures packs, then the options case study:
 
 1. `README.md`
 2. `docs/binance_usdm_feed_semantics.md`
