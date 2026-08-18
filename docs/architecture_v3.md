@@ -1,6 +1,6 @@
-# Schema-v3 architecture and event priority
+# Schema-v3 architecture and event order
 
-The canonical pipeline is:
+This is the path a recorded event follows:
 
 `capture -> validate -> normalize -> Python oracle / Rust kernel -> venue scenario -> risk/accounting -> bounded sinks -> manifest`
 
@@ -27,8 +27,8 @@ The Python engine keeps seconds at the metrics/export boundary but orders its
 internal action heap by `(recv_monotonic_ns, insertion_order)`. This avoids
 collapsing distinct large receipt timestamps through binary floating point;
 legacy rows use a compatibility sub-nanosecond tie component solely to retain
-their historical float ordering. This is an engine scheduling invariant, not a
-claim that legacy wall-clock rows have nanosecond accuracy.
+their historical float ordering. This is a scheduling invariant; legacy
+wall-clock rows are not nanosecond-accurate.
 Event-trace causality is checked against that same internal key, while exported
 `ts_local` remains a reporting field.
 
@@ -40,12 +40,12 @@ the fill, and the fee-model ID. Schema-v3 manifest captures use a
 capture/receive-sequence/payload-checksum identity. Legacy fixtures use a stable
 input-row identity and are labeled as such. These IDs make a modeled fill
 replayable against immutable input; they do not turn public L2 into a private
-execution report or measured latency evidence.
+execution report or configured delays into measured latency.
 
 The Python engine's Decimal accounting follows the same reversal contract as
 the fixed-point oracle: a partial close reduces the existing lot count without
 changing its cost basis, and only an over-reversal opens a residual position at
-the incoming fill price. This is an accounting invariant, not an assertion of
+the incoming fill price. This is an accounting invariant; it does not assert
 engine-wide Rust parity.
 
 Stream lifecycle records are causal boundaries, not logging decoration.
@@ -83,7 +83,7 @@ types and writer counters. Normal shutdown drains the queue, persists the
 capture trailer, closes the writer, and only then finalizes segments and a
 manifest containing queue capacity, queue/outstanding high-water, maximum
 enqueue-to-write lag, counts, and completion state. These mechanics do not establish a zero-drop or
-24-hour-soak claim by themselves. If a replayed tape contains a capture
+24-hour soak by themselves. If a replayed tape contains a capture
 parse/overflow failure boundary, the independent capture-validity dimension is
 set false, all live/pending execution state is cleared, and strategy actions
 halt; downstream fills and markouts cannot be execution-valid after that
@@ -100,7 +100,7 @@ For schema-v3 replay, the logical priority at equal receipt time is:
 6. Apply actions due exactly at that time.
 
 Legacy v1 tapes retain their documented action-first compatibility policy and
-are never mixed into a claim-ready markout report.
+are never mixed into a `claim_ready` markout report.
 
 `NullSink` and streaming sinks make the trace optional. Aggregate-only and
 bounded-streaming modes retain neither event rows nor resolved fill/markout
@@ -112,8 +112,8 @@ that cap is exhausted.
 The legacy detailed markout horizon is `SIM_ADVERSE_MARKOUT_SECONDS`.
 Additional horizons in `SIM_MARKOUT_HORIZONS_MS` share the same causal midpoint
 observations and are reported in the bounded `markout_horizon_summary`, with
-coverage, invalidation and observation-lag fields. They do not create a second
-unbounded trace or imply private exchange execution evidence.
+coverage, invalidation and observation-lag fields. They do not create another
+unbounded trace or say anything about private exchange execution.
 
 The Python engine also exposes a JSON-only checkpoint contract for long
 replays. `SimulationEngine.run(..., checkpoint_path=..., stop_after_records=N)`
@@ -134,7 +134,7 @@ files, flush and fsync in a prepare phase, and promote only after every sink has
 prepared. `_INCOMPLETE.json` is the visible transaction sentinel; it is removed
 only after atomic summary writes and the artifact-hashing manifest succeed.
 Legacy clock regressions are clamped before trace emission and retain their raw
-timestamp as explicit trace evidence. The fixture-scale compatibility exporter
+timestamp in the trace. The fixture-scale compatibility exporter
 requires `--in-memory-export`, declares linear retention, and remains available
 for small committed packs. Benchmark export mode exercises the bounded path.
 
@@ -162,17 +162,17 @@ post-run edit fails the digest check.
 
 Run manifests also publish a SHA-256 of the non-secret behavioral configuration
 and a streamed `lob_sim.code_identity.v1` over tracked repository files. These
-are provenance identities, not a claim that a clean Git label alone proves
-semantic equivalence or that the repository contains proprietary venue code.
+are provenance identities. A clean Git label alone does not prove semantic
+equivalence or imply that the repository contains proprietary venue code.
 
 Every completed simulation manifest also carries a
 `lob_sim.simulation_claim_gate.v1` projection copied byte-for-byte from
 `summary.json`. It records execution and receive-clock readiness, markout
 coverage and resolution lag by horizon, valuation completeness, fill-provenance
 coverage, audit-chain completeness, and explicit diagnostic-only reasons for
-modeled PnL and strategy claims. The gate is a portable evidence decision; it
-never upgrades a public-L2 scenario into private fill truth or a profitability
-claim. The independent bounded auditor rejects any manifest/summary gate drift.
+modeled PnL and strategy status. The gate is a portable run decision; it never
+upgrades a public-L2 scenario into private fill truth or a profitability result.
+The independent bounded auditor rejects any manifest/summary gate drift.
 
 Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
@@ -181,7 +181,7 @@ single Python bytes object merely to produce provenance.
 The reader can recover the fully checksummed prefix of a visible `.partial`
 segment for forensic inspection. The economic simulator rejects that path
 before processing any records; only finalized capture segments/manifests are
-eligible for claim-bearing simulation.
+eligible for current-result simulation.
 
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
@@ -196,8 +196,8 @@ queue consumption, risk reservations, fills, marks, markouts, and epoch
 invalidation in one deterministic sequence through both implementations.
 These primitives are not yet the engine's end-to-end scheduler, latency path,
 portfolio-notional risk path, or accounting path. The public-L2 scenario venue,
-engine integration, and run manifests remain outside the parity claim, so artifacts keep
-`full_engine_parity=false`.
+engine integration, and run manifests remain outside the parity boundary, so
+packs keep `full_engine_parity=false`.
 
 The CLI's `demo` command also runs a compact exact-synthetic MBO
 scenario. Because that venue owns participant and order identity, its

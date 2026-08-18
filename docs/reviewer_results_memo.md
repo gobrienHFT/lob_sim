@@ -1,13 +1,12 @@
 # Results Memo
 
-## How to read this memo
+## Purpose
 
 `lob_sim` is a deterministic Binance USD-M L2 replay and queue-aware
-passive-execution simulator. This memo records what the committed packs make
-inspectable: book mechanics, replay determinism, public-data fill assumptions,
-adverse-selection markouts, inventory and risk accounting, and benchmark
-provenance. It does not turn those measurements into an alpha, profitability,
-production-gateway, or private-execution claim.
+passive-execution simulator. The packs below let you inspect book mechanics,
+replay determinism, public-data fill assumptions, adverse-selection markouts,
+inventory and risk accounting, and benchmark provenance. They are not alpha,
+profitability, production-gateway, or private-execution results.
 
 ## Commands
 
@@ -19,19 +18,24 @@ python experiments/sweep_futures_latency.py --file docs/sample_outputs/futures_r
 python scripts/run_real_data_report.py --file data/capture_....manifest.json --env .env.real-data --label BTCUSDT_10m --publish-dir docs/real_data_runs
 ```
 
-## Fixture Provenance
+## Inputs
 
 - `docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson` is a clipped recorded BTCUSDT Binance USD-M public-data stream.
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
-- `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It exists to place rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic evidence pack.
+- `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It puts rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic stress pack.
 - `docs/real_data_runs/raw_1780500354_10m.md` is historical pre-semantic-repair material retained for regression comparison only; its fills, PnL, and performance are excluded from current conclusions.
 - Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
 
-## Historical Local Real-Data Reports
+## Historical real-data runs
 
-Both files under `docs/real_data_runs/` are preserved as pre-semantic-repair regression history, not current results. They predate stream-first capture, independent validity epochs, repaired arrival-time risk semantics, and resolvable per-fill provenance. Do not cite their fill counts, PnL, or replay throughput as current measurements. A replacement report must come from a schema-v3 tape with complete validity coverage, pass the current pack auditor, and show `lob_sim.fill_provenance.v1` coverage for every modeled fill.
+The two files under `docs/real_data_runs/` are old regression history, not
+current results. They predate stream-first capture, independent validity epochs,
+arrival-time risk checks, and resolvable per-fill provenance. Do not use their
+fill counts, PnL, or replay throughput as current measurements. A replacement
+report needs a schema-v3 tape with complete validity coverage, a passing pack
+audit, and `lob_sim.fill_provenance.v1` coverage for every modeled fill.
 
-## Stress Pack Event Counts
+## Stress-pack event counts
 
 From `docs/sample_outputs/futures_stress_case/summary.json`:
 
@@ -42,7 +46,7 @@ From `docs/sample_outputs/futures_stress_case/summary.json`:
 - Event trace rows: `52`
 - Fill count: `5`
 
-## Fill-Source Mix
+## Fill-source mix
 
 The stress pack has all three fill sources:
 
@@ -52,7 +56,7 @@ The stress pack has all three fill sources:
 
 This matters because the same trace exposes passive public-consumption fills alongside explicit marketable strategy fills.
 
-## Queue Consumption
+## Queue consumption
 
 Stress-pack public queue-consumption summary:
 
@@ -65,7 +69,7 @@ Stress-pack public queue-consumption summary:
 
 The overlap-netted lot comes from same-side/same-price depth and `aggTrade` consumption. Unmatched lots remain visible instead of being hidden or forced into a fill.
 
-## Markout By Source
+## Markouts by source
 
 Stress-pack one-second markouts:
 
@@ -73,9 +77,10 @@ Stress-pack one-second markouts:
 - `agg_trade`: `2` samples, `1` adverse, average markout `0.1`
 - `taker_order`: `2` samples, `1` adverse, average markout `-0.05`
 
-The point is not performance. The point is that the trace and summary split fill quality by modeled source.
+These rows let you compare fill quality by modeled source; they are not a
+strategy result.
 
-## Inventory And Risk
+## Inventory and risk
 
 Stress-pack inventory/risk summary:
 
@@ -86,15 +91,19 @@ Stress-pack inventory/risk summary:
 - Kill switch triggered: `false`
 - Self-trade prevention count: `1`
 
-## Latency Sensitivity
+## Latency sensitivity
 
-The published latency reference is `docs/strategy_results/futures_latency_sweep_reference.md`. It varies modeled order-arrival and cancel-ack delays over `0, 10, 50` ms grids across mutually exclusive public-L2 `trade` and `depth` execution signals. These are simulator assumptions and scenario-envelope cells, not gateway latency measurements, true fill bounds, or latency-arbitrage claims.
+The published latency reference is `docs/strategy_results/futures_latency_sweep_reference.md`.
+It varies modeled order-arrival and cancel-ack delays over `0, 10, 50` ms grids
+for mutually exclusive public-L2 `trade` and `depth` signals. These are
+scenario assumptions, not gateway-latency measurements, fill bounds, or a
+latency-arbitrage result.
 
-## Benchmark Caveats
+## Benchmark scope
 
 `experiments/benchmark_futures_replay.py --mode all` times replay-only, simulation without export, simulation with event-trace export, and futures pack audit. The output includes input SHA, config digest, adapter metadata, instrument specs, Python/platform/git state, event counts, p50/p99 timing, wall time, and memory. Python fixture-scale numbers should not be compared to colocated production systems.
 
-## Limitations
+## What the public feed cannot tell us
 
 - Public L2 cannot identify private queue position or hidden liquidity.
 - Depth reductions can be cancels, trades, or both.

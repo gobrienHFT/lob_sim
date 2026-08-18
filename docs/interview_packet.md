@@ -1,18 +1,17 @@
-# Interview Packet
+# Interview notes
 
 ## 60-Second Pitch
 
-I built `lob_sim` to answer a practical market-microstructure question: what can
-we learn about passive execution from a public Binance USD-M L2 feed when the
-feed does not reveal private order IDs or exchange execution reports? The system
-captures the feed, reconstructs valid book epochs, replays events in receipt
-order, and runs explicit queue-ahead, latency, cancellation, risk, and
-accounting scenarios. Every modeled fill carries its input evidence and
-assumptions, and every run can be checked from its manifest and audit files. A
-separate synthetic venue owns participant IDs and exact price-time matching, so
-I can demonstrate true FIFO mechanics without pretending that public Binance
-data contains them. The project is deliberately about reproducible execution
-research, not alpha, profitability, or production gateway performance.
+I built `lob_sim` around a simple question: what can public Binance USD-M L2
+tell us about passive execution when it does not expose private order IDs or
+exchange execution reports? It captures the feed, rebuilds valid book epochs,
+replays events in receipt order, and runs queue, latency, cancellation, risk,
+and accounting scenarios. Each modeled fill points back to its input records
+and assumptions, and each run can be checked from its manifest and audit files.
+A separate synthetic venue owns participant IDs and exact price-time matching,
+so I can exercise FIFO mechanics without saying that public Binance data
+contains them. This is execution research, not an alpha, profitability, or
+production-gateway claim.
 
 ## Architecture
 
@@ -29,10 +28,10 @@ flowchart LR
   H --> J["SimulationMetrics"]
   I --> J
   J --> K["summary / trades / event trace / manifest"]
-  K --> L["artifact verifier and pack auditor"]
+  K --> L["pack verifier and auditor"]
 ```
 
-## Run the gate
+## Run it
 
 ```bash
 python scripts/reviewer_gate.py
@@ -44,11 +43,10 @@ With `make` available:
 make reviewer-gate
 ```
 
-The command writes `outputs/reviewer_gate_report.json`, which is a compact,
-machine-readable handoff containing the tested commit, clean/dirty status,
-runtime/toolchain identity, each gate command, result, and duration. In CI it
-is uploaded as a workflow artifact. This makes the evidence reproducible and
-auditable without presenting a local benchmark as trading latency.
+The command writes `outputs/reviewer_gate_report.json`: a compact handoff with
+the tested commit, clean/dirty status, runtime/toolchain identity, each command,
+result, and duration. CI uploads the same file. It records how the run was made;
+it is not a trading-latency measurement.
 
 ## Where to look in the code
 
@@ -67,11 +65,16 @@ auditable without presenting a local benchmark as trading latency.
 - `scripts/run_real_data_report.py`: local real-tape inspect/simulate/audit/benchmark/report pipeline with report-only docs publishing.
 - `docs/real_data_runbook.md`: 10-30 minute real-tape run path.
 
-## Historical Real-Data Reports
+## Historical real-data runs
 
-The committed reports under `docs/real_data_runs/` are retained only as pre-semantic-repair regression history. They predate the current stream-first capture, validity-epoch, arrival-risk, and per-fill provenance gates, so their fill counts, PnL, and throughput-expanded full traces are not current economic evidence and should not be cited as present-day results. A replacement report requires a schema-v3 capture, a complete validity interval, resolvable `lob_sim.fill_provenance.v1` coverage, and a clean current pack audit.
+The committed reports under `docs/real_data_runs/` are old regression material.
+They predate stream-first capture, validity epochs, arrival-time risk checks, and
+per-fill provenance, so their fill counts, PnL, and expanded traces are not
+current results. A replacement report needs a schema-v3 capture, a complete
+valid interval, resolvable `lob_sim.fill_provenance.v1` coverage, and a clean
+pack audit.
 
-## Assumptions Tested
+## Assumptions in the model
 
 - First diff must cover snapshot update id; later diffs must be continuous.
 - Non-resync replay records gaps and avoids applying gap-affected book mutations.
@@ -81,19 +84,18 @@ The committed reports under `docs/real_data_runs/` are retained only as pre-sema
 - Cancel latency leaves old quotes fillable until acknowledgement.
 - Same-timestamp ordering is explicit rather than universal: schema-v3 receipt-order ties apply market observations before same-time actions, while legacy coarse-timestamp rows retain action-first ordering as a labeled compatibility sensitivity.
 - Marketable strategy orders are taker fills and cannot self-trade with own resting liquidity.
-- Every fill's scenario, input-record evidence, validity, synthetic queue trajectory, configured latency draws, lifecycle state, fee model, economics, and artifact hashes agree across summary, trades, and trace outputs.
+- Every fill's scenario, input records, validity, queue trajectory, latency draws, lifecycle state, fee model, economics, and output hashes agree across the summary, trades, and trace.
 - Deterministic fixture runs produce identical summary and event-trace hashes.
-- `python -m lob_sim.cli --env .env.example demo` prints both the public-L2 deterministic result and an exact-synthetic FIFO proof with separate claims.
+- `python -m lob_sim.cli --env .env.example demo` prints the public-L2 result beside an exact-synthetic FIFO proof, with separate labels.
 
-## Not Claimed
+## What it does not tell you
 
-- No private exchange execution-report truth.
-- No participant-level queue IDs or hidden-liquidity reconstruction.
-- No production gateway, colocated latency, or exchange certification.
-- No alpha, Sharpe, profitability, or deployment claim.
-- No venue-calibrated options microstructure.
+- Private execution reports, participant-level queue IDs, or hidden-liquidity reconstruction.
+- Production gateway behavior, colocated latency, or exchange certification.
+- Alpha, Sharpe, profitability, or deployment performance.
+- Venue-calibrated options microstructure.
 
-## Likely Interview Q&A
+## Questions I expect
 
 ### Why is this better than a bar backtest?
 
@@ -101,7 +103,10 @@ It keeps event ordering, book continuity, queue-ahead state, cancel latency, and
 
 ### How do you avoid overstating passive fills?
 
-Fills are labeled as public-data queue inferences. The manifest states no private execution reports, the auditor checks the assumptions, and summaries expose unmatched public consumption instead of forcing every level decrease into a fill.
+Fills are labeled as public-data queue inferences. The manifest records that no
+private execution reports are present, the auditor checks the assumptions, and
+the summaries leave unmatched public consumption visible instead of forcing
+every level decrease into a fill.
 
 ### What happens on data gaps?
 
@@ -109,15 +114,17 @@ The synchronizer enforces Binance `U/u/pu` continuity. Live collection can resna
 
 ### Why include synthetic packs?
 
-The recorded clip proves the path on public tape. The synthetic walkthrough and stress packs make rare mechanics compact and deterministic: overlap netting, cancel races, taker fills, self-trade prevention, and adverse/non-adverse markouts.
+The recorded clip follows the path on public tape. The synthetic walkthrough and
+stress packs keep rare mechanics compact and repeatable: overlap netting, cancel
+races, taker fills, self-trade prevention, and adverse/non-adverse markouts.
 
-### Why is the exact synthetic venue not a Binance claim?
+### Why isn't the synthetic venue a Binance reconstruction?
 
 The synthetic venue owns participant IDs, order IDs, and every state transition,
 so price-time priority is ground truth inside that controlled mode. Binance
 market-by-price data does not expose those private identities; the CLI demo
 prints the two modes separately and labels the synthetic result explicitly.
 
-### What would you do next for a desk-grade extension?
+### What would you add next?
 
 Add more venues behind `ReplayFeedAdapter`, run longer public tapes with the real-data runbook, calibrate strategy parameters without claiming alpha, and optionally add private execution reports when a venue/account can legally provide them.

@@ -1,28 +1,29 @@
 # HFT Technical Guide
 
-## 60-Second Pitch
+## The short version
 
 `lob_sim` starts with a limitation of public market data: Binance market-by-price
 events show visible levels and public prints, but not the private orders behind
-them. The system captures that feed, reconstructs only valid book epochs, and
-replays receipt-ordered events through explicit order, queue, latency,
-cancellation, risk, accounting, and markout rules. The result is a set of
-repeatable execution scenarios whose assumptions and source records are visible
-in the output. A separate synthetic MBO venue owns participant IDs and exact
-price-time matching, which lets the project demonstrate FIFO mechanics without
-calling them historical Binance behavior. It is an execution-research tool, not
-an alpha, profitability, or production-latency claim.
+them. It captures that feed, rebuilds only valid book epochs, and replays
+receipt-ordered events through order, queue, latency, cancellation, risk,
+accounting, and markout rules. The output keeps the source records and scenario
+assumptions next to the resulting fills. A separate synthetic MBO venue owns
+participant IDs and exact price-time matching, so FIFO can be tested there
+without calling it historical Binance behavior. This is execution research, not
+an alpha, profitability, or production-latency result.
 
 The options material is secondary: a controlled dealer-pricing case study for
 reservation price, signed markout, and hedging logic under synthetic assumptions.
 
 ## Five-minute path
 
-Start with the [replay contract](replay_contract.md), [Binance feed semantics](binance_usdm_feed_semantics.md), and [futures validation](futures_validation.md). Then trace the implementation through the [adapter and normalization boundary](../lob_sim/replay/adapters.py), [book synchronizer](../lob_sim/book/sync.py), [queue/fill model](../lob_sim/sim/fill_model.py), and [simulation engine](../lob_sim/sim/engine.py). Finally, inspect the [walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md), [recorded clip](sample_outputs/futures_recorded_clip_case/README.md), and [stress pack](sample_outputs/futures_stress_case/README.md), then read the [results memo](reviewer_results_memo.md) and [claim matrix](claims.md).
+Start with the [replay contract](replay_contract.md), [Binance feed semantics](binance_usdm_feed_semantics.md), and [futures validation](futures_validation.md). Then trace the [adapter and normalization boundary](../lob_sim/replay/adapters.py), [book synchronizer](../lob_sim/book/sync.py), [queue/fill model](../lob_sim/sim/fill_model.py), and [simulation engine](../lob_sim/sim/engine.py).
+
+For a concrete run, inspect the [walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md), [recorded clip](sample_outputs/futures_recorded_clip_case/README.md), and [stress pack](sample_outputs/futures_stress_case/README.md). The [results memo](reviewer_results_memo.md) and [assumptions and limits](claims.md) explain how to read them.
 
 The deeper references cover [latency sensitivity](strategy_results/futures_latency_sweep_reference.md), [overlap reconciliation](futures_overlap_sensitivity.md), [benchmark notes](futures_benchmarks.md), [determinism](../scripts/check_futures_determinism.py), [architecture decisions](architecture_decisions.md), [real-data collection](real_data_runbook.md), and the [results template](real_data_results_template.md).
 
-## Architecture
+## Data flow
 
 ```mermaid
 flowchart LR
@@ -40,7 +41,7 @@ flowchart LR
   K --> L["Atomic summaries / hashed manifest"]
 ```
 
-## Exact Commands
+## Commands
 
 ```bash
 python scripts/reviewer_gate.py
@@ -91,26 +92,24 @@ price-time fill sequence, deterministic post-only rejection, transition log,
 and final state hash. That result is ground truth only inside the synthetic
 venue; the same output explicitly labels it as not historical Binance FIFO.
 
-## Observed vs Inferred
+## What the tape tells us
 
-Observed:
+Observed in the source:
 
 - public snapshots;
 - public depth diffs and sequence IDs;
 - public aggregate trade prints;
 - local event timestamps stored in the record stream.
-- adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created.
-- generated summary and manifest `instrument_specs`, matching the replay input metadata used for units and multiplier economics.
-- generated summary and manifest `simulation_assumptions`, explicitly stating public-data scope, synthetic queue-ahead assumptions, overlap netting, cancel-latency behavior, and no private execution-report claim.
-- generated summary and manifest `simulation_claim_gate`, a portable equality-checked decision record for execution validity, markout coverage/lag, missing marks, fill provenance, and audit completeness; modeled PnL and strategy claims remain diagnostic-only.
-- shared normalized replay events in integer ticks/lots before simulation code mutates state.
-- replay row counts, applied depth-change counts, and book-sync gap counts in simulation summaries.
-- event-time traces of market records, decisions, scheduled arrivals, cancel reasons, queue-ahead-at-arrival, book gaps, and fills in generated CSV outputs.
-- risk-halt trace rows when the configured kill switch fires, including trigger reason and cleared live/pending strategy state.
-- summary-level queue-ahead-at-arrival diagnostics, verified against event traces, so initial queue position is visible even when fill-time residual queue ahead is zero.
-- strategy decision diagnostics: best ticks, mid, inventory, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
 
-Inferred:
+Normalized and recorded by the simulator:
+
+- adapter-normalized instrument metadata and integer tick/lot events, with positive tick/lot/multiplier checks before simulation state is created;
+- generated `instrument_specs`, `simulation_assumptions`, and `simulation_claim_gate` fields in summaries and manifests;
+- shared normalized replay events, row counts, depth-change counts, and book-sync gap counts;
+- event-time traces for market records, decisions, arrivals, cancels, queue-ahead-at-arrival, gaps, fills, and risk halts;
+- strategy diagnostics such as best ticks, mid, inventory, volatility, spread inputs, imbalance inputs, fee floor, reservation tick, and gate label where relevant.
+
+Modeled by the execution scenarios:
 
 - passive fills from visible level reductions and trade-print consumption;
 - queue position at price level, not participant-level identity;
@@ -119,7 +118,7 @@ Inferred:
 - net maker/taker fee impact from configured fee assumptions;
 - strategy behavior under configured latency assumptions.
 
-## Queue And Fill Assumptions
+## Queue and fill model
 
 - Snapshot levels seed visible queue ahead of strategy orders.
 - Depth increases append later venue liquidity behind existing resting orders at that price.
@@ -152,7 +151,7 @@ Inferred:
 - Fee assumptions are explicit maker/taker bps; rebates are negative fees and each exported fill includes notional, contract multiplier, fee rate, fee amount, and fee currency.
 - PnL, spread capture, fees, and markout are contract-multiplier adjusted, while inventory remains in normalized quantity units.
 
-## Limitations
+## Limits
 
 - Public L2 data cannot prove private exchange fills.
 - Level reductions can be cancels, trades, or both; the simulator documents the attribution assumption instead of hiding it.
@@ -161,7 +160,7 @@ Inferred:
 - `research_mm` adds reservation-price inventory skew, toxicity-sensitive spread, and a fee-aware spread floor for inspection; it is still a research profile, not a trading system.
 - Benchmarks are machine/dataset specific and include Python overhead.
 
-## What the current artifacts demonstrate
+## What to inspect in a run
 
 - Event-time replay discipline.
 - Feed-specific sequence handling and gap policy.
@@ -175,14 +174,14 @@ Inferred:
 - Event traces that make order/cancel/fill sequencing inspectable without a debugger.
 - Risk-control traces that show when configured kill switches halt trading instead of silently suppressing later decisions.
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
-- Reproducible artifacts with input/config/feed-adapter/source manifests.
-- A CI-covered determinism checker that proves repeated fixture runs produce identical summary and event-trace hashes with bounded incremental trace hashing.
+- Reproducible packs with input/config/feed-adapter/source manifests.
+- A CI-covered determinism checker that produces identical summary and event-trace hashes across repeated fixture runs with bounded incremental trace hashing.
 - A JSON-only simulation checkpoint contract that revalidates input/config identity and proves an interrupted continuation matches an uninterrupted replay; streaming sinks are not implicitly appended on resume.
 - A futures pack auditor that checks replay input, summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
 - A synthetic-but-exchange-shaped stress pack that intentionally covers queue ahead, partial fills, overlap netting, adverse/non-adverse markouts, cancel latency, same-timestamp cancel/trade ordering, marketable taker fills, self-trade prevention, and no-gap continuity.
-- A deterministic latency sensitivity sweep that shows how modeled order-arrival and cancel-ack delays affect queue/fill outcomes without claiming a production latency edge.
+- A deterministic latency sensitivity sweep showing how modeled order-arrival and cancel-ack delays affect queue/fill outcomes; it is not a gateway-latency result.
 - A fill-assumption envelope runner that compares fills, PnL, markouts, inventory, fill-source counts, and queue-consumption totals across conservative/base/aggressive public-L2 assumptions.
-- Artifact verification rejects committed futures manifests refreshed from a dirty source tree.
-- Artifact verification rejects committed futures packs whose summary, summary CSV, manifest, and replay-input instrument metadata disagree.
-- Artifact verification rejects committed futures packs whose fill-assumption labels or public-data simulation assumptions are missing, inconsistent, or claim private exchange fills.
+- The verifier rejects futures manifests refreshed from a dirty source tree.
+- It rejects packs whose summary, CSV, manifest, and replay-input instrument metadata disagree.
+- It rejects packs whose fill labels or public-data assumptions are missing, inconsistent, or presented as private exchange fills.
 - Extensible boundaries for future venue adapters and asset metadata.
