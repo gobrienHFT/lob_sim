@@ -1,89 +1,105 @@
-# Walkthrough
+# Follow one run
 
-## 60-Second Pitch
+`lob_sim` asks: given a recorded public book, when would a passive order fill
+under a chosen queue and latency model? The book comes from messages. The
+hypothetical order and its queue position belong to the simulation.
 
-Start with the futures side. The core artifact is a deterministic Binance USD-M L2 replay that records `exchangeInfo`, snapshots, depth diffs, and `aggTrade` prints, reconstructs the local book with explicit continuity checks, and runs an event-driven passive-fill simulation with FIFO queue assumptions and queue-ahead tracking.
+## Run the offline example
 
-The options side is a separate controlled dealer-pricing case study. It is there to make fair value, reservation price, inventory skew, signed markout, and hedging assumptions easy to inspect, not to claim venue-realistic options microstructure.
+Follow the setup in [README](README.md), then run:
 
-## 90-Second Walkthrough
+```bash
+python -m lob_sim.cli --env .env.example demo
+```
 
-1. Open [README.md](README.md) and [docs/interview_packet.md](docs/interview_packet.md) and anchor the discussion on the futures replay, not the options artifact.
-2. Point to [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for snapshot seeding, `U/u/pu` continuity, and gap handling.
-3. Point to [lob_sim/sim/fill_model.py](lob_sim/sim/fill_model.py) and [tests/test_fill_model.py](tests/test_fill_model.py) for FIFO queue consumption, queue-ahead tracking, and passive fill attribution.
-4. Open [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures artifact path.
-5. Open [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), and [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv).
-6. Open [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the continuity, queue-ahead, and passive-fill notes.
-7. Open [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) and [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the baseline-vs-layered profile comparison on a committed recorded clip.
-8. Then show the controlled options case study via [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) and [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md).
+The default input is a six-record fixture. Read these JSON sections first:
 
-## 5-Minute Walkthrough
+| Section | What to inspect |
+| --- | --- |
+| `input` | Record counts, symbol metadata, and input hash. This legacy fixture has no schema-v3 receipt-clock coverage. |
+| `deterministic_run` | State and audit hashes, modeled fills, and valuation completeness. Repeatable fixture PnL checks mechanics, not strategy performance. |
+| `synthetic_exchange` | `fifo_ground_truth.matches` is true: `ask-a` fills before `ask-b`. The crossing post-only order is rejected. |
 
-1. README overview, futures replay internals, matching model, and limitations.
-2. [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md) for market-data semantics and what is inferred.
-3. [docs/futures_validation.md](docs/futures_validation.md) for invariants, tests, and non-goals.
-4. [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md) for the zero-click futures walkthrough pack.
-5. [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json), [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv), [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv), and [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md) for the actual artifact path.
-6. [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md) and [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md) for one recorded-data proof point.
-7. [docs/sample_outputs/futures_schema_v3_case/README.md](docs/sample_outputs/futures_schema_v3_case/README.md) for a clean claim-ready schema-v3 tape and an adversarial fail-closed tape.
-8. [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md) for the baseline and layered profile definitions.
-9. [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md) for the reproducible committed-input comparison between those two profiles.
-10. [scripts/check_futures_determinism.py](scripts/check_futures_determinism.py), [scripts/audit_futures_pack.py](scripts/audit_futures_pack.py), [docs/strategy_results/futures_latency_sweep_reference.md](docs/strategy_results/futures_latency_sweep_reference.md), [docs/futures_benchmarks.md](docs/futures_benchmarks.md), [docs/benchmark_results/futures_replay_reference.md](docs/benchmark_results/futures_replay_reference.md), and [experiments/benchmark_futures_replay.py](experiments/benchmark_futures_replay.py) for hash-checked fixture determinism, pack consistency audit, latency sensitivity, and the rerunnable benchmark driver.
-11. [docs/sample_outputs/toxic_flow_seed7/case_brief.md](docs/sample_outputs/toxic_flow_seed7/case_brief.md) for the dealer-pricing case study.
-12. [docs/options_case_study_notes.md](docs/options_case_study_notes.md) for concise options framing if the discussion stays on pricing and hedging.
+The historical feed gives quantities at prices but cannot locate our
+hypothetical order among private participants. The synthetic exchange owns
+every order and can check exact price-time priority.
 
-## Core Talking Points
+## Why queue and cancel timing matter
 
-- The strongest claim here is deterministic event-time replay with explicit book-sync semantics.
-- The determinism claim is executable: the checker reruns a committed fixture and compares summary/event-trace hashes.
-- The audit claim is executable: the pack auditor checks replay input counts, summary JSON/CSV, trades, event trace, manifest, per-fill economics, markout event details, and public-data assumption consistency across the committed futures packs.
-- The latency limitation is executable too: the sweep varies modeled order/cancel delay and reports fill-quality/queue metrics without claiming a production latency edge.
-- Passive fills are queue-aware and rely on explicit FIFO assumptions rather than bar-level heuristics.
-- Gap handling is explicit: the code checks continuity and does not patch over missing updates.
-- The strategy is a baseline quoting/control policy on top of the replay and matching core.
-- The options artifact is controlled and synthetic by design, which keeps its assumptions inspectable.
+Suppose ten lots are displayed at our bid when a one-lot buy joins. In a
+back-of-visible-queue scenario, those ten lots sit ahead of us. A public sale of
+four lots reduces that assumed queue to six; it does not fill our order. A depth
+decrease could include cancellations, so the selected execution scenario
+determines how much it contributes to queue depletion.
 
-## Common Reviewer Questions
+Now send a cancel. The order remains fillable until the modeled acknowledgement
+arrives. That race changes inventory and fees. If feed continuity breaks,
+affected execution state must be invalidated before another fill can be
+inferred. Inspect these mechanics before comparing PnL.
 
-### What is directly observed versus inferred?
+## Follow the outputs
 
-Directly observed inputs are the Binance snapshot, depth diff messages, `aggTrade` prints, and symbol metadata. Queue position, cancel-vs-trade attribution inside a level reduction, and passive fill timing are inferred from those public signals under explicit assumptions.
+Start with the [committed walkthrough pack](docs/sample_outputs/futures_replay_walkthrough/README.md).
+It can be read directly on GitHub:
 
-### How are gaps handled?
+1. Read the [input](docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson)
+   and [walkthrough notes](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md).
+2. Find the modeled fill in [trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv).
+3. Follow its market observations, order actions, and queue consumption in
+   [event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv).
+4. Check counts, inventory, fees, and markouts in
+   [summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json).
 
-The synchronizer requires the first accepted diff to cover the snapshot id and then checks `pu` continuity on later diffs. Live collection can re-snapshot on gaps; offline replay and simulation do not invent the missing sequence.
+For capture validity, open the [schema-v3 examples](docs/sample_outputs/futures_schema_v3_case/README.md),
+which include clean and adversarial inputs. The
+[fault-injection checks](docs/fault_injection.md) cover gaps and damaged captures.
 
-### Why call the strategy baseline?
+Next, inspect the [recorded clip](docs/sample_outputs/futures_recorded_clip_case/README.md)
+and its [case notes](docs/sample_outputs/futures_recorded_clip_case/case_notes.md).
+Read the [strategy definitions](docs/futures_strategy_profiles.md) before the
+[profile comparison](docs/strategy_results/futures_strategy_profile_reference.md).
+The [parameter sweep](docs/strategy_results/futures_parameter_sweep_reference.md)
+and [benchmark reference](docs/benchmark_results/futures_replay_reference.md)
+document their inputs and measurement scope.
 
-Because the stronger contribution here is the deterministic replay, matching, and measurement core. The strategy is intentionally simple enough to expose queue mechanics, inventory skew, and risk controls without overselling alpha.
+Compare [overlap reconciliation](docs/futures_overlap_sensitivity.md) and the
+[latency sweep](docs/strategy_results/futures_latency_sweep_reference.md) to see
+how execution assumptions affect the same recorded input.
 
-### Why keep the options case study?
+## Find the code
 
-It shows pricing and risk reasoning that the futures replay does not cover: fair value, reservation price, signed markout, and hedging logic. It is useful precisely because it is framed as a controlled case study rather than a venue-realistic options simulator.
+| Question | Start here |
+| --- | --- |
+| Is the snapshot usable, and do updates connect? | [Book synchronizer](lob_sim/book/sync.py) |
+| How does displayed consumption affect a hypothetical queue? | [Passive fill model](lob_sim/sim/fill_model.py) |
+| When do orders arrive and cancels take effect? | [Simulation engine](lob_sim/sim/engine.py) |
+| How are inventory, fees, and later marks accounted for? | [Metrics](lob_sim/sim/metrics.py) |
+| How does exact synthetic matching work? | [Synthetic exchange](lob_sim/sim/synthetic_exchange.py) |
+| What is compared between Python and Rust? | [Differential results](docs/differential_results/README.md) |
 
-### What would real data change on the options side?
+The [interview notes](docs/interview_packet.md) give a spoken explanation and
+technical questions. The [results memo](docs/reviewer_results_memo.md) explains
+the committed measurements.
 
-Real data would calibrate the volatility surface, customer flow, toxicity assumptions, and hedge-cost model. The current value is transparency, not calibration.
+## Check the run
 
-## Sample Outputs
+The [determinism checker](scripts/check_futures_determinism.py) reruns the fixture
+and compares state and trace hashes. The [pack auditor](scripts/audit_futures_pack.py)
+checks agreement between the recorded input, fills, accounting, and manifests:
 
-- Futures walkthrough pack: [docs/sample_outputs/futures_replay_walkthrough/README.md](docs/sample_outputs/futures_replay_walkthrough/README.md)
-- Futures summary: [docs/sample_outputs/futures_replay_walkthrough/summary.json](docs/sample_outputs/futures_replay_walkthrough/summary.json)
-- Futures trades: [docs/sample_outputs/futures_replay_walkthrough/trades.csv](docs/sample_outputs/futures_replay_walkthrough/trades.csv)
-- Futures event trace: [docs/sample_outputs/futures_replay_walkthrough/event_trace.csv](docs/sample_outputs/futures_replay_walkthrough/event_trace.csv)
-- Futures notes: [docs/sample_outputs/futures_replay_walkthrough/walkthrough.md](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md)
-- Schema-v3 validity fixtures: [docs/sample_outputs/futures_schema_v3_case/README.md](docs/sample_outputs/futures_schema_v3_case/README.md)
-- Recorded clip case: [docs/sample_outputs/futures_recorded_clip_case/README.md](docs/sample_outputs/futures_recorded_clip_case/README.md)
-- Recorded clip summary: [docs/sample_outputs/futures_recorded_clip_case/summary.json](docs/sample_outputs/futures_recorded_clip_case/summary.json)
-- Recorded clip trades: [docs/sample_outputs/futures_recorded_clip_case/trades.csv](docs/sample_outputs/futures_recorded_clip_case/trades.csv)
-- Recorded clip event trace: [docs/sample_outputs/futures_recorded_clip_case/event_trace.csv](docs/sample_outputs/futures_recorded_clip_case/event_trace.csv)
-- Recorded clip notes: [docs/sample_outputs/futures_recorded_clip_case/case_notes.md](docs/sample_outputs/futures_recorded_clip_case/case_notes.md)
-- Strategy profile notes: [docs/futures_strategy_profiles.md](docs/futures_strategy_profiles.md)
-- Strategy profile comparison: [docs/strategy_results/futures_strategy_profile_reference.md](docs/strategy_results/futures_strategy_profile_reference.md)
-- Parameter sweep reference: [docs/strategy_results/futures_parameter_sweep_reference.md](docs/strategy_results/futures_parameter_sweep_reference.md)
-- Overlap-reconciliation sensitivity: [docs/futures_overlap_sensitivity.md](docs/futures_overlap_sensitivity.md)
-- Futures semantics and validation: [docs/binance_usdm_feed_semantics.md](docs/binance_usdm_feed_semantics.md), [docs/futures_validation.md](docs/futures_validation.md)
-- Options case-study pack: [docs/sample_outputs/toxic_flow_seed7/](docs/sample_outputs/toxic_flow_seed7/)
-- Scenario matrix: [docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md](docs/sample_outputs/scenario_matrix_seed7/scenario_matrix.md)
-- Spread-vs-toxicity sweep: [docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md](docs/sample_outputs/toxicity_spread_sensitivity_seed7/toxicity_spread_sensitivity.md)
-- Options case study notes: [docs/options_case_study_notes.md](docs/options_case_study_notes.md)
+```bash
+python scripts/check_futures_determinism.py --file docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson --env .env.example
+python scripts/audit_futures_pack.py --committed-futures
+```
+
+## What still needs proving
+
+Python/Rust checks cover selected primitives and a composed contract, rather
+than the complete simulation engine. Small fixtures test mechanics; they do
+not establish performance on sustained market traffic or a held-out trading
+result. Read the [assumptions and limits](docs/claims.md) before using a result
+outside those conditions.
+
+The separate [options case study](docs/options_case_study_notes.md) explores
+dealer pricing and hedging with controlled inputs. It is optional reading after
+the futures replay.

@@ -1244,12 +1244,26 @@ def test_sample_output_commands_match_refresh_source_of_truth() -> None:
         assert command in readme, f"missing documented command: {command}"
 
 
+def test_publication_links_resolve_relative_to_the_document(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    guide = docs / "guide.md"
+    target = docs / "interview_packet.md"
+    target.write_text("# Interview notes\n", encoding="utf-8")
+    for link in ("interview_packet.md", "../docs/interview_packet.md#questions"):
+        guide.write_text(f"[Interview notes]({link})\n", encoding="utf-8")
+        assert verifier._has_markdown_link(guide, target)
+    for text in ("interview_packet.md", "[Wrong destination](missing/interview_packet.md)"):
+        guide.write_text(text, encoding="utf-8")
+        assert not verifier._has_markdown_link(guide, target)
+
+
 def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     readme = README.read_text(encoding="utf-8")
     walkthrough = WALKTHROUGH.read_text(encoding="utf-8")
     sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
-    readme_walkthrough = readme.split("## Walkthrough Path", 1)[1]
-    walkthrough_five_minute = walkthrough.split("## 5-Minute Walkthrough", 1)[1].split("## Core Talking Points", 1)[0]
+    readme_walkthrough = readme.split("## Walkthrough path", 1)[1]
+    walkthrough_five_minute = walkthrough.split("## Follow the outputs", 1)[1].split("## Find the code", 1)[0]
 
     assert "docs/sample_outputs/futures_replay_walkthrough/README.md" in readme
     assert "docs/sample_outputs/futures_replay_walkthrough/summary.json" in readme

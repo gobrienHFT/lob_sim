@@ -17,6 +17,8 @@ reservation price, signed markout, and hedging logic under synthetic assumptions
 
 ## Five-minute path
 
+For a shorter spoken introduction, start with the [interview notes](interview_packet.md).
+
 Start with the [replay contract](replay_contract.md), [Binance feed semantics](binance_usdm_feed_semantics.md), and [futures validation](futures_validation.md). Then trace the [adapter and normalization boundary](../lob_sim/replay/adapters.py), [book synchronizer](../lob_sim/book/sync.py), [queue/fill model](../lob_sim/sim/fill_model.py), and [simulation engine](../lob_sim/sim/engine.py).
 
 For a concrete run, inspect the [walkthrough pack](sample_outputs/futures_replay_walkthrough/README.md), [recorded clip](sample_outputs/futures_recorded_clip_case/README.md), and [stress pack](sample_outputs/futures_stress_case/README.md). The [results memo](reviewer_results_memo.md) and [assumptions and limits](claims.md) explain how to read them.

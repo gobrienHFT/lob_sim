@@ -24,7 +24,7 @@ python scripts/run_real_data_report.py --file data/capture_....manifest.json --e
 - `docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson` is a tiny synthetic walkthrough fixture.
 - `docs/sample_outputs/futures_stress_case/input_stress.ndjson` is synthetic-but-exchange-shaped. It puts rare queue, cancel, taker, and self-trade-prevention mechanics into one compact, deterministic stress pack.
 - `docs/real_data_runs/raw_1780500354_10m.md` is historical pre-semantic-repair material retained for regression comparison only; its fills, PnL, and performance are excluded from current conclusions.
-- Larger public-data runs should follow `docs/real_data_runbook.md` and `docs/real_data_results_template.md`, then publish report-only results under `docs/real_data_runs/`; raw files stay local-only unless they are small and redistributable.
+- For larger runs, follow the [collection runbook](real_data_runbook.md) and [results template](real_data_results_template.md). Publish reports under `docs/real_data_runs/`; keep raw files local unless they are small and redistributable.
 
 ## Historical real-data runs
 

@@ -20,14 +20,37 @@ participant and order IDs, so price-time matching is exact inside that venue.
 
 ## 60-second demo
 
-Start with the compact demonstration:
+From an installed checkout, run the offline demonstration:
 
 ```bash
 python -m lob_sim.cli --env .env.example demo
 ```
 
-The output places the public-L2 inference beside the exact synthetic result and
-labels the two modes separately. For the full local release gate:
+No API key or live connection is needed. In the JSON, look for
+`synthetic_exchange.fifo_ground_truth.matches: true`: the buyer fills against
+`ask-a` before `ask-b`. The `crossing-post-only` action is rejected because it
+would immediately trade. `deterministic_run` contains the separate public-L2
+simulation; its fixture PnL checks accounting mechanics.
+
+First run? With Python 3.11 or later installed:
+
+```bash
+git clone https://github.com/gobrienHFT/lob_sim.git
+cd lob_sim
+python -m venv .venv
+```
+
+Activate with `.venv\Scripts\Activate.ps1` in PowerShell or
+`source .venv/bin/activate` on macOS/Linux, then run:
+
+```bash
+python -m pip install -e .
+python -m lob_sim.cli --env .env.example demo
+```
+
+Development also needs `python -m pip install -r requirements.txt` and Rust
+through rustup. The repository pins Rust 1.82.0, rustfmt, and Clippy; Windows
+builds also need the MSVC C++ build tools. Run the full local verification gate:
 
 ```bash
 python scripts/reviewer_gate.py
@@ -40,9 +63,9 @@ measurement.
 
 Read next:
 
-- [Interview Packet](docs/interview_packet.md): a spoken project summary and technical Q&A.
+- [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
-- [Assumptions and Claims](docs/claims.md): what the feed observes, what the simulator infers, and where the boundary lies.
+- [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
 
 ## Core mechanics
 
@@ -95,6 +118,12 @@ not optimized alpha. The exact synthetic venue exists to test the order-level
 matching rules that public L2 cannot reveal.
 
 ## Deeper implementation
+
+The [technical guide](docs/hft_reviewer_guide.md) maps the code and verification
+commands. Try the [schema-v3 examples](docs/sample_outputs/futures_schema_v3_case/README.md)
+for capture validity and the [overlap study](docs/futures_overlap_sensitivity.md)
+for trade/depth reconciliation. The [interview notes](docs/interview_packet.md)
+give a shorter spoken explanation.
 
 ### Futures replay core
 

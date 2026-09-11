@@ -677,6 +677,11 @@ def _resolve_repo_relative_link(path: Path, link: str) -> Path:
     return target
 
 
+def _has_markdown_link(path: Path, target: Path) -> bool:
+    """Check the destination, regardless of the document's relative spelling."""
+    return any(_resolve_repo_relative_link(path, link) == target.resolve() for link in _iter_repo_relative_links(path))
+
+
 def _verify_markdown_links() -> list[str]:
     issues: list[str] = []
     for path in MARKDOWN_AUDIT_FILES:
@@ -3169,19 +3174,18 @@ def _verify_real_data_runbook_publication() -> list[str]:
                 issues.append(f"docs/real_data_results_template.md is missing expected section: {token}")
 
     for path in [REPO_ROOT / "README.md", HFT_REVIEWER_GUIDE, REPO_ROOT / "docs" / "reviewer_results_memo.md"]:
-        text = _read_text(path)
-        if "docs/real_data_runbook.md" not in text:
+        if not _has_markdown_link(path, REAL_DATA_RUNBOOK):
             issues.append(f"Missing real-data runbook link in {_repo_relative(path)}")
-        if "docs/real_data_results_template.md" not in text:
+        if not _has_markdown_link(path, REAL_DATA_RESULTS_TEMPLATE):
             issues.append(f"Missing real-data results template link in {_repo_relative(path)}")
 
     readme = _read_text(REPO_ROOT / "README.md")
     for token in [
-        "docs/interview_packet.md",
+        "WALKTHROUGH.md",
         "docs/reviewer_results_memo.md",
-        "docs/real_data_runbook.md",
+        "docs/claims.md",
     ]:
-        if token not in readme[:1200]:
+        if token not in readme.split("## Core mechanics", 1)[0]:
             issues.append(f"README.md top section is missing fast reviewer link: {token}")
 
     if PUBLISHED_REAL_DATA_REPORT.exists():
@@ -3290,15 +3294,15 @@ def _verify_interview_packet_publication() -> list[str]:
         "60-Second Pitch",
         "Architecture",
         "python scripts/reviewer_gate.py",
-        "Strongest Files",
-        "Assumptions Tested",
-        "Not Claimed",
-        "Likely Interview Q&A",
+        "Where to look in the code",
+        "Assumptions in the model",
+        "What it does not tell you",
+        "Questions I expect",
     ]:
         if token not in text:
             issues.append(f"docs/interview_packet.md is missing expected token: {token}")
     for path in [REPO_ROOT / "README.md", REPO_ROOT / "WALKTHROUGH.md", HFT_REVIEWER_GUIDE]:
-        if "docs/interview_packet.md" not in _read_text(path):
+        if not _has_markdown_link(path, INTERVIEW_PACKET):
             issues.append(f"Missing interview packet link in {_repo_relative(path)}")
     return issues
 
@@ -3755,13 +3759,13 @@ def _verify_strategy_profile_publication() -> list[str]:
     section_expectations = [
         (
             REPO_ROOT / "README.md",
-            "## Walkthrough Path",
+            "## Walkthrough path",
             None,
         ),
         (
             REPO_ROOT / "WALKTHROUGH.md",
-            "## 5-Minute Walkthrough",
-            "## Core Talking Points",
+            "## Follow the outputs",
+            "## Find the code",
         ),
     ]
     ordered_tokens = [
@@ -3793,7 +3797,7 @@ def _verify_artifact_order() -> list[str]:
     expectations = [
         (
             REPO_ROOT / "README.md",
-            "## Walkthrough Path",
+            "## Walkthrough path",
             None,
             [
                 "1. `README.md`",
