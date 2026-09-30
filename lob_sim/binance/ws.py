@@ -195,11 +195,15 @@ async def _recv_or_stop(ws: Any, stop_event: asyncio.Event) -> tuple[str | bytes
             await asyncio.gather(recv_task, return_exceptions=True)
             return None
         raw_message = recv_task.result()
-        return raw_message, time.time(), time.monotonic_ns()
     finally:
         if not stop_task.done():
             stop_task.cancel()
         await asyncio.gather(stop_task, return_exceptions=True)
+    # Cancellation cleanup can yield to snapshot/control tasks. Stamp the
+    # consumer-delivery boundary only after that final await, so the caller
+    # assigns its receive sequence before any other task can interleave. Do
+    # not clamp or rewrite an earlier timestamp into apparent monotonicity.
+    return raw_message, time.time(), time.monotonic_ns()
 
 
 async def _wait_for_retry(stop_event: asyncio.Event, delay: float) -> None:

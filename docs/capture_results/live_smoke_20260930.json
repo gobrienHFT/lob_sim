@@ -1,0 +1,65 @@
+{
+  "schema_version": "lob_sim.live_capture_diagnostic.v1",
+  "status": "diagnostic_only",
+  "purpose": "Check the live consumer receipt boundary after cancellation housekeeping",
+  "symbols": ["BTCUSDT", "ETHUSDT"],
+  "venue": "BINANCE_USDM",
+  "raw_data_policy": "Local-only tapes under outputs/capture_smoke; no full raw tape committed",
+  "environment": {"python": "3.13.1", "platform": "Windows", "api_keys_used": false},
+  "configuration": {
+    "base_file": ".env.example",
+    "base_file_sha256": "a8bd8d25ed6be175067935c460061edac71620c2f8a9c89865727d368e24d8ce",
+    "capture_schema_version": 3,
+    "configured_capture_seconds": 15,
+    "compression": "none"
+  },
+  "source_identity": {
+    "schema_version": "lob_sim.checkpoint_code_identity.v1",
+    "algorithm": "sha256",
+    "file_count": 53,
+    "sha256": "ea8c6e7239225761a350374b7af8206b43f9ee1840650565f15e8065adfe2817"
+  },
+  "before_repair": {
+    "capture_id": "capture_1790790130_1397304cacb04b1dab62b035255ba0af",
+    "manifest_file_sha256": "da316b171a37c494809a3e07bab63f0a525fc5b1a388a8794066f4883cb19adc",
+    "configured_capture_seconds": 30,
+    "records": 923,
+    "receipt_integrity_ok": false,
+    "monotonic_regressions": 1,
+    "cause": "A snapshot/control record interleaved between packet timestamping and receive-sequence assignment"
+  },
+  "after_repair": {
+    "capture_id": "capture_1790790653_77e27ff6a3f6410d84c5d5376b9016cd",
+    "manifest_file_sha256": "cccd50b3eda564c4e8606189e6f7778ac3ce25310285ceb85eecf400cc4d51a4",
+    "segment_file_sha256": "4c7c851b8723546da7f3f33a5281b3a77b2fae364cd231260ad8995e7f699ed5",
+    "first_observation_utc": "2026-09-30T17:50:53.809094+00:00",
+    "last_observation_utc": "2026-09-30T17:51:17.885657+00:00",
+    "recorded_envelope_span_seconds": 24.076562881469727,
+    "span_note": "Includes initialization and shutdown; not a measurement of joint-valid wall time",
+    "records": 596,
+    "counts": {"depthUpdate": 252, "aggTrade": 332, "snapshot": 2, "exchangeInfo": 2, "captureEvent": 7, "captureMeta": 1},
+    "receipt_integrity_ok": true,
+    "receive_sequence_gaps": 0,
+    "receive_sequence_regressions": 0,
+    "monotonic_regressions": 0,
+    "capture_invalidation_events": 0,
+    "trailer_seen": true,
+    "writer": {
+      "complete": true,
+      "records_enqueued": 596,
+      "records_written": 596,
+      "records_pending": 0,
+      "overflow_count": 0,
+      "queue_high_water": 3,
+      "outstanding_high_water": 4,
+      "max_writer_lag_ms": 117.8412
+    }
+  },
+  "joint_valid_wall_time": null,
+  "non_claims": [
+    "This is not a 24-hour soak or representative research tape",
+    "Matching internal enqueue/write counts does not prove zero venue-side packet loss",
+    "Receipt timestamps are client consumer-delivery observations, not wire-arrival or exchange latency",
+    "No fill, PnL, strategy-profitability or held-out claim is made"
+  ]
+}

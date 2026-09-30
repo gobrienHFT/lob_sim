@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 from decimal import Decimal
+from itertools import count
 from typing import Any
 
 import pytest
 
-from lob_sim.binance.ws import ReceiveIdentity, StreamConsumerError, _run_stream, parse_agg_trade
+from lob_sim.binance.ws import ReceiveIdentity, StreamConsumerError, _recv_or_stop, _run_stream, parse_agg_trade
 from lob_sim.book.types import SymbolSpec
 from lob_sim.config import load_config
 
@@ -82,6 +83,46 @@ class _MessageSocket:
 
     async def recv(self) -> str:
         return self.message
+
+
+def test_receive_timestamp_and_sequence_cannot_straddle_control_task_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticks = count(100)
+    sequence = count(1)
+    control_records = []
+    monkeypatch.setattr("lob_sim.binance.ws.time.monotonic_ns", lambda: next(ticks))
+
+    class CleanupControlEvent(asyncio.Event):
+        async def wait(self) -> bool:
+            try:
+                return await super().wait()
+            finally:
+                # Model a snapshot/control record while the cancelled stop
+                # waiter is drained. The old helper timestamped the packet
+                # before this yield but assigned its sequence afterwards.
+                control_records.append((next(sequence), next(ticks)))
+
+    async def receive() -> tuple[int, int]:
+        received = await _recv_or_stop(_MessageSocket("{}"), CleanupControlEvent())
+        assert received is not None
+        assert received[0] == "{}"
+        return next(sequence), received[2]
+
+    packet = asyncio.run(receive())
+    assert control_records == [(1, 100)]
+    assert packet == (2, 101)
+
+
+def test_stopping_receive_does_not_stamp_an_unconsumed_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("lob_sim.binance.ws.time.monotonic_ns", lambda: pytest.fail("discarded receive was stamped"))
+
+    async def stop() -> None:
+        event = asyncio.Event()
+        event.set()
+        assert await _recv_or_stop(_MessageSocket("{}"), event) is None
+
+    asyncio.run(stop())
 
 
 def _run_test_stream(

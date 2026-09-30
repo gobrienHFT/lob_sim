@@ -29,6 +29,9 @@ The [claim matrix](claims.md) specifies the limits of each capability. The
 historical real-data PnL reports are not current economic evidence.
 An [extended verification job](long_verification.md) exercises larger kernel
 corpora with multiple seeds independently of the fast release gate.
+The [live capture diagnostic](capture_results/live_smoke_20260930.json)
+records a short before/after receipt-order check; it is not soak or research
+evidence, and the raw tapes remain local.
 
 ## What still separates this from the original HFT-platform goal
 
@@ -78,6 +81,9 @@ Adversarial review identified cases absent from the previous regression suite:
   pending-cancel quote; replacing it requires its modeled cancel acknowledgement.
 - A capture identifier must not reuse or overwrite an existing tape. Failed
   and unfinished captures remain visible rather than being silently replaced.
+- Websocket cancellation housekeeping cannot split receipt timestamping from
+  global sequence assignment. A live two-symbol smoke test exposed that race;
+  the regression checks the boundary without clamping or inventing timestamps.
 - An installed-wheel demo must carry its own offline fixture and configuration;
   it cannot depend on an adjacent repository or the caller's environment.
 

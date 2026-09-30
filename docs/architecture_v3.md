@@ -51,8 +51,13 @@ engine-wide Rust parity.
 Stream lifecycle records are causal boundaries, not logging decoration.
 Schema-v3 capture records `connect`, `disconnect`, `connect_failure`, and
 `parse_failure` events before retrying, plus a final `capture_trailer` only on
-normal completion. Receipt sequence and monotonic time are assigned immediately
-after websocket receipt and before JSON or venue parsing; a parse-failure record
+normal completion. Receipt time is stamped at the websocket consumer-delivery
+boundary, after the receive/stop helper has drained cancellation cleanup.
+Sequence assignment and parsing then proceed without an intervening await.
+Timestamping before that cleanup would let a later snapshot/control record
+overtake an older timestamp and create a backwards clock in the tape. These
+are client observation timestamps, not transport arrival or exchange latency
+measurements. A parse-failure record
 therefore retains the identity of the failed observation. A public-stream outage invalidates the
 book and all dependent execution state. A market-stream outage preserves an
 independently valid depth book, clears stale trade-flow history, and invalidates
