@@ -1201,6 +1201,19 @@ class SimulationEngine:
                 self._request_cancel(ts, symbol, existing, reason="stale_slot")
 
             for slot, target in desired_targets.items():
+                # A quote remains outbound until its arrival is processed.
+                # Requote timers can fire faster than transit latency, but
+                # they must not enqueue multiple new orders for one slot.
+                # Keep the already-sent intent and reconsider its target on
+                # the next decision after acceptance or rejection.
+                if any(
+                    action.kind == "order_arrival"
+                    and action.symbol == symbol
+                    and action.payload.get("side") == side
+                    and str(action.payload.get("quote_slot", "base")) == slot
+                    for action in self._actions
+                ):
+                    continue
                 current_existing: Order | None = existing_orders.get(slot)
                 slot_key = self._slot_key(symbol, side, slot)
                 replacement_ack_ts: float | None = None
@@ -1452,6 +1465,27 @@ class SimulationEngine:
                 qty_lots=qty_lots,
                 reason="unsynced_book" if syncer is None or not syncer.synced else "invalid_quantity",
                 source="risk",
+            )
+            return
+
+        existing_slot_order = self.fill_model.get_order(symbol, side, quote_slot)
+        if existing_slot_order is not None:
+            # A stale or duplicate outbound intent cannot cancel an accepted
+            # quote implicitly. The accepted order, including a pending
+            # cancel, stays live until its own terminal transition.
+            self._reject_arrival(
+                now=now,
+                symbol=symbol,
+                side=side,
+                quote_slot=quote_slot,
+                price_tick=price_tick,
+                qty_lots=qty_lots,
+                reason="quote_slot_occupied",
+                source="venue",
+                extra_details={
+                    "existing_order_id": existing_slot_order.order_id,
+                    "existing_order_state": existing_slot_order.state,
+                },
             )
             return
 
@@ -1835,6 +1869,7 @@ class SimulationEngine:
 
         self.fill_model.__dict__.clear()
         self.fill_model.__dict__.update(dict(state["fill_model"]))
+        self.fill_model.restore_checkpoint_aliases()
 
         metric_sink = self.metrics._fill_sink
         markout_sink = self.metrics._markout_sink

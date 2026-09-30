@@ -75,6 +75,62 @@ class PassiveFillModel:
         self._public_consumption_events: list[PublicConsumptionEvent] = []
         self._seq = 0
 
+    def restore_checkpoint_aliases(self) -> None:
+        """Restore shared mutable objects flattened by the JSON checkpoint.
+
+        The order lookup and matching queues must refer to the same order:
+        partial fills mutate the queue, while risk and cancellation use the
+        lookup. Overlap-credit deques likewise share objects with their expiry
+        heap. JSON records values rather than object identity, so rebuild these
+        references and reject inconsistent order indexes before continuation.
+        """
+
+        queue_orders: dict[tuple[str, OrderSide, str], Order] = {}
+        order_index: dict[str, tuple[str, OrderSide, str]] = {}
+        for symbol, sides in self._books.items():
+            for bucket, levels in sides.items():
+                for price_tick, queue in levels.items():
+                    for order in queue:
+                        if not order.is_strategy:
+                            continue
+                        key = (symbol, order.side, order.quote_slot)
+                        if (
+                            order.symbol != symbol
+                            or self._bucket(order.side) != bucket
+                            or order.price_tick != price_tick
+                            or not order.active
+                            or order.remaining_lots <= 0
+                            or order.state not in {"live", "pending_cancel"}
+                            or key in queue_orders
+                            or order.order_id in order_index
+                        ):
+                            raise ValueError("checkpoint contains inconsistent strategy matching queues")
+                        queue_orders[key] = order
+                        order_index[order.order_id] = key
+        if self._orders != queue_orders or self._order_index != order_index:
+            raise ValueError("checkpoint order indexes do not match the matching queues")
+        self._orders = queue_orders
+        self._order_index = order_index
+
+        credit_groups: dict[tuple[tuple[str, OrderSide, int], int, int, FillSource], Deque[_ConsumptionCredit]] = {}
+        for credit_key, credits in self._public_consumption_credits.items():
+            for credit in credits:
+                signature = (credit_key, credit.logical_time_ns, credit.lots, credit.source)
+                credit_groups.setdefault(signature, deque()).append(credit)
+
+        restored_heap: list[tuple[int, int, tuple[str, OrderSide, int], _ConsumptionCredit]] = []
+        for expiry, sequence, credit_key, credit in sorted(self._public_consumption_expiry_heap):
+            signature = (credit_key, credit.logical_time_ns, credit.lots, credit.source)
+            candidates = credit_groups.get(signature)
+            # Netted credits can leave stale heap entries. Only live deque
+            # entries need an alias; preserve stale entries until normal expiry.
+            restored_credit = candidates.popleft() if candidates else credit
+            restored_heap.append((expiry, sequence, credit_key, restored_credit))
+        if any(candidates for candidates in credit_groups.values()):
+            raise ValueError("checkpoint overlap credits have no expiry entries")
+        self._public_consumption_expiry_heap = restored_heap
+        heapify(self._public_consumption_expiry_heap)
+
     def _book(self, symbol: str) -> dict[str, dict[int, Deque[Order]]]:
         return self._books.setdefault(symbol, {"bids": {}, "asks": {}})
 
