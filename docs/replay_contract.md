@@ -122,15 +122,25 @@ resumed.run(input_path, resume_from="run.checkpoint.json")
 ```
 
 The checkpoint is ordinary JSON with a state hash, input SHA-256, behavioral
-configuration digest, exact logical time, and the continuation state. The
-current `lob_sim.simulation_checkpoint.v2` schema records the integer action
-heap key; older v1 checkpoints are rejected rather than resumed under a
-different ordering contract. Resume rejects
-input or configuration drift and revalidates the skipped prefix. Compare
+configuration digest, Python source identity, adapter identity, exact logical
+time, and the continuation state. The current
+`lob_sim.simulation_checkpoint.v3` schema records the integer action heap key
+and binds the source/adapter contract; older v1/v2 checkpoints are rejected
+rather than resumed under a different contract. Resume rejects input,
+configuration, source-code, or adapter drift before restoring engine state,
+and revalidates the skipped prefix. Compare
 `state_sha256()`, `event_trace`, and the final metrics summary against an
 uninterrupted run. Checkpointing is deliberately restricted to `NullSink`
 outputs; a resumed streaming export needs an explicit append/transaction
 protocol and is not silently fabricated.
+
+Source identity hashes sorted package-relative Python filenames and their
+bytes, including untracked modules, so it also works in an installed wheel
+without Git. It excludes documentation, generated outputs and bytecode. Adapter
+identity binds its declared metadata, class and source module. This is not a
+proof against in-memory monkeypatches or dependency/runtime changes: use the
+same pinned environment, and do not resume a stateful custom adapter whose
+private mutable state is outside the checkpoint contract.
 
 Event-trace causality uses the same exact internal key as the action heap. The
 exported `ts_local` remains a compatibility/reporting field; it is not the

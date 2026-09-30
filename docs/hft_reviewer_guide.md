@@ -88,6 +88,16 @@ metadata, and lists every command with pass/fail status and duration. CI
 uploads this report for the matrix and Windows smoke jobs, making a review
 handoff inspectable without relying on copied terminal output.
 
+The gate also builds a Python wheel and tests its installed console command
+from an empty directory, without checkout data or configuration. Run
+`python scripts/check_installed_package.py` for that check alone. The default
+`lob-sim demo` uses bundled offline settings; `--env` remains an explicit
+opt-in to caller configuration.
+
+The [extended verification path](long_verification.md) runs larger generated
+kernel corpora across multiple seeds outside the fast gate. It does not claim
+full-engine parity, parser fuzz coverage or a capture soak.
+
 `python -m lob_sim.cli --env .env.example demo` adds a compact exact-synthetic
 MBO proof to the public-L2 walkthrough. It shows the known maker order IDs,
 price-time fill sequence, deterministic post-only rejection, transition log,
@@ -178,7 +188,7 @@ Modeled by the execution scenarios:
 - Queue-position summaries that distinguish "rested behind visible queue" from "filled after queue ahead was consumed."
 - Reproducible packs with input/config/feed-adapter/source manifests.
 - A CI-covered determinism checker that produces identical summary and event-trace hashes across repeated fixture runs with bounded incremental trace hashing.
-- A JSON-only simulation checkpoint contract that revalidates input/config identity and proves an interrupted continuation matches an uninterrupted replay; streaming sinks are not implicitly appended on resume.
+- A JSON-only simulation checkpoint contract that rejects input/config, Python source and declared adapter identity drift before restoration, and proves an interrupted continuation matches an uninterrupted replay; streaming sinks are not implicitly appended on resume.
 - A futures pack auditor that checks replay input, summary JSON/CSV, trades, event trace, manifest, and public-data assumption agreement on event counts, fills, per-fill economics, lifecycle counts, public queue-consumption totals, markout event details, and output artifact hashes.
 - A synthetic-but-exchange-shaped stress pack that intentionally covers queue ahead, partial fills, overlap netting, adverse/non-adverse markouts, cancel latency, same-timestamp cancel/trade ordering, marketable taker fills, self-trade prevention, and no-gap continuity.
 - A deterministic latency sensitivity sweep showing how modeled order-arrival and cancel-ack delays affect queue/fill outcomes; it is not a gateway-latency result.

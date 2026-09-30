@@ -26,6 +26,10 @@ From an installed checkout, run the offline demonstration:
 python -m lob_sim.cli --env .env.example demo
 ```
 
+The installed package also supports `lob-sim demo` from any directory. That
+form uses bundled offline settings and ignores ambient configuration; pass
+`--env` explicitly when you want your own configuration.
+
 No API key or live connection is needed. In the JSON, look for
 `synthetic_exchange.fifo_ground_truth.matches: true`: the buyer fills against
 `ask-a` before `ask-b`. The `crossing-post-only` action is rejected because it
@@ -88,6 +92,13 @@ flowchart LR
 - The synthetic MBO venue has exact participant/order-level FIFO. That result is ground truth only inside the synthetic venue, never a historical Binance FIFO claim.
 
 ## Evidence and results
+
+This is a tested offline replay and execution-sensitivity project, not a
+completed production HFT platform. Rust parity covers the published kernel
+primitives, not the full simulation engine. Representative 24-hour capture and
+soak evidence, a frozen ten-day holdout study, and dedicated-host performance
+targets are still outstanding. See [project status](docs/project_status.md)
+for the completion criteria and the checks behind the current release.
 
 The walkthrough, recorded clip, and stress pack exercise these mechanics at
 fixture scale. The older reports in `docs/real_data_runs/` remain regression
@@ -290,7 +301,7 @@ make latency-sweep-fixture
 make overlap-sweep-fixture
 ```
 
-`python scripts/reviewer_gate.py` is the cross-platform release path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-pack verification, whitespace, committed-fixture determinism, committed futures pack audit, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
+`python scripts/reviewer_gate.py` is the cross-platform release path for shells without `make`; it runs tests, gradual mypy type checking over the replay/record/core CLI/simulation surface, Rust format/tests/Clippy, the committed [Python/Rust differential report](docs/differential_results/rust_python_parity_v3.json), committed-pack verification, whitespace, committed-fixture determinism, committed futures pack audit, fault injection, an isolated installed-wheel demo, and the recorded-clip benchmark. The `make reviewer-gate` target delegates to the same script, and `make ci` delegates to `make reviewer-gate`. The checked-in GitHub Actions workflow installs dependencies, runs a CLI smoke test, then runs `make reviewer-gate` on Python 3.11, 3.12, and 3.13 to match the package metadata.
 The gate writes `outputs/reviewer_gate_report.json` by default (override with
 `--report-out` or `REVIEWER_REPORT_JSON`). The report is a concise release
   record for reproducing the run: it binds the result to a commit, records
