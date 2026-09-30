@@ -41,7 +41,13 @@ from .run_manifest import (
     simulation_assumptions_snapshot,
 )
 from ..oracle import Checkpoint, read_checkpoint, write_checkpoint
-from .checkpoint import CHECKPOINT_SCHEMA_VERSION, decode as decode_checkpoint, encode as encode_checkpoint
+from .checkpoint import (
+    CHECKPOINT_SCHEMA_VERSION,
+    checkpoint_adapter_identity,
+    checkpoint_code_identity,
+    decode as decode_checkpoint,
+    encode as encode_checkpoint,
+)
 from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
 
@@ -1942,6 +1948,8 @@ class SimulationEngine:
             "input_path": str(input_file.resolve()),
             "input_sha256": file_sha256(input_file),
             "config_sha256": config_digest(config_snapshot(self.cfg)),
+            "code_identity": checkpoint_code_identity(),
+            "adapter_identity": checkpoint_adapter_identity(self.adapter),
             "event_index": index,
             "last_ts": logical_ts,
             "market_data_first": market_first,
@@ -1964,7 +1972,10 @@ class SimulationEngine:
     def _load_state_checkpoint(self, input_path: str | Path, checkpoint_path: str | Path) -> Checkpoint:
         checkpoint = read_checkpoint(checkpoint_path)
         state = checkpoint.state
-        if state.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        if (
+            checkpoint.schema_version != CHECKPOINT_SCHEMA_VERSION
+            or state.get("schema_version") != CHECKPOINT_SCHEMA_VERSION
+        ):
             raise ValueError(f"unsupported simulation checkpoint schema: {state.get('schema_version')!r}")
         if int(state.get("event_index", -1)) != checkpoint.event_index:
             raise ValueError("simulation checkpoint event index is inconsistent")
@@ -1973,6 +1984,10 @@ class SimulationEngine:
             raise ValueError("simulation checkpoint input SHA-256 does not match replay input")
         if state.get("config_sha256") != config_digest(config_snapshot(self.cfg)):
             raise ValueError("simulation checkpoint configuration digest does not match current config")
+        if state.get("code_identity") != checkpoint_code_identity():
+            raise ValueError("simulation checkpoint source-code identity does not match current package")
+        if state.get("adapter_identity") != checkpoint_adapter_identity(self.adapter):
+            raise ValueError("simulation checkpoint adapter identity does not match current adapter")
         self._restore_checkpoint_mutable_state(state["engine"])
         self._last_ts = float(state["last_ts"])
         self._last_event_index = int(state["event_index"])

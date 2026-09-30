@@ -11,16 +11,72 @@ from __future__ import annotations
 
 import base64
 import importlib
+import inspect
 import json
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from decimal import Decimal
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from ..oracle import canonical_bytes
+from ..replay.adapters import ReplayFeedAdapter, adapter_metadata
 
-CHECKPOINT_SCHEMA_VERSION = "lob_sim.simulation_checkpoint.v2"
+CHECKPOINT_SCHEMA_VERSION = "lob_sim.simulation_checkpoint.v3"
+
+
+def checkpoint_code_identity(package_root: Path | None = None) -> dict[str, Any]:
+    """Identify Python source bytes without requiring a Git checkout.
+
+    Include untracked modules and installed-wheel source, but exclude bytecode,
+    generated outputs and documentation. Frame sorted relative names and source
+    digests so moving an identical package does not change its identity.
+    """
+
+    root = package_root if package_root is not None else Path(__file__).resolve().parents[1]
+    sources = sorted(root.rglob("*.py"), key=lambda path: path.relative_to(root).as_posix())
+    if not sources:
+        raise ValueError("checkpoint requires readable Python package source")
+    digest = sha256()
+    for path in sources:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        source = sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                source.update(chunk)
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(source.digest())
+    return {
+        "schema_version": "lob_sim.checkpoint_code_identity.v1",
+        "algorithm": "sha256",
+        "file_count": len(sources),
+        "sha256": digest.hexdigest(),
+    }
+
+
+def checkpoint_adapter_identity(adapter: ReplayFeedAdapter) -> dict[str, Any]:
+    """Bind the declared adapter contract and its class's source module."""
+
+    adapter_type = type(adapter)
+    try:
+        source_path = inspect.getsourcefile(adapter_type)
+        if source_path is None:
+            raise ValueError("adapter has no readable Python source")
+        source = sha256()
+        with Path(source_path).open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                source.update(chunk)
+    except (OSError, TypeError) as exc:
+        raise ValueError("checkpoint adapter requires readable Python source") from exc
+    return {
+        "schema_version": "lob_sim.checkpoint_adapter_identity.v1",
+        "class": f"{adapter_type.__module__}:{adapter_type.__qualname__}",
+        "source_sha256": source.hexdigest(),
+        "metadata": adapter_metadata(adapter),
+    }
 
 
 def _qualified_name(value: object) -> str:
