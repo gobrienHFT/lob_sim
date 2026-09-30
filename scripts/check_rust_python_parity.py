@@ -866,11 +866,13 @@ def _build_extension(cargo: str, directory: Path) -> Path:
     return wheels[0]
 
 
-def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
+def _run_loaded_parity(*, cases: int, seed: int = 17) -> dict[str, Any]:
     if cases <= 0:
         raise ValueError("cases must be positive")
+    if not 0 <= seed <= (1 << 32) - 1:
+        raise ValueError("seed must be an unsigned 32-bit integer")
     lob_core = importlib.import_module("lob_core")
-    rng = random.Random(17)
+    rng = random.Random(seed)
     logical_time_cases = 0
     uncrossed_cases = 0
     for _ in range(cases):
@@ -923,7 +925,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     # parity slice must not silently change the established synthetic,
     # scheduler, risk, or latency corpora below; otherwise a reviewer cannot
     # tell whether an unrelated result drifted or the new slice changed.
-    public_queue_seed = 53
+    public_queue_seed = seed + 36
     public_queue_operations = _generated_public_queue_operations(random.Random(public_queue_seed), cases)
     public_queue_corpus_sha256 = hashlib.sha256(
         json.dumps(public_queue_operations, separators=(",", ":")).encode("utf-8")
@@ -1087,7 +1089,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     }
 
     portfolio_max_notional_units = 100
-    portfolio_operations = _generated_portfolio_operations(random.Random(31), cases)
+    portfolio_operations = _generated_portfolio_operations(random.Random(seed + 14), cases)
     portfolio_corpus_sha256 = hashlib.sha256(
         json.dumps(portfolio_operations, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -1148,7 +1150,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         )
     }
 
-    accounting_operations = _generated_accounting_operations(random.Random(47), cases)
+    accounting_operations = _generated_accounting_operations(random.Random(seed + 30), cases)
     accounting_corpus_sha256 = hashlib.sha256(
         json.dumps(accounting_operations, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -1197,9 +1199,9 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         json.dumps(latency_components, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     latency_scenarios = {
-        "fixed": (0, 25_000, 50_000, (), 1_000_000, 17),
-        "empirical": (1, 1_000, 5_000, (1_000, 5_000, 25_000), 1_000_000, 17),
-        "stress_tail": (2, 1_000, 5_000, (1_000, 5_000, 25_000), 3_000_000, 17),
+        "fixed": (0, 25_000, 50_000, (), 1_000_000, seed),
+        "empirical": (1, 1_000, 5_000, (1_000, 5_000, 25_000), 1_000_000, seed),
+        "stress_tail": (2, 1_000, 5_000, (1_000, 5_000, 25_000), 3_000_000, seed),
     }
     latency_trace_sha256_by_mode: dict[str, str] = {}
     latency_final_state_by_mode: dict[str, int] = {}
@@ -1209,7 +1211,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         fixed_cancel_us,
         samples_us,
         stress_multiplier_ppm,
-        seed,
+        latency_seed,
     ) in latency_scenarios.items():
         python_latency_trace = _python_latency_trace(
             mode=mode,
@@ -1217,7 +1219,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
             fixed_cancel_us=fixed_cancel_us,
             samples_us=samples_us,
             stress_multiplier_ppm=stress_multiplier_ppm,
-            seed=seed,
+            seed=latency_seed,
             components=latency_components,
         )
         rust_latency_trace = list(
@@ -1227,7 +1229,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
                 fixed_cancel_us,
                 list(samples_us),
                 stress_multiplier_ppm,
-                seed,
+                latency_seed,
                 latency_components,
             )
         )
@@ -1245,7 +1247,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
         latency_trace_sha256_by_mode[mode_name] = hashlib.sha256(
             json.dumps(python_latency_trace, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
-        latency_final_state_by_mode[mode_name] = python_latency_trace[-1][1] if python_latency_trace else seed
+        latency_final_state_by_mode[mode_name] = python_latency_trace[-1][1] if python_latency_trace else latency_seed
 
     engine_contract_operations = _engine_contract_operations()
     engine_contract_corpus_sha256 = hashlib.sha256(
@@ -1274,7 +1276,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     return {
         "schema_version": "lob_sim.rust_python_parity.v3",
         "ok": True,
-        "seed": 17,
+        "seed": seed,
         "logical_time_cases": logical_time_cases,
         "uncrossed_cases": uncrossed_cases,
         "book_batches": cases,
@@ -1391,7 +1393,7 @@ def _run_loaded_parity(*, cases: int) -> dict[str, Any]:
     }
 
 
-def run_parity(*, cargo: str, cases: int) -> dict[str, Any]:
+def run_parity(*, cargo: str, cases: int, seed: int = 17) -> dict[str, Any]:
     with TemporaryDirectory(prefix="lob_sim_rust_parity_") as temp_dir:
         temporary = Path(temp_dir)
         wheel = _build_extension(cargo, temporary)
@@ -1401,7 +1403,7 @@ def run_parity(*, cargo: str, cases: int) -> dict[str, Any]:
         environment = dict(os.environ)
         environment["PYTHONPATH"] = str(extracted) + os.pathsep + environment.get("PYTHONPATH", "")
         child = subprocess.run(
-            [sys.executable, str(Path(__file__).resolve()), "--child", "--cases", str(cases)],
+            [sys.executable, str(Path(__file__).resolve()), "--child", "--cases", str(cases), "--seed", str(seed)],
             cwd=REPO_ROOT,
             env=environment,
             capture_output=True,
@@ -1417,6 +1419,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the PyO3 wheel and check Python/Rust differential parity")
     parser.add_argument("--cargo", default="cargo")
     parser.add_argument("--cases", type=int, default=10_000)
+    parser.add_argument("--seed", type=int, default=17, help="Generated corpus and scenario-latency seed")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--expected", type=Path, help="Fail if the result differs from a committed JSON report")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
@@ -1425,7 +1428,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    result = _run_loaded_parity(cases=args.cases) if args.child else run_parity(cargo=args.cargo, cases=args.cases)
+    result = (
+        _run_loaded_parity(cases=args.cases, seed=args.seed)
+        if args.child
+        else run_parity(cargo=args.cargo, cases=args.cases, seed=args.seed)
+    )
     rendered = json.dumps(result, indent=2, sort_keys=True)
     print(rendered)
     if args.expected:

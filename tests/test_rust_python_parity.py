@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import random
 
+import pytest
+
+from scripts import check_rust_python_parity as parity
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
 from scripts.check_rust_python_parity import (
     _engine_contract_operations,
@@ -21,6 +24,32 @@ from scripts.check_rust_python_parity import (
     _python_synthetic_trace,
     _synthetic_state_sha256,
 )
+
+
+def test_parity_seed_interface_keeps_the_committed_default() -> None:
+    assert parity.parse_args([]).seed == 17
+    assert parity.parse_args(["--seed", "73", "--cases", "100000"]).seed == 73
+    first = _generated_synthetic_operations(random.Random(17), 500)
+    varied = _generated_synthetic_operations(random.Random(73), 500)
+    assert first != varied
+
+
+@pytest.mark.parametrize("seed", [-1, 1 << 32])
+def test_parity_rejects_invalid_corpus_seed_before_loading_extension(seed: int) -> None:
+    with pytest.raises(ValueError, match="unsigned 32-bit"):
+        parity._run_loaded_parity(cases=1, seed=seed)
+
+
+def test_parity_main_propagates_selected_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed = []
+
+    def fake_run(*, cargo: str, cases: int, seed: int) -> dict:
+        observed.append((cargo, cases, seed))
+        return {"seed": seed, "ok": True}
+
+    monkeypatch.setattr(parity, "run_parity", fake_run)
+    assert parity.main(["--seed", "73", "--cases", "500"]) == 0
+    assert observed == [("cargo", 500, 73)]
 
 
 def test_synthetic_parity_state_encoding_is_explicit() -> None:
