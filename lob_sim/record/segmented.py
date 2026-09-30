@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +37,23 @@ def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
 
 class SegmentIntegrityError(RuntimeError):
     """Raised when a segment cannot be finalized without losing evidence."""
+
+
+def _publish_without_overwrite(partial: Path, final: Path) -> None:
+    """Publish a complete file atomically without replacing an existing tape.
+
+    A same-directory hard link gives both Windows and POSIX an atomic
+    no-clobber operation.  Filesystems without hard-link support fail closed
+    and retain the partial file; there is deliberately no replace fallback.
+    """
+
+    try:
+        os.link(partial, final)
+    except FileExistsError as exc:
+        raise SegmentIntegrityError(f"capture output already exists: {final.name}") from exc
+    except OSError as exc:
+        raise SegmentIntegrityError(f"cannot atomically publish capture output: {final.name}") from exc
+    partial.unlink()
 
 
 @dataclass(frozen=True)
@@ -71,6 +89,8 @@ class SegmentedCaptureWriter:
             raise ValueError("compression must be zstd or none")
         if compression == "zstd" and zstd is None:
             raise SegmentIntegrityError("zstandard is required for compression='zstd'; install zstandard")
+        if not isinstance(capture_id, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", capture_id) is None:
+            raise ValueError("capture_id must be a single filename component using letters, digits, '.', '_' or '-'")
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.capture_id = capture_id
@@ -93,7 +113,33 @@ class SegmentedCaptureWriter:
         self._finalized_segments: list[dict[str, Any]] = []
         self._manifest_metadata: dict[str, Any] = {}
         self._closed = False
-        self._open_segment()
+        self._failed = False
+        self._manifest_written = False
+        self._reservation_path = self.directory / f"{capture_id}.reserve"
+        try:
+            with self._reservation_path.open("x", encoding="utf-8") as reservation:
+                reservation.write(capture_id + "\n")
+                reservation.flush()
+                os.fsync(reservation.fileno())
+        except FileExistsError as exc:
+            raise SegmentIntegrityError(f"capture identity is already reserved: {capture_id}") from exc
+        try:
+            # Check after the exclusive reservation: a competing writer may
+            # have finalized its manifest immediately before we acquired it.
+            existing_segments = next(self.directory.glob(f"{capture_id}_*.ndjson*"), None)
+            if (
+                self.manifest_path.exists()
+                or self.manifest_path.with_name(self.manifest_path.name + ".partial").exists()
+            ):
+                raise SegmentIntegrityError(f"capture identity already exists: {capture_id}")
+            if existing_segments is not None:
+                raise SegmentIntegrityError(f"capture output already exists: {existing_segments.name}")
+            self._open_segment()
+        except BaseException:
+            # Only this constructor's newly created reservation is removed.
+            # Existing segments, manifests and partial tails are preserved.
+            self._reservation_path.unlink()
+            raise
 
     def _paths(self) -> tuple[Path, Path]:
         suffix = ".ndjson.zst" if self.compression == "zstd" else ".ndjson"
@@ -102,6 +148,8 @@ class SegmentedCaptureWriter:
 
     def _open_segment(self) -> None:
         self._partial_path, self._final_path = self._paths()
+        if self._final_path.exists():
+            raise SegmentIntegrityError(f"capture output already exists: {self._final_path.name}")
         self._segment_started_wall_ns = time.time_ns()
         self._segment_bytes = 0
         self._segment_count = 0
@@ -109,14 +157,14 @@ class SegmentedCaptureWriter:
         self._last_seq = None
         self._content_hash = hashlib.sha256()
         if self.compression == "zstd":
-            raw = self._partial_path.open("wb")
+            raw = self._partial_path.open("xb")
             self._raw_fh = raw
             self._zstd_fh = zstd.ZstdCompressor(level=3).stream_writer(raw, closefd=False)
             self._fh = io.TextIOWrapper(self._zstd_fh, encoding="utf-8", newline="\n")
         else:
             self._raw_fh = None
             self._zstd_fh = None
-            self._fh = self._partial_path.open("w", encoding="utf-8", newline="\n")
+            self._fh = self._partial_path.open("x", encoding="utf-8", newline="\n")
         self._write_json(
             {
                 "record": "segment_header",
@@ -142,12 +190,23 @@ class SegmentedCaptureWriter:
         )
 
     def write(self, envelope: EventEnvelope) -> None:
+        if self._failed:
+            raise SegmentIntegrityError("capture writer failed; start a new capture identity")
+        if self._closed or self._manifest_written:
+            raise SegmentIntegrityError("capture writer is already finalized")
         if envelope.capture_id != self.capture_id:
             raise SegmentIntegrityError("envelope capture_id does not match writer")
         if self._global_last_seq is not None and envelope.recv_seq <= self._global_last_seq:
             raise SegmentIntegrityError(
                 f"receive sequence must increase: {envelope.recv_seq} after {self._global_last_seq}"
             )
+        try:
+            self._write_event(envelope)
+        except BaseException:
+            self._fail()
+            raise
+
+    def _write_event(self, envelope: EventEnvelope) -> None:
         if self._should_rotate(envelope):
             self.finalize()
             self._segment_index += 1
@@ -167,7 +226,33 @@ class SegmentedCaptureWriter:
         self._last_seq = envelope.recv_seq
         self._global_last_seq = envelope.recv_seq
 
+    def _fail(self) -> None:
+        """Latch I/O failure and retain the incomplete tape and reservation."""
+
+        self._failed = True
+        handles = (self._fh, self._raw_fh)
+        self._fh = None
+        self._raw_fh = None
+        self._zstd_fh = None
+        for handle in handles:
+            if handle is not None and not handle.closed:
+                try:
+                    handle.close()
+                except Exception:
+                    # Preserve the original write/finalization error.  Disk
+                    # failure may also prevent flushing the forensic tail.
+                    pass
+
     def finalize(self) -> Path:
+        if self._failed:
+            raise SegmentIntegrityError("capture writer failed; start a new capture identity")
+        try:
+            return self._finalize_segment()
+        except BaseException:
+            self._fail()
+            raise
+
+    def _finalize_segment(self) -> Path:
         if self._fh is None or self._partial_path is None or self._final_path is None:
             raise SegmentIntegrityError("segment is already finalized")
         self._write_json(
@@ -189,7 +274,10 @@ class SegmentedCaptureWriter:
         else:
             os.fsync(self._fh.fileno())
             self._fh.close()
-        self._partial_path.replace(self._final_path)
+        self._fh = None
+        self._raw_fh = None
+        self._zstd_fh = None
+        _publish_without_overwrite(self._partial_path, self._final_path)
         finalized = self._final_path
         self._finalized_segments.append(
             {
@@ -217,14 +305,15 @@ class SegmentedCaptureWriter:
             self.finalize()
         self.write_manifest()
         self._closed = True
+        self._reservation_path.unlink()
 
     @property
     def manifest_path(self) -> Path:
         return self.directory / f"{self.capture_id}.manifest.json"
 
     def update_manifest_metadata(self, metadata: Mapping[str, Any]) -> None:
-        if self._closed:
-            raise SegmentIntegrityError("cannot update metadata after capture close")
+        if self._closed or self._manifest_written:
+            raise SegmentIntegrityError("cannot update metadata after manifest finalization")
         self._manifest_metadata.update(dict(metadata))
 
     def manifest(self) -> dict[str, Any]:
@@ -245,14 +334,25 @@ class SegmentedCaptureWriter:
         return payload
 
     def write_manifest(self) -> Path:
+        if self._failed:
+            raise SegmentIntegrityError("capture writer failed; cannot finalize its manifest")
+        if self._fh is not None:
+            raise SegmentIntegrityError("finalize the current segment before writing its manifest")
         target = self.manifest_path
+        if self._manifest_written:
+            return target
         partial = target.with_name(target.name + ".partial")
-        with partial.open("w", encoding="utf-8", newline="\n") as handle:
-            json.dump(self.manifest(), handle, sort_keys=True, separators=(",", ":"))
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        partial.replace(target)
+        try:
+            with partial.open("x", encoding="utf-8", newline="\n") as handle:
+                json.dump(self.manifest(), handle, sort_keys=True, separators=(",", ":"))
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            _publish_without_overwrite(partial, target)
+        except BaseException:
+            self._fail()
+            raise
+        self._manifest_written = True
         return target
 
     def __enter__(self) -> "SegmentedCaptureWriter":
@@ -263,8 +363,9 @@ class SegmentedCaptureWriter:
             self.close()
         elif self._fh is not None:
             # Keep the `.partial` file as a visibly incomplete forensic tail.
-            self._fh.flush()
-            self._fh.close()
+            if not self._fh.closed:
+                self._fh.flush()
+                self._fh.close()
             if self._raw_fh is not None:
                 if not self._raw_fh.closed:
                     self._raw_fh.flush()

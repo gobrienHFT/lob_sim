@@ -183,6 +183,19 @@ segment for forensic inspection. The economic simulator rejects that path
 before processing any records; only finalized capture segments/manifests are
 eligible for current-result simulation.
 
+Capture IDs are reserved exclusively before the first segment opens. Completed
+tapes and incomplete tails cannot be overwritten by a later capture with the
+same ID. The CLI adds a random UUID to its timestamp-based name so concurrent
+runs do not collide. Final segments and manifests are published with an atomic
+same-directory hard link, then the partial name is removed. A filesystem that
+does not support hard links stops capture and retains the partial file; capture
+never falls back to replacing an existing output. A failed capture retains its
+reservation for inspection, while a successful capture releases it only after
+its final manifest exists. If construction fails, only its newly created
+reservation is removed; any pre-existing output or partially opened segment
+remains protected against reuse. A manifest can be written only after the
+current segment is finalized, and repeated manifest finalization is idempotent.
+
 The current cross-language differential boundary covers logical-time and
 fixed-point book primitives, exact-synthetic MBO new/cancel/replace lifecycle
 results, an integer-nanosecond action scheduler, per-symbol worst-case

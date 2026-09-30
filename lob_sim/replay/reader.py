@@ -56,8 +56,13 @@ def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-def _iter_segment(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
-    if validate:
+def _iter_segment(
+    path: Path,
+    *,
+    validate: bool,
+    segment_already_validated: bool = False,
+) -> Iterator[RecordedEvent]:
+    if validate and not segment_already_validated:
         report = validate_segment(path)
         if not report.ok:
             raise RecordValidationError("invalid capture segment: " + "; ".join(report.issues), path=path)
@@ -138,7 +143,15 @@ def _iter_manifest(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
                         f"capture manifest {field_name} does not match segment: {segment_path.name}",
                         path=path,
                     )
-        for record in _iter_segment(segment_path, validate=False if segment_report is not None else validate):
+        # Structural integrity and market-payload validity are separate checks.
+        # The manifest path has already checked the segment header, trailer and
+        # checksums, but a checksummed payload can still violate the replay
+        # schema.  Keep per-record validation enabled for both entry points.
+        for record in _iter_segment(
+            segment_path,
+            validate=validate,
+            segment_already_validated=segment_report is not None,
+        ):
             capture = record.data.get("_capture", {})
             if capture.get("captureId") != manifest_capture_id:
                 raise RecordValidationError("manifest capture_id does not match segment event", path=path)

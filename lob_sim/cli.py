@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import time
+import uuid
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
@@ -695,8 +696,9 @@ async def cmd_collect(config: Config, verbose: bool = False) -> None:
     random.seed(config.sim_seed)
     config.record_dir.mkdir(parents=True, exist_ok=True)
     timestamp = int(time.time())
-    capture_id = f"capture_{timestamp}"
-    filename = f"raw_{timestamp}.ndjson.gz" if config.record_gzip else f"raw_{timestamp}.ndjson"
+    capture_suffix = f"{timestamp}_{uuid.uuid4().hex}"
+    capture_id = f"capture_{capture_suffix}"
+    filename = f"raw_{capture_suffix}.ndjson.gz" if config.record_gzip else f"raw_{capture_suffix}.ndjson"
     legacy_path = config.record_dir / filename
     display_path = (
         config.record_dir / f"{capture_id}.manifest.json" if config.capture_schema_version >= 3 else legacy_path
