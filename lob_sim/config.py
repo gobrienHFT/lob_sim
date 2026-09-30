@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
 from typing import Final, Literal, Tuple, cast
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 import logging
 import math
 import os
@@ -12,17 +13,6 @@ import os
 
 class ConfigError(ValueError):
     """Raised when configuration is invalid."""
-
-
-def _require(name: str) -> str:
-    value = os.getenv(name)
-    if value is None:
-        raise ConfigError(f"Missing required env var: {name}")
-    return value
-
-
-def _get_optional(name: str, default: str) -> str:
-    return os.getenv(name, default)
 
 
 def _parse_bool(name: str, value: str | None) -> bool:
@@ -368,13 +358,32 @@ class Config:
         return replace(self.fill_assumption, agg_trades_consume_queue=False)
 
 
-def load_config(env_path: str = ".env") -> Config:
+def load_config(env_path: str = ".env", *, inherit_environment: bool = True) -> Config:
     resolved_env_path = Path(env_path)
     if not resolved_env_path.exists() and resolved_env_path.name == ".env":
         example_path = resolved_env_path.with_name(".env.example")
         if example_path.exists():
             resolved_env_path = example_path
-    load_dotenv(resolved_env_path)
+    if inherit_environment:
+        load_dotenv(resolved_env_path)
+        values: Mapping[str, str | None] = os.environ
+    else:
+        # A bundled demonstration should be reproducible in a shell that may
+        # already contain unrelated capture or trading configuration.
+        values = dotenv_values(resolved_env_path, interpolate=False)
+    return _config_from_values(values)
+
+
+def _config_from_values(values: Mapping[str, str | None]) -> Config:
+    def _require(name: str) -> str:
+        value = values.get(name)
+        if value is None:
+            raise ConfigError(f"Missing required env var: {name}")
+        return value
+
+    def _get_optional(name: str, default: str) -> str:
+        value = values.get(name)
+        return default if value is None else value
 
     cfg = Config(
         binance_api_key=_get_optional("BINANCE_API_KEY", "").strip(),

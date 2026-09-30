@@ -196,6 +196,10 @@ def build_reviewer_gate_steps(
                 "fault-injection fail-closed matrix",
                 (python_executable, "scripts/check_fault_injection.py"),
             ),
+            GateStep(
+                "isolated installed-wheel demo",
+                (python_executable, "scripts/check_installed_package.py"),
+            ),
         ]
     )
     if include_benchmark:

@@ -49,7 +49,7 @@ lob-sim = "lob_sim.cli:main"
 include = ["lob_sim*"]
 
 [tool.setuptools.package-data]
-lob_sim = ["py.typed"]
+lob_sim = ["py.typed", "resources/*.env", "resources/*.ndjson"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

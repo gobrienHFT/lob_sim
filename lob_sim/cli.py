@@ -7,12 +7,15 @@ import json
 import logging
 import os
 import random
+import shlex
+import subprocess
 import time
 import uuid
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from itertools import count
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -1139,36 +1142,36 @@ def cmd_bench(config: Config, file: str, runs: int = 3) -> None:
     )
 
 
-def cmd_demo(config: Config, file: str | None = None) -> None:
-    target = (
-        Path(file)
-        if file
-        else Path(__file__).resolve().parents[1]
-        / "docs"
-        / "sample_outputs"
-        / "futures_replay_walkthrough"
-        / "input_fixture.ndjson"
-    )
-    inspection = inspect_stream(target)
-    run = _deterministic_run(config, str(target))
-    synthetic_demo = run_exact_synthetic_demo()
-    print(
-        json.dumps(
-            {
-                "schema_version": "lob_sim.reviewer_demo.v1",
-                "input": inspection.as_dict(),
-                "deterministic_run": run,
-                "synthetic_exchange": synthetic_demo,
-                "next_commands": [
-                    f"python -m lob_sim.cli --env .env.example validate --file {target}",
-                    f"python -m lob_sim.cli --env .env.example compare --file {target}",
-                    "python scripts/reviewer_gate.py",
-                ],
-                "non_claim": "public L2 results are execution scenarios, not historical private FIFO fill truth",
-            },
-            indent=2,
+def cmd_demo(config: Config, file: str | None = None, env_path: str = ".env.example") -> None:
+    with ExitStack() as resources:
+        target = (
+            Path(file)
+            if file
+            else resources.enter_context(as_file(files("lob_sim").joinpath("resources", "demo_fixture.ndjson")))
         )
-    )
+        inspection = inspect_stream(target)
+        run = _deterministic_run(config, str(target))
+        synthetic_demo = run_exact_synthetic_demo()
+        format_command = subprocess.list2cmdline if os.name == "nt" else shlex.join
+        next_commands = [
+            format_command(["python", "-m", "lob_sim.cli", "validate", "--file", str(target)]),
+            format_command(["python", "-m", "lob_sim.cli", "--env", env_path, "compare", "--file", str(target)]),
+        ]
+        if (Path(__file__).resolve().parents[1] / "scripts" / "reviewer_gate.py").is_file():
+            next_commands.append("python scripts/reviewer_gate.py")
+        print(
+            json.dumps(
+                {
+                    "schema_version": "lob_sim.reviewer_demo.v1",
+                    "input": inspection.as_dict(),
+                    "deterministic_run": run,
+                    "synthetic_exchange": synthetic_demo,
+                    "next_commands": next_commands,
+                    "non_claim": "public L2 results are execution scenarios, not historical private FIFO fill truth",
+                },
+                indent=2,
+            )
+        )
 
 
 def cmd_options_demo(
@@ -1213,7 +1216,10 @@ def main() -> None:
             asyncio.set_event_loop_policy(windows_policy_factory())
 
     parser = argparse.ArgumentParser(prog="lob_sim")
-    parser.add_argument("--env", default=".env", help="Path to .env file (falls back to .env.example)")
+    parser.add_argument(
+        "--env",
+        help="Path to .env file (default: .env with .env.example fallback; demo uses bundled offline settings)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     for capture_command in ("capture", "collect"):
@@ -1317,7 +1323,18 @@ def main() -> None:
         args.func(args.file, args.out, args.batch_size)
         return
 
-    cfg = load_config(args.env)
+    if args.command == "demo":
+        with ExitStack() as resources:
+            env_path = (
+                Path(args.env)
+                if args.env is not None
+                else resources.enter_context(as_file(files("lob_sim").joinpath("resources", "demo.env")))
+            )
+            cfg = load_config(str(env_path), inherit_environment=args.env is not None)
+            args.func(cfg, args.file, str(env_path))
+        return
+
+    cfg = load_config(args.env or ".env")
     if args.command in {"capture", "collect"}:
         asyncio.run(args.func(cfg, args.verbose))
     elif args.command == "doctor":
@@ -1334,8 +1351,6 @@ def main() -> None:
         args.func(cfg, args.file)
     elif args.command == "bench":
         args.func(cfg, args.file, args.runs)
-    elif args.command == "demo":
-        args.func(cfg, args.file)
     else:
         args.func(cfg, args.file)
 
