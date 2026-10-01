@@ -90,6 +90,14 @@ Adversarial review identified cases absent from the previous regression suite:
 Each repair has a regression test. Existing evidence packs are retained rather
 than regenerated into new economic claims.
 
+The subsequent storage-boundary review adds adversarial cases for malformed
+segment/manifest JSON roots, unknown recovery records and schema versions,
+invalid UTF-8 and corrupt compression. Recovery is prefix-only: it does not
+skip damage to yield later observations. Arrow normalization now preserves
+existing final/partial outputs, rejects source/destination aliasing, fails
+closed on publication races, and checks input-file identity before publication.
+These are integrity improvements, not new economic or performance evidence.
+
 ## Reproduce the release checks
 
 From a checkout with the development dependencies and pinned Rust toolchain:

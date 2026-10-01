@@ -24,6 +24,8 @@ try:  # Optional for source installs; production capture should install it.
 except ImportError:  # pragma: no cover - exercised only on minimal installs
     zstd = None  # type: ignore[assignment]
 
+_READ_ERRORS = (OSError, EOFError, UnicodeError) + ((zstd.ZstdError,) if zstd is not None else ())
+
 
 def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
     """Hash a finalized segment without materializing it in memory."""
@@ -381,8 +383,8 @@ def _open_text(path: Path) -> tuple[TextIO, Any | None]:
             raise SegmentIntegrityError("zstandard is required to read compressed capture segments")
         raw = path.open("rb")
         reader = zstd.ZstdDecompressor().stream_reader(raw, closefd=True)
-        return io.TextIOWrapper(reader, encoding="utf-8"), raw
-    return path.open("r", encoding="utf-8"), None
+        return io.TextIOWrapper(reader, encoding="utf-8", errors="surrogateescape"), raw
+    return path.open("r", encoding="utf-8", errors="surrogateescape"), None
 
 
 def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
@@ -395,13 +397,23 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
     header_seen = False
     try:
         for line in handle:
+            # Decode errors must be located per line: strict decoding of a
+            # buffered read can otherwise hide valid records before a bad tail.
+            line.encode("utf-8", errors="strict")
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 break
+            if not isinstance(row, dict):
+                break
             record = row.get("record")
             if record == "segment_header":
-                if header_seen or not isinstance(row.get("capture_id"), str) or not row["capture_id"]:
+                if (
+                    header_seen
+                    or row.get("schema_version") != SCHEMA_V3
+                    or not isinstance(row.get("capture_id"), str)
+                    or not row["capture_id"]
+                ):
                     break
                 header_capture_id = row["capture_id"]
                 header_seen = True
@@ -409,7 +421,7 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
             if record == "segment_trailer":
                 break
             if record != "event":
-                continue
+                break
             if not header_seen or header_capture_id is None:
                 break
             event = row.get("event")
@@ -436,7 +448,7 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
                 break
             previous_seq = envelope.recv_seq
             yield envelope
-    except (OSError, EOFError):
+    except _READ_ERRORS:
         return
     finally:
         handle.close()
@@ -455,10 +467,14 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
     handle, _raw = _open_text(source)
     try:
         for line_number, line in enumerate(handle, start=1):
+            line.encode("utf-8", errors="strict")
             try:
                 row = json.loads(line)
             except json.JSONDecodeError as exc:
                 issues.append(f"line {line_number}: invalid or truncated JSON: {exc.msg}")
+                break
+            if not isinstance(row, dict):
+                issues.append(f"line {line_number}: record must be a JSON object")
                 break
             record = row.get("record")
             if record == "segment_header":
@@ -525,7 +541,7 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 trailer = row
             else:
                 issues.append(f"line {line_number}: unknown record type {record!r}")
-    except (OSError, EOFError) as exc:
+    except _READ_ERRORS as exc:
         issues.append(f"read failure: {exc}")
     finally:
         handle.close()

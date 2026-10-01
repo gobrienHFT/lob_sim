@@ -183,10 +183,24 @@ Capture-segment and normalized-Arrow file digests use the same incremental
 hashing rule; a 256 MiB segment or a large normalized tape is never loaded as a
 single Python bytes object merely to produce provenance.
 
+Arrow normalization requires a new destination and creates its `.partial`
+exclusively. It refuses source/destination aliasing and preserves existing
+final or partial files. After writing and fsync, it checks that the input-file
+digest is unchanged and atomically publishes using a same-directory hard link.
+Output collisions and filesystems without hard-link support fail closed,
+retaining the partial for inspection. This is a before/after source-file
+identity check, not a filesystem snapshot or a lock on external tape writers.
+
 The reader can recover the fully checksummed prefix of a visible `.partial`
 segment for forensic inspection. The economic simulator rejects that path
 before processing any records; only finalized capture segments/manifests are
 eligible for current-result simulation.
+Recovery stops at the first malformed, unknown, wrong-schema or corrupt record;
+it never skips damage to resume at a later event. Invalid UTF-8 is checked per
+line so decoder read-ahead cannot hide an earlier checksummed prefix. Invalid
+JSON roots and compression failures produce validation issues rather than
+unhandled parser/decoder exceptions. A recovered prefix remains diagnostic,
+not a finalized or complete capture.
 
 Capture IDs are reserved exclusively before the first segment opens. Completed
 tapes and incomplete tails cannot be overwritten by a later capture with the

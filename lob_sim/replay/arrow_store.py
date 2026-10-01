@@ -112,35 +112,51 @@ def normalize_to_arrow(
     *,
     batch_size: int = 65_536,
 ) -> dict[str, Any]:
-    """Validate and stream normalized records into an atomically finalized IPC file."""
+    """Validate and stream records into a new, no-clobber finalized IPC file.
+
+    Failures retain the exclusively created partial for inspection. Existing
+    final and partial outputs must never be reused as scratch space.
+    """
 
     _require_arrow()
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     source = Path(input_path)
     target = Path(output_path)
+    if source.resolve() == target.resolve():
+        raise ValueError("normalization source and destination must differ")
+    if target.exists() or target.is_symlink():
+        raise FileExistsError(f"normalization output already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".partial")
     schema = _schema()
     rows: list[dict[str, Any]] = []
     count = 0
-    with pa.OSFile(str(partial), "wb") as sink:
-        with ipc.new_file(sink, schema) as writer:
-            for source_row_seq, record in enumerate(iter_records(source), start=1):
-                rows.append(_row(record, source_row_seq))
-                count += 1
-                if len(rows) >= batch_size:
+    input_sha256 = file_sha256(source)
+    with partial.open("xb") as raw:
+        with pa.PythonFile(raw, mode="w") as sink:
+            with ipc.new_file(sink, schema) as writer:
+                for source_row_seq, record in enumerate(iter_records(source), start=1):
+                    rows.append(_row(record, source_row_seq))
+                    count += 1
+                    if len(rows) >= batch_size:
+                        writer.write_batch(pa.RecordBatch.from_pylist(rows, schema=schema))
+                        rows.clear()
+                if rows:
                     writer.write_batch(pa.RecordBatch.from_pylist(rows, schema=schema))
-                    rows.clear()
-            if rows:
-                writer.write_batch(pa.RecordBatch.from_pylist(rows, schema=schema))
-    with partial.open("r+b") as handle:
-        os.fsync(handle.fileno())
-    partial.replace(target)
+            sink.flush()
+            raw.flush()
+            os.fsync(raw.fileno())
+    if file_sha256(source) != input_sha256:
+        raise ValueError("normalization source changed during processing")
+    # Same-directory link creation is atomic and fails if a competing writer
+    # published this destination after the initial check. No replace fallback.
+    os.link(partial, target)
+    partial.unlink()
     return {
         "schema_version": "lob_sim.normalization_report.v1",
         "input_path": str(source),
-        "input_sha256": file_sha256(source),
+        "input_sha256": input_sha256,
         "output_path": str(target),
         "output_sha256": file_sha256(target),
         "records": count,

@@ -82,7 +82,12 @@ def _iter_segment(
 
 
 def _iter_manifest(path: Path, *, validate: bool) -> Iterator[RecordedEvent]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise RecordValidationError(f"invalid capture manifest JSON: {exc}", path=path) from exc
+    if not isinstance(value, dict):
+        raise RecordValidationError("capture manifest must be a JSON object", path=path)
     if value.get("schema_version") != "lob_sim.capture_manifest.v1":
         raise RecordValidationError("unsupported capture manifest schema", path=path)
     claimed_hash = value.get("manifest_sha256")
@@ -183,7 +188,9 @@ def iter_records(path: str | Path, *, validate: bool = True) -> Iterator[Recorde
         yield from _iter_segment(p, validate=validate)
         return
     if p.suffix == ".ndjson" or p.name.endswith(".ndjson.partial"):
-        with p.open("r", encoding="utf-8") as probe:
+        # Do not let decoder read-ahead into a corrupt tail prevent recognition
+        # of a valid segment header. The segment validator reports that tail.
+        with p.open("r", encoding="utf-8", errors="surrogateescape") as probe:
             first_nonempty = next((line for line in probe if line.strip()), "")
         if first_nonempty:
             try:
