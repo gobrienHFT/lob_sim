@@ -63,6 +63,23 @@ There is no defensible single “percent finished” for these independent gates
 A green fixture suite is not soak evidence, a throughput target is not a
 measurement, and synthetic FIFO is not historical Binance FIFO.
 
+## Causal regime research in progress
+
+An optional HMM foundation now provides twelve fixed-grid microstructure
+features, bounded trailing windows, train-only clipping/scaling, immutable
+diagonal Gaussian parameters, a custom log-space forward filter, confidence/
+entropy and hysteresis, and checksummed no-clobber JSON model artifacts.
+Independent latent-path enumeration tests distinguish filtering from smoothing;
+prefix-mutation tests check that future observations cannot rewrite earlier
+features or inference. The pre-HMM summary/trace behavioral hashes are frozen.
+
+This is not yet an HMM-enabled simulator profile. Validated-tape dataset
+extraction, deterministic multi-restart fitting and selection, observation-only
+engine integration, hard-risk-dominated policy adaptation, paired economic
+evaluation and overhead evidence remain required. No trained-model, alpha or
+holdout claim is made. See the [model specification](hmm_regime_model.md) and
+[acceptance ledger](hmm_implementation_plan.md).
+
 ## Integrity repairs in this revision
 
 Adversarial review identified cases absent from the previous regression suite:
