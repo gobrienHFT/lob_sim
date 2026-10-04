@@ -878,6 +878,8 @@ def cmd_simulate(
     progress_every: int = 5000,
     in_memory_export: bool = False,
 ) -> None:
+    if in_memory_export and config.hmm is not None:
+        raise ValueError("HMM mode requires bounded streaming export; omit --in-memory-export")
     if in_memory_export:
         engine = SimulationEngine(config)
         metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
@@ -1280,6 +1282,14 @@ def main() -> None:
 
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
+    s.add_argument("--strategy", choices=("baseline", "layered_mm", "research_mm"))
+    s.add_argument(
+        "--hmm", choices=("off", "observe"), help="Opt-in forward-only regime diagnostics; no strategy intervention"
+    )
+    s.add_argument("--hmm-model", help="Safe frozen JSON model (required for --hmm observe)")
+    s.add_argument(
+        "--hmm-symbol", help="Override/check model training symbol; required for hand-specified diagnostic models"
+    )
     s.add_argument(
         "--fill-profile",
         choices=FILL_ASSUMPTION_PROFILES,
@@ -1423,6 +1433,25 @@ def main() -> None:
     elif args.command == "simulate":
         if args.fill_profile is not None:
             cfg = replace(cfg, fill_assumption=fill_assumption_config_for_profile(args.fill_profile))
+        if args.strategy is not None:
+            cfg = replace(cfg, mm_strategy_profile=args.strategy)
+        if args.hmm == "off":
+            if args.hmm_model or args.hmm_symbol:
+                parser.error("--hmm off cannot include model/symbol arguments")
+            cfg = replace(cfg, hmm=None)
+        elif args.hmm == "observe":
+            from .regime.settings import HMMSettings
+
+            if args.hmm_model is None:
+                parser.error("--hmm observe requires --hmm-model")
+            try:
+                cfg = replace(cfg, hmm=HMMSettings.load(args.hmm_model, symbol=args.hmm_symbol))
+            except (OSError, ValueError) as exc:
+                parser.error(str(exc))
+        elif args.hmm_model or args.hmm_symbol:
+            parser.error("--hmm-model/--hmm-symbol requires --hmm observe")
+        if cfg.hmm is not None and args.in_memory_export:
+            parser.error("HMM mode requires bounded streaming export; omit --in-memory-export")
         args.func(cfg, args.file, args.verbose, args.progress_every, args.in_memory_export)
     elif args.command == "compare":
         args.func(cfg, args.file, args.repetitions)

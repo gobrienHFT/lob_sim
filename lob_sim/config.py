@@ -6,6 +6,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Final, Literal, Tuple, cast
 from dotenv import dotenv_values, load_dotenv
+from .regime.settings import HMMSettings
+from .regime.hysteresis import HysteresisConfig
 import logging
 import math
 import os
@@ -230,9 +232,13 @@ class Config:
     # Zero keeps the legacy per-symbol-only policy; positive values enable the
     # portfolio guard at modeled order arrival.
     mm_max_portfolio_notional: Decimal = Decimal("0")
+    hmm: HMMSettings | None = None
 
     def __post_init__(self) -> None:
         errs = []
+
+        if self.hmm is not None and not isinstance(self.hmm, HMMSettings):
+            errs.append("HMM must be an immutable HMMSettings namespace")
 
         if not self.binance_fapi_base.startswith("http"):
             errs.append("BINANCE_FAPI_BASE must be http/https URL")
@@ -385,6 +391,30 @@ def _config_from_values(values: Mapping[str, str | None]) -> Config:
         value = values.get(name)
         return default if value is None else value
 
+    hmm = None
+    hmm_mode = _get_optional("HMM_MODE", "off").strip().lower()
+    if hmm_mode not in {"off", "observe"}:
+        raise ConfigError("HMM_MODE must be off or observe")
+    if hmm_mode == "observe":
+        try:
+            hmm = HMMSettings.load(
+                _require("HMM_MODEL_PATH"),
+                symbol=values.get("HMM_SYMBOL") or None,
+                hysteresis=HysteresisConfig(
+                    enter_probability=_parse_float(
+                        "HMM_ENTER_PROBABILITY", _get_optional("HMM_ENTER_PROBABILITY", "0.70")
+                    ),
+                    confirmation_samples=_parse_int("HMM_CONFIRM_SAMPLES", _get_optional("HMM_CONFIRM_SAMPLES", "3")),
+                    minimum_state_age_samples=_parse_int(
+                        "HMM_MIN_STATE_AGE_SAMPLES", _get_optional("HMM_MIN_STATE_AGE_SAMPLES", "3")
+                    ),
+                    maximum_normalized_entropy=_parse_float(
+                        "HMM_MAX_NORMALIZED_ENTROPY", _get_optional("HMM_MAX_NORMALIZED_ENTROPY", "0.95")
+                    ),
+                ),
+            )
+        except (OSError, ValueError) as exc:
+            raise ConfigError(f"invalid HMM configuration: {exc}") from exc
     cfg = Config(
         binance_api_key=_get_optional("BINANCE_API_KEY", "").strip(),
         binance_api_secret=_get_optional("BINANCE_API_SECRET", "").strip(),
@@ -501,5 +531,6 @@ def _config_from_values(values: Mapping[str, str | None]) -> Config:
             "MM_MAX_PORTFOLIO_NOTIONAL",
             _get_optional("MM_MAX_PORTFOLIO_NOTIONAL", "0"),
         ),
+        hmm=hmm,
     )
     return cfg

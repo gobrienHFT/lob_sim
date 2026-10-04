@@ -20,7 +20,6 @@ from ..config import Config
 from ..replay.inspection import file_sha256
 from ..research.protocol import ResearchRegistry, UTCDaySplit, chronological_day_split
 from ..sim.checkpoint import checkpoint_code_identity
-from ..sim.engine import SimulationEngine
 from ..sim.observation import MarketObservation
 from ..sim.run_manifest import config_snapshot
 from .features import FEATURE_NAMES, BookView, CausalFeatureSampler, FeatureSample, FeatureSpec, FeatureValidity
@@ -277,6 +276,10 @@ def extract_features(
     The emitter streams every valid/invalid sample. No trace/fill audit rows
     are retained by the engine. This is extraction, not a PnL experiment.
     """
+    from ..sim.engine import SimulationEngine
+
+    if cfg.hmm is not None:
+        raise ValueError("feature extraction requires HMM disabled")
     source = Path(input_path)
     input_hash = file_sha256(source)
     writer = _DayWriter(Path(directory))

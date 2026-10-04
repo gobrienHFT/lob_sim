@@ -81,10 +81,17 @@ convergence/numerical gates, validation/BIC selection and training-only canonica
 state signatures. `regime-features`, `regime-fit` and `regime-inspect` are available.
 Synthetic numeric fitting tests are not representative exchange/economic evidence.
 
-This is not yet an HMM-enabled simulator profile. Observation-only inference
-integration, estimator checkpointing, hard-risk-dominated policy adaptation, paired economic
-evaluation and overhead evidence remain required. No trained-model, alpha or
-holdout claim is made. See the [model specification](hmm_regime_model.md) and
+Observation-only inference now runs through the authoritative simulation clock
+without changing the paired strategy's actions, fills, queue model or accounting.
+It streams samples and immediate feed invalidations, exposes decision diagnostics,
+and includes the frozen model in a verified audit bundle. Bounded feature/filter/
+hysteresis checkpoints resume identically through market, control and outage
+boundaries. Disabled configurations retain their pre-HMM behavioral hashes.
+
+Decision/arrival/fill attribution, state-conditioned execution metrics,
+hard-risk-dominated policy adaptation, paired economic evaluation and overhead
+evidence remain required. No trained real-market model, alpha or holdout claim
+is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 
 ## Integrity repairs in this revision

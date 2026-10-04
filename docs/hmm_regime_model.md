@@ -296,8 +296,70 @@ python -m lob_sim.cli regime-inspect --model outputs/regime_model.json
 
 If all candidates fail, the attempt report is still saved and no model is
 published. `regime-fit --help` exposes K, restarts, seed, iteration and row caps;
-`regime-inspect --json` exposes complete provenance. Policy, simulation and
+`regime-inspect --json` exposes complete provenance. Run observation-only
+inference using the same strategy/execution configuration as the baseline:
+
+```bash
+python -m lob_sim.cli --env .env.example simulate --file data/multiday.capture.manifest.json --strategy research_mm --hmm observe --hmm-model outputs/regime_model.json
+```
+
+The training symbol is checked automatically. A hand-specified diagnostic model
+without training-symbol provenance requires `--hmm-symbol BTCUSDT`. A fitted
+model's instrument grid must match the authoritative replay metadata. The JSON
+model is loaded once into immutable parameters; file paths are not model identity.
+`simulate --help` lists the available flags. Ordinary runs use bounded streaming
+export; HMM mode rejects the fixture-only `--in-memory-export` path. Policy and
 paired-comparison commands remain pending and are not advertised as working.
+
+## Observation-only timing, audits and recovery
+
+The observer uses exactly the feature-extraction sampler, not a second book.
+Earlier scheduled actions drain first. Samples strictly before the incoming
+receipt close from the previously known book; the incoming market record then
+updates the authoritative state and observer. All equal-time receive sequences
+enter one right-closed feature bin. A sample at t is available at the next
+strictly later receipt (or at EOF), not retrospectively to actions at t. The
+trace distinguishes `sample_ns` from `available_at_ns`. Earlier actions are
+never informed by a sample closed using a later receipt watermark.
+
+Observation mode changes no quote targets, queue consumption, execution filters,
+latency draws, fee assumptions, risk checks, fills or marks. Decision rows gain
+`hmm` diagnostics and explicit unit policy multipliers; `observation_only` is
+the reason. Extra diagnostic rows use a separate sink and cannot consume order
+or core event IDs. Enabled run configuration/state identities intentionally
+include the HMM; disabled configuration, summary and event schemas are unchanged.
+
+Disconnects, epoch changes and invalid clock/capture/book/trade state clear the
+filter, hysteresis and current confidence immediately, including between sample
+grid points. Recovery requires a complete causal feature warmup. A stale query
+returns null posterior/confidence, never the last apparently confident state.
+This does not change the base strategy's trade-stream execution requirements.
+
+Each enabled bounded run adds `hmm_model.json` and `regime_trace.csv` to its
+existing manifest. The trace includes raw/scaled features, posterior, next-state
+prior, generic state label, confidence/entropy, hysteresis, validity/epochs and
+reset reasons. Sample counts, sample-state transitions and entropy aggregates
+are model diagnostics, not economic attribution. The trace is streamed back
+through its canonical hash chain before the completion sentinel is removed.
+Writer/verification failures leave the bundle visibly incomplete.
+
+Feature windows, the current book anchor, forward log probabilities, hysteresis,
+last available signal, counts and hash chain enter strict model/config-bound JSON
+checkpoints. No fitting library or historical posterior recomputation is needed.
+Restore validates a candidate before replacing observer state. Engine loading
+also checks input, configuration, code and adapter identities. Control and
+ignored invalid records now honor checkpoint and stop boundaries; the previous
+early-return omission is an explicit recovery repair, not a trading semantic
+change. Resume requires null sinks and does not append a partial audit. The
+resumed state and whole-stream hash match uninterrupted execution; this is not
+a claim that a resumed suffix file contains the missing prefix rows.
+
+Runtime configuration may also use the coherent `HMM_MODE=off|observe`,
+`HMM_MODEL_PATH`, `HMM_SYMBOL`, `HMM_ENTER_PROBABILITY`, `HMM_CONFIRM_SAMPLES`,
+`HMM_MIN_STATE_AGE_SAMPLES` and `HMM_MAX_NORMALIZED_ENTROPY` namespace. Defaults
+are disabled; sampling/formulas come from the frozen model and cannot be
+silently overridden at runtime. Numerical fitting dependencies are optional;
+the feature/filter/hysteresis path itself uses the standard library.
 
 ## Reproduce checks
 

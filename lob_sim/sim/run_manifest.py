@@ -183,7 +183,7 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
     """Return the non-secret configuration that affects replay/simulation behavior."""
 
     effective_fill_assumption = cfg.effective_fill_assumption
-    return {
+    snapshot = {
         "symbols": list(cfg.symbols),
         "book_top_n": cfg.book_top_n,
         "snapshot_limit": cfg.snapshot_limit,
@@ -225,6 +225,9 @@ def config_snapshot(cfg: Config) -> dict[str, Any]:
         "fees_maker_bps": str(cfg.fees_maker_bps),
         "fees_taker_bps": str(cfg.fees_taker_bps),
     }
+    if cfg.hmm is not None:
+        snapshot["hmm"] = cfg.hmm.as_dict()
+    return snapshot
 
 
 def instrument_specs_snapshot(specs: Mapping[str, InstrumentSpec]) -> dict[str, dict[str, str]]:

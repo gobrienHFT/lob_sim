@@ -9,13 +9,13 @@ from __future__ import annotations
 import math
 from collections import deque
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from heapq import nlargest, nsmallest
 from typing import Any, Literal
 
 from ..book.local_book import LocalOrderBook
 from ..book.types import AggTradeEvent, LevelChange
-from .validation import identity, integer, require_keys
+from .validation import finite, identity, integer, require_keys
 
 
 FEATURE_NAMES = (
@@ -264,6 +264,149 @@ class CausalFeatureSampler:
     @property
     def retained_bins(self) -> int:
         return len(self._bins)
+
+    def checkpoint(self) -> dict[str, Any]:
+        """Snapshot the bounded window, clock grid and causal book anchor."""
+        return {
+            "schema_version": "lob_sim.hmm_sampler_checkpoint.v1",
+            "symbol": self.symbol,
+            "feature_identity": self._feature_identity,
+            "next_ns": self._next_ns,
+            "last_observation_ns": self._last_observation_ns,
+            "last_receive_seq": self._last_receive_seq,
+            "advance_target_ns": self._advance_target_ns,
+            "closed_through_ns": self._closed_through_ns,
+            "last_book_ns": self._last_book_ns,
+            "valid_since_ns": self._valid_since_ns,
+            "book": asdict(self._book) if self._book is not None else None,
+            "validity": asdict(self._validity),
+            "status": self._status,
+            "bins": [asdict(bin) for bin in self._bins],
+            "current": asdict(self._current),
+            "previous_mid": self._previous_mid,
+            "previous_imbalance": self._previous_imbalance,
+            "reset_reason": self._reset_reason,
+        }
+
+    def restore(self, checkpoint: object) -> None:
+        """Validate a complete candidate before replacing any current state."""
+        data = require_keys(checkpoint, set(self.checkpoint()), "sampler checkpoint")
+        if (
+            data["schema_version"] != "lob_sim.hmm_sampler_checkpoint.v1"
+            or data["symbol"] != self.symbol
+            or data["feature_identity"] != self._feature_identity
+        ):
+            raise ValueError("sampler checkpoint symbol/specification mismatch")
+        candidate = CausalFeatureSampler(self.symbol, self.spec)
+        for key in (
+            "next_ns",
+            "last_observation_ns",
+            "advance_target_ns",
+            "closed_through_ns",
+            "last_book_ns",
+            "valid_since_ns",
+        ):
+            value = data[key]
+            if value is not None:
+                integer(value, key)
+            setattr(candidate, "_" + key, value)
+        seq = integer(data["last_receive_seq"], "last_receive_seq", minimum=-1)
+        candidate._last_receive_seq = seq
+        last, next_ns = candidate._last_observation_ns, candidate._next_ns
+        if (last is None) != (seq == -1) or (last is None) != (next_ns is None):
+            raise ValueError("inconsistent sampler initialization")
+        if next_ns is not None and (next_ns % self.spec.interval_ns or (last is not None and next_ns < last)):
+            raise ValueError("invalid sampler clock grid")
+        for value in (candidate._last_book_ns, candidate._valid_since_ns, candidate._closed_through_ns):
+            if value is not None and (last is None or value > last):
+                raise ValueError("sampler anchor exceeds last observation")
+        if candidate._closed_through_ns is not None and (
+            candidate._closed_through_ns != last or next_ns is None or next_ns <= candidate._closed_through_ns
+        ):
+            raise ValueError("inconsistent sampler close watermark")
+        if candidate._advance_target_ns is not None and last is not None and candidate._advance_target_ns < last:
+            raise ValueError("sampler watermark predates observation")
+        raw_validity = require_keys(data["validity"], set(asdict(FeatureValidity())), "sampler validity")
+        candidate._validity = FeatureValidity(
+            raw_validity["book"],
+            raw_validity["trade"],
+            raw_validity["clock"],
+            raw_validity["capture"],
+            tuple(raw_validity["epochs"]),
+        )
+        book = data["book"]
+        if book is not None:
+            raw_book = require_keys(book, {"bids", "asks"}, "sampler book")
+            try:
+                candidate._book = BookView(
+                    tuple(tuple(pair) for pair in raw_book["bids"]), tuple(tuple(pair) for pair in raw_book["asks"])
+                )
+            except TypeError as exc:
+                raise ValueError("invalid sampler book arrays") from exc
+            if len(candidate._book.bids) > self.spec.depth_levels or len(candidate._book.asks) > self.spec.depth_levels:
+                raise ValueError("sampler checkpoint exceeds depth bound")
+        # Reuse the public status contract without inventing a second vocabulary.
+        FeatureSample(
+            self.symbol,
+            0,
+            0,
+            candidate._validity.epochs,
+            self._feature_identity,
+            data["status"],
+            (0.0,) * len(FEATURE_NAMES) if data["status"] == "VALID" else None,
+            None,
+        )
+        candidate._status = data["status"]
+
+        def read_bin(raw: object, *, complete: bool) -> _Bin:
+            values = require_keys(raw, set(asdict(_Bin())), "sampler bin")
+            for key in ("market_count", "trade_count", "trade_lots", "depth"):
+                integer(values[key], key)
+            for key in ("signed_trade_lots", "visible_change_lots"):
+                if type(values[key]) is not int:
+                    raise ValueError("sampler signed counts must be integers")
+            return_bps = finite(values["return_bps"], "return_bps")
+            if (
+                values["trade_count"] > values["market_count"]
+                or abs(values["signed_trade_lots"]) > values["trade_lots"]
+                or (values["trade_count"] == 0) != (values["trade_lots"] == 0)
+                or (complete and values["depth"] == 0)
+            ):
+                raise ValueError("inconsistent sampler bin counts")
+            return _Bin(**{**values, "return_bps": return_bps})
+
+        bins = data["bins"]
+        if not isinstance(bins, list) or len(bins) > self.spec.window_steps:
+            raise ValueError("sampler checkpoint exceeds window bound")
+        candidate._bins = deque((read_bin(bin, complete=True) for bin in bins), maxlen=self.spec.window_steps)
+        candidate._current = read_bin(data["current"], complete=False)
+        for key in ("previous_mid", "previous_imbalance"):
+            value = None if data[key] is None else finite(data[key], key)
+            if value is not None and (
+                (key == "previous_mid" and value <= 0) or (key == "previous_imbalance" and abs(value) > 1)
+            ):
+                raise ValueError("invalid sampler previous mark")
+            setattr(candidate, "_" + key, value)
+        reason = data["reset_reason"]
+        if reason is not None and (not isinstance(reason, str) or not reason):
+            raise ValueError("invalid sampler reset reason")
+        candidate._reset_reason = reason
+        if candidate._valid_since_ns is not None:
+            if (
+                candidate._book is None
+                or candidate._last_book_ns is None
+                or candidate._previous_mid is None
+                or candidate._previous_imbalance is None
+                or candidate._validity.status != "VALID"
+            ):
+                raise ValueError("inconsistent sampler valid window")
+        elif bins or candidate._previous_mid is not None or candidate._previous_imbalance is not None:
+            raise ValueError("invalid sampler retains a valid window")
+        if candidate._status in {"VALID", "WARMING_UP"} and candidate._valid_since_ns is None:
+            raise ValueError("apparently valid sampler has no warmup anchor")
+        if candidate._status == "VALID" and len(candidate._bins) != self.spec.window_steps:
+            raise ValueError("valid sampler has an incomplete window")
+        self.__dict__.update(candidate.__dict__)
 
     def _reset(self, reason: str) -> None:
         self._bins.clear()

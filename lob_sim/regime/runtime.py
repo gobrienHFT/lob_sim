@@ -9,7 +9,7 @@ from .artifact import FrozenRegimeModel
 from .features import FEATURE_NAMES, FeatureSample
 from .filter import ForwardFilter
 from .hysteresis import HysteresisConfig, HysteresisResult, RegimeHysteresis
-from .validation import integer
+from .validation import integer, require_keys
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,62 @@ class CausalRegimeEstimator:
     @property
     def model(self) -> FrozenRegimeModel:
         return self._model
+
+    def invalidate(self, reason: str) -> None:
+        """Clear confidence immediately, including faults between grid samples."""
+        if not isinstance(reason, str) or not reason:
+            raise ValueError("invalidation reason must be nonempty")
+        self.filter.reset()
+        self.hysteresis.reset()
+        self._reset_reason = reason
+
+    def checkpoint(self) -> dict[str, Any]:
+        return {
+            "schema_version": "lob_sim.hmm_estimator_checkpoint.v1",
+            "model_sha256": self._model_sha256,
+            "filter": self.filter.checkpoint(),
+            "hysteresis": self.hysteresis.checkpoint(),
+            "last_sample_ns": self._last_sample_ns,
+            "last_receive_seq": self._last_receive_seq,
+            "epochs": list(self._epochs) if self._epochs is not None else None,
+            "symbol": self._symbol,
+            "reset_reason": self._reset_reason,
+        }
+
+    def restore(self, checkpoint: object) -> None:
+        data = require_keys(checkpoint, set(self.checkpoint()), "estimator checkpoint")
+        if (
+            data["schema_version"] != "lob_sim.hmm_estimator_checkpoint.v1"
+            or data["model_sha256"] != self._model_sha256
+        ):
+            raise ValueError("estimator checkpoint model/schema mismatch")
+        candidate = CausalRegimeEstimator(self.model, self.hysteresis.config)
+        candidate.filter.restore(data["filter"])
+        candidate.hysteresis.restore(data["hysteresis"])
+        last, seq, epochs, symbol = (data[key] for key in ("last_sample_ns", "last_receive_seq", "epochs", "symbol"))
+        if any(value is None for value in (last, seq, epochs, symbol)):
+            if not all(value is None for value in (last, seq, epochs, symbol)) or candidate.filter.samples_seen:
+                raise ValueError("inconsistent estimator initialization")
+        else:
+            integer(last, "last_sample_ns")
+            integer(seq, "last_receive_seq")
+            if last % self.model.features.interval_ns:
+                raise ValueError("estimator checkpoint is off grid")
+            # FeatureSample validates symbol and epoch dimensions/types.
+            FeatureSample(symbol, last, seq, tuple(epochs), self._feature_identity, "WARMING_UP", None, None)
+            candidate._last_sample_ns, candidate._last_receive_seq = last, seq
+            candidate._epochs, candidate._symbol = tuple(epochs), symbol
+        reason = data["reset_reason"]
+        if reason is not None and (not isinstance(reason, str) or not reason or candidate.filter.samples_seen):
+            raise ValueError("inconsistent estimator reset state")
+        if (
+            not candidate.filter.samples_seen
+            and candidate.hysteresis.checkpoint()
+            != RegimeHysteresis(self.model.parameters.state_count, self.hysteresis.config).checkpoint()
+        ):
+            raise ValueError("reset estimator retains hysteresis")
+        candidate._reset_reason = reason
+        self.__dict__.update(candidate.__dict__)
 
     def update(self, sample: FeatureSample) -> RegimeSignal:
         integer(sample.sample_ns, "sample_ns")

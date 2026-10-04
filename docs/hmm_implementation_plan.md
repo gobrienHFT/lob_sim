@@ -51,24 +51,24 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | D | Deterministic multiple restarts | SHA-256 seeds; repeated full model/report equality in pinned environment |
 | E | Independently loaded, validated JSON artifact | Fitted provenance and independent load/inspection tests implemented |
 | F | Runtime forward filter, independent reference proof | Implemented; independent latent-path enumeration tests |
-| G | Historical runtime posterior unaffected by future data | Core future-mutation tests; raw-tape integration pending |
-| H | Invalid/stale epochs cannot report a valid regime | Raw features follow independent replay validity; model-enabled simulation pending |
-| I | Observation-only simulation mode | Pending |
-| J | Observer versus baseline action identity | Read-only feature observer preserves full traces, metrics, counters and state; inference-mode proof pending |
+| G | Historical runtime posterior unaffected by future data | Raw-tape mutation preserves available historical features, posterior, hysteresis and decision diagnostics |
+| H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
+| I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
+| J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
 | K | State-conditioned execution and markouts | Pending |
 | L | Opt-in HMM market-making profile | Pending |
 | M | Hard risk dominance tests | Pending |
 | N | Hysteresis and uncertainty tests | Estimator tests implemented; policy controls pending |
-| O | HMM-disabled golden baseline identity | Preimplementation summary/trace fixture frozen; integration pending |
+| O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Pending |
 | R | Paired moving-block bootstrap study | Pending |
 | S | Human-readable model/state diagnostics | regime-inspect includes training signatures, occupancy, risk and transitions |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
-| V | Bounded runtime windows and audit output | Streamed daily feature rows; per-day manifest metadata retained; simulation inference sink pending |
+| V | Bounded runtime windows and audit output | Streamed feature/regime audits; fixed trailing windows and one current signal; 2,000-step virtual stream regression (not soak evidence) |
 | W | Existing tests pass after integration | Pending |
-| X | New tests pass | 118 foundation tests pass; integration/evaluation tests pending |
+| X | New tests pass | Foundation, dataset/fit and observation/checkpoint suites implemented; final policy/evaluation checks pending |
 | Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |
 | Z | Complete reviewer gate passes | Pending |
 

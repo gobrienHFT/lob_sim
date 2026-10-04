@@ -14,6 +14,7 @@ from ..book.local_book import BookInvariantError, LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SymbolSpec
 from ..config import Config
+from ..regime.observation import RegimeObserver
 from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
@@ -92,10 +93,16 @@ class SimulationEngine:
         retain_event_trace: bool = True,
         retain_audit_rows: bool = True,
         market_observer: MarketObserver | None = None,
+        regime_sink: EventSink | None = None,
     ) -> None:
         self.cfg = cfg
         self.adapter = adapter
-        self._market_observer = market_observer
+        if cfg.hmm is not None and market_observer is not None:
+            raise ValueError("HMM owns the market observer; do not attach a second observer")
+        if cfg.hmm is None and regime_sink is not None:
+            raise ValueError("regime sink requires HMM enabled")
+        self.regime = RegimeObserver(cfg.hmm, regime_sink) if cfg.hmm is not None else None
+        self._market_observer = self.regime or market_observer
         if market_observer is not None and (
             type(market_observer.depth_levels) is not int or market_observer.depth_levels <= 0
         ):
@@ -1244,6 +1251,23 @@ class SimulationEngine:
             decision_details["reason"] = plan.reason
         if plan.diagnostics:
             decision_details["diagnostics"] = plan.diagnostics
+        if self.regime is not None and symbol == self.regime.settings.symbol:
+            regime = self.regime.snapshot(self._schedule_time_key(ts)[0])
+            decision_details["hmm"] = regime
+            decision_details.update(
+                {
+                    "hmm_model_id": regime["model_sha256"],
+                    "hmm_valid": regime["status"] == "VALID",
+                    "hmm_raw_state": regime["raw_map_state"],
+                    "hmm_active_state": regime["active_state"],
+                    "hmm_max_probability": regime["confidence"],
+                    "hmm_entropy": regime["entropy"],
+                    "hmm_spread_multiplier": 1.0,
+                    "hmm_size_multiplier": 1.0,
+                    "hmm_inventory_limit_multiplier": 1.0,
+                    "hmm_policy_reason": "observation_only",
+                }
+            )
         self._trace(ts, symbol, "decision", "strategy", details=decision_details)
 
         desired_by_side: dict[str, dict[str, QuoteTarget]] = {"bid": {}, "ask": {}}
@@ -2020,7 +2044,7 @@ class SimulationEngine:
     ) -> Checkpoint:
         """Persist a validated JSON checkpoint for deterministic continuation."""
 
-        if self._market_observer is not None:
+        if self._market_observer is not None and self.regime is None:
             raise ValueError("market observers do not yet support checkpoint/resume")
 
         input_file = Path(input_path)
@@ -2039,6 +2063,8 @@ class SimulationEngine:
             "market_data_first": market_first,
             "engine": encode_checkpoint(self._checkpoint_mutable_state()),
         }
+        if self.regime is not None:
+            state["regime"] = self.regime.checkpoint()
         checkpoint = Checkpoint.create(
             event_index=index,
             logical_time=(
@@ -2072,7 +2098,15 @@ class SimulationEngine:
             raise ValueError("simulation checkpoint source-code identity does not match current package")
         if state.get("adapter_identity") != checkpoint_adapter_identity(self.adapter):
             raise ValueError("simulation checkpoint adapter identity does not match current adapter")
+        candidate_regime = None
+        if self.regime is not None:
+            candidate_regime = self.regime.validated_copy(state.get("regime"))
+        elif "regime" in state:
+            raise ValueError("HMM checkpoint cannot resume with HMM disabled")
         self._restore_checkpoint_mutable_state(state["engine"])
+        if candidate_regime is not None:
+            self.regime = candidate_regime
+            self._market_observer = candidate_regime
         self._last_ts = float(state["last_ts"])
         self._last_event_index = int(state["event_index"])
         self._market_data_first = bool(state["market_data_first"])
@@ -2089,7 +2123,11 @@ class SimulationEngine:
         resume_from: str | Path | None = None,
         stop_after_records: int | None = None,
     ) -> SimulationMetrics:
-        if self._market_observer is not None and (checkpoint_path is not None or resume_from is not None):
+        if (
+            self._market_observer is not None
+            and self.regime is None
+            and (checkpoint_path is not None or resume_from is not None)
+        ):
             raise ValueError("market observers do not yet support checkpoint/resume")
         if checkpoint_every < 0:
             raise ValueError("checkpoint_every must be >= 0")
@@ -2104,6 +2142,10 @@ class SimulationEngine:
             raise ValueError(
                 "economic simulation requires a finalized capture; visible .partial tails are recovery inputs only"
             )
+        if self.regime is not None:
+            self.regime.bind_input(file_sha256(input_file))
+            if resume_from is not None and not isinstance(self.regime.sink, NullSink):
+                raise ValueError("regime checkpoint resume requires NullSink; do not append an incomplete audit")
         if resume_from is not None and any(
             not isinstance(sink, NullSink)
             for sink in (self._event_sink, self.metrics._fill_sink, self.metrics._markout_sink)
@@ -2132,6 +2174,24 @@ class SimulationEngine:
             records = islice(records, start_index, None)
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         interrupted = False
+
+        def checkpoint_record() -> bool:
+            # A control/invalid record is still a replay boundary. Previously
+            # early continues bypassed both periodic checkpoints and stop limits.
+            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
+            should_stop = stop_after_records is not None and records_processed >= stop_after_records
+            if should_checkpoint or should_stop:
+                if checkpoint_path is None:
+                    raise AssertionError("checkpoint path missing after checkpoint validation")
+                self.write_state_checkpoint(
+                    file_path,
+                    checkpoint_path,
+                    event_index=records_processed,
+                    last_ts=last_ts,
+                    market_data_first=market_data_first,
+                )
+            return should_stop
+
         for rec in records:
             records_processed += 1
             record_evidence_id = self._record_evidence_id(rec, records_processed)
@@ -2209,6 +2269,9 @@ class SimulationEngine:
             self._market_data_first = market_data_first
             if rec.type in {"captureMeta", "captureEvent"}:
                 self._notify_market_observer(rec, records_processed, logical_ns)
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
             if rec.type == "exchangeInfo":
                 try:
@@ -2216,6 +2279,9 @@ class SimulationEngine:
                 except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                     self._record_normalization_failure(rec, now, exc)
                     self._notify_market_observer(rec, records_processed, logical_ns)
+                    if checkpoint_record():
+                        interrupted = True
+                        break
                     continue
                 self._get_or_create_book(rec.symbol)
                 self._verbose(
@@ -2223,10 +2289,16 @@ class SimulationEngine:
                     f"[simulate] loaded symbol={rec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
                 )
                 self._notify_market_observer(rec, records_processed, logical_ns)
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.symbol not in self._specs:
                 self._notify_market_observer(rec, records_processed, logical_ns)
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type in {"snapshot", "depthUpdate"} and not self._depth_stream_is_valid(rec.symbol):
@@ -2241,6 +2313,9 @@ class SimulationEngine:
                     },
                 )
                 self._notify_market_observer(rec, records_processed, logical_ns)
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type == "snapshot":
@@ -2259,6 +2334,9 @@ class SimulationEngine:
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
                         self._notify_market_observer(rec, records_processed, logical_ns)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     syncer = self._get_sync(rec.symbol)
                     if syncer is not None:
@@ -2302,6 +2380,9 @@ class SimulationEngine:
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
                         self._notify_market_observer(rec, records_processed, logical_ns)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     try:
                         changes = syncer.on_depth_update(event)
@@ -2336,6 +2417,9 @@ class SimulationEngine:
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
                         self._notify_market_observer(rec, records_processed, logical_ns)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     observer_trade = trade
                     self._latest_trade_evidence[rec.symbol] = record_evidence_id
@@ -2384,19 +2468,7 @@ class SimulationEngine:
             self._last_legacy_subns = legacy_subns
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
-            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
-            should_stop = stop_after_records is not None and records_processed >= stop_after_records
-            if should_checkpoint or should_stop:
-                if checkpoint_path is None:
-                    raise AssertionError("checkpoint path missing after checkpoint validation")
-                self.write_state_checkpoint(
-                    file_path,
-                    checkpoint_path,
-                    event_index=records_processed,
-                    last_ts=last_ts,
-                    market_data_first=market_data_first,
-                )
-            if should_stop:
+            if checkpoint_record():
                 interrupted = True
                 break
 
@@ -2706,7 +2778,10 @@ class SimulationEngine:
     def state_sha256(self) -> str:
         """Hash the complete deterministic kernel-facing state."""
 
-        return state_hash(self._deterministic_state())
+        state = self._deterministic_state()
+        if self.regime is not None:
+            state["hmm"] = self.regime.checkpoint()
+        return state_hash(state)
 
     def _prepare_output_summary(
         self,
@@ -2726,6 +2801,8 @@ class SimulationEngine:
         else:
             summary = metrics.get_summary(self._books)
         summary.update(self._summary_annotations())
+        if self.regime is not None:
+            summary["hmm"] = self.regime.summary()
         summary["state_sha256"] = self.state_sha256()
         seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
         summary["run_id"] = seed.run_id
@@ -2789,6 +2866,9 @@ class SimulationEngine:
     def write_outputs(self, file_path: str, metrics: SimulationMetrics) -> tuple[dict[str, Path], dict]:
         """Write the fixture-scale, full-retention compatibility artifact set."""
 
+        if self.regime is not None:
+            raise ValueError("HMM audit output requires bounded streaming export")
+
         if not getattr(metrics, "retain_audit_rows", True):
             raise RuntimeError(
                 "write_outputs requires retained audit rows; use bounded streaming export for ordinary runs"
@@ -2836,6 +2916,8 @@ class SimulationEngine:
         if self._retain_event_trace or getattr(metrics, "retain_audit_rows", True):
             raise RuntimeError("bounded streaming finalization requires all detail retention to be disabled")
         required = {"event_trace", "markouts", "summary", "summary_csv", "trades", "manifest"}
+        if self.regime is not None:
+            required |= {"regime_trace", "hmm_model"}
         if set(output_files) != required:
             raise RuntimeError(f"unexpected streaming output contract: {sorted(output_files)}")
         audit_names = ("event_trace", "trades", "markouts")
@@ -2857,6 +2939,13 @@ class SimulationEngine:
             markout_count=metrics.markout_event_count,
             markout_sha256=metrics.markout_audit_sha256,
         )
+        if self.regime is not None:
+            from ..regime.artifact import load_model
+            from ..regime.observation import verify_trace
+
+            if load_model(output_files["hmm_model"]).model_sha256 != self.regime.settings.model.model_sha256:
+                raise ValueError("exported HMM model identity mismatch")
+            verify_trace(output_files["regime_trace"], self.regime.summary())
 
         summary, seed = self._prepare_output_summary(
             file_path,

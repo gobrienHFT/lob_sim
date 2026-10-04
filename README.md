@@ -70,7 +70,7 @@ Read next:
 - [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
-- [Causal regime research](docs/hmm_regime_model.md): the optional HMM foundation and its explicitly unfinished integration/evaluation work.
+- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs and stream forward-only observation diagnostics; policy and economic evaluation remain in progress.
 
 ## Core mechanics
 
