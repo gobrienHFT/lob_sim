@@ -1280,6 +1280,11 @@ def main() -> None:
     inspect_regime.add_argument("--model", required=True)
     inspect_regime.add_argument("--json", action="store_true")
 
+    report_regime = sub.add_parser(
+        "regime-report", help="Verify a completed regime audit and show causal market-state diagnostics"
+    )
+    report_regime.add_argument("--run-dir", required=True)
+
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
     s.add_argument("--strategy", choices=("baseline", "layered_mm", "research_mm", "hmm_regime_mm"))
@@ -1339,6 +1344,14 @@ def main() -> None:
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
+    if args.command == "regime-report":
+        from .regime.diagnostics import inspect_run
+
+        try:
+            print(inspect_run(Path(args.run_dir)))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            parser.error(f"cannot inspect regime run: {exc}")
+        return
     if args.command == "regime-inspect":
         from .regime.artifact import load_model
         from .regime.fit import inspect_model

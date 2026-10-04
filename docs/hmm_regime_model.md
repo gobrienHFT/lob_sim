@@ -9,7 +9,7 @@ implemented under `lob_sim/regime`. `simulate --hmm observe` leaves the strategy
 unchanged; `simulate --hmm policy --strategy hmm_regime_mm` explicitly enables
 adaptation. No strategy benefit, real-data regime result or holdout finding is
 published. The [implementation ledger](hmm_implementation_plan.md) tracks the
-remaining characterization, evaluation and overhead work. Existing simulation
+remaining execution-denominator, evaluation and overhead work. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
@@ -228,9 +228,12 @@ Days containing valid rows are not complete joint-valid days. Extraction and
 fitting are explicitly diagnostic-only until independent coverage evidence is
 available, even if the folder contains ten different UTC filenames.
 
-Observer checkpoint/resume is explicitly rejected before replay or checkpoint
-publication until feature/estimator state is integrated into checkpoints. The
-ordinary HMM-disabled checkpoint path remains available.
+Observation and policy checkpoints now include the feature sampler, estimator,
+hysteresis, execution attribution and bounded state diagnostics. Resume requires
+null sinks: it reproduces whole-stream state/hashes, not an appended audit CSV.
+The observer checkpoint is version 2; older HMM observer checkpoints are rejected
+because they lack the new diagnostic continuation state. The ordinary
+HMM-disabled checkpoint contract remains unchanged.
 
 ## Model selection
 
@@ -256,6 +259,15 @@ training BIC, then smaller K, then restart index. Parameter-count BIC includes
 `(K-1) + K*(K-1) + 2*K*D` free parameters. The fitter accepts calibration and
 validation only and rejects test, nonchronological and incompatible inputs
 before loading the fitting dependency. Test cannot choose K or preprocessing.
+
+Every valid candidate now retains train and validation likelihood per row, the
+winning restart's convergence/seed/parameter identity, a transition matrix,
+weighted and MAP training occupancy, geometric durations in steps/seconds, and
+empirical MAP episode spans with censored sequence edges. These candidate
+diagnostics use **retrospective training smoothing in raw candidate labels**;
+they are not runtime posteriors, validation outcomes or latent-state recovery.
+Independent sequence boundaries never contribute a transition. Failed K values
+remain visible. `regime-inspect` includes the complete candidate selection table.
 
 Training-only smoothed responsibilities characterize states retrospectively.
 Canonical labels sort by a relative risk signature: equal percentile-rank
@@ -501,7 +513,8 @@ These tables answer descriptive quote-lifetime questions under the selected
 public-L2 fill/latency assumptions. They do not demonstrate predictive power,
 private Binance FIFO, true fills or profitable regime adaptation. Policy,
 registered paired evaluation and representative overhead measurement remain
-required next milestones.
+required next milestones. The opt-in conservative policy is implemented; its
+economic usefulness is not established by those mechanical tests.
 
 Feature windows, the current book anchor, forward log probabilities, hysteresis,
 last available signal, counts and hash chain enter strict model/config-bound JSON
@@ -514,12 +527,55 @@ change. Resume requires null sinks and does not append a partial audit. The
 resumed state and whole-stream hash match uninterrupted execution; this is not
 a claim that a resumed suffix file contains the missing prefix rows.
 
-Runtime configuration may also use the coherent `HMM_MODE=off|observe`,
+Runtime configuration may also use the coherent `HMM_MODE=off|observe|policy`,
 `HMM_MODEL_PATH`, `HMM_SYMBOL`, `HMM_ENTER_PROBABILITY`, `HMM_CONFIRM_SAMPLES`,
 `HMM_MIN_STATE_AGE_SAMPLES` and `HMM_MAX_NORMALIZED_ENTROPY` namespace. Defaults
 are disabled; sampling/formulas come from the frozen model and cannot be
 silently overridden at runtime. Numerical fitting dependencies are optional;
 the feature/filter/hysteresis path itself uses the standard library.
+
+## Causal state characterization
+
+The observation summary's `state_diagnostics` contains separate **raw MAP** and
+**active hysteretic** tables. A valid posterior without a confirmed active state
+belongs to `UNCONFIRMED`, not silently to its MAP state. Tables report sample
+counts/fractions, per-feature mean/population variance/range, confidence and
+normalized entropy, label transitions including self-transitions, and episode
+counts. Zero-sample statistics are null, not zero.
+
+Occupancy means a fraction of the emitted sample grid. Multiplying samples by
+the interval gives a quantized observed span; neither is joint-valid wall-clock
+coverage or a true latent-state dwell time. Complete episodes require observed
+state-change boundaries on both sides. The initial edge, gaps, invalidations,
+filter resets and the open final tail are censored. Mean complete duration
+excludes censored episodes; mean observed span includes them and is explicitly
+descriptive. Querying a summary does not close a live episode or change a resume.
+
+Counters use fixed K-by-feature cardinality with only two current episodes.
+They do not retain sample rows, depend on fitting libraries, or feed back into
+policy. Checkpoints validate moment counts/bounds, episode spans, transitions,
+current labels and causal sample anchors before replacing state. Serialized
+regime CSV verification reconstructs these aggregates and checks both the new
+statistics and the existing summary counters, not merely a writer's row count.
+
+After a bounded observation or policy simulation, inspect its printed run
+directory with:
+
+```bash
+python -m lob_sim.cli regime-report --run-dir outputs/<completed-run-directory>
+```
+
+This read-only command checks the frozen model identity and sampling clock,
+rejects incomplete/partial exports, and reduces the serialized regime trace
+before printing market-state diagnostics. It verifies that regime audit, not
+raw capture coverage, private fills, economic benefit or an untouched holdout.
+Checksums identify content, not a trusted author.
+
+Quote-request/arrival denominators, source-conditioned outcomes and causal
+time-weighted inventory still require their own execution characterization.
+Sample counts must not be repurposed as quote counts or fill probabilities;
+the existing fill-transition table counts fills/partial fills, not unique orders.
+No per-state net PnL or drawdown contribution is invented here.
 
 ## Reproduce checks
 

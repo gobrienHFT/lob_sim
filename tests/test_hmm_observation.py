@@ -445,7 +445,10 @@ def test_long_virtual_observation_stream_keeps_only_fixed_window_and_current_sig
     summary = observer.summary()
     assert summary["sample_count"] == 2000
     assert summary["retained_samples"] == 1 and summary["retained_window_bins"] == SPEC.window_steps
-    assert len(canonical_json(observer.checkpoint())) < 14_000
+    # The new fixed K-by-feature diagnostics add counters, not row history.
+    assert len(canonical_json(observer.checkpoint())) < 20_000
+    assert summary["state_diagnostics"]["retained_episodes"] <= 2
+    assert all(len(cells) == 3 for cells in observer.diagnostics.checkpoint()["cells"].values())
     assert observer.snapshot(2010 * SECOND)["status"] == "STALE"
     assert observer.snapshot(2010 * SECOND)["posterior"] is None
 

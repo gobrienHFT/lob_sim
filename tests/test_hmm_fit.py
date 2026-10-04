@@ -12,8 +12,16 @@ from lob_sim.regime.artifact import FrozenRegimeModel, load_model, save_model
 from lob_sim.regime.dataset import FeaturePartition
 from lob_sim.regime.features import FEATURE_NAMES, FeatureSpec
 from lob_sim.regime.filter import ForwardFilter
-from lob_sim.regime.fit import FitConfig, _state_report, fit_candidates, inspect_model, restart_seed
+from lob_sim.regime.fit import (
+    FitConfig,
+    _candidate_diagnostics,
+    _state_report,
+    fit_candidates,
+    inspect_model,
+    restart_seed,
+)
 from lob_sim.regime.validation import strict_json
+from lob_sim.regime.validation import canonical_json
 
 pytest.importorskip("hmmlearn", reason='optional fit tests require the "hmm" extra; reviewer requirements include it')
 import numpy as np
@@ -92,6 +100,28 @@ def test_k_2_to_5_reports_every_attempt_and_bic_count(fitted):
             assert candidate["training_bic"] == pytest.approx(
                 expected_parameters * math.log(len(training.rows)) - 2 * candidate["training_log_likelihood"]
             )
+            assert candidate["training_log_likelihood_per_observation"] == pytest.approx(
+                candidate["training_log_likelihood"] / len(training.rows)
+            )
+            restart = next(a for a in report["attempts"] if a["k"] == k and a["restart"] == candidate["restart"])
+            assert candidate["convergence"] == {
+                key: restart[key]
+                for key in ("seed", "iterations", "last_em_gain", "converged", "warning_types", "parameter_sha256")
+            }
+            diagnostics = candidate["training_diagnostics"]
+            states = diagnostics["states"]
+            assert len(states) == k
+            assert math.fsum(s["weighted_occupancy"] for s in states) == pytest.approx(1)
+            assert sum(s["map_samples"] for s in states) == len(training.rows)
+            assert sum(sum(row) for row in diagnostics["training_map_transition_counts"]) == len(training.rows) - len(
+                training.lengths
+            )
+            for state, row in zip(states, diagnostics["transition_matrix"]):
+                assert math.fsum(row) == pytest.approx(1)
+                expected = None if row[state["raw_state"]] == 1 else 1 / (1 - row[state["raw_state"]])
+                assert state["geometric_expected_duration_steps"] == pytest.approx(expected)
+                assert state["complete_episodes"] + state["censored_episodes"] == state["episodes"]
+                assert state["complete_steps"] + state["censored_steps"] == state["map_samples"]
 
 
 def test_synthetic_latent_emission_recovery_after_training_only_alignment(fitted):
@@ -237,6 +267,40 @@ def test_fitted_artifact_roundtrip_and_independent_human_inspection(tmp_path, fi
     assert set(metadata["canonical_to_raw_state"]) == {0, 1}
     assert "Transition matrix" in inspect_model(restored)
     assert "spread_bps" in inspect_model(restored)
+    assert "Candidate selection" in inspect_model(restored)
+    assert "complete/censored episodes" in inspect_model(restored)
+
+
+def test_candidate_episode_diagnostics_do_not_join_sequence_boundaries(fitted):
+    from lob_sim.regime.model import GaussianHMMParameters
+
+    params = GaussianHMMParameters((0.5, 0.5), ((0.8, 0.2), (0.1, 0.9)), ((0.0,), (1.0,)), ((1.0,), (1.0,)))
+    labels = [0, 0, 1, 1, 1, 0, 0, 1, 1, 0]
+    posterior = np.array([(0.9, 0.1) if state == 0 else (0.1, 0.9) for state in labels])
+    diagnostics = _candidate_diagnostics(params, posterior, (7, 3), 250_000_000, np)
+    zero, one = diagnostics["states"]
+    assert zero["map_samples"] == one["map_samples"] == 5
+    assert zero["complete_episodes"] == 0
+    assert zero["censored_episodes"] == 3
+    assert one["complete_episodes"] == 1
+    assert one["complete_steps"] == 3
+    assert one["mean_complete_episode_seconds"] == 0.75
+    assert one["censored_episodes"] == 1
+    assert diagnostics["training_map_transition_counts"] == [[2, 1], [2, 3]]
+    assert zero["geometric_expected_duration_steps"] == pytest.approx(5)
+    assert one["geometric_expected_duration_seconds"] == pytest.approx(2.5)
+
+
+def test_inspection_accepts_older_safe_model_without_new_candidate_diagnostics(fitted):
+    _, _, _, result = fitted
+    provenance = strict_json(result.model.provenance_json)
+    for candidate in provenance["candidates"]:
+        for key in ("training_diagnostics", "convergence", "training_log_likelihood_per_observation"):
+            candidate.pop(key, None)
+    previous = replace(result.model, provenance_json=canonical_json(provenance))
+    report = inspect_model(previous)
+    assert "were not recorded in this older artifact" in report
+    assert "train LL/row=not recorded" in report
 
 
 def test_canonical_state_order_is_invariant_to_raw_label_permutation(fitted):

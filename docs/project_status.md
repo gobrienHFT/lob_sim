@@ -104,7 +104,14 @@ before acknowledgement. Hard position/notional, validity, post-only and kill
 checks remain authoritative. Policy constraints travel with each sent intent;
 later model information affects later decisions, not earlier order arrivals.
 
-Richer state characterization, registered paired economic evaluation, synthetic
+State summaries now separate raw MAP and active hysteretic labels, conditional
+market-feature/confidence/entropy moments, and complete versus censored label
+episodes. `regime-report` independently reduces a completed regime CSV before
+printing those diagnostics. Candidate inspection includes every valid K's
+likelihood, convergence, occupancy, transition and duration diagnostics.
+Sample-grid fractions are not wall-clock validity coverage or fill rates.
+
+Execution-denominator/source/risk characterization, registered paired economic evaluation, synthetic
 raw-tape recovery diagnostics and overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).

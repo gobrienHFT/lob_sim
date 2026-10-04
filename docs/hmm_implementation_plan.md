@@ -63,16 +63,24 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Pending |
 | R | Paired moving-block bootstrap study | Pending |
-| S | Human-readable model/state diagnostics | regime-inspect includes training signatures, occupancy, risk and transitions |
+| S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
-| V | Bounded runtime windows and audit output | Streamed feature/regime/execution audits; fixed windows, one signal, capped live-order contexts and core capped pending horizons; virtual stream regressions (not soak evidence) |
+| V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
 | W | Existing tests pass after integration | Pending |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
 | Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |
 | Z | Complete reviewer gate passes | Pending |
 
 ## Release boundaries
+
+State characterization now separates raw MAP and confirmed active labels,
+conditional market-feature/confidence/entropy moments, sample fractions and
+complete/censored episodes. It is descriptive, not an economic evaluation.
+Quote denominators, fill-source tables, time-weighted state risk, registered
+paired research, raw synthetic recovery and representative overhead remain.
+New observer checkpoint version 2 rejects older HMM continuation state rather
+than inventing missing moments/episodes; disabled checkpoints are unchanged.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

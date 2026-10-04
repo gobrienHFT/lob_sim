@@ -20,6 +20,7 @@ from ..sim.checkpoint import decode, encode
 from ..sim.observation import MarketObservation
 from ..sim.sinks import EventSink, NullSink
 from .dataset import FeatureDatasetObserver, _Context, instrument_identity
+from .diagnostics import RegimeDiagnostics
 from .features import CausalFeatureSampler, FeatureSample, FeatureStatus
 from .filter import FilterResult
 from .runtime import CausalRegimeEstimator
@@ -94,6 +95,7 @@ class RegimeObserver(FeatureDatasetObserver):
         self._entropy_sum = 0.0
         self._uncertain_count = 0
         self._switch_count = 0
+        self.diagnostics = RegimeDiagnostics(settings.model.parameters.state_count, self.spec.interval_ns)
 
     def bind_input(self, input_sha256: str) -> None:
         if len(input_sha256) != 64 or any(char not in "0123456789abcdef" for char in input_sha256):
@@ -142,6 +144,7 @@ class RegimeObserver(FeatureDatasetObserver):
         output["semantic_state"] = self._labels[raw] if raw is not None else None
         output["event_type"] = "sample"
         self._write(output)
+        self.diagnostics.observe(output)
         self._latest = output
         self._immediate_status = sample.status
         self._immediate_reason = sample.status if sample.status != "VALID" else "valid_sample"
@@ -203,6 +206,7 @@ class RegimeObserver(FeatureDatasetObserver):
                         "filter_reset_reason": reason,
                     }
                 )
+                self.diagnostics.invalidate()
             self._immediate_status, self._immediate_reason = status, reason
 
     def snapshot(self, logical_ns: int) -> dict[str, Any]:
@@ -249,6 +253,7 @@ class RegimeObserver(FeatureDatasetObserver):
             "mean_valid_sample_entropy": self._entropy_sum / valid if valid else None,
             "uncertain_valid_samples": self._uncertain_count,
             "confirmed_switches": self._switch_count,
+            "state_diagnostics": self.diagnostics.summary(self.sample_count),
             "retained_samples": int(self._latest is not None),
             "retained_window_bins": sum(context.sampler.retained_bins for context in self._contexts.values()),
             "memory_bounded_by_tape_duration": self.sink.memory_bounded,
@@ -274,7 +279,7 @@ class RegimeObserver(FeatureDatasetObserver):
                 }
             )
         return {
-            "schema_version": "lob_sim.hmm_observer_checkpoint.v1",
+            "schema_version": "lob_sim.hmm_observer_checkpoint.v2",
             "config_sha256": identity(self.settings.as_dict()),
             "input_sha256": self.input_sha256,
             "contexts": contexts,
@@ -292,12 +297,13 @@ class RegimeObserver(FeatureDatasetObserver):
             "entropy_sum": self._entropy_sum,
             "uncertain_count": self._uncertain_count,
             "switch_count": self._switch_count,
+            "diagnostics": self.diagnostics.checkpoint(),
         }
 
     def validated_copy(self, checkpoint: object) -> RegimeObserver:
         """Return a validated independent candidate; no callbacks during restore."""
         data = require_keys(checkpoint, set(self.checkpoint()), "observer checkpoint")
-        if data["schema_version"] != "lob_sim.hmm_observer_checkpoint.v1" or data["config_sha256"] != identity(
+        if data["schema_version"] != "lob_sim.hmm_observer_checkpoint.v2" or data["config_sha256"] != identity(
             self.settings.as_dict()
         ):
             raise ValueError("regime observer checkpoint configuration mismatch")
@@ -408,6 +414,14 @@ class RegimeObserver(FeatureDatasetObserver):
         if previous is not None and integer(previous, "previous_active") >= k:
             raise ValueError("observer previous state out of range")
         candidate._previous_active = previous
+        candidate.diagnostics = self.diagnostics.validated_copy(data["diagnostics"])
+        diagnostic_state = candidate.diagnostics.checkpoint()
+        if (
+            diagnostic_state["valid_samples"] != valid
+            or diagnostic_state["last_sample_ns"] != candidate.estimator._last_sample_ns
+            or [diagnostic_state["cells"]["raw_map"][label]["samples"] for label in self._labels] != states
+        ):
+            raise ValueError("observer diagnostic sample totals/anchors mismatch")
         trace_sha = data["trace_sha256"]
         if (
             not isinstance(trace_sha, str)
@@ -508,6 +522,15 @@ class RegimeObserver(FeatureDatasetObserver):
             candidate._latest = dict(strict_json(canonical_json(row)))
         elif candidate.estimator.filter.samples_seen:
             raise ValueError("observer filter has no current signal")
+        opened = diagnostic_state["open"]
+        valid_latest = latest is not None and latest["status"] == "VALID"
+        if valid_latest != (opened["raw_map"] is not None):
+            raise ValueError("observer diagnostic validity mismatch")
+        if valid_latest:
+            if opened["raw_map"]["label"] != f"STATE_{latest['raw_map_state']}" or opened["active"]["label"] != (
+                f"STATE_{latest['active_state']}" if latest["active_state"] is not None else "UNCONFIRMED"
+            ):
+                raise ValueError("observer diagnostic current labels mismatch")
         return candidate
 
     def restore(self, checkpoint: object) -> None:
@@ -535,6 +558,11 @@ def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
     bool_fields = {"state_switched", "confident"}
     json_fields = {"epochs", "validity", "features", "scaled_features", "posterior", "next_prior"}
     count, digest = 0, sha256(CHAIN_DOMAIN).hexdigest()
+    sample_count = 0
+    statuses: Counter[str] = Counter()
+    diagnostics = RegimeDiagnostics(
+        len(summary["raw_map_sample_counts"]), summary["state_diagnostics"]["sampling_interval_ns"]
+    )
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != list(TRACE_FIELDS):
@@ -559,6 +587,28 @@ def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
                 else:
                     row[key] = value
             digest = advance_trace_digest(digest, row)
+            diagnostics.observe(row)
+            if row["event_type"] == "sample":
+                sample_count += 1
+                statuses[row["status"]] += 1
             count += 1
     if count != summary["trace_count"] or digest != summary["trace_sha256"]:
         raise ValueError("serialized regime audit count/hash mismatch")
+    if diagnostics.summary(summary["sample_count"]) != summary["state_diagnostics"]:
+        raise ValueError("serialized regime state diagnostics mismatch")
+    reduced = diagnostics.summary(sample_count)
+    if (
+        sample_count != summary["sample_count"]
+        or dict(statuses) != summary["status_counts"]
+        or [reduced["conditioned"]["raw_map"][f"STATE_{i}"]["samples"] for i in range(diagnostics.state_count)]
+        != summary["raw_map_sample_counts"]
+        or [
+            [
+                reduced["sample_transitions"]["active"][f"STATE_{i}"][f"STATE_{j}"]
+                for j in range(diagnostics.state_count)
+            ]
+            for i in range(diagnostics.state_count)
+        ]
+        != summary["active_state_sample_transitions"]
+    ):
+        raise ValueError("serialized regime summary counters mismatch")

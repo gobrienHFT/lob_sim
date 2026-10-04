@@ -23,6 +23,70 @@ from .preprocess import TrainOnlyScaler
 from .validation import canonical_json, finite, identity, integer
 
 
+def _candidate_diagnostics(
+    parameters: GaussianHMMParameters, posterior: Any, lengths: tuple[int, ...], interval_ns: int, np: Any
+) -> dict[str, Any]:
+    """Retrospective TRAINING diagnostics in raw candidate labels, for every K.
+
+    MAP occupancy/episodes here summarize training smoothing, not causal runtime
+    recovery. Never concatenate sequence boundaries or call censored edge spans
+    complete dwell times. Weighted occupancy uses the full training posterior.
+    """
+    k = parameters.state_count
+    occupancy = np.sum(posterior, axis=0)
+    labels = np.argmax(posterior, axis=1).tolist()
+    states: list[dict[str, Any]] = [
+        {
+            "raw_state": i,
+            "weighted_observations": float(occupancy[i]),
+            "weighted_occupancy": float(occupancy[i] / len(labels)),
+            "map_samples": 0,
+            "episodes": 0,
+            "complete_episodes": 0,
+            "complete_steps": 0,
+            "censored_episodes": 0,
+            "censored_steps": 0,
+        }
+        for i in range(k)
+    ]
+    transitions = [[0] * k for _ in range(k)]
+    offset = 0
+    for length in lengths:
+        sequence = labels[offset : offset + length]
+        start = 0
+        for t, state in enumerate(sequence):
+            states[state]["map_samples"] += 1
+            if t:
+                transitions[sequence[t - 1]][state] += 1
+            if t + 1 == length or sequence[t + 1] != state:
+                cell = states[state]
+                cell["episodes"] += 1
+                kind = "censored" if start == 0 or t + 1 == length else "complete"
+                cell[kind + "_episodes"] += 1
+                cell[kind + "_steps"] += t + 1 - start
+                start = t + 1
+        offset += length
+    if offset != len(labels):
+        raise ValueError("candidate diagnostic sequence lengths mismatch")
+    for state, duration in zip(states, parameters.expected_durations(interval_ns)):
+        state["map_occupancy"] = state["map_samples"] / len(labels)
+        complete = state["complete_episodes"]
+        state["mean_complete_episode_steps"] = state["complete_steps"] / complete if complete else None
+        state["mean_complete_episode_seconds"] = (
+            state["complete_steps"] * interval_ns / 1e9 / complete if complete else None
+        )
+        state["geometric_expected_duration_steps"] = None if duration is None else duration / (interval_ns / 1e9)
+        state["geometric_expected_duration_seconds"] = duration
+    return {
+        "basis": "retrospective_training_smoothing;raw_candidate_labels;not_runtime_inference",
+        "episode_basis": "separate_sequences;edge_episodes_censored;steps_are_quantized_observed_spans",
+        "sequence_count": len(lengths),
+        "states": states,
+        "transition_matrix": [list(row) for row in parameters.transition],
+        "training_map_transition_counts": transitions,
+    }
+
+
 @dataclass(frozen=True)
 class FitConfig:
     state_counts: tuple[int, ...] = (2, 3, 4, 5)
@@ -287,16 +351,26 @@ def fit_candidates(
                     {"k": k, "status": "failed", "reason": "invalid_validation_score", "error_type": type(exc).__name__}
                 )
                 continue
+            winning_attempt = attempts[-config.restarts + restart]
             candidate = {
                 "k": k,
                 "status": "valid",
                 "restart": restart,
                 "training_log_likelihood": train_ll,
+                "training_log_likelihood_per_observation": train_ll / len(training.rows),
                 "validation_log_likelihood": validation_ll,
                 "validation_log_likelihood_per_observation": validation_ll / len(validation.rows),
                 "parameter_count": parameters.parameter_count,
                 "training_bic": parameters.parameter_count * math.log(len(training.rows)) - 2 * train_ll,
+                "convergence": {
+                    key: winning_attempt[key]
+                    for key in ("seed", "iterations", "last_em_gain", "converged", "warning_types", "parameter_sha256")
+                },
             }
+            _, candidate_posterior = estimator.score_samples(train_x, lengths=list(training.lengths))
+            candidate["training_diagnostics"] = _candidate_diagnostics(
+                parameters, candidate_posterior, training.lengths, training.feature_spec.interval_ns, np
+            )
             candidates.append(candidate)
             fitted[k] = (parameters, estimator)
         valid = [candidate for candidate in candidates if candidate["status"] == "valid"]
@@ -379,4 +453,28 @@ def inspect_model(model: FrozenRegimeModel) -> str:
     lines.extend("  " + " ".join(f"{value:.6f}" for value in row) for row in model.parameters.transition)
     if not metadata.get("state_characterization"):
         lines.append("No fitted training characterization supplied; inspect provenance before research use.")
+    candidates = metadata.get("candidates", [])
+    if candidates:
+        lines.append("Candidate selection (training-only restarts; validation likelihood/BIC):")
+        for candidate in candidates:
+            if candidate["status"] != "valid":
+                lines.append(f"  K={candidate['k']}: failed ({candidate['reason']})")
+                continue
+            train_per_row = candidate.get("training_log_likelihood_per_observation")
+            train_display = "not recorded" if train_per_row is None else f"{train_per_row:.6g}"
+            lines.append(
+                f"  K={candidate['k']}: train LL/row={train_display}; "
+                f"validation LL/row={candidate['validation_log_likelihood_per_observation']:.6g}; "
+                f"BIC={candidate['training_bic']:.6g}; restart={candidate['restart']}"
+            )
+            diagnostics = candidate.get("training_diagnostics")
+            if diagnostics is None:
+                lines.append("    Per-K occupancy/episode diagnostics were not recorded in this older artifact.")
+                continue
+            for state in diagnostics["states"]:
+                lines.append(
+                    f"    raw state {state['raw_state']}: weighted occupancy={state['weighted_occupancy']:.3%}; "
+                    f"MAP occupancy={state['map_occupancy']:.3%}; geometric duration={state['geometric_expected_duration_seconds']}s; "
+                    f"complete/censored episodes={state['complete_episodes']}/{state['censored_episodes']}"
+                )
     return "\n".join(lines)
