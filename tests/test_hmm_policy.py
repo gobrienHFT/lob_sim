@@ -490,7 +490,12 @@ def test_pending_policy_limit_tamper_fails_before_core_mutation(tmp_path, tamper
     )
     target = SimulationEngine(value)
     before = encode(target._checkpoint_mutable_state())
-    with pytest.raises(ValueError, match="soft position|reservation"):
+    # Quote identity now rejects a changed outbound quantity before the policy
+    # reservation validator; both failures must precede any core mutation.
+    expected = (
+        "pending quote binding differs from outbound intent" if tamper == "quantity" else "soft position|reservation"
+    )
+    with pytest.raises(ValueError, match=expected):
         target.run(path, resume_from=checkpoint)
     assert encode(target._checkpoint_mutable_state()) == before
 
