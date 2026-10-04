@@ -252,9 +252,9 @@ class RegimeObserver(FeatureDatasetObserver):
             "retained_samples": int(self._latest is not None),
             "retained_window_bins": sum(context.sampler.retained_bins for context in self._contexts.values()),
             "memory_bounded_by_tape_duration": self.sink.memory_bounded,
-            "strategy_intervention": False,
+            "strategy_intervention": self.settings.mode == "policy",
             "claim_ready": False,
-            "claim_reason": "observation diagnostics alone are not out-of-sample execution evidence",
+            "claim_reason": "unregistered regime diagnostics or policy runs are not out-of-sample execution evidence",
         }
 
     def checkpoint(self) -> dict[str, Any]:

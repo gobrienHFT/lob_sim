@@ -4,11 +4,12 @@
 
 The feature/filter/artifact foundation, authoritative replay extraction, UTC-day
 partition reader, deterministic offline fitter, model inspector, observation-only
-simulation and quote-lifetime execution audits are implemented under
-`lob_sim/regime`. `simulate --hmm observe` uses a frozen model. No HMM-aware
-quote policy, strategy benefit, real-data regime result or holdout finding is
+simulation, quote-lifetime execution audits and conservative quote policy are
+implemented under `lob_sim/regime`. `simulate --hmm observe` leaves the strategy
+unchanged; `simulate --hmm policy --strategy hmm_regime_mm` explicitly enables
+adaptation. No strategy benefit, real-data regime result or holdout finding is
 published. The [implementation ledger](hmm_implementation_plan.md) tracks the
-remaining policy, evaluation and overhead work. Existing simulation
+remaining characterization, evaluation and overhead work. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
@@ -44,7 +45,7 @@ to a strategy; it must not retroactively apply the new posterior to old actions.
 Warmup requires a complete trailing window within the current valid epoch.
 Initial state establishes the return/imbalance reference and is not counted
 as a message inside a later right-closed window. No look-ahead interpolation
-is used. Between boundaries, the strategy integration will use the latest
+is used. Between boundaries, the strategy integration uses the latest
 available valid posterior, never a future sample.
 
 ## Feature vector
@@ -162,8 +163,8 @@ confirmations and at least three samples of active-state age before switching.
 Uncertain input breaks confirmation, retains an already active descriptive
 state and sets `confident=False`. Invalid data clears the active state entirely.
 The raw posterior is never replaced with a one-hot active state. Policy risk
-controls are pending; a state posterior is not a probability of profit and must
-not be converted into Kelly sizing.
+controls use an explicit posterior-weighted training-relative risk score; a
+state posterior is not a probability of profit and must not become Kelly sizing.
 
 ## Model artifact and checkpoint contracts
 
@@ -185,7 +186,8 @@ finalization. Existing final or partial evidence is preserved. A failed
 finalization leaves a visibly incomplete partial; unsupported filesystem
 semantics must fail rather than overwrite. Numeric filter and hysteresis
 checkpoints validate their parameter/configuration identity and state before
-restoring. Complete simulator/sampler checkpoints are a remaining milestone.
+restoring. Complete simulator/sampler and execution-attribution checkpoints
+also validate causal pending state before any core restoration.
 
 ## Validated extraction and partition isolation
 
@@ -309,8 +311,93 @@ without training-symbol provenance requires `--hmm-symbol BTCUSDT`. A fitted
 model's instrument grid must match the authoritative replay metadata. The JSON
 model is loaded once into immutable parameters; file paths are not model identity.
 `simulate --help` lists the available flags. Ordinary runs use bounded streaming
-export; HMM mode rejects the fixture-only `--in-memory-export` path. Policy and
-paired-comparison commands remain pending and are not advertised as working.
+export; HMM mode rejects the fixture-only `--in-memory-export` path.
+
+For explicitly opt-in adaptation, use the same frozen fitted model:
+
+```bash
+python -m lob_sim.cli --env .env.example simulate --file data/multiday.capture.manifest.json --strategy hmm_regime_mm --hmm policy --hmm-model outputs/regime_model.json
+```
+
+The policy requires exactly one configured symbol matching the model. Models
+without a calibration-only, internally consistent training risk signature are
+rejected; hand-specified observation models do not automatically become policy
+models. The default one-lot order can be reduced below one lot and produce no
+quote. This is conservative quantization, not a failure or an automatic size
+increase. Calibrate base size on the training partition, never on the test PnL.
+
+`--hmm-policy-config` loads a strict versioned JSON `RegimePolicyConfig.as_dict()`;
+every field is required and unknown fields, duplicate keys, non-finite numbers
+and unsafe bounds fail. Environment equivalents are `HMM_MODE=policy`,
+`MM_STRATEGY_PROFILE=hmm_regime_mm`, `HMM_MODEL_PATH`, optional `HMM_SYMBOL` and
+optional `HMM_POLICY_PATH`. Model and policy content are frozen once; editing
+their files later cannot change the run. The complete config is in its manifest.
+The registered paired-study command remains a future milestone.
+
+## Conservative quote policy
+
+`hmm_regime_mm` composes the existing `research_mm` quote generator. It does not
+invent a separate fair-value forecast, queue model, fill model or accounting
+path. The stateless immutable controller sees only the causal forward signal;
+it cannot inspect future data, orders, inventory or PnL.
+
+Training characterizes generic states by the disclosed five equal-weight
+percentile ranks. Policy loading checks the calibration role, feature/data/grid
+identities, canonical state order, rank discreteness and cross-state consistency,
+score arithmetic and occupancy totals. These checks establish consistency,
+not author authentication or proof of an economic meaning for those states.
+
+For filtered posterior p and training state risks r:
+
+```text
+weighted_risk = sum_s p[s] * r[s]
+effective_risk = min(1, weighted_risk + uncertainty_weight * normalized_entropy)
+```
+
+Default mappings are explicit and configurable:
+
+| Control | Default mapping from effective risk R | Actual effect |
+| --- | --- | --- |
+| Width | min(3, 1 + 2R) | Multiply research half-width after its fee/toxicity floor; widen configured outer width too |
+| Size | max(0.25, 1 - 0.75R) | Floor the scaled baseline integer lots; zero suppresses the quote |
+| Desired inventory | max(0.5, 1 - 0.5R) | Floor a soft position cap no larger than the hard cap; reserve live plus outbound lots |
+| Inventory skew | min(2, 1 + R) | Multiply the existing symmetric inventory-skew strength; no directional alpha |
+| Refresh | min(4, 1 + 3R) | Maximum quote age is 2000 ms divided by this multiplier; expire at the existing decision cadence |
+| Stand aside | R >= 0.95, or highest-risk active state with probability >= 0.90 | Stop sending new quotes and request existing cancels through modeled acknowledgement latency |
+
+The uncertainty weight defaults to 0.25 and must be nonnegative. For a fixed
+posterior, increasing this penalty cannot increase size or desired capacity or
+narrow width. Controls are monotone in **effective risk**. Arbitrarily changing
+the posterior can lower its weighted state risk while increasing entropy;
+there is no false claim of monotonicity across every possible posterior pair.
+Warm, stale, invalid, unconfirmed or insufficiently confident information stands
+aside. A tied risk ordering does not create an invented uniquely extreme state.
+
+Maximum age is checked only on scheduled decisions, not via an extra timer or
+an invented response latency. Its calculation uses integer logical acceptance
+timestamps, not the legacy float-seconds projection. Base decision cadence and
+existing queue/price refresh rules remain in force. A replacement waits for cancel acknowledgement
+and new-order transit. Pending cancels stay fillable and reserve capacity; a
+cancel request cannot be spent as a completed cancellation. Soft-cap contraction
+can cancel existing quotes, but cannot undo in-flight orders or reset inventory.
+There is no flattening operation.
+
+Before sending, the policy reserves worst-case same-side inventory plus live
+and outbound lots and, when enabled, gross portfolio notional. Unknown marks
+or instrument units fail closed. Arrival still checks current hard position,
+portfolio, post-only and venue state. Its additional soft cap and size are the
+constraints frozen with the **sent** decision; the venue does not magically
+learn a later posterior. Later signals affect later strategy decisions and
+latency-respecting cancel requests. Invalid epochs and the existing global
+kill switch remain authoritative outside the controller.
+
+Decision rows log both risk scores, all multipliers, age limit, soft lots,
+stand-aside status, reason and content-addressed policy identity. Checkpoint
+loading recomputes sent soft caps and quantities from frozen causal decisions
+before restoring core state. Independent scalar/quantization tests, a 1001-risk
+monotonicity grid, actual quote/refresh changes, cancel/fill races, hard-risk
+guards, future-prefix invariance and checkpoint recovery verify mechanics.
+None of these fixture tests establishes economic benefit or optimal parameters.
 
 ## Observation-only timing, audits and recovery
 

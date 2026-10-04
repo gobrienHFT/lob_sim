@@ -247,6 +247,17 @@ class RegimeExecutionAudit:
     def clear_orders(self) -> None:
         self._orders.clear()
 
+    def order_age_ns(self, order_id: str, logical_ns: int) -> int:
+        """Age from immutable integer acceptance time, not projected float seconds."""
+        integer(logical_ns, "quote age observation time")
+        context = self._orders.get(order_id)
+        if context is None or context["arrival"] is None:
+            raise ValueError("quote age requires an attributed accepted order")
+        age = logical_ns - context["arrival"]["logical_ns"]
+        if age < 0:
+            raise ValueError("quote age cannot precede acceptance")
+        return age
+
     def at_fill(self, order_id: str | None, pre_fill: object) -> dict[str, Any]:
         context = self._orders.get(order_id or "", {"decision": None, "arrival": None})
         before = self._stage(pre_fill)

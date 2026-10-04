@@ -1282,11 +1282,14 @@ def main() -> None:
 
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
-    s.add_argument("--strategy", choices=("baseline", "layered_mm", "research_mm"))
+    s.add_argument("--strategy", choices=("baseline", "layered_mm", "research_mm", "hmm_regime_mm"))
     s.add_argument(
-        "--hmm", choices=("off", "observe"), help="Opt-in forward-only regime diagnostics; no strategy intervention"
+        "--hmm",
+        choices=("off", "observe", "policy"),
+        help="Forward-only regime observation or conservative quote policy",
     )
-    s.add_argument("--hmm-model", help="Safe frozen JSON model (required for --hmm observe)")
+    s.add_argument("--hmm-model", help="Safe frozen JSON model (required for --hmm observe/policy)")
+    s.add_argument("--hmm-policy-config", help="Strict versioned JSON controls; only with --hmm policy")
     s.add_argument(
         "--hmm-symbol", help="Override/check model training symbol; required for hand-specified diagnostic models"
     )
@@ -1431,25 +1434,40 @@ def main() -> None:
     elif args.command == "replay":
         args.func(cfg, args.file, args.verbose, args.progress_every)
     elif args.command == "simulate":
+        overrides: dict[str, Any] = {}
         if args.fill_profile is not None:
-            cfg = replace(cfg, fill_assumption=fill_assumption_config_for_profile(args.fill_profile))
+            overrides["fill_assumption"] = fill_assumption_config_for_profile(args.fill_profile)
         if args.strategy is not None:
-            cfg = replace(cfg, mm_strategy_profile=args.strategy)
+            overrides["mm_strategy_profile"] = args.strategy
         if args.hmm == "off":
-            if args.hmm_model or args.hmm_symbol:
+            if args.hmm_model or args.hmm_symbol or args.hmm_policy_config:
                 parser.error("--hmm off cannot include model/symbol arguments")
-            cfg = replace(cfg, hmm=None)
-        elif args.hmm == "observe":
+            overrides["hmm"] = None
+        elif args.hmm in {"observe", "policy"}:
             from .regime.settings import HMMSettings
+            from .regime.policy import RegimePolicyConfig
 
             if args.hmm_model is None:
-                parser.error("--hmm observe requires --hmm-model")
+                parser.error(f"--hmm {args.hmm} requires --hmm-model")
+            if args.hmm_policy_config and args.hmm != "policy":
+                parser.error("--hmm-policy-config requires --hmm policy")
             try:
-                cfg = replace(cfg, hmm=HMMSettings.load(args.hmm_model, symbol=args.hmm_symbol))
+                overrides["hmm"] = HMMSettings.load(
+                    args.hmm_model,
+                    symbol=args.hmm_symbol,
+                    mode=args.hmm,
+                    policy=RegimePolicyConfig.load(args.hmm_policy_config) if args.hmm_policy_config else None,
+                )
             except (OSError, ValueError) as exc:
                 parser.error(str(exc))
-        elif args.hmm_model or args.hmm_symbol:
-            parser.error("--hmm-model/--hmm-symbol requires --hmm observe")
+        elif args.hmm_model or args.hmm_symbol or args.hmm_policy_config:
+            parser.error("--hmm-model/--hmm-symbol/--hmm-policy-config requires --hmm observe/policy")
+        try:
+            # Validate the final namespace atomically: profile and policy mode
+            # are mutually required and cannot pass through an invalid interim config.
+            cfg = replace(cfg, **overrides)
+        except ValueError as exc:
+            parser.error(str(exc))
         if cfg.hmm is not None and args.in_memory_export:
             parser.error("HMM mode requires bounded streaming export; omit --in-memory-export")
         args.func(cfg, args.file, args.verbose, args.progress_every, args.in_memory_export)

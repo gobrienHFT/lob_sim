@@ -65,6 +65,16 @@ def test_repeated_fit_reproduces_full_model_and_attempt_ledger(fitted):
     assert all(attempt["status"] == "valid" for attempt in result.report()["attempts"])
 
 
+def test_fitted_training_signatures_are_accepted_by_the_strict_runtime_policy(fitted):
+    from lob_sim.regime.settings import HMMSettings
+    from lob_sim.regime.policy import RegimeRiskPolicy
+
+    _, _, _, result = fitted
+    settings = HMMSettings(result.model, "BTCUSDT", mode="policy")
+    policy = RegimeRiskPolicy(settings.model, settings.policy)
+    assert policy.state_risks == tuple(state["risk_score"] for state in result.report()["state_characterization"])
+
+
 def test_k_2_to_5_reports_every_attempt_and_bic_count(fitted):
     training, validation, _, _ = fitted
     result = fit_candidates(training, validation, FitConfig(restarts=2, max_iterations=100))

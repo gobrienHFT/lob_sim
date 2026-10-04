@@ -8,6 +8,7 @@ from typing import Final, Literal, Tuple, cast
 from dotenv import dotenv_values, load_dotenv
 from .regime.settings import HMMSettings
 from .regime.hysteresis import HysteresisConfig
+from .regime.policy import RegimePolicyConfig
 import logging
 import math
 import os
@@ -239,6 +240,15 @@ class Config:
 
         if self.hmm is not None and not isinstance(self.hmm, HMMSettings):
             errs.append("HMM must be an immutable HMMSettings namespace")
+        elif isinstance(self.hmm, HMMSettings) and self.hmm.mode == "policy":
+            if self.mm_strategy_profile != "hmm_regime_mm":
+                errs.append("HMM policy mode requires MM_STRATEGY_PROFILE=hmm_regime_mm")
+            if self.symbols != (self.hmm.symbol,):
+                errs.append("HMM policy requires exactly its single configured symbol")
+        if self.mm_strategy_profile == "hmm_regime_mm" and (
+            not isinstance(self.hmm, HMMSettings) or self.hmm.mode != "policy"
+        ):
+            errs.append("hmm_regime_mm requires HMM_MODE=policy and a training-characterized frozen model")
 
         if not self.binance_fapi_base.startswith("http"):
             errs.append("BINANCE_FAPI_BASE must be http/https URL")
@@ -278,8 +288,8 @@ class Config:
             errs.append("MM_MAX_POSITION must be > 0")
         if not self.mm_max_portfolio_notional.is_finite() or self.mm_max_portfolio_notional < 0:
             errs.append("MM_MAX_PORTFOLIO_NOTIONAL must be finite and >= 0")
-        if self.mm_strategy_profile not in {"baseline", "layered_mm", "research_mm"}:
-            errs.append("MM_STRATEGY_PROFILE must be baseline, layered_mm, or research_mm")
+        if self.mm_strategy_profile not in {"baseline", "layered_mm", "research_mm", "hmm_regime_mm"}:
+            errs.append("MM_STRATEGY_PROFILE must be baseline, layered_mm, research_mm, or hmm_regime_mm")
         if self.mm_half_spread_bps < 0:
             errs.append("MM_HALF_SPREAD_BPS must be >= 0")
         if self.mm_layered_inner_spread_bps < 0:
@@ -393,13 +403,19 @@ def _config_from_values(values: Mapping[str, str | None]) -> Config:
 
     hmm = None
     hmm_mode = _get_optional("HMM_MODE", "off").strip().lower()
-    if hmm_mode not in {"off", "observe"}:
-        raise ConfigError("HMM_MODE must be off or observe")
-    if hmm_mode == "observe":
+    if hmm_mode not in {"off", "observe", "policy"}:
+        raise ConfigError("HMM_MODE must be off, observe, or policy")
+    if values.get("HMM_POLICY_PATH") and hmm_mode != "policy":
+        raise ConfigError("HMM_POLICY_PATH requires HMM_MODE=policy")
+    if hmm_mode in {"observe", "policy"}:
         try:
             hmm = HMMSettings.load(
                 _require("HMM_MODEL_PATH"),
                 symbol=values.get("HMM_SYMBOL") or None,
+                mode=hmm_mode,
+                policy=RegimePolicyConfig.load(values["HMM_POLICY_PATH"] or "")
+                if values.get("HMM_POLICY_PATH")
+                else None,
                 hysteresis=HysteresisConfig(
                     enter_probability=_parse_float(
                         "HMM_ENTER_PROBABILITY", _get_optional("HMM_ENTER_PROBABILITY", "0.70")

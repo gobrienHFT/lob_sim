@@ -56,9 +56,9 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
 | K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix and cancel-race regressions |
-| L | Opt-in HMM market-making profile | Pending |
-| M | Hard risk dominance tests | Pending |
-| N | Hysteresis and uncertainty tests | Estimator tests implemented; policy controls pending |
+| L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
+| M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
+| N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Pending |
@@ -68,7 +68,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed feature/regime/execution audits; fixed windows, one signal, capped live-order contexts and core capped pending horizons; virtual stream regressions (not soak evidence) |
 | W | Existing tests pass after integration | Pending |
-| X | New tests pass | Foundation, dataset/fit, observation/checkpoint and execution-attribution suites implemented; final policy/evaluation checks pending |
+| X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
 | Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |
 | Z | Complete reviewer gate passes | Pending |
 

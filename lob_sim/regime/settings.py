@@ -8,6 +8,7 @@ from typing import Any
 
 from .artifact import FrozenRegimeModel, load_model
 from .hysteresis import HysteresisConfig
+from .policy import RegimePolicyConfig, training_risk_scores
 from .validation import strict_json
 
 
@@ -17,12 +18,21 @@ class HMMSettings:
     symbol: str
     hysteresis: HysteresisConfig = HysteresisConfig()
     mode: str = "observe"
+    policy: RegimePolicyConfig | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.model, FrozenRegimeModel) or not isinstance(self.hysteresis, HysteresisConfig):
             raise ValueError("HMM requires a frozen model and hysteresis configuration")
-        if self.mode != "observe":
-            raise ValueError("only observation-only HMM mode is implemented")
+        if self.mode not in {"observe", "policy"}:
+            raise ValueError("HMM mode must be observe or policy")
+        if self.mode == "observe" and self.policy is not None:
+            raise ValueError("observation-only mode cannot include a quote policy")
+        if self.mode == "policy":
+            if self.policy is None:
+                object.__setattr__(self, "policy", RegimePolicyConfig())
+            elif not isinstance(self.policy, RegimePolicyConfig):
+                raise ValueError("HMM policy must be immutable RegimePolicyConfig")
+            training_risk_scores(self.model)
         if not isinstance(self.symbol, str) or not self.symbol.strip() or self.symbol != self.symbol.upper():
             raise ValueError("HMM symbol must be a nonempty uppercase instrument")
         training = strict_json(self.model.provenance_json).get("training")
@@ -31,17 +41,23 @@ class HMMSettings:
 
     @classmethod
     def load(
-        cls, path: str | Path, *, symbol: str | None = None, hysteresis: HysteresisConfig = HysteresisConfig()
+        cls,
+        path: str | Path,
+        *,
+        symbol: str | None = None,
+        hysteresis: HysteresisConfig = HysteresisConfig(),
+        mode: str = "observe",
+        policy: RegimePolicyConfig | None = None,
     ) -> HMMSettings:
         model = load_model(path)
         training = strict_json(model.provenance_json).get("training", {})
         selected = symbol or (training.get("symbol") if isinstance(training, dict) else None)
         if selected is None:
             raise ValueError("model has no training symbol; specify --hmm-symbol for a diagnostic model")
-        return cls(model, selected, hysteresis)
+        return cls(model, selected, hysteresis, mode, policy)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": "lob_sim.hmm_runtime_config.v1",
             "mode": self.mode,
             "symbol": self.symbol,
@@ -50,3 +66,6 @@ class HMMSettings:
             "hysteresis": self.hysteresis.as_dict(),
             "model_mode": "frozen_train_model",
         }
+        if self.policy is not None:
+            result["policy"] = self.policy.as_dict()
+        return result

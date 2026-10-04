@@ -95,9 +95,18 @@ decision-to-fill transitions. Live contexts and pending horizon metadata are
 bounded, and checkpoint loading cross-checks the audit against core execution
 state. The paired base fill/markout CSVs and accounting remain unchanged.
 
-Hard-risk-dominated policy adaptation, paired economic evaluation and overhead
-evidence remain required. No trained real-market model, alpha or holdout claim
-is made. See the [model specification](hmm_regime_model.md) and
+The opt-in `hmm_regime_mm` profile now composes the research baseline with six
+explicit conservative controls: width, lot-floored size, soft desired inventory,
+skew strength, maximum quote age and stand-aside behavior. Training-relative
+risk and a nonnegative entropy penalty drive bounded multipliers. Live and
+outbound reservations remain binding; pending cancels cannot free capacity
+before acknowledgement. Hard position/notional, validity, post-only and kill
+checks remain authoritative. Policy constraints travel with each sent intent;
+later model information affects later decisions, not earlier order arrivals.
+
+Richer state characterization, registered paired economic evaluation, synthetic
+raw-tape recovery diagnostics and overhead evidence remain required. No trained
+real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 
 ## Integrity repairs in this revision
@@ -134,6 +143,13 @@ skip damage to yield later observations. Arrow normalization now preserves
 existing final/partial outputs, rejects source/destination aliasing, fails
 closed on publication races, and checks input-file identity before publication.
 These are integrity improvements, not new economic or performance evidence.
+
+Policy integration adds a fail-closed risk regression: gross portfolio
+reservations previously skipped nonzero exposure when its instrument metadata
+was absent. Unknown units now block reservation rather than masquerading as
+zero notional, with a disabled-HMM regression too. Global risk halts also clear
+the diagnostic live-order contexts after core orders terminate; this does not
+change the existing kill-switch matching or accounting rules.
 
 ## Reproduce the release checks
 

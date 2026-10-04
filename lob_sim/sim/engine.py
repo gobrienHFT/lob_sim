@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR
 from heapq import heapify, heappush, heappop, nlargest, nsmallest
 from itertools import islice
 from pathlib import Path
@@ -16,6 +16,8 @@ from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SymbolSpe
 from ..config import Config
 from ..regime.observation import RegimeObserver
 from ..regime.execution import RegimeExecutionAudit, capture_stage
+from ..regime.policy import RegimeControls, RegimeRiskPolicy
+from ..regime.validation import integer
 from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
@@ -106,6 +108,11 @@ class SimulationEngine:
         if cfg.hmm is None and regime_execution_sink is not None:
             raise ValueError("regime execution sink requires HMM enabled")
         self.regime = RegimeObserver(cfg.hmm, regime_sink) if cfg.hmm is not None else None
+        self.hmm_policy = (
+            RegimeRiskPolicy(cfg.hmm.model, cfg.hmm.policy)
+            if cfg.hmm is not None and cfg.hmm.policy is not None
+            else None
+        )
         self.hmm_execution: RegimeExecutionAudit | None = None
         self._market_observer = self.regime or market_observer
         if market_observer is not None and (
@@ -367,6 +374,7 @@ class SimulationEngine:
         return self.cfg.effective_fill_assumption.agg_trades_consume_queue or self.cfg.mm_strategy_profile in {
             "layered_mm",
             "research_mm",
+            "hmm_regime_mm",
         }
 
     def _trade_stream_is_valid(self, symbol: str) -> bool:
@@ -1238,6 +1246,8 @@ class SimulationEngine:
             self.fill_model.cancel_all_for_symbol_side(symbol, "ask")
         self._pending_cancel_ack_ts.clear()
         self._pending_replacement_slots.clear()
+        if self.hmm_execution is not None:
+            self.hmm_execution.clear_orders()
         return {
             "canceled_order_count": sum(counts["total"] for counts in canceled_by_symbol.values()),
             "canceled_orders_by_symbol": canceled_by_symbol,
@@ -1277,7 +1287,12 @@ class SimulationEngine:
             return
 
         inventory = book.spec.lot_to_qty(self.metrics.inventory_lots(symbol))
-        plan = self.strategy.propose(book, inventory_qty=inventory)
+        controls = self._hmm_controls(symbol, ts)
+        plan = (
+            self.strategy.propose(book, inventory_qty=inventory, controls=controls)
+            if controls is not None
+            else self.strategy.propose(book, inventory_qty=inventory)
+        )
         decision_evidence_ids = self._decision_evidence_ids(symbol)
         decision_details: dict[str, Any] = {
             "inventory_qty": str(inventory),
@@ -1316,6 +1331,23 @@ class SimulationEngine:
                     "hmm_policy_reason": "observation_only",
                 }
             )
+            if controls is not None:
+                decision_details.update(
+                    {
+                        "hmm_policy_id": self.hmm_policy.identity if self.hmm_policy is not None else None,
+                        "hmm_risk_score": controls.effective_risk,
+                        "hmm_posterior_weighted_risk": controls.posterior_weighted_risk,
+                        "hmm_spread_multiplier": controls.spread_multiplier,
+                        "hmm_size_multiplier": controls.size_multiplier,
+                        "hmm_inventory_limit_multiplier": controls.inventory_limit_multiplier,
+                        "hmm_skew_multiplier": controls.skew_multiplier,
+                        "hmm_refresh_multiplier": controls.refresh_multiplier,
+                        "hmm_max_quote_age_ns": controls.max_quote_age_ns,
+                        "hmm_soft_position_lots": self._hmm_soft_limit(book.spec, controls),
+                        "hmm_stand_aside": controls.stand_aside,
+                        "hmm_policy_reason": controls.reason,
+                    }
+                )
         self._trace(ts, symbol, "decision", "strategy", details=decision_details)
 
         desired_by_side: dict[str, dict[str, QuoteTarget]] = {"bid": {}, "ask": {}}
@@ -1325,6 +1357,13 @@ class SimulationEngine:
         for side in ("bid", "ask"):
             desired_targets = desired_by_side[side]
             existing_orders = {order.quote_slot: order for order in self.fill_model.get_orders(symbol, side)}
+            if (
+                controls is not None
+                and self._hmm_side_capacity(symbol, side, self._hmm_soft_limit(book.spec, controls)) < 0
+            ):
+                for existing in existing_orders.values():
+                    self._request_cancel(ts, symbol, existing, reason="hmm_soft_position_limit")
+                continue
             if side == "bid" and inventory > self.cfg.mm_max_position:
                 for existing in existing_orders.values():
                     self._request_cancel(
@@ -1355,7 +1394,12 @@ class SimulationEngine:
             for slot, existing in existing_orders.items():
                 if slot in desired_targets:
                     continue
-                self._request_cancel(ts, symbol, existing, reason="stale_slot")
+                self._request_cancel(
+                    ts,
+                    symbol,
+                    existing,
+                    reason="hmm_stand_aside" if controls is not None and controls.stand_aside else "stale_slot",
+                )
 
             for slot, target in desired_targets.items():
                 # A quote remains outbound until its arrival is processed.
@@ -1385,7 +1429,16 @@ class SimulationEngine:
                     pending_cancel_ack_ts = self._pending_cancel_ack_ts.get(current_existing.order_id)
                 else:
                     pending_cancel_ack_ts = None
-                refresh = self.strategy.should_refresh(target, strategy_existing)
+                age_ns = 0
+                if current_existing is not None and controls is not None:
+                    if self.hmm_execution is None:
+                        raise AssertionError("policy refresh requires acceptance attribution")
+                    age_ns = self.hmm_execution.order_age_ns(current_existing.order_id, self._schedule_time_key(ts)[0])
+                refresh = (
+                    self.strategy.should_refresh(target, strategy_existing, controls=controls, age_ns=age_ns)
+                    if controls is not None
+                    else self.strategy.should_refresh(target, strategy_existing)
+                )
                 if current_existing is not None and (
                     current_existing.price_tick != target.price_tick
                     or current_existing.qty_lots != target.qty_lots
@@ -1421,6 +1474,11 @@ class SimulationEngine:
                 ):
                     continue
 
+                if controls is not None and not self._hmm_can_send(symbol, side, target, controls, ts):
+                    # A requested cancel is still live. Do not spend its risk
+                    # reservation or leave a phantom replacement slot behind.
+                    self._pending_replacement_slots.discard(slot_key)
+                    continue
                 order_latency_ms = self.latency_model.draw("new_order")
                 arrival_ts = ts + order_latency_ms / 1000.0
                 if replacement_ack_ts is not None:
@@ -1436,6 +1494,10 @@ class SimulationEngine:
                 }
                 if self.hmm_execution is not None and symbol == self.hmm_execution.symbol:
                     arrival_payload["hmm_decision"] = self._hmm_stage(symbol, ts)
+                if controls is not None:
+                    # Sent policy constraints are immutable intent metadata.
+                    # Arrival does not receive a future HMM signal magically.
+                    arrival_payload["hmm_soft_position_lots"] = self._hmm_soft_limit(book.spec, controls)
                 self._schedule(
                     arrival_ts,
                     "order_arrival",
@@ -1458,6 +1520,88 @@ class SimulationEngine:
                         "cancel_ack_ts": replacement_ack_ts,
                     },
                 )
+
+    def _hmm_controls(self, symbol: str, ts: float) -> RegimeControls | None:
+        if self.hmm_policy is None:
+            return None
+        if self.regime is None or symbol != self.regime.settings.symbol:
+            raise ValueError("HMM policy cannot quote an unmodeled symbol")
+        stage = self._hmm_stage(symbol, ts)
+        assert stage is not None
+        hysteresis = self.regime.settings.hysteresis
+        return self.hmm_policy.evaluate(
+            stage,
+            enter_probability=hysteresis.enter_probability,
+            maximum_normalized_entropy=hysteresis.maximum_normalized_entropy,
+        )
+
+    def _hmm_soft_limit(self, spec: SymbolSpec, controls: RegimeControls) -> int:
+        # The HMM can only tighten the hard configured position cap.
+        return spec.qty_to_lot_floor(self.cfg.mm_max_position * Decimal(str(controls.inventory_limit_multiplier)))
+
+    def _hmm_side_capacity(self, symbol: str, side: str, limit: int) -> int:
+        inventory = self.metrics.inventory_lots(symbol)
+        live = sum(order.remaining_lots for order in self.fill_model.get_orders(symbol, side))
+        pending = sum(
+            int(action.payload["qty_lots"])
+            for action in self._actions
+            if action.kind == "order_arrival" and action.symbol == symbol and action.payload["side"] == side
+        )
+        return limit - (inventory if side == "bid" else -inventory) - live - pending
+
+    def _hmm_can_send(self, symbol: str, side: str, target: QuoteTarget, controls: RegimeControls, ts: float) -> bool:
+        limit = self._hmm_soft_limit(self._specs[symbol], controls)
+        capacity = max(0, self._hmm_side_capacity(symbol, side, limit))
+        reason = "hmm_soft_position_limit" if target.qty_lots > capacity else None
+        details: dict[str, Any] = {"soft_position_lots": limit, "capacity_lots": capacity}
+        if reason is None and self.cfg.mm_max_portfolio_notional > 0:
+            notional, _, missing = self._portfolio_notional_reservation(
+                extra_symbol=symbol, extra_price_tick=target.price_tick, extra_qty_lots=target.qty_lots
+            )
+            if notional is None:
+                reason = "portfolio_mark_unavailable"
+                details["missing_mark_symbols"] = list(missing)
+            elif notional > self.cfg.mm_max_portfolio_notional:
+                reason = "portfolio_notional_limit"
+                details["projected_reserved_notional"] = str(notional)
+        if reason is not None:
+            self._trace(
+                ts,
+                symbol,
+                "risk_decision",
+                "risk",
+                side=side,
+                quote_slot=target.quote_slot,
+                price_tick=target.price_tick,
+                qty_lots=target.qty_lots,
+                details={"reason": reason, "allowed": False, "phase": "before_send", **details},
+            )
+        return reason is None
+
+    def _hmm_sent_limit(self, spec: SymbolSpec, payload: dict[str, Any]) -> int:
+        if self.hmm_policy is None or self.regime is None:
+            raise AssertionError("sent HMM limit requires policy mode")
+        decision = payload.get("hmm_decision")
+        if not isinstance(decision, dict):
+            raise ValueError("policy outbound intent requires a frozen decision")
+        hysteresis = self.regime.settings.hysteresis
+        controls = self.hmm_policy.evaluate(
+            decision,
+            enter_probability=hysteresis.enter_probability,
+            maximum_normalized_entropy=hysteresis.maximum_normalized_entropy,
+        )
+        limit = integer(payload.get("hmm_soft_position_lots"), "sent HMM soft position limit")
+        base_lots = max(1, spec.qty_to_lot(max(Decimal("0.00000001"), self.cfg.mm_order_qty)))
+        expected_lots = int(
+            (Decimal(base_lots) * Decimal(str(controls.size_multiplier))).to_integral_value(rounding=ROUND_FLOOR)
+        )
+        if (
+            controls.stand_aside
+            or limit != self._hmm_soft_limit(spec, controls)
+            or integer(payload.get("qty_lots"), "sent HMM quantity", minimum=1) != expected_lots
+        ):
+            raise ValueError("policy outbound intent has inconsistent risk reservation")
+        return limit
 
     def _reject_arrival(
         self,
@@ -1537,8 +1681,6 @@ class SimulationEngine:
         missing_marks: list[str] = []
         for symbol in sorted(symbols):
             spec = self._specs.get(symbol)
-            if spec is None:
-                continue
             inventory_lots = self.metrics.inventory_lots(symbol)
             live_orders = [
                 order
@@ -1556,6 +1698,11 @@ class SimulationEngine:
             extra_applies = extra_symbol == symbol and extra_qty_lots > 0 and extra_price_tick is not None
             has_exposure = bool(inventory_lots or live_orders or pending_orders or extra_applies)
             if not has_exposure:
+                continue
+            if spec is None:
+                # Unknown units are unknown exposure, not a zero reservation.
+                # This matches accounting's unmarkable-inventory semantics.
+                missing_marks.append(symbol)
                 continue
 
             book = self._books.get(symbol)
@@ -1727,6 +1874,25 @@ class SimulationEngine:
                 extra_details={"capacity_lots": max(0, capacity)},
             )
             return
+
+        if self.hmm_policy is not None:
+            # Recheck the constraint actually sent at decision time. New HMM
+            # information affects later decisions/cancels, not venue causality.
+            sent_limit = self._hmm_sent_limit(book.spec, payload)
+            soft_capacity = self._hmm_side_capacity(symbol, side, sent_limit)
+            if qty_lots > max(0, soft_capacity):
+                self._reject_arrival(
+                    now=now,
+                    symbol=symbol,
+                    side=side,
+                    quote_slot=quote_slot,
+                    price_tick=price_tick,
+                    qty_lots=qty_lots,
+                    reason="hmm_soft_position_limit",
+                    source="risk",
+                    extra_details={"soft_position_lots": sent_limit, "capacity_lots": max(0, soft_capacity)},
+                )
+                return
 
         if self.cfg.mm_max_portfolio_notional > 0:
             reserved_notional, reserved_by_symbol, missing_marks = self._portfolio_notional_reservation(
@@ -2175,6 +2341,11 @@ class SimulationEngine:
             candidate_execution.validate_continuation(
                 decode_checkpoint(state["engine"]), self.metrics._primary_markout_horizon_ms
             )
+            if self.hmm_policy is not None:
+                decoded = decode_checkpoint(state["engine"])
+                for action in decoded["actions"]:
+                    if action.kind == "order_arrival":
+                        self._hmm_sent_limit(decoded["specs"][action.symbol], action.payload)
         elif "regime" in state:
             raise ValueError("HMM checkpoint cannot resume with HMM disabled")
         self._restore_checkpoint_mutable_state(state["engine"])
