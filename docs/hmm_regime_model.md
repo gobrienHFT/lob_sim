@@ -3,11 +3,12 @@
 ## Implementation status
 
 The feature/filter/artifact foundation, authoritative replay extraction, UTC-day
-partition reader, deterministic offline fitter and model inspector are implemented
-under `lob_sim/regime`. There is no model-enabled `simulate` mode yet, and no
-HMM strategy benefit, real-data regime result or holdout finding is published.
-The [implementation ledger](hmm_implementation_plan.md) tracks the remaining
-observer, policy and evaluation work. Existing simulation
+partition reader, deterministic offline fitter, model inspector, observation-only
+simulation and quote-lifetime execution audits are implemented under
+`lob_sim/regime`. `simulate --hmm observe` uses a frozen model. No HMM-aware
+quote policy, strategy benefit, real-data regime result or holdout finding is
+published. The [implementation ledger](hmm_implementation_plan.md) tracks the
+remaining policy, evaluation and overhead work. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
@@ -335,13 +336,85 @@ grid points. Recovery requires a complete causal feature warmup. A stale query
 returns null posterior/confidence, never the last apparently confident state.
 This does not change the base strategy's trade-stream execution requirements.
 
-Each enabled bounded run adds `hmm_model.json` and `regime_trace.csv` to its
+Each enabled bounded run adds `hmm_model.json`, `regime_trace.csv` and
+`regime_execution.csv` to its
 existing manifest. The trace includes raw/scaled features, posterior, next-state
 prior, generic state label, confidence/entropy, hysteresis, validity/epochs and
 reset reasons. Sample counts, sample-state transitions and entropy aggregates
 are model diagnostics, not economic attribution. The trace is streamed back
 through its canonical hash chain before the completion sentinel is removed.
 Writer/verification failures leave the bundle visibly incomplete.
+
+## Quote-lifetime attribution and descriptive execution statistics
+
+`regime_execution.csv` separates three immutable information sets:
+
+| Field | Information available at |
+| --- | --- |
+| `decision` | The strategy decision that actually sent this quote, not subsequent decisions that retained it |
+| `arrival` | Modeled venue acceptance, after arrival-time risk/post-only checks |
+| `pre_fill` | The fill-generating observation, before that observation enters feature sampling |
+
+Each includes causal logical/sample/availability timestamps, receive sequence,
+epochs, model identity, validity, posterior, raw and active state, confidence
+and normalized entropy. An invalid/stale signal has null inference. Missing
+creation/arrival attribution is explicitly null; it is never reconstructed from
+the later fill label. `STATE_n` remains a generic training-canonical label, not
+an asserted economic state. A valid but not yet confirmed active state is
+`UNCONFIRMED`; missing or invalid inference is `UNAVAILABLE`.
+
+Pre-fill attribution is captured before the current public trade/depth event
+updates the feature sampler, even when legacy action-first scheduling delays
+the accounting callback. Pending cancels retain their original context until
+acknowledgement or fill. Terminal fills/cancels, rejected/non-resting arrivals
+and invalidated epochs release order contexts. A deterministic `fill_id` is the
+existing global fill ordinal, so same-time, same-quantity partial fills cannot
+collide. Core order/fill dataclasses, matching rules and audit CSV schemas are
+unchanged. Paired `trades.csv` and `markouts.csv` remain byte-identical.
+
+The existing accounting/markout machinery—not a second execution model—emits
+attribution for every configured resolved or invalidated horizon. Each markout
+retains the at-fill snapshots rather than re-querying the estimator at its
+future observation. Signed markout is the core per-quantity, contract-scaled
+side-signed price difference. Its actual observation lag and invalid reason
+remain visible. Legacy markout resolution uses the existing seconds-based
+metric clock; HMM timestamp precision is not a new exchange-latency claim.
+
+The `hmm_execution` summary groups fill quantity/lots, fees, marked spread
+capture, quote age and pending-cancel fills by each of the three information
+sets. Per-state/horizon tables show resolved, invalidated and unresolved
+samples, resolved/fill coverage, quantity-weighted signed markout, adverse
+fraction and mean/max actual lag. Zero observed samples produce null means,
+not an invented zero outcome. Tail-unresolved horizons stay in the denominator;
+they are not silently discarded. The decision-to-pre-fill matrix counts fills,
+including partial fills, not distinct orders or time-weighted transitions.
+Spread capture and fees here are descriptive components, not a state-level PnL
+allocation, funding decomposition or economic-benefit claim.
+
+Book/capture gaps invalidate pending marks through the core validity state.
+A trade-only outage prevents future trade-dependent execution and invalidates
+the HMM, but does not erase valid book-only marks of already completed fills.
+Adversarial attribution tests found a prior replay bug: control-record
+invalidations could leave markout trace rows buffered until EOF, where their
+earlier timestamps violated causal order. All record boundaries now flush those
+rows before advancing or checkpointing. This repair applies with HMM disabled
+as well; it does not change fills, cash or horizon-resolution semantics.
+
+Both audit streams are independently re-read through their canonical hash
+chains before the run manifest is finalized. Aggregates have fixed cardinality
+in K, three phases and configured horizons. Live quote contexts are capped at
+the existing profile's two/four slots; pending snapshot memory is bounded by
+the existing markout cap. There is no tape-length posterior/fill history.
+Execution checkpoints validate model/configuration, posterior/entropy, bounded
+groups and counters, then cross-check actual live orders, outbound decisions,
+scheduled fills and pending horizon counts before changing the engine. Resume
+requires a null execution sink, as for the other audits.
+
+These tables answer descriptive quote-lifetime questions under the selected
+public-L2 fill/latency assumptions. They do not demonstrate predictive power,
+private Binance FIFO, true fills or profitable regime adaptation. Policy,
+registered paired evaluation and representative overhead measurement remain
+required next milestones.
 
 Feature windows, the current book anchor, forward log probabilities, hysteresis,
 last available signal, counts and hash chain enter strict model/config-bound JSON

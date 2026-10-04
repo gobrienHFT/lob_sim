@@ -32,6 +32,7 @@ def run_bounded_simulation(
             retain_event_trace=False,
             retain_audit_rows=False,
             regime_sink=export.regime_sink,
+            regime_execution_sink=export.regime_execution_sink,
         )
         metrics = engine.run(file_path, verbose=verbose, progress_every=progress_every)
     export.assert_row_counts(

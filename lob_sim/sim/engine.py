@@ -15,6 +15,7 @@ from ..book.sync import BookSyncGapError, BookSynchronizer
 from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SymbolSpec
 from ..config import Config
 from ..regime.observation import RegimeObserver
+from ..regime.execution import RegimeExecutionAudit, capture_stage
 from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
 from ..replay.reader import RecordedEvent, iter_records
@@ -94,6 +95,7 @@ class SimulationEngine:
         retain_audit_rows: bool = True,
         market_observer: MarketObserver | None = None,
         regime_sink: EventSink | None = None,
+        regime_execution_sink: EventSink | None = None,
     ) -> None:
         self.cfg = cfg
         self.adapter = adapter
@@ -101,7 +103,10 @@ class SimulationEngine:
             raise ValueError("HMM owns the market observer; do not attach a second observer")
         if cfg.hmm is None and regime_sink is not None:
             raise ValueError("regime sink requires HMM enabled")
+        if cfg.hmm is None and regime_execution_sink is not None:
+            raise ValueError("regime execution sink requires HMM enabled")
         self.regime = RegimeObserver(cfg.hmm, regime_sink) if cfg.hmm is not None else None
+        self.hmm_execution: RegimeExecutionAudit | None = None
         self._market_observer = self.regime or market_observer
         if market_observer is not None and (
             type(market_observer.depth_levels) is not int or market_observer.depth_levels <= 0
@@ -115,6 +120,16 @@ class SimulationEngine:
             retain_audit_rows=retain_audit_rows,
             buffer_markout_trace_events=retain_event_trace or not isinstance(self._event_sink, NullSink),
         )
+        if cfg.hmm is not None:
+            self.hmm_execution = RegimeExecutionAudit(
+                cfg.hmm.model.model_sha256,
+                cfg.hmm.symbol,
+                cfg.hmm.model.parameters.state_count,
+                self.metrics._active_markout_horizons_ms(),
+                2 if cfg.mm_strategy_profile == "baseline" else 4,
+                regime_execution_sink,
+            )
+            self.metrics._regime_execution = self.hmm_execution
         self.fill_model = PassiveFillModel(cfg.effective_fill_assumption)
         self.latency_model = LatencyModel(
             mode=cfg.sim_latency_mode,
@@ -421,6 +436,8 @@ class SimulationEngine:
         pending_replacement_count = sum(1 for slot in self._pending_replacement_slots if slot[0] == symbol)
         pending_action_count = sum(1 for action in self._actions if action.symbol == symbol)
         self.fill_model.invalidate_all_for_symbol(symbol)
+        if self.hmm_execution is not None and symbol == self.hmm_execution.symbol:
+            self.hmm_execution.clear_orders()
         self._pending_cancel_ack_ts = {
             order_id: ts
             for order_id, ts in self._pending_cancel_ack_ts.items()
@@ -1049,17 +1066,48 @@ class SimulationEngine:
         if enabled:
             print(message, flush=True)
 
+    def _hmm_stage(self, symbol: str, ts: float) -> dict[str, Any] | None:
+        if self.regime is None or symbol != self.regime.settings.symbol:
+            return None
+        logical_ns = self._schedule_time_key(ts)[0]
+        signal = self.regime.snapshot(logical_ns)
+        validity = self._validity_state(symbol, require_trade=True)
+        signal["validity"] = validity.as_dict()
+        syncer = self._syncers.get(symbol)
+        epochs = [
+            syncer.epoch if syncer is not None else 0,
+            self._stream_epochs.get((symbol, "public"), 0),
+            self._stream_epochs.get((symbol, "market"), 0),
+        ]
+        if signal["status"] == "VALID" and (not validity.execution_valid or signal.get("epochs") != epochs):
+            signal["status"] = "INVALID_INFORMATION_SET"
+            signal["filter_reset_reason"] = validity.reason or "epoch_mismatch"
+        return capture_stage(signal, logical_ns)
+
     def _emit_trade_event(self, ts: float, symbol: str, fills: list, *, market_observation: bool = False) -> None:
         if not fills:
             return
+        attribution = None
+        if self.hmm_execution is not None and symbol == self.hmm_execution.symbol:
+            # Freeze before the current trade enters feature sampling. In legacy
+            # action-first mode execution may drain later at the same timestamp.
+            before = self._hmm_stage(symbol, ts)
+            attribution = [self.hmm_execution.at_fill(fill.order_id, before) for fill in fills]
+            live_ids = {order.order_id for side in ("bid", "ask") for order in self.fill_model.get_orders(symbol, side)}
+            for fill in fills:
+                if fill.order_id is not None and fill.order_id not in live_ids:
+                    self.hmm_execution.release_order(fill.order_id)
         if market_observation and self._market_data_first:
             # A public market observation is applied before venue actions in
             # schema-v3. Execute its modeled queue fills now; scheduling them
             # behind a same-time cancel acknowledgement would reintroduce an
             # action-first race inside a single receipt timestamp.
-            self._handle_trades(fills)
+            self._handle_trades(fills, hmm_attributions=attribution)
             return
-        self._schedule(ts, "trade_execution", symbol, {"fills": fills})
+        payload = {"fills": fills}
+        if attribution is not None:
+            payload["hmm_attributions"] = attribution
+        self._schedule(ts, "trade_execution", symbol, payload)
 
     def _slot_key(self, symbol: str, side: str, quote_slot: str) -> tuple[str, str, str]:
         return (symbol, side, quote_slot)
@@ -1377,19 +1425,22 @@ class SimulationEngine:
                 arrival_ts = ts + order_latency_ms / 1000.0
                 if replacement_ack_ts is not None:
                     arrival_ts = replacement_ack_ts + order_latency_ms / 1000.0
+                arrival_payload: dict[str, Any] = {
+                    "side": side,
+                    "quote_slot": slot,
+                    "price_tick": target.price_tick,
+                    "qty_lots": target.qty_lots,
+                    "refresh_key": target.refresh_key,
+                    "decision_evidence_ids": decision_evidence_ids,
+                    "new_order_latency_ms": order_latency_ms,
+                }
+                if self.hmm_execution is not None and symbol == self.hmm_execution.symbol:
+                    arrival_payload["hmm_decision"] = self._hmm_stage(symbol, ts)
                 self._schedule(
                     arrival_ts,
                     "order_arrival",
                     symbol,
-                    {
-                        "side": side,
-                        "quote_slot": slot,
-                        "price_tick": target.price_tick,
-                        "qty_lots": target.qty_lots,
-                        "refresh_key": target.refresh_key,
-                        "decision_evidence_ids": decision_evidence_ids,
-                        "new_order_latency_ms": order_latency_ms,
-                    },
+                    arrival_payload,
                 )
                 self.metrics.on_order_arrival_scheduled()
                 self._trace(
@@ -1734,6 +1785,8 @@ class SimulationEngine:
             arrival_validity=arrival_validity,
             new_order_latency_ms=new_order_latency_ms,
         )
+        if self.hmm_execution is not None and symbol == self.hmm_execution.symbol:
+            self.hmm_execution.accept_order(order.order_id, payload.get("hmm_decision"), self._hmm_stage(symbol, now))
         fills = self.fill_model.place_order(order)
         resting_order = self.fill_model.get_order(symbol, side, quote_slot)
         resting_after_arrival = resting_order is not None and resting_order.order_id == order.order_id
@@ -1742,6 +1795,8 @@ class SimulationEngine:
         )
         if fills:
             self._emit_trade_event(now, symbol, fills)
+        if not resting_after_arrival and self.hmm_execution is not None:
+            self.hmm_execution.release_order(order.order_id)
         arrival_details = {
             "refresh_key": refresh_key,
             "remaining_lots_after_arrival": order.remaining_lots,
@@ -1781,15 +1836,24 @@ class SimulationEngine:
             return
         self._pending_cancel_ack_ts.pop(str(order_id), None)
         self.fill_model.cancel_order(str(order_id))
+        if self.hmm_execution is not None:
+            self.hmm_execution.release_order(str(order_id))
         self.metrics.on_cancel_acknowledged()
         self._trace(now, symbol, "cancel_ack", "engine", order_id=str(order_id))
 
-    def _handle_trades(self, fills: list) -> None:
-        for fill in fills:
+    def _handle_trades(self, fills: list, *, hmm_attributions: list[dict[str, Any]] | None = None) -> None:
+        if hmm_attributions is not None and len(hmm_attributions) != len(fills):
+            raise ValueError("HMM fill attribution batch mismatch")
+        for index, fill in enumerate(fills):
             book = self._books.get(fill.symbol)
             if book is None:
                 continue
-            fill_audit = self.metrics.on_fill(fill, book, book.mid_price())
+            fill_audit = self.metrics.on_fill(
+                fill,
+                book,
+                book.mid_price(),
+                hmm_attribution=hmm_attributions[index] if hmm_attributions is not None else None,
+            )
             self._trace(
                 fill.ts_local,
                 fill.symbol,
@@ -1860,7 +1924,9 @@ class SimulationEngine:
                 elif event.kind == "order_cancel":
                     self._handle_cancel(event.payload, event.ts, event.symbol)
                 elif event.kind == "trade_execution":
-                    self._handle_trades(event.payload.get("fills", []))
+                    self._handle_trades(
+                        event.payload.get("fills", []), hmm_attributions=event.payload.get("hmm_attributions")
+                    )
             finally:
                 self._active_logical_ns = previous_logical_ns
                 self._active_legacy_subns = previous_legacy_subns
@@ -1869,7 +1935,7 @@ class SimulationEngine:
     def _checkpoint_mutable_state(self) -> dict[str, Any]:
         """Capture every mutable input to the deterministic continuation."""
 
-        metric_excluded = {"cfg", "fee_model", "_fill_sink", "_markout_sink"}
+        metric_excluded = {"cfg", "fee_model", "_fill_sink", "_markout_sink", "_regime_execution"}
         metric_state = {key: value for key, value in self.metrics.__dict__.items() if key not in metric_excluded}
         strategy_state = {
             "returns": dict(self.strategy._returns),
@@ -2065,6 +2131,7 @@ class SimulationEngine:
         }
         if self.regime is not None:
             state["regime"] = self.regime.checkpoint()
+            state["hmm_execution"] = self.hmm_execution.checkpoint() if self.hmm_execution is not None else None
         checkpoint = Checkpoint.create(
             event_index=index,
             logical_time=(
@@ -2099,14 +2166,23 @@ class SimulationEngine:
         if state.get("adapter_identity") != checkpoint_adapter_identity(self.adapter):
             raise ValueError("simulation checkpoint adapter identity does not match current adapter")
         candidate_regime = None
+        candidate_execution = None
         if self.regime is not None:
             candidate_regime = self.regime.validated_copy(state.get("regime"))
+            if self.hmm_execution is None:
+                raise AssertionError("HMM execution audit missing")
+            candidate_execution = self.hmm_execution.validated_copy(state.get("hmm_execution"))
+            candidate_execution.validate_continuation(
+                decode_checkpoint(state["engine"]), self.metrics._primary_markout_horizon_ms
+            )
         elif "regime" in state:
             raise ValueError("HMM checkpoint cannot resume with HMM disabled")
         self._restore_checkpoint_mutable_state(state["engine"])
         if candidate_regime is not None:
             self.regime = candidate_regime
             self._market_observer = candidate_regime
+            self.hmm_execution = candidate_execution
+            self.metrics._regime_execution = candidate_execution
         self._last_ts = float(state["last_ts"])
         self._last_event_index = int(state["event_index"])
         self._market_data_first = bool(state["market_data_first"])
@@ -2146,6 +2222,12 @@ class SimulationEngine:
             self.regime.bind_input(file_sha256(input_file))
             if resume_from is not None and not isinstance(self.regime.sink, NullSink):
                 raise ValueError("regime checkpoint resume requires NullSink; do not append an incomplete audit")
+            if (
+                resume_from is not None
+                and self.hmm_execution is not None
+                and not isinstance(self.hmm_execution.sink, NullSink)
+            ):
+                raise ValueError("regime execution checkpoint resume requires NullSink")
         if resume_from is not None and any(
             not isinstance(sink, NullSink)
             for sink in (self._event_sink, self.metrics._fill_sink, self.metrics._markout_sink)
@@ -2176,6 +2258,10 @@ class SimulationEngine:
         interrupted = False
 
         def checkpoint_record() -> bool:
+            # Invalidations can originate in control or rejected records that
+            # never reach the normal market/markout drain below. Emit them at
+            # this causal boundary, not after later observations or at EOF.
+            self._trace_markout_events(self.metrics.drain_new_markout_events())
             # A control/invalid record is still a replay boundary. Previously
             # early continues bypassed both periodic checkpoints and stop limits.
             should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
@@ -2781,6 +2867,7 @@ class SimulationEngine:
         state = self._deterministic_state()
         if self.regime is not None:
             state["hmm"] = self.regime.checkpoint()
+            state["hmm_execution"] = self.hmm_execution.checkpoint() if self.hmm_execution is not None else None
         return state_hash(state)
 
     def _prepare_output_summary(
@@ -2803,6 +2890,7 @@ class SimulationEngine:
         summary.update(self._summary_annotations())
         if self.regime is not None:
             summary["hmm"] = self.regime.summary()
+            summary["hmm_execution"] = self.hmm_execution.summary() if self.hmm_execution is not None else None
         summary["state_sha256"] = self.state_sha256()
         seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
         summary["run_id"] = seed.run_id
@@ -2917,7 +3005,7 @@ class SimulationEngine:
             raise RuntimeError("bounded streaming finalization requires all detail retention to be disabled")
         required = {"event_trace", "markouts", "summary", "summary_csv", "trades", "manifest"}
         if self.regime is not None:
-            required |= {"regime_trace", "hmm_model"}
+            required |= {"regime_trace", "hmm_model", "regime_execution"}
         if set(output_files) != required:
             raise RuntimeError(f"unexpected streaming output contract: {sorted(output_files)}")
         audit_names = ("event_trace", "trades", "markouts")
@@ -2946,6 +3034,11 @@ class SimulationEngine:
             if load_model(output_files["hmm_model"]).model_sha256 != self.regime.settings.model.model_sha256:
                 raise ValueError("exported HMM model identity mismatch")
             verify_trace(output_files["regime_trace"], self.regime.summary())
+            from ..regime.execution import verify_execution_trace
+
+            if self.hmm_execution is None:
+                raise AssertionError("HMM execution audit missing")
+            verify_execution_trace(output_files["regime_execution"], self.hmm_execution.summary())
 
         summary, seed = self._prepare_output_summary(
             file_path,

@@ -6,7 +6,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from math import sqrt
-from typing import Any, Dict, List, cast
+from typing import TYPE_CHECKING, Any, Dict, List, cast
+from copy import deepcopy
 
 from ..book.local_book import LocalOrderBook
 from ..book.types import InstrumentSpec
@@ -15,6 +16,9 @@ from ..oracle import canonical_bytes
 from .fees import StaticFeeModel
 from .orders import Fill, FillSource
 from .sinks import EventSink, NullSink
+
+if TYPE_CHECKING:
+    from ..regime.execution import RegimeExecutionAudit
 
 FILL_SOURCES: tuple[FillSource, ...] = ("depth_update", "agg_trade", "taker_order")
 ORDER_LIFECYCLE_COUNT_KEYS: tuple[str, ...] = (
@@ -77,11 +81,13 @@ class SimulationMetrics:
         markout_sink: EventSink | None = None,
         retain_audit_rows: bool = True,
         buffer_markout_trace_events: bool | None = None,
+        regime_execution: RegimeExecutionAudit | None = None,
     ) -> None:
         self.cfg = cfg
         self.fee_model = StaticFeeModel.from_config(cfg)
         self._fill_sink = fill_sink or NullSink()
         self._markout_sink = markout_sink or NullSink()
+        self._regime_execution = regime_execution
         self._retain_audit_rows = retain_audit_rows
         self._buffer_markout_trace_events = (
             retain_audit_rows if buffer_markout_trace_events is None else buffer_markout_trace_events
@@ -235,8 +241,8 @@ class SimulationMetrics:
     def pending_markout_state(self) -> list[dict[str, Any]]:
         """Return the bounded unresolved state used by deterministic hashing."""
 
-        return [dict(entry) for entry in self._pending_markouts] + [
-            dict(entry) for entry in self._pending_markout_horizons
+        return [deepcopy(entry) if "hmm_attribution" in entry else dict(entry) for entry in self._pending_markouts] + [
+            deepcopy(entry) if "hmm_attribution" in entry else dict(entry) for entry in self._pending_markout_horizons
         ]
 
     def register_symbol(self, symbol: str) -> None:
@@ -406,9 +412,17 @@ class SimulationMetrics:
         stats["resolution_lag_ms_sum"] += lag_ms
         if lag_ms > stats["resolution_lag_ms_max"]:
             stats["resolution_lag_ms_max"] = lag_ms
+        if self._regime_execution is not None:
+            self._regime_execution.on_markout(entry, horizon_ms, markout=markout, observed_ts=now_ts)
 
-    def _record_horizon_invalidation(self, horizon_ms: int) -> None:
+    def _record_horizon_invalidation(
+        self, horizon_ms: int, entry: Mapping[str, Any], reason: str, now_ts: float
+    ) -> None:
         self._markout_horizon_stats[horizon_ms]["invalidated_samples"] += 1
+        if self._regime_execution is not None:
+            self._regime_execution.on_markout(
+                entry, horizon_ms, markout=None, observed_ts=now_ts, invalid_reason=reason
+            )
 
     @staticmethod
     def _horizon_markout(entry: Mapping[str, Any], mid: Decimal) -> tuple[Decimal, Decimal]:
@@ -557,7 +571,7 @@ class SimulationMetrics:
             self._record_markout_audit(invalidated_event)
             primary_horizon_ms = self._primary_markout_horizon_ms
             if primary_horizon_ms is not None:
-                self._record_horizon_invalidation(primary_horizon_ms)
+                self._record_horizon_invalidation(primary_horizon_ms, entry, reason, invalidation_ts)
         self._pending_markouts = keep
 
         additional_keep: list[dict[str, Any]] = []
@@ -565,7 +579,12 @@ class SimulationMetrics:
             if entry.get("symbol") != symbol:
                 additional_keep.append(entry)
                 continue
-            self._record_horizon_invalidation(int(entry["horizon_ms"]))
+            self._record_horizon_invalidation(
+                int(entry["horizon_ms"]),
+                entry,
+                reason,
+                ts_local if ts_local is not None else float(entry["ts_local"]),
+            )
         self._pending_markout_horizons = additional_keep
         self.markout_invalidated_count += invalidated
         self.markout_unresolved_count += invalidated
@@ -598,7 +617,14 @@ class SimulationMetrics:
                 f"{self.cfg.sim_kill_max_consecutive_losses}"
             )
 
-    def on_fill(self, fill: Fill, book: LocalOrderBook, mid: Decimal | None) -> dict[str, Any]:
+    def on_fill(
+        self,
+        fill: Fill,
+        book: LocalOrderBook,
+        mid: Decimal | None,
+        *,
+        hmm_attribution: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         active_horizons = self._active_markout_horizons_ms()
         primary_pending_limit_reached = len(self._pending_markouts) >= self.cfg.sim_max_pending_markouts
         additional_horizons = max(0, len(active_horizons) - int(self._primary_markout_horizon_ms is not None))
@@ -735,6 +761,15 @@ class SimulationMetrics:
             "book_ask_tick": best_ticks[1] if best_ticks else None,
         }
         self._record_fill_audit(fill_audit)
+        frozen_hmm = None
+        if hmm_attribution is not None:
+            if self._regime_execution is None:
+                raise ValueError("HMM fill attribution requires its execution audit")
+            frozen_hmm = self._regime_execution.on_fill(
+                self.fill_count,
+                {**fill_audit, "qty_lots": fill.qty_lots},
+                hmm_attribution,
+            )
 
         if self.cfg.sim_adverse_markout_seconds > 0:
             self._pending_markouts.append(
@@ -752,6 +787,7 @@ class SimulationMetrics:
                     "mid_at_fill": str(mid) if mid is not None else None,
                     "fill_source": fill.source,
                     "order_id": fill.order_id,
+                    **({"hmm_attribution": frozen_hmm} if frozen_hmm is not None else {}),
                 }
             )
             primary_horizon_ms = self._primary_markout_horizon_ms
@@ -774,6 +810,7 @@ class SimulationMetrics:
                         "fill_source": fill.source,
                         "order_id": fill.order_id,
                         "horizon_ms": horizon_ms,
+                        **({"hmm_attribution": frozen_hmm} if frozen_hmm is not None else {}),
                     }
                 )
 

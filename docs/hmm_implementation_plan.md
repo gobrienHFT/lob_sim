@@ -55,7 +55,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
-| K | State-conditioned execution and markouts | Pending |
+| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix and cancel-race regressions |
 | L | Opt-in HMM market-making profile | Pending |
 | M | Hard risk dominance tests | Pending |
 | N | Hysteresis and uncertainty tests | Estimator tests implemented; policy controls pending |
@@ -66,9 +66,9 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | S | Human-readable model/state diagnostics | regime-inspect includes training signatures, occupancy, risk and transitions |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
-| V | Bounded runtime windows and audit output | Streamed feature/regime audits; fixed trailing windows and one current signal; 2,000-step virtual stream regression (not soak evidence) |
+| V | Bounded runtime windows and audit output | Streamed feature/regime/execution audits; fixed windows, one signal, capped live-order contexts and core capped pending horizons; virtual stream regressions (not soak evidence) |
 | W | Existing tests pass after integration | Pending |
-| X | New tests pass | Foundation, dataset/fit and observation/checkpoint suites implemented; final policy/evaluation checks pending |
+| X | New tests pass | Foundation, dataset/fit, observation/checkpoint and execution-attribution suites implemented; final policy/evaluation checks pending |
 | Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |
 | Z | Complete reviewer gate passes | Pending |
 

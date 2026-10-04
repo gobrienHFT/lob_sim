@@ -292,6 +292,7 @@ class StreamingSimulationExport:
     incomplete_path: Path
     _audit_finalized: bool = False
     regime_sink: StreamingCsvSink | None = None
+    regime_execution_sink: StreamingCsvSink | None = None
 
     @classmethod
     def create(
@@ -337,15 +338,20 @@ class StreamingSimulationExport:
             markout_sink = StreamingCsvSink(output_files["markouts"], MARKOUT_AUDIT_FIELDS)
             sinks.append(markout_sink)
             regime_sink = None
+            regime_execution_sink = None
             if cfg.hmm is not None:
                 from ..regime.artifact import save_model
                 from ..regime.observation import TRACE_FIELDS
+                from ..regime.execution import EXECUTION_FIELDS
 
                 output_files["hmm_model"] = run_dir / "hmm_model.json"
                 output_files["regime_trace"] = run_dir / "regime_trace.csv"
+                output_files["regime_execution"] = run_dir / "regime_execution.csv"
                 save_model(output_files["hmm_model"], cfg.hmm.model)
                 regime_sink = StreamingCsvSink(output_files["regime_trace"], TRACE_FIELDS)
                 sinks.append(regime_sink)
+                regime_execution_sink = StreamingCsvSink(output_files["regime_execution"], EXECUTION_FIELDS)
+                sinks.append(regime_execution_sink)
         except Exception:
             for sink in sinks:
                 sink.abort()
@@ -360,6 +366,7 @@ class StreamingSimulationExport:
             markout_sink=markout_sink,
             incomplete_path=incomplete_path,
             regime_sink=regime_sink,
+            regime_execution_sink=regime_execution_sink,
         )
 
     @property
@@ -369,7 +376,7 @@ class StreamingSimulationExport:
     @property
     def audit_sinks(self) -> tuple[StreamingCsvSink, ...]:
         ordinary = (self.event_sink, self.fill_sink, self.markout_sink)
-        return ordinary + (self.regime_sink,) if self.regime_sink is not None else ordinary
+        return ordinary + tuple(sink for sink in (self.regime_sink, self.regime_execution_sink) if sink is not None)
 
     def __enter__(self) -> "StreamingSimulationExport":
         return self

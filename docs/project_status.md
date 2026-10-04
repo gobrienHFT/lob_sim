@@ -88,8 +88,14 @@ and includes the frozen model in a verified audit bundle. Bounded feature/filter
 hysteresis checkpoints resume identically through market, control and outage
 boundaries. Disabled configurations retain their pre-HMM behavioral hashes.
 
-Decision/arrival/fill attribution, state-conditioned execution metrics,
-hard-risk-dominated policy adaptation, paired economic evaluation and overhead
+Execution audits now freeze distinct decision, arrival and pre-fill information
+sets, preserve them through all configured markout horizons, and report
+state-conditioned quantities, fees, quote age, signed markouts, coverage and
+decision-to-fill transitions. Live contexts and pending horizon metadata are
+bounded, and checkpoint loading cross-checks the audit against core execution
+state. The paired base fill/markout CSVs and accounting remain unchanged.
+
+Hard-risk-dominated policy adaptation, paired economic evaluation and overhead
 evidence remain required. No trained real-market model, alpha or holdout claim
 is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
