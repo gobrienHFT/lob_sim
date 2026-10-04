@@ -581,3 +581,30 @@ def test_environment_load_and_immutable_model_do_not_follow_file_mutation(tmp_pa
     from lob_sim.regime.artifact import load_model
 
     assert load_model(files["hmm_model"]).model_sha256 == settings().model.model_sha256
+
+
+def test_audit_consumer_cannot_mutate_live_signal_or_its_canonical_hash(tmp_path):
+    class MutatingSink(NullSink):
+        def write(self, row):
+            if row["posterior"] is not None:
+                row["posterior"][0] = 0.5
+                row["features"][0] = -999.0
+
+    path = tape(tmp_path / "input.ndjson")
+    configuration = replace(cfg(), hmm=settings())
+    original = SimulationEngine(configuration)
+    original.run(path)
+    attacked = SimulationEngine(configuration, regime_sink=MutatingSink())
+    attacked.run(path)
+    assert attacked.regime._latest == original.regime._latest
+    assert attacked.regime.summary() == original.regime.summary()
+    assert attacked.state_sha256() == original.state_sha256()
+
+
+def test_checkpoint_is_an_independent_snapshot_not_a_live_signal_handle(tmp_path):
+    engine, _ = run(tape(tmp_path / "input.ndjson"))
+    expected = copy.deepcopy(engine.regime._latest)
+    checkpoint = engine.regime.checkpoint()
+    checkpoint["latest"]["posterior"][0] = 0.5
+    checkpoint["latest"]["features"][0] = -999.0
+    assert engine.regime._latest == expected

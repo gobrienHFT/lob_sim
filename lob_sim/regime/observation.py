@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import csv
+from copy import deepcopy
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import replace
@@ -104,8 +105,9 @@ class RegimeObserver(FeatureDatasetObserver):
     def _write(self, row: dict[str, Any]) -> None:
         # Sink failure stops the run; no count/hash claims for an unaccepted row.
         row = {key: row.get(key) for key in TRACE_FIELDS}
-        self.sink.write(row)
-        self._trace_sha256 = advance_trace_digest(self._trace_sha256, row)
+        next_digest = advance_trace_digest(self._trace_sha256, row)
+        self.sink.write(deepcopy(row))
+        self._trace_sha256 = next_digest
         self._trace_count += 1
 
     def _receive_sample(self, row: Mapping[str, Any]) -> None:
@@ -277,7 +279,7 @@ class RegimeObserver(FeatureDatasetObserver):
             "input_sha256": self.input_sha256,
             "contexts": contexts,
             "estimator": self.estimator.checkpoint(),
-            "latest": self._latest,
+            "latest": deepcopy(self._latest),
             "immediate_status": self._immediate_status,
             "immediate_reason": self._immediate_reason,
             "trace_count": self._trace_count,
