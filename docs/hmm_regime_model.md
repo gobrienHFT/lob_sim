@@ -613,6 +613,13 @@ outbound request is distinguished from a venue rejection. The legacy core
 `quote_fill_probability` metric retains its existing arrived-including-rejects
 denominator; these new explicitly named fractions do not silently redefine it.
 
+The cutoff follows the existing scheduler contract: schema-v3 stops at the last
+market observation and leaves later actions pending; legacy tapes retain their
+labeled post-tape compatibility drain. Terminal `filled` states reflect modeled
+matching, while cohort fill counters reflect accounting callbacks. A fault that
+discards a delayed execution can therefore leave more matched terminal orders
+than accounted unique filled orders. Those quantities are not interchangeable.
+
 The first-fill flag is frozen when matching consumes quantity, before a terminal
 order context can be removed or delayed legacy accounting can run. The engine
 cross-checks it against the matching model's independent `is_first_fill_for_order`

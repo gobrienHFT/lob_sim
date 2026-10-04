@@ -67,10 +67,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full suite passes at b39b680; repeat after remaining research integration |
+| W | Existing tests pass after integration | Full suite passes at 218027e; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (56 source files), Ruff and format (160 files) pass at b39b680; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at b39b680, including 971 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
+| Y | Standard lint and typing pass | Gate Mypy (57 source files), Ruff and format (162 files) pass at 218027e; full-package Mypy also passes across 71 source files; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at 218027e, including 1019 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
 
 ## Release boundaries
 
@@ -80,8 +80,10 @@ complete/censored episodes. It is descriptive, not an economic evaluation.
 Quote cohorts now distinguish scheduled/arrived/accepted/rejected/discarded
 requests, unique filled orders and fill events, with explicit cutoff censoring.
 Their fixed-cardinality stream and checkpoint are checked against core orders,
-scheduler requests and accounted fill rows. This change awaits its complete
-reviewer gate and cross-platform CI before being recorded as a verified release.
+scheduler requests and accounted fill rows. All 48 new regressions and the full
+clean reviewer gate pass at 218027e. The first gate also rejected a corrupted
+quantity correctly, but a prior test expected the later risk-reservation error;
+its precise earlier-identity expectation and unchanged-core assertion now pass.
 Fill-source tables, time-weighted state risk, registered
 paired research, raw synthetic recovery and representative overhead remain.
 New observer checkpoint version 2 rejects older HMM continuation state rather

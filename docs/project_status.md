@@ -117,6 +117,11 @@ decision/arrival labels, explicit denominators and cutoff censoring remain
 visible in the bounded lifecycle stream and `regime-report`; collector
 checkpoints are cross-checked against actual orders and pending requests.
 These fractions are descriptive scenario outcomes, not live fill probabilities.
+The clean quote-cohort milestone at `218027e` passes all 15 reviewer-gate steps:
+1,019 Python tests, 16 Rust tests, typing/lint/format, primitive differential,
+artifact/determinism/fault checks, installed-wheel verification and fixture
+benchmark. It adds 48 regression cases; this is not representative HMM overhead
+or a dedicated-host performance result.
 
 Source/risk characterization, registered paired economic evaluation, synthetic
 raw-tape recovery diagnostics and overhead evidence remain required. No trained
