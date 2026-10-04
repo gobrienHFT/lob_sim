@@ -2,22 +2,25 @@
 
 ## Implementation status
 
-The dependency-free feature/filter/artifact foundation is implemented under
-`lob_sim/regime`. It is not yet connected to `simulate`, and no fitted model,
+The feature/filter/artifact foundation, authoritative replay extraction, UTC-day
+partition reader, deterministic offline fitter and model inspector are implemented
+under `lob_sim/regime`. There is no model-enabled `simulate` mode yet, and no
 HMM strategy benefit, real-data regime result or holdout finding is published.
 The [implementation ledger](hmm_implementation_plan.md) tracks the remaining
-dataset, fitting, observer, policy and evaluation work. Existing simulation
+observer, policy and evaluation work. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
 
-The intended path is authoritative replay/book state → fixed-grid features →
+The data path is authoritative replay/book state → fixed-grid features →
 frozen training scaler → forward filter → diagnostics / optional policy.
 `BookView.from_book` copies the reconstructed integer tick/lot levels; the
 feature engine does not parse Binance payloads, synchronize its own exchange
-book, change orders, invent fills or alter hard risk limits. Model fitting will
-remain separate from runtime inference. No optional scientific dependency is
-needed for this foundation.
+book, change orders, invent fills or alter hard risk limits. Model fitting remains
+separate from runtime inference. The optional `hmm` extra supplies hmmlearn and
+the scientific fitting stack; extraction and the frozen runtime filter use only
+the base package. Reviewer/development requirements include the extra so the
+fitting tests are actually exercised in CI.
 
 ## Sampling and sequence boundaries
 
@@ -103,15 +106,15 @@ clears state rather than preserving a misleading previous regime.
 ## Train-only preprocessing
 
 `TrainOnlyScaler.fit_training` accepts only the training rows selected by the
-future dataset/partition layer. It optionally clips each column at training
+dataset/partition layer. It optionally clips each column at training
 quantiles 0.5% and 99.5%, then computes its population mean and standard
 deviation from the clipped training values. Frozen bounds are also applied at
 runtime. An exactly constant training feature has scale one and an explicit
 constant flag; its live behavior is still visible when clipping is disabled.
 Validation/test transforms cannot update training statistics. Reordered
 features, changed formula identities, missing dimensions and non-finite
-values are rejected. Full chronological partition enforcement is still part
-of the pending fitting milestone, not claimed from the scaler API alone.
+values are rejected. Whole-day chronological separation is enforced by the
+partition reader and fitter, not merely by the scaler API's method name.
 
 ## Filtering is not smoothing
 
@@ -143,7 +146,7 @@ proof remains required at integration.
 
 State numbers have no inherent economic meaning. No current artifact labels
 an index as “calm”, “toxic” or “profitable”. Training-only state characterization
-and canonical ordering will be added during fitting. Model parameters can be
+and canonical ordering are computed during fitting. Model parameters can be
 permuted with both transition axes, start probabilities and emissions changing
 together; likelihood must stay unchanged.
 
@@ -169,9 +172,12 @@ provenance text are covered by a canonical SHA-256. The loader checks schema,
 unknown/missing fields, checksum, dimensions, feature order/formulas,
 probabilities, finite values and positive variances. It rejects duplicate JSON
 keys and non-finite constants and limits reads to 8 MiB. No pickle is loaded.
-Provenance currently supports hand-specified synthetic test models; complete
-partition/seed/input/dependency/selection provenance is required when fitting
-is implemented. A checksum is not author authentication.
+Fitted provenance includes source identity, dataset/partition hashes, whole UTC
+days, independent sequence lengths, row identities, restart seeds, fit settings,
+complete attempt/candidate ledgers, dependency versions, training-only state
+characterization and canonical label mapping. Hand-specified synthetic unit
+models remain supported but do not become fitted evidence. A checksum is not
+author authentication.
 
 Saving uses an exclusive `.partial`, flush/fsync, and no-clobber hard-link
 finalization. Existing final or partial evidence is preserved. A failed
@@ -180,28 +186,122 @@ semantics must fail rather than overwrite. Numeric filter and hysteresis
 checkpoints validate their parameter/configuration identity and state before
 restoring. Complete simulator/sampler checkpoints are a remaining milestone.
 
-## Selection and research protocol (not yet implemented)
+## Validated extraction and partition isolation
 
-The fitter will use K=2,3,4,5, diagonal covariance and ten deterministic restarts
-per K. The best restart for each K is selected by training likelihood, with
-candidate selection based on validation likelihood and registered simplicity/
-BIC tie rules. Test data cannot choose K, preprocessing, features, policy or
-cadence. Parameter-count BIC includes `(K-1) + K*(K-1) + 2*K*D` free parameters.
-Convergence, invalid/collapsed fits and occupancy must remain in the candidate
-ledger; reaching an iteration cap is not automatically a convergence proof.
+`regime-features` runs the same record validator, normalizer, synchronizer,
+integer receipt clock and independent validity state as `SimulationEngine`.
+The observer receives immutable bounded level copies, validated changes and
+normalized trades. It never gets mutable books, order actions or latency RNGs,
+and does not emit into the simulator's event-ID sequence. Paired regression
+tests compare complete action traces, metrics, counters and checkpoint state.
 
-The existing whole-UTC-day 60/20/20 protocol and frozen variant registry will
-be reused. At least ten joint-valid UTC days are needed for holdout claims;
+Before-record samples close *after* earlier actions have drained and before the
+new market state is applied. A grid point at t includes every receive-sequence
+tie at t; it becomes available on the next strictly later receipt, or at EOF.
+Rows distinguish `sample_ns` from `available_at_ns`. UTC time is projected from
+the last already-observed wall/monotonic anchor, never from a future receipt.
+Legacy float-clock rows are labeled `legacy_diagnostic`. Nanosecond integer
+division prevents the last nanosecond of a UTC day rounding into the next day.
+
+The exporter retains one row buffer, one open daily stream, per-symbol feature
+windows, and per-day path/count metadata—not tape-sized traces. Each UTC day is
+physically separate. Files are fsynced and finalized without clobbering; a final
+checksummed manifest is published only after successful replay and an unchanged
+source-file hash. Failed extractions remain visibly incomplete and cannot be
+loaded as a dataset. Checksums identify bytes, not a trusted author.
+
+`dataset_split` reuses the existing chronological 60/20/20 UTC-day protocol.
+Calibration/validation readers do not even open other partitions' row files.
+Test access requires an already frozen `ResearchRegistry`; the guard is a
+research workflow contract, not protection against manually opening files.
+Lengths reset across symbols, input captures, instrument changes, epochs,
+invalid/stale intervals, sampling gaps and UTC-day boundaries. Offline fitting
+accepts one instrument/grid and defaults to a one-million-row cap per partition.
+Training may hold finite matrices in RAM; it is not the bounded runtime path.
+
+Days containing valid rows are not complete joint-valid days. Extraction and
+fitting are explicitly diagnostic-only until independent coverage evidence is
+available, even if the folder contains ten different UTC filenames.
+
+Observer checkpoint/resume is explicitly rejected before replay or checkpoint
+publication until feature/estimator state is integrated into checkpoints. The
+ordinary HMM-disabled checkpoint path remains available.
+
+## Model selection
+
+Defaults are K=2,3,4,5, diagonal covariance and ten SHA-256-derived restart seeds
+per K, base seed 7, 300 EM iterations and tolerance 0.0001. BLAS thread pools are
+limited to one thread. Numerical reproducibility is tested within an identical
+software/CPU environment; it is not a promise of bit identity across libraries.
+
+Only calibration rows estimate the clipping/scaling and emission/transition
+parameters. Independent sequence lengths are supplied to fitting and scoring.
+Convergence requires two finite likelihood observations and a final gain in
+[-tolerance, tolerance), not merely the library's iteration-limit flag. Failed
+restarts remain in the ledger with seeds, reasons and available diagnostics.
+Default gates require 20 training rows per state, all positive finite numeric
+parameters, variance >= 1e-8, effective occupancy >= one observation per state,
+and standardized RMS mean separation >= 0.05 over nonconstant features. These
+are explicit numerical gates, not proof that rare states are economically real.
+
+For each K, the best valid restart is selected by **training** likelihood;
+restart order resolves exact ties. Candidates are then scored on validation
+likelihood per observation. Within 0.01 of the best value, choose the lowest
+training BIC, then smaller K, then restart index. Parameter-count BIC includes
+`(K-1) + K*(K-1) + 2*K*D` free parameters. The fitter accepts calibration and
+validation only and rejects test, nonchronological and incompatible inputs
+before loading the fitting dependency. Test cannot choose K or preprocessing.
+
+Training-only smoothed responsibilities characterize states retrospectively.
+Canonical labels sort by a relative risk signature: equal percentile-rank
+weights for wider spread, higher realized volatility, thinner visible depth,
+absolute L1 imbalance and absolute aggressive-trade imbalance. Ties use the
+emission means/variances, then raw index; both transition axes and start/emission
+parameters are permuted together. Reports expose occupancy, raw-feature means,
+relative risk, raw-to-canonical correspondence, transition matrix and geometric
+duration. Labels remain `STATE_0...`; no economic names or profit probabilities
+are invented. Signed imbalance describes direction, not an edge estimate.
+
+Numeric switching tests recover separated synthetic Gaussian emissions and
+compare prefix-end posteriors and sequence likelihoods with hmmlearn. They are
+not a synthetic exchange calibration or evidence that Binance has those states.
+
+The existing frozen variant registry will govern the economic study. At least
+ten joint-valid UTC days are needed for holdout claims;
 otherwise results are diagnostic. The economic study will pair identical tapes,
 seeds, fill scenarios, latencies and fees across baseline, observation-only and
 opt-in policy runs, with moving-block bootstrap sensitivity. No such study has
 been completed by the numerical foundation tests.
 
-## Reproduce the foundation checks
+## Commands available now
+
+First install optional fitting dependencies:
+
+```bash
+python -m pip install ".[hmm]"
+```
+
+The following paths are examples for a user-supplied finalized multi-day capture,
+not bundled research data. At least three distinct days with valid rows are
+needed for three nonempty partitions; short/tiny tapes cannot support a fit.
+Use fresh output names: no final/partial evidence is overwritten.
+
+```bash
+python -m lob_sim.cli --env .env.example regime-features --file data/multiday.capture.manifest.json --out outputs/regime_features --symbol BTCUSDT
+python -m lob_sim.cli regime-fit --dataset outputs/regime_features --symbol BTCUSDT --model outputs/regime_model.json --report outputs/regime_fit_report.json
+python -m lob_sim.cli regime-inspect --model outputs/regime_model.json
+```
+
+If all candidates fail, the attempt report is still saved and no model is
+published. `regime-fit --help` exposes K, restarts, seed, iteration and row caps;
+`regime-inspect --json` exposes complete provenance. Policy, simulation and
+paired-comparison commands remain pending and are not advertised as working.
+
+## Reproduce checks
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pytest -q tests/test_hmm_filter.py tests/test_hmm_preprocess_artifact.py tests/test_hmm_features.py tests/test_hmm_runtime.py tests/test_hmm_baseline.py
+python -m pytest -q -k hmm
 python -m mypy lob_sim/regime
 python scripts/reviewer_gate.py
 ```
@@ -209,8 +309,12 @@ python scripts/reviewer_gate.py
 The HMM-disabled golden fixture freezes preimplementation summary and event
 trace hashes. Adding source necessarily changes repository/code provenance;
 that is not a behavioral change and is not disguised as identical source.
-Fitting, inspect, simulation and comparison CLI commands will be documented
-only once they exist and have been verified.
+Schema-v3 requote timers now use integer nanoseconds. The new long-enough receipt
+fixture exposed a pre-existing float-accumulation/epsilon bug that could schedule
+a just-before-t action after the t market record and raise a causal trace error.
+That boundary is deliberately repaired; legacy golden behavior remains intact.
+
+Fitting reference: [hmmlearn API](https://hmmlearn.readthedocs.io/en/stable/api.html).
 
 ## Limitations and portfolio claim
 

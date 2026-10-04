@@ -1250,6 +1250,34 @@ def main() -> None:
     n.add_argument("--batch-size", type=int, default=65_536)
     n.set_defaults(func=cmd_normalize)
 
+    features = sub.add_parser(
+        "regime-features", help="Extract causal validated HMM features into immutable UTC-day files"
+    )
+    features.add_argument("--file", required=True)
+    features.add_argument("--out", required=True)
+    features.add_argument("--symbol", action="append", default=[])
+    features.add_argument("--interval-ms", type=int, default=1000)
+    features.add_argument("--window-steps", type=int, default=10)
+    features.add_argument("--depth-levels", type=int, default=5)
+    features.add_argument("--stale-after-ms", type=int, default=5000)
+
+    fit = sub.add_parser("regime-fit", help="Fit train-only HMM restarts and select using validation, never test")
+    fit.add_argument("--dataset", required=True)
+    fit.add_argument("--symbol", required=True)
+    fit.add_argument("--model", required=True)
+    fit.add_argument("--report", required=True)
+    fit.add_argument("--state-counts", default="2,3,4,5")
+    fit.add_argument("--restarts", type=int, default=10)
+    fit.add_argument("--seed", type=int, default=7)
+    fit.add_argument("--max-iterations", type=int, default=300)
+    fit.add_argument("--max-rows", type=int, default=1_000_000)
+
+    inspect_regime = sub.add_parser(
+        "regime-inspect", help="Inspect safe frozen HMM JSON and training-only state signatures"
+    )
+    inspect_regime.add_argument("--model", required=True)
+    inspect_regime.add_argument("--json", action="store_true")
+
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
     s.add_argument(
@@ -1298,6 +1326,42 @@ def main() -> None:
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
+    if args.command == "regime-inspect":
+        from .regime.artifact import load_model
+        from .regime.fit import inspect_model
+
+        model = load_model(args.model)
+        print(json.dumps(model.as_dict(), indent=2, sort_keys=True) if args.json else inspect_model(model))
+        return
+    if args.command == "regime-fit":
+        from .regime.artifact import save_model
+        from .regime.dataset import dataset_split, publish_json, read_partition
+        from .regime.fit import FitConfig, fit_candidates
+
+        try:
+            settings = FitConfig(
+                state_counts=tuple(int(value.strip()) for value in args.state_counts.split(",")),
+                restarts=args.restarts,
+                seed=args.seed,
+                max_iterations=args.max_iterations,
+            )
+            for output in (args.model, args.report):
+                if Path(output).exists() or Path(output + ".partial").exists():
+                    raise FileExistsError(output)
+            if Path(args.model).resolve() == Path(args.report).resolve():
+                raise ValueError("model and report must be different files")
+            split = dataset_split(args.dataset)
+            training = read_partition(args.dataset, split, "calibration", symbol=args.symbol, max_rows=args.max_rows)
+            validation = read_partition(args.dataset, split, "validation", symbol=args.symbol, max_rows=args.max_rows)
+            result = fit_candidates(training, validation, settings)
+            publish_json(Path(args.report), result.report())
+            if result.model is None:
+                raise SystemExit("No valid HMM candidate. Full failed-attempt ledger: " + args.report)
+            save_model(args.model, result.model)
+            print(inspect_model(result.model))
+        except (OSError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        return
     if args.command == "options-demo":
         args.func(
             args.out_dir,
@@ -1335,7 +1399,22 @@ def main() -> None:
         return
 
     cfg = load_config(args.env or ".env")
-    if args.command in {"capture", "collect"}:
+    if args.command == "regime-features":
+        from .regime.dataset import extract_features
+        from .regime.features import FeatureSpec
+
+        try:
+            feature_spec = FeatureSpec(
+                interval_ns=args.interval_ms * 1_000_000,
+                window_steps=args.window_steps,
+                depth_levels=args.depth_levels,
+                stale_after_ns=args.stale_after_ms * 1_000_000,
+            )
+            report = extract_features(args.file, args.out, cfg, spec=feature_spec, symbols=tuple(args.symbol))
+            print(json.dumps(report, indent=2, sort_keys=True))
+        except (OSError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+    elif args.command in {"capture", "collect"}:
         asyncio.run(args.func(cfg, args.verbose))
     elif args.command == "doctor":
         args.func(cfg)

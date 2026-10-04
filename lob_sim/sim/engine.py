@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
-from heapq import heapify, heappush, heappop
+from heapq import heapify, heappush, heappop, nlargest, nsmallest
 from itertools import islice
 from pathlib import Path
 from typing import Any, Dict
@@ -12,7 +12,7 @@ import math
 
 from ..book.local_book import BookInvariantError, LocalOrderBook
 from ..book.sync import BookSyncGapError, BookSynchronizer
-from ..book.types import DepthUpdateEvent, SymbolSpec
+from ..book.types import AggTradeEvent, DepthUpdateEvent, LevelChange, SymbolSpec
 from ..config import Config
 from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
@@ -50,6 +50,7 @@ from .checkpoint import (
 )
 from .sinks import EventSink, NullSink, StreamingCsvSink
 from .latency import LatencyModel
+from .observation import MarketObservation, MarketObserver
 
 STREAM_FAILURE_EVENTS = frozenset({"disconnect", "connect_failure", "parse_failure", "overflow"})
 # A route failure invalidates only the affected market-data dimension. These
@@ -90,9 +91,15 @@ class SimulationEngine:
         markout_sink: EventSink | None = None,
         retain_event_trace: bool = True,
         retain_audit_rows: bool = True,
+        market_observer: MarketObserver | None = None,
     ) -> None:
         self.cfg = cfg
         self.adapter = adapter
+        self._market_observer = market_observer
+        if market_observer is not None and (
+            type(market_observer.depth_levels) is not int or market_observer.depth_levels <= 0
+        ):
+            raise ValueError("observer depth_levels must be a positive integer")
         self._event_sink = event_sink or NullSink()
         self.metrics = SimulationMetrics(
             cfg,
@@ -115,6 +122,7 @@ class SimulationEngine:
         self._books: Dict[str, LocalOrderBook] = {}
         self._syncers: Dict[str, BookSynchronizer] = {}
         self._next_decision: Dict[str, float] = {}
+        self._next_decision_ns: Dict[str, int] = {}
         self._actions: list[_EngineEvent] = []
         self._id_counter = 0
         self._trace_counter = 0
@@ -157,6 +165,63 @@ class SimulationEngine:
         self._last_ts = 0.0
         self._last_event_index = 0
         self._market_data_first = False
+
+    def _notify_market_observer(
+        self,
+        rec: RecordedEvent,
+        input_row: int,
+        logical_ns: int,
+        *,
+        depth_observed: bool = False,
+        trade: AggTradeEvent | None = None,
+        changes: tuple[LevelChange, ...] = (),
+    ) -> None:
+        observer = self._market_observer
+        if observer is None:
+            return
+        capture = rec.data.get("_capture", {})
+        if not isinstance(capture, dict):
+            capture = {}
+        raw_seq = capture.get("recvSeq")
+        sequence = raw_seq if type(raw_seq) is int and raw_seq >= 0 else input_row
+        raw_wall = capture.get("recvWallNs")
+        wall_ns = (
+            raw_wall
+            if type(raw_wall) is int and raw_wall >= 0
+            else int(Decimal(str(rec.ts_local)) * NANOSECONDS_PER_SECOND)
+        )
+        # All symbols receive the global watermark and capture validity. This
+        # matters for stale feeds and global failures arriving on another route.
+        for symbol, spec in sorted(self._specs.items()):
+            book = self._books.get(symbol)
+            syncer = self._syncers.get(symbol)
+            validity = self._validity_state(symbol, require_trade=True)
+            bids = tuple((tick, book.bids[tick]) for tick in nlargest(observer.depth_levels, book.bids)) if book else ()
+            asks = (
+                tuple((tick, book.asks[tick]) for tick in nsmallest(observer.depth_levels, book.asks)) if book else ()
+            )
+            observer.observe(
+                MarketObservation(
+                    symbol=symbol,
+                    spec=spec,
+                    logical_ns=logical_ns,
+                    receive_seq=sequence,
+                    input_row=input_row,
+                    wall_ns=wall_ns,
+                    receive_clock=self._capture_schema_version >= 3 and self._receive_clock,
+                    validity=validity,
+                    epochs=(
+                        syncer.epoch if syncer is not None else 0,
+                        self._stream_epochs.get((symbol, "public"), 0),
+                        self._stream_epochs.get((symbol, "market"), 0),
+                    ),
+                    bids=bids,
+                    asks=asks,
+                    depth_observed=depth_observed and symbol == rec.symbol,
+                    trade=trade if symbol == rec.symbol else None,
+                    changes=changes if symbol == rec.symbol else (),
+                )
+            )
 
     def event_trace_retention(self) -> dict[str, Any]:
         sink_memory_bounded = bool(getattr(self._event_sink, "memory_bounded", False))
@@ -358,6 +423,7 @@ class SimulationEngine:
         self._actions = [action for action in self._actions if action.symbol != symbol]
         heapify(self._actions)
         self._next_decision.pop(symbol, None)
+        self._next_decision_ns.pop(symbol, None)
         return {
             "invalidated_active_order_count": active_order_count,
             "cleared_pending_cancel_count": pending_cancel_count,
@@ -1045,6 +1111,19 @@ class SimulationEngine:
         syncer = self._syncers.get(symbol)
         book = self._books.get(symbol)
         if syncer is None or book is None or not syncer.synced:
+            return
+        if self._market_data_first:
+            # The legacy float accumulator plus epsilon could defer a
+            # 8.999999999999984 action until after the receipt at 9.0, then
+            # violate the trace's exact causal ordering. Schema-v3 decisions
+            # must use the same integer key as its market observations.
+            now_ns, _ = self._schedule_time_key(now)
+            interval_ns = max(1, int(Decimal(str(self.cfg.mm_requote_ms)) * 1_000_000))
+            next_ns = self._next_decision_ns.get(symbol, now_ns)
+            while next_ns <= now_ns if include_now else next_ns < now_ns:
+                self._schedule(next_ns / NANOSECONDS_PER_SECOND, "decision", symbol, {}, logical_ns=next_ns)
+                next_ns += interval_ns
+            self._next_decision_ns[symbol] = next_ns
             return
         interval = self.cfg.mm_requote_ms / 1000.0
         next_due = self._next_decision.get(symbol)
@@ -1789,6 +1868,7 @@ class SimulationEngine:
             "capture_invalidations": self._capture_invalidations,
             "capture_invalid_reason": self._capture_invalid_reason,
             "next_decision": self._next_decision,
+            "next_decision_ns": self._next_decision_ns,
             "actions": self._actions,
             "event_trace": self.event_trace,
             "event_trace_count": self._event_trace_count,
@@ -1842,6 +1922,7 @@ class SimulationEngine:
         raw_capture_reason = state.get("capture_invalid_reason")
         self._capture_invalid_reason = None if raw_capture_reason is None else str(raw_capture_reason)
         self._next_decision = dict(state["next_decision"])
+        self._next_decision_ns = dict(state["next_decision_ns"])
         self._actions = list(state["actions"])
         heapify(self._actions)
         self.event_trace = list(state["event_trace"])
@@ -1939,6 +2020,9 @@ class SimulationEngine:
     ) -> Checkpoint:
         """Persist a validated JSON checkpoint for deterministic continuation."""
 
+        if self._market_observer is not None:
+            raise ValueError("market observers do not yet support checkpoint/resume")
+
         input_file = Path(input_path)
         index = self._last_event_index if event_index is None else event_index
         logical_ts = self._last_ts if last_ts is None else last_ts
@@ -2005,6 +2089,8 @@ class SimulationEngine:
         resume_from: str | Path | None = None,
         stop_after_records: int | None = None,
     ) -> SimulationMetrics:
+        if self._market_observer is not None and (checkpoint_path is not None or resume_from is not None):
+            raise ValueError("market observers do not yet support checkpoint/resume")
         if checkpoint_every < 0:
             raise ValueError("checkpoint_every must be >= 0")
         if checkpoint_every > 0 and checkpoint_path is None:
@@ -2092,6 +2178,10 @@ class SimulationEngine:
             symbol_now = max(now, self._symbol_time_watermark.get(rec.symbol, now))
             self._symbol_time_watermark[rec.symbol] = symbol_now
 
+            observer_depth = False
+            observer_trade: AggTradeEvent | None = None
+            observer_changes: tuple[LevelChange, ...] = ()
+
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
             receipt_checked = self._prevalidate_capture_boundary(rec, now)
@@ -2102,6 +2192,8 @@ class SimulationEngine:
                 logical_ns=logical_ns,
                 legacy_subns=legacy_subns,
             )
+            if self._market_observer is not None:
+                self._market_observer.before_record(logical_ns)
             self._observe_capture_epoch(rec, now, receipt_checked=receipt_checked)
             self._trace_market_record(rec, now, observed_ts)
             if rec.type == "captureEvent" and rec.data.get("event") == "capture_trailer":
@@ -2116,21 +2208,25 @@ class SimulationEngine:
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
             if rec.type in {"captureMeta", "captureEvent"}:
+                self._notify_market_observer(rec, records_processed, logical_ns)
                 continue
             if rec.type == "exchangeInfo":
                 try:
                     spec = self._parse_exchange_info(rec)
                 except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                     self._record_normalization_failure(rec, now, exc)
+                    self._notify_market_observer(rec, records_processed, logical_ns)
                     continue
                 self._get_or_create_book(rec.symbol)
                 self._verbose(
                     verbose,
                     f"[simulate] loaded symbol={rec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
                 )
+                self._notify_market_observer(rec, records_processed, logical_ns)
                 continue
 
             if rec.symbol not in self._specs:
+                self._notify_market_observer(rec, records_processed, logical_ns)
                 continue
 
             if rec.type in {"snapshot", "depthUpdate"} and not self._depth_stream_is_valid(rec.symbol):
@@ -2144,6 +2240,7 @@ class SimulationEngine:
                         "reason": self._stream_invalid_reason.get((rec.symbol, "public")),
                     },
                 )
+                self._notify_market_observer(rec, records_processed, logical_ns)
                 continue
 
             if rec.type == "snapshot":
@@ -2161,6 +2258,7 @@ class SimulationEngine:
                         snapshot = self.adapter.snapshot_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        self._notify_market_observer(rec, records_processed, logical_ns)
                         continue
                     syncer = self._get_sync(rec.symbol)
                     if syncer is not None:
@@ -2173,6 +2271,8 @@ class SimulationEngine:
                             self._snapshot_rejections += 1
                             self._invalidate_symbol(rec.symbol, now, f"snapshot_rejected: {exc}")
                         else:
+                            observer_depth = syncer.synced
+                            observer_changes = tuple(changes)
                             self.fill_model.seed_from_snapshot(rec.symbol, snapshot.bids, snapshot.asks)
                             self._latest_book_evidence[rec.symbol] = record_evidence_id
                             if changes:
@@ -2201,6 +2301,7 @@ class SimulationEngine:
                         event = self.adapter.depth_update_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        self._notify_market_observer(rec, records_processed, logical_ns)
                         continue
                     try:
                         changes = syncer.on_depth_update(event)
@@ -2210,6 +2311,8 @@ class SimulationEngine:
                         self._invalidate_symbol(rec.symbol, now, str(exc))
                         changes = []
                     else:
+                        observer_depth = syncer.synced
+                        observer_changes = tuple(changes)
                         self._latest_book_evidence[rec.symbol] = record_evidence_id
                     self.metrics.on_depth_changes(len(changes))
                     if changes and syncer.synced:
@@ -2232,7 +2335,9 @@ class SimulationEngine:
                         trade = self.adapter.agg_trade_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        self._notify_market_observer(rec, records_processed, logical_ns)
                         continue
+                    observer_trade = trade
                     self._latest_trade_evidence[rec.symbol] = record_evidence_id
                     self.strategy.observe_trade(trade)
                     fills = self.fill_model.apply_agg_trade(
@@ -2254,6 +2359,14 @@ class SimulationEngine:
                         details={"reason": self._stream_invalid_reason.get((rec.symbol, "market"))},
                     )
 
+            self._notify_market_observer(
+                rec,
+                records_processed,
+                logical_ns,
+                depth_observed=observer_depth,
+                trade=observer_trade,
+                changes=observer_changes,
+            )
             self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=True)
             self._drain_events(
                 now,
@@ -2299,6 +2412,9 @@ class SimulationEngine:
         if interrupted:
             self._verbose(verbose, f"[simulate] checkpointed after records={records_processed}")
             return self.metrics
+
+        if self._market_observer is not None and records_processed:
+            self._market_observer.finish(self._last_logical_ns)
 
         final_ts = last_ts + max(
             self.cfg.mm_requote_ms / 1000.0,

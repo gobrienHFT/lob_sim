@@ -45,28 +45,28 @@ milestone is verified; do not mark the goal complete from this plan alone.
 
 | Criterion | Required evidence | Status |
 | --- | --- | --- |
-| A | Causal features and raw-tape future-mutation tests | Pending |
-| B | Enforced train/validation/test separation | Pending |
-| C | Reproducible K=2..5 selection | Pending |
-| D | Deterministic multiple restarts | Pending |
-| E | Independently loaded, validated JSON artifact | Core roundtrip/corruption tests; fitted provenance pending |
+| A | Causal features and raw-tape future-mutation tests | Implemented through authoritative engine observations; raw-tape prefix mutation test |
+| B | Enforced train/validation/test separation | Physical UTC-day files; selected-partition-only readers; fitter rejects test |
+| C | Reproducible K=2..5 selection | Candidate/restart ledgers and validation/BIC rules; synthetic fit tests |
+| D | Deterministic multiple restarts | SHA-256 seeds; repeated full model/report equality in pinned environment |
+| E | Independently loaded, validated JSON artifact | Fitted provenance and independent load/inspection tests implemented |
 | F | Runtime forward filter, independent reference proof | Implemented; independent latent-path enumeration tests |
 | G | Historical runtime posterior unaffected by future data | Core future-mutation tests; raw-tape integration pending |
-| H | Invalid/stale epochs cannot report a valid regime | Core invalid/stale/epoch tests; replay integration pending |
+| H | Invalid/stale epochs cannot report a valid regime | Raw features follow independent replay validity; model-enabled simulation pending |
 | I | Observation-only simulation mode | Pending |
-| J | Observer versus baseline action identity | Pending |
+| J | Observer versus baseline action identity | Read-only feature observer preserves full traces, metrics, counters and state; inference-mode proof pending |
 | K | State-conditioned execution and markouts | Pending |
 | L | Opt-in HMM market-making profile | Pending |
 | M | Hard risk dominance tests | Pending |
 | N | Hysteresis and uncertainty tests | Estimator tests implemented; policy controls pending |
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace fixture frozen; integration pending |
-| P | Existing chronological research protocol reused | Pending |
+| P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Pending |
 | R | Paired moving-block bootstrap study | Pending |
-| S | Human-readable model/state diagnostics | Pending |
+| S | Human-readable model/state diagnostics | regime-inspect includes training signatures, occupancy, risk and transitions |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
-| V | Bounded runtime windows and audit output | Bounded feature/filter state; sink integration pending |
+| V | Bounded runtime windows and audit output | Streamed daily feature rows; per-day manifest metadata retained; simulation inference sink pending |
 | W | Existing tests pass after integration | Pending |
 | X | New tests pass | 118 foundation tests pass; integration/evaluation tests pending |
 | Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |

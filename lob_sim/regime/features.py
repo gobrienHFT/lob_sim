@@ -10,6 +10,7 @@ import math
 from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass
+from heapq import nlargest, nsmallest
 from typing import Any, Literal
 
 from ..book.local_book import LocalOrderBook
@@ -126,8 +127,8 @@ class BookView:
     def from_book(cls, book: LocalOrderBook, depth_levels: int) -> BookView:
         integer(depth_levels, "depth_levels", minimum=1)
         return cls(
-            tuple(sorted(book.bids.items(), reverse=True)[:depth_levels]),
-            tuple(sorted(book.asks.items())[:depth_levels]),
+            tuple((tick, book.bids[tick]) for tick in nlargest(depth_levels, book.bids)),
+            tuple((tick, book.asks[tick]) for tick in nsmallest(depth_levels, book.asks)),
         )
 
     @property
@@ -335,7 +336,9 @@ class CausalFeatureSampler:
             self._reset("epoch_changed")
             self._book = None
             self._last_book_ns = None
-        status = validity.status if book is not None else "INVALID_BOOK"
+        status = validity.status
+        if status == "VALID" and book is None:
+            status = "INVALID_BOOK"
         if status == "VALID":
             assert book is not None
             try:
@@ -394,7 +397,7 @@ class CausalFeatureSampler:
     def _sample(self, sample_ns: int) -> FeatureSample:
         status: FeatureStatus = self._validity.status
         values: tuple[float, ...] | None = None
-        if self._book is None:
+        if self._book is None and status == "VALID":
             status = "INVALID_BOOK"
         elif status == "VALID" and (
             self._last_book_ns is None or sample_ns - self._last_book_ns > self.spec.stale_after_ns

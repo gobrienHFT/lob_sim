@@ -73,9 +73,16 @@ Independent latent-path enumeration tests distinguish filtering from smoothing;
 prefix-mutation tests check that future observations cannot rewrite earlier
 features or inference. The pre-HMM summary/trace behavioral hashes are frozen.
 
-This is not yet an HMM-enabled simulator profile. Validated-tape dataset
-extraction, deterministic multi-restart fitting and selection, observation-only
-engine integration, hard-risk-dominated policy adaptation, paired economic
+Validated raw-tape extraction now uses read-only observations from the existing
+engine and writes checksummed, no-clobber UTC-day feature files. Calibration and
+validation readers do not open test row files. The optional fitter supports
+K=2..5, seeded restarts, failure ledgers, train-only preprocessing, explicit
+convergence/numerical gates, validation/BIC selection and training-only canonical
+state signatures. `regime-features`, `regime-fit` and `regime-inspect` are available.
+Synthetic numeric fitting tests are not representative exchange/economic evidence.
+
+This is not yet an HMM-enabled simulator profile. Observation-only inference
+integration, estimator checkpointing, hard-risk-dominated policy adaptation, paired economic
 evaluation and overhead evidence remain required. No trained-model, alpha or
 holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
