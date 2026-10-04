@@ -8,6 +8,7 @@ Runtime windows and row export are bounded; offline fitting has an explicit cap.
 from __future__ import annotations
 
 import os
+from hashlib import sha256
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, replace
@@ -426,15 +427,21 @@ def dataset_split(directory: str | Path) -> UTCDaySplit:
     return replace(split, claim_ready=False, reason=manifest["claim_reason"])
 
 
-def _rows(path: Path) -> Iterator[dict[str, Any]]:
+def _rows(path: Path, expected_sha256: str) -> Iterator[dict[str, Any]]:
+    digest = sha256()
     with path.open("rb") as handle:
         while raw := handle.readline(MAX_ROW_BYTES + 1):
+            digest.update(raw)
             if len(raw) > MAX_ROW_BYTES or not raw.endswith(b"\n"):
                 raise ValueError("oversized or incomplete feature row")
             value = strict_json(raw.decode("utf-8"))
             if not isinstance(value, dict):
                 raise ValueError("feature row must be an object")
             yield value
+    # Hash the bytes actually consumed, not just a separate pre-read snapshot.
+    # No FeaturePartition is returned if a writer changed data in between.
+    if digest.hexdigest() != expected_sha256:
+        raise ValueError("feature day checksum mismatch during read")
 
 
 def read_partition(
@@ -483,7 +490,7 @@ def read_partition(
         previous_sequence = previous_sample = None
         previous_epochs = None
         last_seen_sample: int | None = None
-        for row in _rows(path):
+        for row in _rows(path, entry["file_sha256"]):
             require_keys(row, ROW_FIELDS, "feature row")
             count += 1
             status_counts[str(row.get("status"))] += 1

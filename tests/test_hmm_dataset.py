@@ -355,6 +355,25 @@ def test_feature_bundle_hashes_reproduce_without_output_path_dependence(tmp_path
         assert (tmp_path / "left" / entry["path"]).read_bytes() == (tmp_path / "right" / entry["path"]).read_bytes()
 
 
+def test_partition_hashes_consumed_bytes_when_file_changes_after_precheck(tmp_path, monkeypatch):
+    from lob_sim.regime import dataset
+
+    directory, _ = bundle(tmp_path)
+    split = dataset_split(directory)
+    original_hash = dataset.file_sha256
+
+    def mutate_after_hash(path):
+        result = original_hash(path)
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        next(row for row in rows if row["status"] == "VALID")["features"][0] += 10
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(dataset, "file_sha256", mutate_after_hash)
+    with pytest.raises(ValueError, match="checksum mismatch during read"):
+        read_partition(directory, split, "calibration", symbol="BTCUSDT")
+
+
 def test_audit_sink_failure_propagates_instead_of_dropping_rows(tmp_path):
     def fail(row):
         raise OSError("injected writer failure")

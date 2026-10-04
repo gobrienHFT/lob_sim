@@ -212,6 +212,8 @@ loaded as a dataset. Checksums identify bytes, not a trusted author.
 
 `dataset_split` reuses the existing chronological 60/20/20 UTC-day protocol.
 Calibration/validation readers do not even open other partitions' row files.
+Each selected file is checked before opening and hashed again over the exact
+bytes consumed, so a change between integrity checking and parsing fails closed.
 Test access requires an already frozen `ResearchRegistry`; the guard is a
 research workflow contract, not protection against manually opening files.
 Lengths reset across symbols, input captures, instrument changes, epochs,
