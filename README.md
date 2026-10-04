@@ -70,7 +70,7 @@ Read next:
 - [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
-- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect candidate/state diagnostics, audit regimes through a quote's lifetime, and test an opt-in risk-constrained quote policy; economic evaluation remains in progress.
+- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect state and quote-cohort diagnostics, audit regimes through a quote's lifetime, and test an opt-in risk-constrained quote policy; economic evaluation remains in progress.
 
 ## Core mechanics
 

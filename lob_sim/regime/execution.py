@@ -18,6 +18,7 @@ from typing import Any
 from ..sim.sinks import EventSink, NullSink
 from ..record.envelope import ValidityState
 from .validation import canonical_json, finite, integer, probabilities, require_keys, strict_json
+from .quotes import RegimeQuoteAudit
 
 PHASES = ("decision", "arrival", "pre_fill")
 STAGE_FIELDS = (
@@ -69,8 +70,9 @@ EXECUTION_FIELDS = (
     "observed_ts",
     "actual_lag_seconds",
     "invalid_reason",
+    "quote",
 )
-CHAIN_DOMAIN = b"lob_sim.hmm_execution.v1"
+CHAIN_DOMAIN = b"lob_sim.hmm_execution.v2"
 
 
 def capture_stage(signal: Mapping[str, Any], logical_ns: int) -> dict[str, Any]:
@@ -141,6 +143,7 @@ class RegimeExecutionAudit:
         horizons: tuple[int, ...],
         max_orders: int,
         sink: EventSink | None = None,
+        quote_sink: EventSink | None = None,
     ) -> None:
         if len(model_sha256) != 64 or any(char not in "0123456789abcdef" for char in model_sha256):
             raise ValueError("execution model SHA-256 invalid")
@@ -158,6 +161,7 @@ class RegimeExecutionAudit:
         self.horizons, self.max_orders = tuple(sorted(horizons)), max_orders
         self.sink = sink if sink is not None else NullSink()
         self.labels = tuple(f"STATE_{index}" for index in range(state_count)) + ("UNCONFIRMED", "UNAVAILABLE")
+        self.quotes = RegimeQuoteAudit(symbol, self.labels, max_orders, quote_sink)
         self._orders: dict[str, dict[str, Any]] = {}
         self._conditioned = {phase: {label: _blank_cell(self.horizons) for label in self.labels} for phase in PHASES}
         self._transitions = {label: {other: 0 for other in self.labels} for label in self.labels}
@@ -231,7 +235,31 @@ class RegimeExecutionAudit:
         state = stage["active_state"]
         return f"STATE_{state}" if state is not None else "UNCONFIRMED"
 
-    def accept_order(self, order_id: str, decision: object, arrival: object) -> None:
+    def schedule_quote(self, decision: object, side: str, quote_slot: str, qty_lots: int) -> int:
+        stage = self._stage(decision)
+        if stage is None:
+            raise ValueError("scheduled quote requires a decision information set")
+        return self.quotes.schedule(self._label(stage), stage["logical_ns"], side, quote_slot, qty_lots)
+
+    def reject_quote(self, request_id: int, decision: object, arrival: object, reason: str) -> None:
+        self._validate_request(request_id, decision)
+        stage = self._stage(arrival)
+        if stage is None:
+            raise ValueError("quote rejection requires arrival information set")
+        self.quotes.arrive(request_id, self._label(stage), stage["logical_ns"], reason=reason)
+
+    def _validate_request(self, request_id: int, decision: object) -> None:
+        stage = self._stage(decision)
+        context = self.quotes._pending.get(integer(request_id, "quote request", minimum=1))
+        if (
+            stage is None
+            or context is None
+            or context["decision_label"] != self._label(stage)
+            or context["decision_ns"] != stage["logical_ns"]
+        ):
+            raise ValueError("quote request decision identity mismatch")
+
+    def accept_order(self, order_id: str, decision: object, arrival: object, request_id: int | None = None) -> None:
         if order_id in self._orders or len(self._orders) >= self.max_orders:
             raise ValueError("regime order context capacity or duplicate identity")
         if not isinstance(order_id, str) or not order_id:
@@ -239,12 +267,23 @@ class RegimeExecutionAudit:
         creation, accepted = self._stage(decision), self._stage(arrival)
         if accepted is None or (creation is not None and creation["logical_ns"] > accepted["logical_ns"]):
             raise ValueError("regime order arrival precedes decision")
+        if request_id is not None:
+            self._validate_request(request_id, creation)
+            self.quotes.arrive(request_id, self._label(accepted), accepted["logical_ns"], order_id=order_id)
         self._orders[order_id] = {"decision": creation, "arrival": accepted}
 
-    def release_order(self, order_id: str) -> None:
+    def release_order(self, order_id: str, logical_ns: int | None = None, reason: str = "cancelled") -> None:
+        context = self._orders.get(order_id)
+        if logical_ns is None and context is not None:
+            logical_ns = context["arrival"]["logical_ns"]
+        if logical_ns is not None:
+            self.quotes.terminate(order_id, logical_ns, reason)
         self._orders.pop(order_id, None)
 
-    def clear_orders(self) -> None:
+    def clear_orders(
+        self, logical_ns: int = 0, reason: str = "epoch_invalidated", *, discard_pending: bool = True
+    ) -> None:
+        self.quotes.clear(logical_ns, reason, discard_pending=discard_pending)
         self._orders.clear()
 
     def order_age_ns(self, order_id: str, logical_ns: int) -> int:
@@ -258,14 +297,15 @@ class RegimeExecutionAudit:
             raise ValueError("quote age cannot precede acceptance")
         return age
 
-    def at_fill(self, order_id: str | None, pre_fill: object) -> dict[str, Any]:
+    def at_fill(self, order_id: str | None, pre_fill: object, qty_lots: int | None = None) -> dict[str, Any]:
         context = self._orders.get(order_id or "", {"decision": None, "arrival": None})
         before = self._stage(pre_fill)
         if before is None:
             raise ValueError("pre-fill information set required")
         if context["arrival"] is not None and context["arrival"]["logical_ns"] > before["logical_ns"]:
             raise ValueError("fill precedes attributed acceptance")
-        return {**deepcopy(context), "pre_fill": before, "logical_ns": before["logical_ns"]}
+        quote = self.quotes.freeze_fill(order_id, qty_lots) if qty_lots is not None else None
+        return {**deepcopy(context), "pre_fill": before, "logical_ns": before["logical_ns"], "quote": quote}
 
     def _write(self, row: Mapping[str, Any]) -> None:
         normalized = {key: row.get(key) for key in EXECUTION_FIELDS}
@@ -275,7 +315,7 @@ class RegimeExecutionAudit:
 
     def _row(self, data: Mapping[str, Any], attribution: Mapping[str, Any]) -> dict[str, Any]:
         row = {key: data.get(key) for key in EXECUTION_FIELDS}
-        row.update({"schema_version": "lob_sim.hmm_execution.v1", **deepcopy(dict(attribution))})
+        row.update({"schema_version": "lob_sim.hmm_execution.v2", **deepcopy(dict(attribution))})
         row.update({f"{phase}_label": self._label(attribution[phase]) for phase in PHASES})
         return row
 
@@ -286,6 +326,7 @@ class RegimeExecutionAudit:
         if fill["symbol"] != self.symbol:
             raise ValueError("attribution fill symbol mismatch")
         frozen: dict[str, Any] = {phase: self._stage(attribution[phase]) for phase in PHASES}
+        frozen["quote"] = self.quotes.validate_fill(attribution.get("quote"))
         frozen.update({"logical_ns": integer(attribution["logical_ns"], "fill logical time"), "fill_id": fill_id})
         for phase in PHASES:
             if frozen[phase] is not None and frozen[phase]["logical_ns"] > frozen["logical_ns"]:
@@ -300,6 +341,16 @@ class RegimeExecutionAudit:
         if quantity <= 0 or wait < 0:
             raise ValueError("nonpositive quantity or negative quote age")
         self._write({**self._row(fill, frozen), "event_type": "fill", "status": "filled"})
+        self.quotes.on_fill(
+            fill_id,
+            frozen["quote"],
+            frozen["logical_ns"],
+            fill.get("order_id"),
+            fill["side"],
+            lots,
+            self._label(frozen["decision"]),
+            self._label(frozen["arrival"]),
+        )
         for phase in PHASES:
             cell = self._conditioned[phase][self._label(frozen[phase])]
             cell["fill_count"] += 1
@@ -387,7 +438,7 @@ class RegimeExecutionAudit:
                         float(Decimal(stats["actual_lag_sum"]) / resolved) if resolved else None
                     )
         return {
-            "schema_version": "lob_sim.hmm_execution_summary.v1",
+            "schema_version": "lob_sim.hmm_execution_summary.v2",
             "model_sha256": self.model_sha256,
             "symbol": self.symbol,
             "fill_count": self._fill_count,
@@ -395,10 +446,11 @@ class RegimeExecutionAudit:
             "trace_count": self._trace_count,
             "trace_sha256": self._trace_sha256,
             "conditioned": conditioned,
+            "quote_lifecycles": self.quotes.summary(),
             "fill_transition_counts": deepcopy(self._transitions),
             "retained_order_contexts": len(self._orders),
             "max_order_contexts": self.max_orders,
-            "memory_bounded_by_tape_duration": self.sink.memory_bounded,
+            "memory_bounded_by_tape_duration": self.sink.memory_bounded and self.quotes.sink.memory_bounded,
             "claim_ready": False,
             "claim_reason": "descriptive execution scenarios, not predictive or economic evidence",
         }
@@ -406,7 +458,7 @@ class RegimeExecutionAudit:
     def checkpoint(self) -> dict[str, Any]:
         return deepcopy(
             {
-                "schema_version": "lob_sim.hmm_execution_checkpoint.v1",
+                "schema_version": "lob_sim.hmm_execution_checkpoint.v2",
                 "model_sha256": self.model_sha256,
                 "symbol": self.symbol,
                 "state_count": self.state_count,
@@ -419,6 +471,7 @@ class RegimeExecutionAudit:
                 "last_fill_id": self._last_fill_id,
                 "trace_count": self._trace_count,
                 "trace_sha256": self._trace_sha256,
+                "quotes": self.quotes.checkpoint(),
             }
         )
 
@@ -435,8 +488,15 @@ class RegimeExecutionAudit:
         if not isinstance(orders, Mapping) or len(orders) > self.max_orders:
             raise ValueError("execution checkpoint order capacity")
         candidate = RegimeExecutionAudit(
-            self.model_sha256, self.symbol, self.state_count, self.horizons, self.max_orders, self.sink
+            self.model_sha256,
+            self.symbol,
+            self.state_count,
+            self.horizons,
+            self.max_orders,
+            self.sink,
+            self.quotes.sink,
         )
+        candidate.quotes = self.quotes.validated_copy(data["quotes"])
         for order_id, context in orders.items():
             require_keys(context, {"decision", "arrival"}, "order attribution")
             candidate.accept_order(order_id, context["decision"], context["arrival"])
@@ -514,11 +574,32 @@ class RegimeExecutionAudit:
         live_ids = {order.order_id for order in engine["fill_model"]["_orders"].values() if order.symbol == self.symbol}
         if live_ids != set(self._orders):
             raise ValueError("execution checkpoint contexts do not match live orders")
+        if set(self.quotes._live) != live_ids:
+            raise ValueError("quote checkpoint bindings do not match live orders")
+        for order in engine["fill_model"]["_orders"].values():
+            if order.symbol != self.symbol:
+                continue
+            binding, context = self.quotes._live[order.order_id], self._orders[order.order_id]
+            if (
+                any(binding[key] != getattr(order, key) for key in ("side", "quote_slot", "qty_lots"))
+                or binding["matched_lots"] != order.qty_lots - order.remaining_lots
+            ):
+                raise ValueError("quote checkpoint quantity/slot differs from live order")
+            for phase in ("decision", "arrival"):
+                if (
+                    binding[f"{phase}_label"] != self._label(context[phase])
+                    or context[phase] is None
+                    or binding[f"{phase}_ns"] != context[phase]["logical_ns"]
+                ):
+                    raise ValueError("quote checkpoint causal stage differs from order attribution")
         watermark = integer(engine["last_logical_ns"], "checkpoint watermark")
         for context in self._orders.values():
             if context["arrival"]["logical_ns"] > watermark:
                 raise ValueError("execution checkpoint contains future acceptance")
         metrics = engine["metrics"]
+        quote_fills = sum(cell["fill_events"] for cell in self.quotes._cohorts["decision"].values())
+        if quote_fills != self._fill_count or self.quotes._last_fill != self._last_fill_id:
+            raise ValueError("quote checkpoint fill census differs from execution audit")
         if self._last_fill_id > integer(metrics["fill_count"], "engine fill count"):
             raise ValueError("execution checkpoint fill ordinal exceeds engine count")
         if self._fill_count == metrics["fill_count"]:
@@ -538,8 +619,10 @@ class RegimeExecutionAudit:
                     raise ValueError("foreign symbol carries HMM attribution")
                 continue
             attribution = require_keys(
-                entry.get("hmm_attribution"), {*PHASES, "logical_ns", "fill_id"}, "pending HMM attribution"
+                entry.get("hmm_attribution"), {*PHASES, "logical_ns", "fill_id", "quote"}, "pending HMM attribution"
             )
+            if self.quotes.validate_fill(attribution["quote"]) is None:
+                raise ValueError("native pending markout lacks quote request attribution")
             ordinal = integer(attribution["fill_id"], "pending fill ordinal", minimum=1)
             logical = integer(attribution["logical_ns"], "pending fill time")
             if ordinal > self._last_fill_id or logical > watermark:
@@ -561,6 +644,7 @@ class RegimeExecutionAudit:
                     expected = cell["fill_count"] - stats["resolved_samples"] - stats["invalidated_samples"]
                     if pending[phase][label][horizon] != expected:
                         raise ValueError("pending HMM horizon count differs from execution statistics")
+        pending_requests: set[int] = set()
         for action in engine["actions"]:
             if action.symbol != self.symbol:
                 continue
@@ -568,12 +652,22 @@ class RegimeExecutionAudit:
                 decision = self._stage(action.payload.get("hmm_decision"))
                 if decision is None or decision["logical_ns"] > min(watermark, action.logical_ns):
                     raise ValueError("pending HMM order decision missing or future")
+                request = integer(action.payload.get("hmm_request_id"), "pending quote request", minimum=1)
+                if request in pending_requests:
+                    raise ValueError("duplicate pending quote request")
+                self._validate_request(request, decision)
+                context = self.quotes._pending[request]
+                if any(context[key] != action.payload.get(key) for key in ("side", "quote_slot", "qty_lots")):
+                    raise ValueError("pending quote binding differs from outbound intent")
+                pending_requests.add(request)
             elif action.kind == "trade_execution":
                 fills, attributions = action.payload["fills"], action.payload.get("hmm_attributions")
                 if not isinstance(attributions, list) or len(attributions) != len(fills):
                     raise ValueError("pending HMM fill batch mismatch")
                 for attribution in attributions:
-                    require_keys(attribution, {*PHASES, "logical_ns"}, "scheduled HMM fill attribution")
+                    require_keys(attribution, {*PHASES, "logical_ns", "quote"}, "scheduled HMM fill attribution")
+                    if self.quotes.validate_fill(attribution["quote"]) is None:
+                        raise ValueError("native scheduled fill lacks quote request attribution")
                     logical = integer(attribution["logical_ns"], "scheduled fill time")
                     if logical > action.logical_ns:
                         raise ValueError("scheduled HMM fill attribution is future")
@@ -581,11 +675,13 @@ class RegimeExecutionAudit:
                         stage = self._stage(attribution[phase])
                         if stage is not None and stage["logical_ns"] > logical:
                             raise ValueError("scheduled HMM fill stage is future")
+        if pending_requests != set(self.quotes._pending):
+            raise ValueError("quote checkpoint pending requests do not match scheduler")
 
 
 def verify_execution_trace(path: Path, summary: Mapping[str, Any]) -> None:
     """Reconstruct serialized canonical rows; never trust sink counters alone."""
-    json_fields = {"decision", "arrival", "pre_fill", "evidence_ids", "validity", "latency_draws_ms"}
+    json_fields = {"decision", "arrival", "pre_fill", "evidence_ids", "validity", "latency_draws_ms", "quote"}
     int_fields = {"logical_ns", "fill_id", "qty_lots", "horizon_ms"}
     float_fields = {"time_in_book_ms", "deadline_ts", "observed_ts", "actual_lag_seconds"}
     digest, count = sha256(CHAIN_DOMAIN).hexdigest(), 0

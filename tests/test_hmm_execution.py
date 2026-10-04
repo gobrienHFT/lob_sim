@@ -215,13 +215,14 @@ def test_native_execution_audit_does_not_change_fills_or_accounting(tmp_path, fi
     for action in continuation["actions"]:
         action.payload.pop("hmm_decision", None)
         action.payload.pop("hmm_attributions", None)
+        action.payload.pop("hmm_request_id", None)
     assert encode(continuation) == encode(base._checkpoint_mutable_state())
 
 
 def test_execution_audit_transactional_bundle_and_serialized_hash(tmp_path):
     path = execution_tape(tmp_path / "input.ndjson")
     files, summary = run_bounded_simulation(replace(cfg(), record_dir=tmp_path / "runs", hmm=settings()), path)
-    assert len(files) == 9
+    assert len(files) == 10
     assert not (files["manifest"].parent / "_INCOMPLETE.json").exists()
     verify_execution_trace(files["regime_execution"], summary["hmm_execution"])
     content = files["regime_execution"].read_text()

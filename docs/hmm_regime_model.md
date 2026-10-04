@@ -9,7 +9,7 @@ implemented under `lob_sim/regime`. `simulate --hmm observe` leaves the strategy
 unchanged; `simulate --hmm policy --strategy hmm_regime_mm` explicitly enables
 adaptation. No strategy benefit, real-data regime result or holdout finding is
 published. The [implementation ledger](hmm_implementation_plan.md) tracks the
-remaining execution-denominator, evaluation and overhead work. Existing simulation
+remaining source/risk characterization, evaluation and overhead work. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
@@ -435,8 +435,8 @@ grid points. Recovery requires a complete causal feature warmup. A stale query
 returns null posterior/confidence, never the last apparently confident state.
 This does not change the base strategy's trade-stream execution requirements.
 
-Each enabled bounded run adds `hmm_model.json`, `regime_trace.csv` and
-`regime_execution.csv` to its
+Each enabled bounded run adds `hmm_model.json`, `regime_trace.csv`,
+`regime_execution.csv` and `regime_quotes.csv` to its
 existing manifest. The trace includes raw/scaled features, posterior, next-state
 prior, generic state label, confidence/entropy, hysteresis, validity/epochs and
 reset reasons. Sample counts, sample-state transitions and entropy aggregates
@@ -499,7 +499,7 @@ earlier timestamps violated causal order. All record boundaries now flush those
 rows before advancing or checkpointing. This repair applies with HMM disabled
 as well; it does not change fills, cash or horizon-resolution semantics.
 
-Both audit streams are independently re-read through their canonical hash
+All regime audit streams are independently re-read through their canonical hash
 chains before the run manifest is finalized. Aggregates have fixed cardinality
 in K, three phases and configured horizons. Live quote contexts are capped at
 the existing profile's two/four slots; pending snapshot memory is bounded by
@@ -571,11 +571,72 @@ before printing market-state diagnostics. It verifies that regime audit, not
 raw capture coverage, private fills, economic benefit or an untouched holdout.
 Checksums identify content, not a trusted author.
 
-Quote-request/arrival denominators, source-conditioned outcomes and causal
-time-weighted inventory still require their own execution characterization.
-Sample counts must not be repurposed as quote counts or fill probabilities;
-the existing fill-transition table counts fills/partial fills, not unique orders.
-No per-state net PnL or drawdown contribution is invented here.
+Source-conditioned outcomes and causal time-weighted inventory still require
+their own execution characterization. Sample counts must not be repurposed as
+quote counts or fill probabilities; the existing fill-transition table counts
+fills/partial fills, not unique orders. No per-state net PnL or drawdown
+contribution is invented here.
+
+## Quote cohorts and explicit denominators
+
+`regime_quotes.csv` records outbound requests, accepted/rejected arrivals,
+discarded outbound requests, terminal orders and **accounted** fills. A request
+is counted only when the engine actually schedules an outbound quote, after its
+send-time controls. Strategy targets suppressed before sending are not requests.
+Each request receives a diagnostic identity that does not consume a core order
+ID or latency draw.
+
+The `hmm_execution.quote_lifecycles` summary uses the original decision and
+arrival labels, even if the active regime changes later. Arrival cohorts include
+rejections, with explicit unavailable labels where appropriate. Accepted-order
+denominators exclude rejected and discarded requests. There is no pre-fill-state
+quote denominator: grouping successful fills by their later state would select a
+different population from the originally sent quotes.
+
+Tables distinguish:
+
+- scheduled requests, arrived requests, accepted orders and rejected requests;
+- outbound requests discarded by an epoch fault or halted before arrival;
+- unique filled orders versus partial/full fill events and filled quantity;
+- terminal filled/cancelled/invalidated/halted orders and outstanding requests
+  and live orders at the tape cutoff;
+- unique-filled fractions of accepted orders (both cohorts), unique-filled
+  fractions of scheduled requests (decision cohorts only), acceptance fractions
+  of arrived requests and filled fractions of accepted lots.
+
+Fractions describe this tape, cutoff and execution scenario. Outstanding quotes
+are right-censored, and quote ages differ; these are **not** uncensored lifetime
+fill probabilities or live venue estimates. Empty denominators are null. A
+pending cancel remains eligible to fill until the existing acknowledgement;
+cancelled unfilled quotes remain in their original accepted cohort. Halting an
+outbound request is distinguished from a venue rejection. The legacy core
+`quote_fill_probability` metric retains its existing arrived-including-rejects
+denominator; these new explicitly named fractions do not silently redefine it.
+
+The first-fill flag is frozen when matching consumes quantity, before a terminal
+order context can be removed or delayed legacy accounting can run. The engine
+cross-checks it against the matching model's independent `is_first_fill_for_order`
+flag. Only the accounting callback adds a cohort fill. An execution discarded by
+a later epoch fault cannot appear as an accounted fill merely because it matched.
+
+The collector retains at most the profile's two/four pending requests and
+two/four live bindings, plus fixed K+2 cohort and rejection counters. It has no
+historical order-ID set. Quote CSV verification reconstructs lifecycle and cutoff
+counts with bounded state, checks the hash and sufficient statistics, and pairs
+each quote fill with its execution-audit row. Writer or verification failure
+preserves `_INCOMPLETE.json` and any partial evidence.
+
+Execution audit/checkpoint schema version 2 carries the frozen request/first-fill
+metadata and quote collector state. Older HMM continuation state is rejected;
+missing denominators are not fabricated. Disabled checkpoints and base fill,
+markout and event schemas are unchanged. Loading cross-checks actual order
+quantity, remaining quantity, side/slot, causal attribution and scheduler requests
+before replacing state. Resume requires null quote and execution sinks.
+
+`regime-report` verifies the quote and execution streams before adding the cohort
+tables to the existing market-state report. This audit verifies internally
+consistent scenario records, not actual exchange fills, capture coverage,
+authorship, economic benefit or an untouched holdout result.
 
 ## Reproduce checks
 

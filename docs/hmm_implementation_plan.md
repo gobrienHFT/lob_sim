@@ -55,7 +55,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
-| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix and cancel-race regressions |
+| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix; bounded decision/arrival quote cohorts with explicit request, acceptance, rejection and unique-filled denominators; source/risk tables remain |
 | L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
 | M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
@@ -77,10 +77,17 @@ milestone is verified; do not mark the goal complete from this plan alone.
 State characterization now separates raw MAP and confirmed active labels,
 conditional market-feature/confidence/entropy moments, sample fractions and
 complete/censored episodes. It is descriptive, not an economic evaluation.
-Quote denominators, fill-source tables, time-weighted state risk, registered
+Quote cohorts now distinguish scheduled/arrived/accepted/rejected/discarded
+requests, unique filled orders and fill events, with explicit cutoff censoring.
+Their fixed-cardinality stream and checkpoint are checked against core orders,
+scheduler requests and accounted fill rows. This change awaits its complete
+reviewer gate and cross-platform CI before being recorded as a verified release.
+Fill-source tables, time-weighted state risk, registered
 paired research, raw synthetic recovery and representative overhead remain.
 New observer checkpoint version 2 rejects older HMM continuation state rather
-than inventing missing moments/episodes; disabled checkpoints are unchanged.
+than inventing missing moments/episodes. Execution checkpoint version 2 rejects
+older HMM state rather than fabricating missing quote denominators; disabled
+checkpoints are unchanged.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

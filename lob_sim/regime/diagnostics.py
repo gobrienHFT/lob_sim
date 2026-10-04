@@ -379,4 +379,21 @@ def inspect_run(run_dir: str | Path) -> str:
     if model.parameters.state_count != len(hmm["raw_map_sample_counts"]):
         raise ValueError("regime report model dimensions mismatch")
     verify_trace(directory / "regime_trace.csv", hmm)
-    return "Verified serialized regime audit.\n" + format_state_report(hmm)
+    report = "Verified serialized regime audit.\n" + format_state_report(hmm)
+    execution = summary.get("hmm_execution")
+    if isinstance(execution, Mapping) and "quote_lifecycles" in execution:
+        from .execution import verify_execution_trace
+        from .quotes import format_quote_report, verify_quote_trace
+
+        if execution.get("model_sha256") != model.model_sha256:
+            raise ValueError("quote report model identity mismatch")
+        verify_execution_trace(directory / "regime_execution.csv", execution)
+        labels = tuple(f"STATE_{i}" for i in range(model.parameters.state_count)) + ("UNCONFIRMED", "UNAVAILABLE")
+        verify_quote_trace(
+            directory / "regime_quotes.csv",
+            execution["quote_lifecycles"],
+            labels,
+            execution_path=directory / "regime_execution.csv",
+        )
+        report += "\n\n" + format_quote_report(execution["quote_lifecycles"])
+    return report

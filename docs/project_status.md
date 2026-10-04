@@ -111,7 +111,14 @@ printing those diagnostics. Candidate inspection includes every valid K's
 likelihood, convergence, occupancy, transition and duration diagnostics.
 Sample-grid fractions are not wall-clock validity coverage or fill rates.
 
-Execution-denominator/source/risk characterization, registered paired economic evaluation, synthetic
+Quote cohorts now distinguish scheduled, arrived, accepted, rejected and
+discarded requests from unique filled orders and partial-fill events. Original
+decision/arrival labels, explicit denominators and cutoff censoring remain
+visible in the bounded lifecycle stream and `regime-report`; collector
+checkpoints are cross-checked against actual orders and pending requests.
+These fractions are descriptive scenario outcomes, not live fill probabilities.
+
+Source/risk characterization, registered paired economic evaluation, synthetic
 raw-tape recovery diagnostics and overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
