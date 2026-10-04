@@ -67,10 +67,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Pending |
+| W | Existing tests pass after integration | Full suite passes at b39b680; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Foundation checks pass; regime added to the standard gate |
-| Z | Complete reviewer gate passes | Pending |
+| Y | Standard lint and typing pass | Gate Mypy (56 source files), Ruff and format (160 files) pass at b39b680; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at b39b680, including 971 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
 
 ## Release boundaries
 

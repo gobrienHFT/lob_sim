@@ -511,8 +511,8 @@ requires a null execution sink, as for the other audits.
 
 These tables answer descriptive quote-lifetime questions under the selected
 public-L2 fill/latency assumptions. They do not demonstrate predictive power,
-private Binance FIFO, true fills or profitable regime adaptation. Policy,
-registered paired evaluation and representative overhead measurement remain
+private Binance FIFO, true fills or profitable regime adaptation. Registered
+paired evaluation and representative overhead measurement remain
 required next milestones. The opt-in conservative policy is implemented; its
 economic usefulness is not established by those mechanical tests.
 
