@@ -90,6 +90,7 @@ def test_three_information_sets_frozen_and_transition_metrics_independently_corr
     sink.rows[0]["decision"]["active_state"] = 1
     entry = {
         "hmm_attribution": frozen,
+        "fill_source": "agg_trade",
         "symbol": "BTCUSDT",
         "side": "bid",
         "order_id": "order-1",
@@ -125,6 +126,7 @@ def test_repeated_partial_fill_keys_have_unique_ordinals_and_weighted_markouts()
         subject.on_markout(
             {
                 "hmm_attribution": frozen,
+                "fill_source": "agg_trade",
                 "qty": qty,
                 "qty_lots": int(qty),
                 "symbol": "BTCUSDT",
@@ -428,6 +430,7 @@ def test_execution_audit_state_cardinality_independent_of_fill_history():
             subject.on_markout(
                 {
                     "hmm_attribution": frozen,
+                    "fill_source": "agg_trade",
                     "symbol": "BTCUSDT",
                     "side": "bid",
                     "order_id": order,
@@ -443,7 +446,8 @@ def test_execution_audit_state_cardinality_independent_of_fill_history():
         subject.release_order(order)
     checkpoint = subject.checkpoint()
     assert checkpoint["orders"] == {} and checkpoint["trace_count"] == 6000
-    assert len(json.dumps(checkpoint)) < 16000
+    # Fixed K-by-source cells grow the constant bound, not the history retained.
+    assert len(json.dumps(checkpoint)) < 100000
     assert subject.validated_copy(checkpoint).checkpoint() == checkpoint
 
 

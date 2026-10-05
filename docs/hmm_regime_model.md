@@ -633,10 +633,11 @@ counts with bounded state, checks the hash and sufficient statistics, and pairs
 each quote fill with its execution-audit row. Writer or verification failure
 preserves `_INCOMPLETE.json` and any partial evidence.
 
-Execution audit/checkpoint schema version 2 carries the frozen request/first-fill
-metadata and quote collector state. Older HMM continuation state is rejected;
-missing denominators are not fabricated. Disabled checkpoints and base fill,
-markout and event schemas are unchanged. Loading cross-checks actual order
+Execution audit/checkpoint schema version 3 carries the frozen request/first-fill
+metadata, fill-source identity, queue diagnostics and quote collector state.
+Older HMM continuation state is rejected; missing diagnostics are not fabricated.
+Disabled checkpoints and base fill, markout and event schemas are unchanged.
+Loading cross-checks actual order
 quantity, remaining quantity, side/slot, causal attribution and scheduler requests
 before replacing state. Resume requires null quote and execution sinks.
 
@@ -644,6 +645,60 @@ before replacing state. Resume requires null quote and execution sinks.
 tables to the existing market-state report. This audit verifies internally
 consistent scenario records, not actual exchange fills, capture coverage,
 authorship, economic benefit or an untouched holdout result.
+
+## Execution source and modeled queue diagnostics
+
+`hmm_execution.conditioned_by_source` splits each frozen decision, arrival and
+pre-fill cohort into `depth_update`, `agg_trade`, `taker_order` and `OTHER`.
+Unrecognized or unavailable source names stay visible in the trace but cannot
+create an ever-growing set of aggregate keys. Source is frozen at the accounting
+callback and carried through every pending horizon; it cannot be rewritten by
+a later regime observation or markout callback.
+
+Each cell reports fill events and quantity, fees, mean quote age, pending-cancel
+fills, marked spread capture, modeled queue-ahead observations and configured
+signed markout horizons. Markouts remain quantity-weighted, and their coverage,
+invalidations, pending samples and actual observation lag remain explicit.
+Fees and spread-capture values use the existing instrument/accounting units;
+mean marked spread capture divides the marked value by its covered quantity,
+not by all fills. These components are not a net-PnL decomposition.
+
+These are **fill-population tables**, not fill probabilities. A source only
+exists after a modeled fill; attaching accepted-quote denominators to that
+population would introduce selection bias. Quote-cohort fractions remain in
+their separate decision/arrival tables. No pre-fill/source quote denominator is
+invented. Empty populations and unavailable marks have null means, not zeros.
+
+The execution CSV now preserves `queue_ahead_lots` and the core's integer
+`queue_trajectory`. Passive trajectories describe modeled queue before the
+trigger, at the fill, consumed lots and remaining order quantity. Taker
+trajectories describe consumed visible depth separately. These values describe
+the configured public-L2 scenario, never private participant FIFO or a measured
+queue position. Aggregate trajectory totals include per-field observation
+counts: an absent field must not be interpreted as a measured zero.
+
+Before publication, the streamed verifier checks the hash, all state/source
+sufficient statistics, transitions, frozen fill-to-markout identities, unique
+horizon resolutions, deadlines and actual lags. Pending identities are bounded
+by the sum of the core's configured primary/additional horizon capacities;
+completed fill history is not retained. The exact stored primary deadline is
+preserved even when the legacy horizon label rounds to milliseconds. Checkpoint
+loading also checks source marginals against state totals, source counts against
+core fills, and every unresolved source/horizon against the core's pending list.
+
+Independent generated batch reducers cover K=2..5, source mixtures, negative
+fees, partial/missing queue diagnostics, missing marks and censored horizons.
+Adversarial tests cover internally rehashed but inconsistent streams, duplicate
+markouts, source relabeling and corrupt continuation state. The paired native
+baseline retains the same actions, fills and accounting; this is audit evidence,
+not proof of economic benefit. `regime-report` prints the verified source tables
+after the market-state and quote-cohort diagnostics.
+
+Schema-v2 HMM traces/checkpoints are not silently upgraded to v3. Reproduce an
+old audit with its original revision, or rerun the same immutable inputs under
+the new revision. Legacy market-tape importers and the HMM-disabled public audit
+schemas are unchanged. State time-weighted risk and a registered paired research
+study remain separate, unfinished evidence requirements.
 
 ## Reproduce checks
 

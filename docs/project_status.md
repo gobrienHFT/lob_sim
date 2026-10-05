@@ -123,7 +123,14 @@ artifact/determinism/fault checks, installed-wheel verification and fixture
 benchmark. It adds 48 regression cases; this is not representative HMM overhead
 or a dedicated-host performance result.
 
-Source/risk characterization, registered paired economic evaluation, synthetic
+Fill-source/queue characterization now separates depth-inferred, trade-driven,
+taker and unavailable/other fill populations under every frozen regime phase.
+Missing queue fields have explicit coverage rather than assumed zeros. The
+streamed verifier checks all execution sufficient statistics and fill/horizon
+identities, while checkpoint loading checks source totals and pending horizons
+against core state. This adds no new execution or profitability claim.
+
+Time-weighted risk characterization, registered paired economic evaluation, synthetic
 raw-tape recovery diagnostics and overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).

@@ -139,6 +139,7 @@ class SimulationEngine:
                 2 if cfg.mm_strategy_profile == "baseline" else 4,
                 regime_execution_sink,
                 regime_quote_sink,
+                cfg.sim_max_pending_markouts,
             )
             self.metrics._regime_execution = self.hmm_execution
         self.fill_model = PassiveFillModel(cfg.effective_fill_assumption)

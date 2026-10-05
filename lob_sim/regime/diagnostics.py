@@ -382,11 +382,15 @@ def inspect_run(run_dir: str | Path) -> str:
     report = "Verified serialized regime audit.\n" + format_state_report(hmm)
     execution = summary.get("hmm_execution")
     if isinstance(execution, Mapping) and "quote_lifecycles" in execution:
-        from .execution import verify_execution_trace
+        from .execution import format_execution_report, verify_execution_trace
         from .quotes import format_quote_report, verify_quote_trace
 
-        if execution.get("model_sha256") != model.model_sha256:
-            raise ValueError("quote report model identity mismatch")
+        if (
+            execution.get("model_sha256") != model.model_sha256
+            or execution.get("symbol") != hmm["config"]["symbol"]
+            or execution["quote_lifecycles"].get("symbol") != execution.get("symbol")
+        ):
+            raise ValueError("quote report model/symbol identity mismatch")
         verify_execution_trace(directory / "regime_execution.csv", execution)
         labels = tuple(f"STATE_{i}" for i in range(model.parameters.state_count)) + ("UNCONFIRMED", "UNAVAILABLE")
         verify_quote_trace(
@@ -396,4 +400,5 @@ def inspect_run(run_dir: str | Path) -> str:
             execution_path=directory / "regime_execution.csv",
         )
         report += "\n\n" + format_quote_report(execution["quote_lifecycles"])
+        report += "\n\n" + format_execution_report(execution)
     return report

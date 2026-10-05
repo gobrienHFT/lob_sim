@@ -1281,7 +1281,7 @@ def main() -> None:
     inspect_regime.add_argument("--json", action="store_true")
 
     report_regime = sub.add_parser(
-        "regime-report", help="Verify a completed regime audit and show causal market-state diagnostics"
+        "regime-report", help="Verify a completed regime audit and show state, quote-cohort and fill-source diagnostics"
     )
     report_regime.add_argument("--run-dir", required=True)
 
