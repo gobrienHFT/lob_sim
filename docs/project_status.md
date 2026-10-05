@@ -129,6 +129,11 @@ Missing queue fields have explicit coverage rather than assumed zeros. The
 streamed verifier checks all execution sufficient statistics and fill/horizon
 identities, while checkpoint loading checks source totals and pending horizons
 against core state. This adds no new execution or profitability claim.
+The source/queue milestone at `57f9eba` adds 53 regression cases and passes the
+complete clean 15-step reviewer gate: 1,072 Python tests, 16 Rust tests, standard
+typing/lint/format, primitive differential, artifact/determinism/fault checks,
+installed-wheel demo and the HMM-disabled fixture benchmark. Full-package Mypy
+also passes across 71 source files. Representative HMM overhead is still unmeasured.
 
 Time-weighted risk characterization, registered paired economic evaluation, synthetic
 raw-tape recovery diagnostics and overhead evidence remain required. No trained

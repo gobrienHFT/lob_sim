@@ -705,6 +705,7 @@ study remain separate, unfinished evidence requirements.
 ```bash
 python -m pip install -r requirements.txt
 python -m pytest -q -k hmm
+python -m pytest -q tests/test_hmm_sources.py
 python -m mypy lob_sim/regime
 python scripts/reviewer_gate.py
 ```

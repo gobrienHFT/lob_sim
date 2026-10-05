@@ -67,10 +67,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full suite passes at 218027e; repeat after remaining research integration |
+| W | Existing tests pass after integration | Full suite passes at 57f9eba; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (57 source files), Ruff and format (162 files) pass at 218027e; full-package Mypy also passes across 71 source files; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at 218027e, including 1019 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
+| Y | Standard lint and typing pass | Gate Mypy (57 source files), Ruff and format (163 files) pass at 57f9eba; full-package Mypy also passes across 71 source files; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at 57f9eba, including 1072 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
 
 ## Release boundaries
 
@@ -87,13 +87,16 @@ its precise earlier-identity expectation and unchanged-core assertion now pass.
 Fill-source tables now separate fill populations from quote denominators and
 preserve modeled queue trajectories and per-field coverage. A bounded streamed
 verifier reconstructs all execution sufficient statistics and frozen horizon
-identities. Time-weighted state risk, registered paired research, raw synthetic
+identities. The 53 new source/queue regressions and complete clean reviewer gate
+pass at 57f9eba, including independent batch reductions for K=2..5 and native
+unchanged-core checks. The benchmark still uses the 80-record HMM-disabled clip;
+it is not representative HMM overhead or exchange latency.
+Time-weighted state risk, registered paired research, raw synthetic
 recovery and representative overhead remain.
 New observer checkpoint version 2 rejects older HMM continuation state rather
 than inventing missing moments/episodes. Execution checkpoint version 3 rejects
 older HMM state rather than fabricating missing quote denominators or
-source/queue diagnostics; disabled
-checkpoints are unchanged.
+source/queue diagnostics; disabled checkpoints are unchanged.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of
