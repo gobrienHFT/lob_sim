@@ -288,3 +288,25 @@ fewer quotes/fills, and all fill activity appears as immediate-fill arrivals.
 No passive-fill quality or economic benefit follows. Broader representative
 workloads, profiling, dedicated-host performance and eligible registered
 multi-day research remain release work.
+
+## Decision-snapshot optimization contract
+
+Publication source `cfc02b7` passes the complete local reviewer gate: 1494
+Python tests, 16 Rust tests and all 15 steps, including the installed-wheel
+demo. Hosted final-head verification is recorded separately in the draft PR.
+
+A diagnostic observer replay of the same public workload reproduces the
+published bounded core hash. Its profile identifies repeated snapshot JSON
+round-trips and audit copying as engineering work, not evidence of inference
+or trading latency. The profile ran alongside correctness tests and is not
+a release benchmark or a before/after timing comparison.
+
+Before changing this path, `tests/test_hmm_snapshot.py` freezes its behavior
+against an independent stdlib JSON oracle. The 29 cases cover availability
+and exact stale-time edges, independent nested ownership, faults and epoch
+resets, invalid clocks, restoration of an older signal, event-by-event
+observation/policy replay and checkpoint continuation. Full state, audit
+hashes, latency draws and exact checkpoints must agree. A cache, if added,
+may retain only a copy of the current signal, cannot bypass validity checks,
+and must remain outside serialized continuation state. No end-to-end speedup
+is established by this contract.
