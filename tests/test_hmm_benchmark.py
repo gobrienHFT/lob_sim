@@ -10,6 +10,10 @@ import pytest
 import experiments.benchmark_hmm_overhead as module
 
 from lob_sim.regime.artifact import save_model
+from lob_sim.regime.dataset import instrument_grid_identity
+from lob_sim.regime.validation import canonical_json
+from lob_sim.book.types import InstrumentSpec
+from lob_sim.record.schema import RecordValidationError
 from test_hmm_dataset import cfg, tape
 from test_hmm_policy import policy_settings
 
@@ -92,12 +96,48 @@ def test_existing_tracer_rejected_without_stopping_callers_tracer(tmp_path):
         tracemalloc.stop()
 
 
+@pytest.mark.parametrize("missing_metadata", [False, True])
+def test_native_instrument_preflight_aborts_before_engine_construction(tmp_path, monkeypatch, missing_metadata):
+    from decimal import Decimal
+
+    path, model, configuration = inputs(tmp_path)
+    if missing_metadata:
+        path.write_text(
+            "\n".join(line for line in path.read_text().splitlines() if '"type": "exchangeInfo"' not in line) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        original = policy_settings().model
+        wrong_grid = InstrumentSpec("BTCUSDT", Decimal("0.2"), Decimal("0.001"), venue="BINANCE_USDM")
+        provenance = json.loads(original.provenance_json)
+        provenance["training"]["instrument_sha256"] = instrument_grid_identity(wrong_grid)
+        save_model(
+            tmp_path / "other_model.json",
+            replace(
+                original,
+                provenance_json=canonical_json(provenance),
+            ),
+        )
+        model = tmp_path / "other_model.json"
+    monkeypatch.setattr(module, "SimulationEngine", lambda *args, **kwargs: pytest.fail("constructed a timed engine"))
+    with pytest.raises(ValueError, match="benchmark preflight"):
+        module.benchmark_hmm(path, model, configuration, symbol="BTCUSDT", warmups=1, repetitions=1)
+
+
 def test_no_clobber_before_expensive_work(tmp_path):
     out = tmp_path / "already.json"
     out.write_text("preserved")
     with pytest.raises(FileExistsError):
         module.main(["--file", "missing", "--model", "missing", "--json-out", str(out)])
     assert out.read_text() == "preserved"
+
+
+def test_native_preflight_drains_corrupt_tail_before_any_timed_engine(tmp_path, monkeypatch):
+    path, model, configuration = inputs(tmp_path)
+    path.write_text(path.read_text() + "{broken_tail\n", encoding="utf-8")
+    monkeypatch.setattr(module, "SimulationEngine", lambda *args, **kwargs: pytest.fail("constructed a timed engine"))
+    with pytest.raises(RecordValidationError, match="invalid JSON"):
+        module.benchmark_hmm(path, model, configuration, symbol="BTCUSDT", warmups=1, repetitions=1)
 
 
 def test_invalid_config_rejected_before_model_load(tmp_path):

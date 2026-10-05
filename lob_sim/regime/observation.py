@@ -19,7 +19,7 @@ from typing import Any, cast
 from ..sim.checkpoint import decode, encode
 from ..sim.observation import MarketObservation
 from ..sim.sinks import EventSink, NullSink
-from .dataset import FeatureDatasetObserver, _Context, instrument_identity
+from .dataset import FeatureDatasetObserver, _Context, compatible_instrument, instrument_identity
 from .diagnostics import RegimeDiagnostics
 from .features import CausalFeatureSampler, FeatureSample, FeatureStatus
 from .filter import FilterResult
@@ -169,7 +169,7 @@ class RegimeObserver(FeatureDatasetObserver):
         if observation.symbol != self.settings.symbol:
             return
         instrument = instrument_identity(observation)
-        if self._expected_instrument is not None and instrument != self._expected_instrument:
+        if not compatible_instrument(observation.spec, self._expected_instrument):
             raise ValueError("regime model instrument grid mismatch")
         context = self._contexts.get(observation.symbol)
         changed = context is not None and (
@@ -349,7 +349,7 @@ class RegimeObserver(FeatureDatasetObserver):
                 or observation.bids != (sampler._book.bids if sampler._book else ())
                 or observation.asks != (sampler._book.asks if sampler._book else ())
                 or item["instrument_sha256"] != instrument_identity(observation)
-                or (self._expected_instrument is not None and item["instrument_sha256"] != self._expected_instrument)
+                or not compatible_instrument(observation.spec, self._expected_instrument)
             ):
                 raise ValueError("observer checkpoint causal anchors mismatch")
             generation = integer(item["generation"], "generation")

@@ -1,0 +1,22 @@
+{
+  "schema_version": "lob_sim.hmm_overhead_attempt.v1",
+  "status": "failed_before_first_complete_warmup_round",
+  "claim_ready": false,
+  "source_commit": "e2596733a2ab5a6c3069b141a2079a052e978156",
+  "benchmark_report_published": false,
+  "requested_output": "outputs/hmm_public_overhead_20261005_active_e259673.json",
+  "input": "docs/benchmark_inputs/hmm_public_btcusdt_20261005/capture_1791203092_f912172cf0594437a728d2eb9160d85e.manifest.json",
+  "model": "docs/benchmark_inputs/hmm_public_btcusdt_20261005/synthetic_frozen_model.json",
+  "environment": "docs/benchmark_results/hmm_active_public_reference.env",
+  "requested_protocol": {
+    "warmups_per_mode": 3,
+    "measured_repetitions_per_mode": 30,
+    "memory_runs_per_mode": 1,
+    "active_policy_required": true
+  },
+  "error": "ValueError: regime model instrument grid mismatch",
+  "error_site": "lob_sim/regime/observation.py:RegimeObserver.observe",
+  "diagnosis": "Exact grid hash included Decimal spelling: the model trained with tick 0.1; the public capture reports numerically identical 0.10. Neither the model nor the capture was edited to bypass this failure.",
+  "timing_samples": null,
+  "limitations": "Failed attempt, not a performance result or a negative economic-policy result. No raw timing, active-workload or HMM-benefit claim. Original model/capture artifacts remain intact."
+}

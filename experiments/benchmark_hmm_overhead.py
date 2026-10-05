@@ -22,10 +22,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from lob_sim.config import Config, load_config
 from lob_sim.regime.artifact import load_model
-from lob_sim.regime.dataset import publish_json
+from lob_sim.regime.dataset import compatible_instrument, publish_json
 from lob_sim.regime.settings import HMMSettings
-from lob_sim.regime.validation import identity, integer
+from lob_sim.regime.validation import identity, integer, strict_json
 from lob_sim.replay.inspection import file_sha256
+from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER
+from lob_sim.replay.reader import iter_records
 from lob_sim.sim.checkpoint import checkpoint_code_identity
 from lob_sim.sim.engine import SimulationEngine
 from lob_sim.sim.run_manifest import config_snapshot, source_state
@@ -133,6 +135,19 @@ def benchmark_hmm(
         "package": checkpoint_code_identity(),
         "benchmark_script_sha256": file_sha256(Path(__file__)),
     }
+    # Drain the native validated reader before timing. No separate feed parser,
+    # no simulation or fitting, and no changed model/tape identities.
+    training = strict_json(model.provenance_json).get("training", {})
+    expected = training.get("instrument_sha256") if isinstance(training, dict) else None
+    metadata_seen = False
+    for record in iter_records(path):
+        if record.type == "exchangeInfo" and record.symbol == symbol:
+            spec = DEFAULT_REPLAY_ADAPTER.instrument_spec_from_record(record)
+            if spec is None or not compatible_instrument(spec, expected):
+                raise ValueError("benchmark preflight: regime model instrument grid mismatch")
+            metadata_seen = True
+    if not metadata_seen:
+        raise ValueError("benchmark preflight: missing instrument metadata")
     prototypes: dict[str, dict[str, Any]] = {}
     measurements: dict[str, list[int]] = {mode: [] for mode in MODES}
     peaks: dict[str, list[int]] = {mode: [] for mode in MODES}
@@ -241,7 +256,7 @@ def benchmark_hmm(
             "measured_order": measured_order,
             "order": "six deterministic permutations cycling; no best-run selection",
             "timing": "engine construction + input read/hash/decode + simulation + EOF drain; no tracemalloc",
-            "outside_timing": "model load, GC preconditioning, bounded summary/hash reduction, publication",
+            "outside_timing": "model load, validated input/metadata preflight, GC preconditioning, bounded summary/hash reduction, publication",
             "memory": "separate replay tracemalloc runs; frozen model loaded before tracing; peak traced replay allocations, NOT total resident model memory or process RSS",
             "sinks": "null/aggregate; no disk audit or retained event/fill/markout traces",
             "quantiles": "linear empirical interpolation; p99 is a RUN quantile, NOT per-event latency",

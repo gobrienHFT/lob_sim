@@ -13,9 +13,11 @@ from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
+from ..book.types import InstrumentSpec
 from ..config import Config
 from ..replay.inspection import file_sha256
 from ..research.protocol import ResearchRegistry, UTCDaySplit, chronological_day_split
@@ -62,15 +64,44 @@ def utc_day(wall_ns: int) -> str:
 
 
 def instrument_identity(observation: MarketObservation) -> str:
-    spec = observation.spec
+    return instrument_grid_identity(observation.spec)
+
+
+def _decimal_grid_text(value: Decimal) -> str:
+    """Remove insignificant zeros without Decimal.normalize's context rounding."""
+    sign, digits, exponent = value.as_tuple()
+    assert isinstance(exponent, int)  # InstrumentSpec guarantees finite values.
+    while len(digits) > 1 and digits[-1] == 0:
+        digits = digits[:-1]
+        exponent += 1
+    return str(Decimal((sign, digits, exponent)))
+
+
+def instrument_grid_identity(spec: InstrumentSpec, *, canonical_grid: bool = False) -> str:
+    # Default preserves historical dataset, trace and checkpoint identities.
+    render = _decimal_grid_text if canonical_grid else str
     return identity(
         {
             "symbol": spec.symbol,
-            "tick_size": str(spec.tick_size),
-            "step_size": str(spec.step_size),
-            "contract_multiplier": str(spec.contract_multiplier),
+            "tick_size": render(spec.tick_size),
+            "step_size": render(spec.step_size),
+            "contract_multiplier": render(spec.contract_multiplier),
             "venue": spec.venue,
         }
+    )
+
+
+def compatible_instrument(spec: InstrumentSpec, expected: object) -> bool:
+    """Exact legacy hash, or that same grid in minimal Decimal spelling.
+
+    An opaque old hash cannot be normalized retrospectively. A model with a
+    nonminimal training spelling still requires its exact spelling or refitting;
+    no fuzzy matching, unchecked provenance rewrite or numeric tolerance.
+    """
+    return (
+        expected is None
+        or instrument_grid_identity(spec) == expected
+        or instrument_grid_identity(spec, canonical_grid=True) == expected
     )
 
 
