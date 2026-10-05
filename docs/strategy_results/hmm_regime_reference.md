@@ -119,3 +119,6 @@ successful rerun. No validation was bypassed.
 The overhead command is separately tested and documented in the technical
 guide. Its existence is not a representative timing result, a real-market
 policy comparison or an extension of this report's eligibility evidence.
+The later [synthetic overhead smoke run](../benchmark_results/hmm_overhead_smoke_reference.md)
+is explicitly single-repetition and exposes a zero-quote policy workload; it
+does not close those release requirements.

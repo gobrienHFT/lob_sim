@@ -287,7 +287,12 @@ def main(argv: list[str] | None = None) -> int:
     publish_json(args.json_out, report)
     for mode, value in report["modes"].items():
         print(
-            f"{mode}: median={value['wall_ns']['median'] / 1e9:.6f}s; matched overhead={value['median_relative_overhead_percent']:.2f}%; traced peak={value['peak_traced_bytes']} bytes"
+            f"{mode}: median={value['wall_ns']['median'] / 1e9:.6f}s; matched overhead={value['median_relative_overhead_percent']:.2f}%; traced peak={value['peak_traced_bytes']} bytes; quotes={value['probe']['quote_count']}; cancels={value['probe']['cancel_count']}; fills={value['probe']['fill_count']}"
+        )
+    if report["modes"]["policy"]["probe"]["quote_count"] == 0:
+        print(
+            "WARNING: policy issued no quotes; its runtime excludes baseline quoting work. "
+            "Inspect risk controls and lot granularity. This is not quoting-speed or policy-benefit evidence."
         )
     print("Offline unpinned Python replay; not exchange latency or a policy-benefit claim.")
     print(f"Report: {args.json_out.resolve()}")

@@ -1004,6 +1004,15 @@ allocation-free processing, full audit-I/O speed, soak reliability or trading
 latency. No representative measurement is claimed merely because this command
 and its tests exist.
 
+The [recorded synthetic smoke run](benchmark_results/hmm_overhead_smoke_reference.md)
+uses one repetition, not the default release protocol. It preserves observer
+core parity but exposes a zero-quote policy workload: reducing the one-lot
+reference size floors it to zero. The command now prints quote/cancel/fill
+counts and warns when policy sends no quotes. Do not round quantities up or
+relax risk controls to make the timing look active. That run also records the
+uncontrolled host and concurrent diagnostic load; it is not a representative
+performance or economic result.
+
 ## Reproduce checks
 
 ```bash

@@ -1,0 +1,359 @@
+{
+  "schema_version": "lob_sim.hmm_overhead_smoke_reference.v1",
+  "claim_ready": false,
+  "original_report": {
+    "schema_version": "lob_sim.hmm_overhead_benchmark.v1",
+    "report_sha256": "eba768f8b228ce0fa8883a3403dac8ff0443a1ec2d4f8e1484ac6fec64891a74",
+    "local_path": "outputs/hmm_overhead_20261005_probe.json",
+    "projection": "Raw timings, workload, configuration and parent identities only; full state-characterization moments omitted."
+  },
+  "input": {
+    "path": "outputs/hmm_synthetic_recovery_20261005_reference/tape/market.ndjson",
+    "size_bytes": 4521291
+  },
+  "model_file": "outputs/hmm_synthetic_recovery_20261005_reference/model.json",
+  "model_sha256": "8617536945f704aed7d5ab9e456c4b2d2cb11983f52df552e1637df1e4fd6109",
+  "model_states": 5,
+  "parents": {
+    "benchmark_script_sha256": "78cff13483549db8dda041b309be621909345f4c630a5a24f3070f87a3b36179",
+    "input_sha256": "dcf4615f83a9e8ce851fea144bb7631b248fff5d7334d15b6735d7b33366505d",
+    "model_file_sha256": "bacd6ec0631f89d66c02cddeb4177d28be390a8fbfef7a7731462fab52524a40",
+    "package": {
+      "algorithm": "sha256",
+      "file_count": 79,
+      "schema_version": "lob_sim.checkpoint_code_identity.v1",
+      "sha256": "ae66f0de3e0cecf481fb44cccdc51208f5102701b91a0be5cae446b0c5d1f9fc"
+    }
+  },
+  "environment": {
+    "cpu_description": "Intel64 Family 6 Model 126 Stepping 5, GenuineIntel",
+    "logical_cpu_count": 8,
+    "packages": {
+      "hmmlearn": "0.3.3",
+      "numpy": "2.2.4",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1"
+    },
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.1 (tags/v3.13.1:0671451, Dec  3 2024, 19:06:28) [MSC v.1942 64 bit (AMD64)]",
+    "source": {
+      "git_branch": "codex/hmm-regime-layer",
+      "git_commit": "4cde350a83030d5ba630a8a467d7bd85a07b8f48",
+      "git_dirty": false
+    },
+    "hardware_note": "Intel Core i5-1035G7 @ 1.20GHz, four physical cores, eight logical CPUs (local CIM inventory)."
+  },
+  "protocol": {
+    "host_policy": "ordinary unpinned local process; CPU frequency/power/other load uncontrolled",
+    "measured_order": [
+      [
+        "baseline",
+        "policy",
+        "observe"
+      ]
+    ],
+    "measured_repetitions_per_mode": 1,
+    "memory": "separate replay tracemalloc runs; frozen model loaded before tracing; peak traced replay allocations, NOT total resident model memory or process RSS",
+    "memory_runs_per_mode": 1,
+    "order": "six deterministic permutations cycling; no best-run selection",
+    "outside_timing": "model load, GC preconditioning, bounded summary/hash reduction, publication",
+    "quantiles": "linear empirical interpolation; p99 is a RUN quantile, NOT per-event latency",
+    "sinks": "null/aggregate; no disk audit or retained event/fill/markout traces",
+    "timing": "engine construction + input read/hash/decode + simulation + EOF drain; no tracemalloc",
+    "warmups_per_mode": 1,
+    "concurrent_load_note": "An approximately 12-second diagnostic profiler ran alongside part of the measured round; this was not a dedicated or otherwise isolated host."
+  },
+  "shared_configuration": {
+    "book_top_n": 20,
+    "capture_schema_version": 3,
+    "fees_maker_bps": "-0.2",
+    "fees_taker_bps": "4.0",
+    "fill_assumption": {
+      "agg_trades_consume_queue": true,
+      "depth_reductions_consume_queue": false,
+      "overlap_netting_enabled": true,
+      "overlap_window_seconds": 0.125,
+      "profile": "base",
+      "uncorroborated_depth_reduction_mode": "consume_synthetic_queue_ahead"
+    },
+    "fill_assumption_profile": "base",
+    "mm_enabled": true,
+    "mm_fee_floor_buffer_bps": "0.02",
+    "mm_half_spread_bps": "0.05",
+    "mm_layered_inner_spread_bps": "0.05",
+    "mm_layered_outer_spread_bps": "0.15",
+    "mm_max_portfolio_notional": "0",
+    "mm_max_position": "0.05",
+    "mm_microstructure_gate_bps": "0.10",
+    "mm_microstructure_gate_threshold": "0.20",
+    "mm_order_qty": "0.001",
+    "mm_queue_repost_lots": 0,
+    "mm_requote_ms": 500,
+    "mm_skew_bps_per_unit": "10.0",
+    "mm_strategy_profile": "research_mm",
+    "mm_toxicity_spread_factor": "2.0",
+    "mm_trade_imbalance_window": 12,
+    "mm_volatility_spread_factor": "8.0",
+    "mm_volatility_window": 30,
+    "resync_on_gap": true,
+    "sim_adverse_markout_seconds": 1,
+    "sim_cancel_latency_ms": 10,
+    "sim_fill_model": "trade",
+    "sim_kill_max_consecutive_losses": 0,
+    "sim_kill_max_drawdown": "0",
+    "sim_kill_switch_enabled": false,
+    "sim_latency_mode": "fixed",
+    "sim_latency_samples_ms": [],
+    "sim_latency_stress_multiplier": 1,
+    "sim_markout_horizons_ms": [
+      100,
+      1000,
+      5000
+    ],
+    "sim_max_pending_markouts": 100000,
+    "sim_order_latency_ms": 10,
+    "sim_seed": 1,
+    "snapshot_limit": 1000,
+    "symbols": [
+      "BTCUSDT"
+    ]
+  },
+  "modes": {
+    "baseline": {
+      "strategy_profile": "research_mm",
+      "hmm_configuration": null,
+      "raw_wall_ns": [
+        29496654500
+      ],
+      "raw_peak_traced_bytes": [
+        3345142
+      ],
+      "matched_round_relative_runtime": {
+        "median": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "median_relative_overhead_percent": 0,
+      "probe": {
+        "records_processed": 11623,
+        "quote_count": 19167,
+        "cancel_count": 3520,
+        "fill_count": 8952,
+        "core_sha256": "30e9beeb5fe3ccd96436d471d94810eab44961f20daba8ab3f9240a7d9f1cc23",
+        "fill_audit_sha256": "bbac5fab6dbf0e67e1760ca000dd476e542841c54807296007c218e94f8702b1",
+        "markout_audit_sha256": "9c37bfee584df64a4e64c2f37b413da36a66860678858dc0098cccdb556e24a2",
+        "event_trace_retention": {
+          "memory_bounded_by_tape_duration": true,
+          "retained_in_memory": false,
+          "rows_emitted": 121564,
+          "rows_retained": 0,
+          "schema_version": "lob_sim.event_trace_retention.v1",
+          "sink": "NullSink",
+          "sink_memory_bounded": true
+        },
+        "audit_retention": {
+          "built_in_sinks_memory_bounded": true,
+          "detail_rows_complete_in_summary": false,
+          "fill_audit_sha256": "bbac5fab6dbf0e67e1760ca000dd476e542841c54807296007c218e94f8702b1",
+          "fill_rows_emitted": 8952,
+          "fill_rows_retained": 0,
+          "fill_sink": "NullSink",
+          "markout_audit_sha256": "9c37bfee584df64a4e64c2f37b413da36a66860678858dc0098cccdb556e24a2",
+          "markout_rows_emitted": 8952,
+          "markout_rows_retained": 0,
+          "markout_sink": "NullSink",
+          "markout_trace_buffering": false,
+          "max_pending_markouts": 100000,
+          "memory_bounded_by_tape_duration": true,
+          "mode": "aggregate_only",
+          "pending_markouts": 0,
+          "schema_version": "lob_sim.audit_retention.v1"
+        },
+        "hmm_status_counts": null
+      }
+    },
+    "observe": {
+      "strategy_profile": "research_mm",
+      "hmm_configuration": {
+        "feature_identity": "3ac05645ec4d9583978d52b910dbd497e9f6bc0aba92540e825ca7d17cfb1914",
+        "hysteresis": {
+          "confirmation_samples": 3,
+          "enter_probability": 0.7,
+          "maximum_normalized_entropy": 0.95,
+          "minimum_state_age_samples": 3
+        },
+        "mode": "observe",
+        "model_mode": "frozen_train_model",
+        "model_sha256": "8617536945f704aed7d5ab9e456c4b2d2cb11983f52df552e1637df1e4fd6109",
+        "schema_version": "lob_sim.hmm_runtime_config.v1",
+        "symbol": "BTCUSDT"
+      },
+      "raw_wall_ns": [
+        257156041900
+      ],
+      "raw_peak_traced_bytes": [
+        4658626
+      ],
+      "matched_round_relative_runtime": {
+        "median": 8.718142659195468,
+        "p95": 8.718142659195468,
+        "p99": 8.718142659195468
+      },
+      "median_relative_overhead_percent": 771.8142659195469,
+      "probe": {
+        "records_processed": 11623,
+        "quote_count": 19167,
+        "cancel_count": 3520,
+        "fill_count": 8952,
+        "core_sha256": "30e9beeb5fe3ccd96436d471d94810eab44961f20daba8ab3f9240a7d9f1cc23",
+        "fill_audit_sha256": "bbac5fab6dbf0e67e1760ca000dd476e542841c54807296007c218e94f8702b1",
+        "markout_audit_sha256": "9c37bfee584df64a4e64c2f37b413da36a66860678858dc0098cccdb556e24a2",
+        "event_trace_retention": {
+          "memory_bounded_by_tape_duration": true,
+          "retained_in_memory": false,
+          "rows_emitted": 121564,
+          "rows_retained": 0,
+          "schema_version": "lob_sim.event_trace_retention.v1",
+          "sink": "NullSink",
+          "sink_memory_bounded": true
+        },
+        "audit_retention": {
+          "built_in_sinks_memory_bounded": true,
+          "detail_rows_complete_in_summary": false,
+          "fill_audit_sha256": "bbac5fab6dbf0e67e1760ca000dd476e542841c54807296007c218e94f8702b1",
+          "fill_rows_emitted": 8952,
+          "fill_rows_retained": 0,
+          "fill_sink": "NullSink",
+          "markout_audit_sha256": "9c37bfee584df64a4e64c2f37b413da36a66860678858dc0098cccdb556e24a2",
+          "markout_rows_emitted": 8952,
+          "markout_rows_retained": 0,
+          "markout_sink": "NullSink",
+          "markout_trace_buffering": false,
+          "max_pending_markouts": 100000,
+          "memory_bounded_by_tape_duration": true,
+          "mode": "aggregate_only",
+          "pending_markouts": 0,
+          "schema_version": "lob_sim.audit_retention.v1"
+        },
+        "hmm_status_counts": {
+          "INVALID_BOOK": 8,
+          "VALID": 2350,
+          "WARMING_UP": 50
+        }
+      }
+    },
+    "policy": {
+      "strategy_profile": "hmm_regime_mm",
+      "hmm_configuration": {
+        "feature_identity": "3ac05645ec4d9583978d52b910dbd497e9f6bc0aba92540e825ca7d17cfb1914",
+        "hysteresis": {
+          "confirmation_samples": 3,
+          "enter_probability": 0.7,
+          "maximum_normalized_entropy": 0.95,
+          "minimum_state_age_samples": 3
+        },
+        "mode": "policy",
+        "model_mode": "frozen_train_model",
+        "model_sha256": "8617536945f704aed7d5ab9e456c4b2d2cb11983f52df552e1637df1e4fd6109",
+        "policy": {
+          "base_max_quote_age_ms": 2000,
+          "high_risk_state_confidence": 0.9,
+          "inventory_reduction": 0.5,
+          "max_refresh_multiplier": 4,
+          "max_skew_multiplier": 2,
+          "max_spread_multiplier": 3,
+          "min_inventory_multiplier": 0.5,
+          "min_size_multiplier": 0.25,
+          "refresh_slope": 3,
+          "schema_version": "lob_sim.hmm_policy_config.v1",
+          "size_reduction": 0.75,
+          "skew_slope": 1,
+          "spread_slope": 2,
+          "stand_aside_risk": 0.95,
+          "uncertainty_weight": 0.25
+        },
+        "schema_version": "lob_sim.hmm_runtime_config.v1",
+        "symbol": "BTCUSDT"
+      },
+      "raw_wall_ns": [
+        83612853300
+      ],
+      "raw_peak_traced_bytes": [
+        4274288
+      ],
+      "matched_round_relative_runtime": {
+        "median": 2.8346554793188496,
+        "p95": 2.8346554793188496,
+        "p99": 2.8346554793188496
+      },
+      "median_relative_overhead_percent": 183.46554793188497,
+      "probe": {
+        "records_processed": 11623,
+        "quote_count": 0,
+        "cancel_count": 0,
+        "fill_count": 0,
+        "core_sha256": "da29618498afd4620f9dedaf7a630a170e80fb2208809b0b21b70dbc8b5d55c3",
+        "fill_audit_sha256": "e3cab2c49464b63f2dd0e9196b1ed1230d8c8a84386213c625ca01a57edfc4cb",
+        "markout_audit_sha256": "06f4e7d89a91b040a20862063d97b4b905a07fd303531cb13f0b7a0b07c432ec",
+        "event_trace_retention": {
+          "memory_bounded_by_tape_duration": true,
+          "retained_in_memory": false,
+          "rows_emitted": 60545,
+          "rows_retained": 0,
+          "schema_version": "lob_sim.event_trace_retention.v1",
+          "sink": "NullSink",
+          "sink_memory_bounded": true
+        },
+        "audit_retention": {
+          "built_in_sinks_memory_bounded": true,
+          "detail_rows_complete_in_summary": false,
+          "fill_audit_sha256": "e3cab2c49464b63f2dd0e9196b1ed1230d8c8a84386213c625ca01a57edfc4cb",
+          "fill_rows_emitted": 0,
+          "fill_rows_retained": 0,
+          "fill_sink": "NullSink",
+          "markout_audit_sha256": "06f4e7d89a91b040a20862063d97b4b905a07fd303531cb13f0b7a0b07c432ec",
+          "markout_rows_emitted": 0,
+          "markout_rows_retained": 0,
+          "markout_sink": "NullSink",
+          "markout_trace_buffering": false,
+          "max_pending_markouts": 100000,
+          "memory_bounded_by_tape_duration": true,
+          "mode": "aggregate_only",
+          "pending_markouts": 0,
+          "schema_version": "lob_sim.audit_retention.v1"
+        },
+        "hmm_status_counts": {
+          "INVALID_BOOK": 8,
+          "VALID": 2350,
+          "WARMING_UP": 50
+        }
+      }
+    }
+  },
+  "observation_core_summary_book_fill_markout_latency_parity": true,
+  "interpretation": {
+    "policy_issued_no_quotes": true,
+    "base_quantity_lots": 1,
+    "training_only_state_risk_scores": [
+      0.15,
+      0.15,
+      0.55,
+      0.75,
+      0.9
+    ],
+    "best_possible_size_multiplier_before_uncertainty": 0.8875,
+    "sizing": "Fractional reductions of the one-lot reference quantity floor to zero. Do not round up or relax risk controls to obtain quoting activity.",
+    "workload_warning": "Policy runtime excludes baseline quoting/fill work; the ratio is not quoting-speed or policy-benefit evidence."
+  },
+  "limitations": [
+    "offline Python replay throughput, not exchange or trading latency",
+    "policy changes quote/fill workload; not isolated inference cost or evidence of benefit",
+    "fixture/model calibration origin must be disclosed; timing does not establish real-market representativeness",
+    "no dedicated-host release gate, allocations-per-event, RSS, soak or full audit-I/O performance claim",
+    "matched-round ratios are descriptive; no inferential performance confidence interval",
+    "One warmup, one measured repetition and one separate traced-memory run per mode; not the default three-warmup/thirty-repetition protocol.",
+    "Synthetic eight-minute snippets, not representative real market data or complete joint-valid days.",
+    "One sample does not support a useful run-tail distribution or performance confidence interval.",
+    "No event-by-event parity claim from this bounded benchmark probe; independent causal/lifecycle tests are separate evidence."
+  ]
+}

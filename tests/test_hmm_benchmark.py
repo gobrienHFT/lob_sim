@@ -148,3 +148,32 @@ def test_observation_parity_failure_is_not_a_valid_benchmark(tmp_path, monkeypat
     monkeypatch.setattr(module, "replay_probe", changed)
     with pytest.raises(ValueError, match="baseline/observe"):
         module.benchmark_hmm(path, model, configuration, symbol="BTCUSDT", warmups=1, repetitions=1)
+
+
+@pytest.mark.parametrize("policy_quotes", [0, 12])
+def test_cli_reports_workload_and_warns_only_for_inactive_quoting(tmp_path, monkeypatch, capsys, policy_quotes):
+    report = {
+        "modes": {
+            name: {
+                "wall_ns": {"median": 1_000_000_000},
+                "median_relative_overhead_percent": 0,
+                "peak_traced_bytes": 123,
+                "probe": {
+                    "quote_count": policy_quotes if name == "policy" else 12,
+                    "cancel_count": 3,
+                    "fill_count": 4,
+                },
+            }
+            for name in module.MODES
+        }
+    }
+    published = []
+    monkeypatch.setattr(module, "benchmark_hmm", lambda *args, **kwargs: report)
+    monkeypatch.setattr(module, "publish_json", lambda path, value: published.append((path, value)))
+    output = tmp_path / "new.json"
+    assert module.main(["--file", "unused", "--model", "unused", "--json-out", str(output)]) == 0
+    assert published == [(output, report)]
+    text = capsys.readouterr().out
+    assert f"quotes={policy_quotes}; cancels=3; fills=4" in text
+    assert ("WARNING: policy issued no quotes" in text) is (policy_quotes == 0)
+    assert "not exchange latency or a policy-benefit claim" in text

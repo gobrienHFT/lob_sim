@@ -181,6 +181,15 @@ files. This separate verification is not misrepresented as part of the earlier
 1320-test gate. Representative measurements and the empirical research release
 remain outstanding.
 
+The later [synthetic overhead smoke run](benchmark_results/hmm_overhead_smoke_reference.md)
+at clean `4cde350` records all three modes, matching baseline/observation core
+identities and actual valid inference. It has only one warmup/measured/memory
+run per mode on an uncontrolled host. Policy sent no quotes because fractional
+reductions of the one-lot reference floor to zero; the smaller workload must
+not be sold as faster quoting or policy benefit. The console now prints
+quote/cancel/fill counts and warns about zero policy activity. The historical
+report/source hashes remain unchanged; representative overhead is still open.
+
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of
 real exchange participants. Offline inference/replay throughput is not trading
