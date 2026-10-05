@@ -65,14 +65,26 @@ def optional_nonnegative_int(value: object, field_name: str) -> int | None:
     return require_nonnegative_int(value, field_name)
 
 
+def _crc32c_table() -> tuple[int, ...]:
+    """Immutable reflected Castagnoli table; computed once, not per payload."""
+    entries = []
+    for byte in range(256):
+        crc = byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ (0x82F63B78 if crc & 1 else 0)
+        entries.append(crc)
+    return tuple(entries)
+
+
+_CRC32C_TABLE = _crc32c_table()
+
+
 def _crc32c(data: bytes) -> int:
-    """Small dependency-free CRC32C (Castagnoli) implementation."""
+    """Dependency-free CRC32C, exactly the original wire checksum semantics."""
 
     crc = 0xFFFFFFFF
     for byte in data:
-        crc ^= byte
-        for _ in range(8):
-            crc = (crc >> 1) ^ (0x82F63B78 if crc & 1 else 0)
+        crc = (crc >> 8) ^ _CRC32C_TABLE[(crc ^ byte) & 0xFF]
     return crc ^ 0xFFFFFFFF
 
 

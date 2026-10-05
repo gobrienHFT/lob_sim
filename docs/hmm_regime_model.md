@@ -1078,6 +1078,15 @@ and produced no benchmark JSON. Its
 [failed-attempt record](benchmark_results/hmm_public_overhead_attempt_e259673.json)
 is retained; no incomplete measurement is promoted into performance evidence.
 
+A second attempt at `5951541` passed all three warmup rounds and one measured
+round but was deliberately stopped for checksum implementation work. Its
+[attempt record](benchmark_results/hmm_public_overhead_attempt_5951541.json)
+retains that status, not provisional timing numbers. Raw-capture CRC32C now uses
+an immutable reflected Castagnoli lookup table rather than eight interpreted
+bit steps per byte. An independent bit-stream oracle, byte/Unicode cases and
+the original checksummed public tape verify unchanged wire semantics. Neither
+an unfinished run nor passing checksum tests establish a measured speedup.
+
 For the exact built-in `NullSink`, observation, risk-boundary, quote-lifecycle
 and execution emitters skip the defensive copy that a no-op would discard.
 Canonical hash chains, input validation, counters, risk integrals and owned
