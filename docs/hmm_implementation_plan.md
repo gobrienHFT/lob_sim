@@ -74,7 +74,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Independent-source runner freezes baseline/observe/policy, hard-active and cadence variants; successful native-clock integration and failed real-data eligibility are recorded separately |
-| R | Paired moving-block bootstrap study | Clock-minute inventory/reservation comparisons with independent contiguous strata and explicit 30/5/60-minute unavailability; execution-quality/economic intervals remain |
+| R | Paired moving-block bootstrap study | Matched UTC-minute risk and execution sufficient statistics, ratio-of-sums quality/coverage outcomes, fee/turnover activity and explicit 30/5/60-minute unavailability; marked-net-PnL/full-path drawdown intervals and representative held-out evidence remain |
 | S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
@@ -199,6 +199,31 @@ null suite passes 27 tests. Full-package plus benchmark typing passes 80 files,
 and Ruff/format passes 184 files. No representative speedup is claimed from
 those mechanical and state-equivalence tests. The original smoke reference
 still names its historical source rather than being relabeled as a newer run.
+
+The matched-clock outcome extension adds a separate bounded offline consumer,
+not a new fill model. Native execution and global trade streams are verified
+and rehashed while read, joined against exact instrument-grid economics, and
+reduced into content-addressed UTC-minute sufficient-statistic tables. The
+frozen registry now includes every outcome definition before untouched test
+access; study schema v2 retains the existing risk comparisons and adds execution
+quality, coverage, fee and turnover activity. Delayed markouts retain their
+original integer fill-time assignment.
+
+Ratio outcomes resample the same period indices for both variants and use
+ratios of component sums. Quiet valid minutes stay in the sequence. Missing
+markouts, excluded intervals, short strata and undefined replicates cannot
+silently become zero-valued quality or narrower confidence intervals. This
+does not complete marked-net-PnL/full-path drawdown intervals, representative
+latency/scenario studies, ten-day eligibility or the full empirical release.
+
+Local targeted verification on the frozen package source passes 120
+study/statistics/baseline/null-sink cases and 85 execution/accounting cases.
+The two new files contribute 49 cases, including a separate batch/RNG oracle,
+unequal-quantity estimates, sparse replicate accounting, clock-boundary
+stratification, delayed resolution, zero-activity coverage and consumed-stream
+mutations. Package-plus-benchmark typing passes 81 files; Ruff/format passes
+187 files. Artifact verification and the offline demo also pass. These checks
+are not representative market-performance or economic-benefit evidence.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

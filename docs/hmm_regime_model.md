@@ -348,9 +348,26 @@ independent days, execution-model truth or a multiple-testing-adjusted alpha.
 An observed changing wall/monotonic offset or mixed clock basis prevents the
 fixed-UTC projection. The run's native risk/economics audit can still be
 verified, but its clock comparison is explicitly unavailable. This conservative
-restriction must not be sold as a real-data confidence interval. The current
-clock comparison covers inventory and reserved-notional metrics; execution
-quality/economic intervals and representative overhead remain release work.
+restriction must not be sold as a real-data confidence interval. Study schema
+v2 also compares native execution-quality sufficient statistics, fees and
+turnover on these same jointly eligible minutes. Markout means are ratios of
+pooled quantity-weighted sums to resolved quantity; adverse fractions and
+observation lag use resolved observation counts. Quote age, pending-cancel
+fills, modeled queue evidence and marked spread capture retain their own
+denominators. Resolved/invalidated/unresolved counts and coverage accompany
+each configured horizon. A zero-activity minute remains a valid clock period;
+missing markouts are not filled with zero. Any zero-denominator bootstrap
+replicate is counted and leaves a null interval, without discard or redraw.
+
+Each fixed-clock run publishes a content-hashed `clock_outcomes.json` table
+with rational components and native audit parents. Later resolutions belong
+to the original integer fill-time minute, not their observation-time minute.
+The streaming consumer verifies every execution row and global fill while
+consuming them, including partial capture edges outside the table. Baseline
+still uses observation sidecars only after exact core-event/fill/markout parity.
+Fees and turnover are not marked net PnL, and activity per minute is not a
+quote-denominated fill probability. Marked-net-PnL and full-path drawdown
+intervals and representative overhead remain release work.
 Offline fitting/comparison uses explicit row/source/period caps. Those caps are
 distinct from runtime bounded-memory claims and from a 24-hour soak.
 

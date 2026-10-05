@@ -183,8 +183,14 @@ The 708.83 s report records documentation-only dirt during the run, not a clean
 tree. Package source stayed unchanged; repeated default diagnostic artifacts
 are byte-identical. No representative overhead improvement is claimed.
 
-Registered paired economic evaluation and representative overhead evidence
-remain required. No trained
+The registered study now also freezes and exports common-clock execution
+sufficient statistics: signed markouts, adverse fractions, observed lag,
+pending-cancel fills, quote age, modeled queue evidence, marked spread capture,
+coverage, fees and turnover. Paired ratios pool their actual denominators before
+block resampling; missing outcomes and zero-activity minutes remain distinct.
+The content-hashed minute tables are analysis artifacts, not a new matching
+authority. Marked-net-PnL/full-path drawdown intervals, representative paired
+economic evaluation and representative overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 

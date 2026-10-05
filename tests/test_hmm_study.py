@@ -65,6 +65,7 @@ def completed_study(tmp_path_factory):
 def test_registered_native_study_executes_all_variants_and_records_pairing(completed_study):
     directory, report = completed_study
     assert report["status"] == "completed", report["failures"]
+    assert report["schema_version"] == "lob_sim.hmm_regime_study.v2"
     assert not report["claim_ready"]
     assert set(report["registered_variants"]) == {"baseline", "observe", "policy", "hard_active", "cadence_250ms"}
     assert report["split"]["calibration_days"] == ["2025-01-01"]
@@ -78,6 +79,11 @@ def test_registered_native_study_executes_all_variants_and_records_pairing(compl
     assert "policy-benefit claim" in report["claim_reason"]
     registry = json.loads((directory / "registry.json").read_text())
     assert registry["frozen"] and registry["registry_sha256"] == report["registry_sha256"]
+    for variant in registry["variants"]:
+        contract = variant["config"]["bootstrap"]["execution_outcomes"]
+        assert contract["schema_version"] == "lob_sim.hmm_clock_outcome_contract.v1"
+        assert "signed_markout_100ms" in contract["ratio_units"]
+        assert "not marked net PnL" in contract["scope"]
     for label in ("primary", "cadence_250ms"):
         fitted = report["fit_reports"][label]
         assert len(fitted["attempts"]) == 4
@@ -87,6 +93,12 @@ def test_registered_native_study_executes_all_variants_and_records_pairing(compl
         for sensitivities in comparison["risk_clock_comparison"].values():
             assert set(sensitivities) == {"30", "5", "60"}
             assert all(value["interval"] is None for value in sensitivities.values())
+        outcomes = comparison["execution_clock_comparison"]
+        assert "fees_quote" in outcomes["metrics"]
+        assert "pending_cancel_fill_fraction" in outcomes["metrics"]
+        for metric in outcomes["metrics"].values():
+            assert set(metric["sensitivities"]) == {"30", "5", "60"}
+            assert all(value["interval"] is None for value in metric["sensitivities"].values())
     assert "diagnostic" in format_study_report(report)
 
 
@@ -101,6 +113,22 @@ def test_real_run_bundle_is_streamed_and_contains_reproduction_parents(completed
         if result["variant"] != "baseline":
             assert summary["hmm_economics"]["memory_bounded_by_tape_duration"]
             assert (run / "regime_risk.csv").exists()
+            from lob_sim.replay.inspection import file_sha256
+            from lob_sim.regime.validation import identity
+
+            path = directory / result["clock_outcomes_path"]
+            assert path.name == "clock_outcomes.json"
+            assert file_sha256(path) == result["artifact_sha256"]["clock_outcomes"]
+            document = json.loads(path.read_text())
+            digest = document.pop("report_sha256")
+            assert digest == identity(document)
+            assert document["variant_id"] == result["variant_id"]
+            assert document["parents"] == summary["hmm_economics"]["parents"]
+            assert document["source_sha256"] == result["source_sha256"]
+            assert len(document["periods"]) == 2  # Initial partial UTC minute is not extrapolated.
+            for period in document["periods"]:
+                assert period["utc_start_ns"] >= document["wall_span"]["first_wall_ns"]
+                assert period["utc_start_ns"] + period["period_ns"] <= document["wall_span"]["last_wall_ns"]
 
 
 def test_failed_fit_variants_are_not_hidden_and_registry_precedes_input_read(tmp_path, monkeypatch):

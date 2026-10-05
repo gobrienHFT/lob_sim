@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import replace
+from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ from .policy import RegimePolicyConfig
 from .risk import verify_risk_trace
 from .settings import HMMSettings
 from .study_periods import read_risk_periods, compare_risk_periods
+from .study_outcomes import outcome_contract, read_execution_periods, compare_execution_periods
 from .validation import canonical_json, identity, integer, strict_json
 
 PRIMARY = FeatureSpec()
@@ -102,6 +104,16 @@ def run_regime_study(
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=False)
     source_identity = checkpoint_code_identity()
+    horizons = (
+        tuple(
+            sorted(
+                set(cfg.sim_markout_horizons_ms)
+                | {int((Decimal(str(cfg.sim_adverse_markout_seconds)) * Decimal("1000")).to_integral_value())}
+            )
+        )
+        if cfg.sim_adverse_markout_seconds > 0
+        else ()
+    )
     registry = ResearchRegistry()
     variants = (
         ("baseline", None, None),
@@ -134,6 +146,7 @@ def run_regime_study(
                     "confidence": 0.95,
                     "replicates": bootstrap_replicates,
                     "seed": cfg.sim_seed,
+                    "execution_outcomes": outcome_contract(horizons),
                 },
             },
         )
@@ -176,7 +189,7 @@ def run_regime_study(
             span = entry["wall_spans"][0]
             if span["utc_day"] not in split.test_days:
                 continue
-            successful, period_tables = {}, {}
+            successful, period_tables, outcome_tables = {}, {}, {}
             for name, spec, policy in variants:
                 label = "cadence_250ms" if name == "cadence_250ms" else "primary"
                 record: dict[str, Any] = {
@@ -230,6 +243,33 @@ def run_regime_study(
                             )
                         else:
                             period_tables[name] = read_risk_periods(files["regime_risk"], summary["hmm_risk"], span)
+                            if summary["hmm_execution"]["horizons_ms"] != list(horizons):
+                                raise ValueError("runtime markout horizons differ from the frozen outcome contract")
+                            outcome_tables[name] = read_execution_periods(
+                                files["regime_execution"],
+                                files["trades"],
+                                execution_summary=summary["hmm_execution"],
+                                economic_summary=summary["hmm_economics"],
+                                risk_periods=period_tables[name],
+                                span=span,
+                            )
+                            outcome_path = files["summary"].parent / "clock_outcomes.json"
+                            outcome_document = {
+                                "schema_version": "lob_sim.hmm_clock_outcome_periods.v1",
+                                "source_sha256": hashes[index],
+                                "variant_id": registered[name],
+                                "contract": outcome_contract(horizons),
+                                "wall_span": span,
+                                "parents": summary["hmm_economics"]["parents"],
+                                "model_sha256": summary["hmm_execution"]["model_sha256"],
+                                "grid": summary["hmm_economics"]["grid"],
+                                "periods": list(outcome_tables[name]),
+                                "claim_ready": False,
+                            }
+                            outcome_document["report_sha256"] = identity(outcome_document)
+                            publish_json(outcome_path, outcome_document)
+                            record["artifact_sha256"]["clock_outcomes"] = file_sha256(outcome_path)
+                            record["clock_outcomes_path"] = outcome_path.relative_to(root).as_posix()
                     successful[name] = record
                 except (ValueError, OSError, RuntimeError) as exc:
                     record.update(status="failed", error_type=type(exc).__name__, error=str(exc))
@@ -269,6 +309,7 @@ def run_regime_study(
                             "utc_day": span["utc_day"],
                             "observation_core_parity": True,
                             "risk_clock_comparison": None,
+                            "execution_clock_comparison": None,
                             "unavailable_reason": "source wall/logical clock mapping is not fixed; source risk/economics audits remain verified",
                         }
                     )
@@ -287,10 +328,18 @@ def run_regime_study(
                             replicates=bootstrap_replicates,
                             seed=cfg.sim_seed,
                         ),
+                        "execution_clock_comparison": compare_execution_periods(
+                            outcome_tables[name],
+                            outcome_tables["observe"],
+                            hashes[index],
+                            horizons=horizons,
+                            replicates=bootstrap_replicates,
+                            seed=cfg.sim_seed,
+                        ),
                     }
                 )
     report: dict[str, Any] = {
-        "schema_version": "lob_sim.hmm_regime_study.v1",
+        "schema_version": "lob_sim.hmm_regime_study.v2",
         "status": "completed" if results and not failures else "incomplete",
         "claim_ready": False,
         "claim_reason": "short/legacy UTC snippets are not ten certified full joint-valid days; no holdout or policy-benefit claim",
@@ -304,12 +353,13 @@ def run_regime_study(
         "comparisons": comparisons,
         "failures": failures,
         "scope": "frozen primary models;independent source starts/zero inventory;single fixed-latency scenario;not walk-forward or profitability",
-        "statistics": "paired common complete UTC-minute risk statistics;30-minute block primary,5/60 sensitivity;short or gapped strata yield null CI",
+        "statistics": "paired common complete UTC-minute risk and execution sufficient statistics;ratio-of-sums outcomes;30-minute block primary,5/60 sensitivity;short/gapped strata or undefined ratio replicas yield null CI",
         "limitations": [
             "not private FIFO or fill truth",
             "no funding",
             "global PnL and observed drawdown are descriptive scenario outputs",
-            "clock bootstrap covers inventory/reservation metrics, not full-path drawdown or execution-quality intervals",
+            "clock bootstrap includes risk,execution quality,fees and turnover;not marked-net-PnL or full-path drawdown intervals",
+            "fill count per minute is activity,not quote-denominated fill probability;native source-conditioned audit summaries remain separate",
             "no drop-feature ablations: cadence and risk aggregation are the registered ablations",
             "artifact hashes identify bytes, not a trusted author or liveness certification",
         ],

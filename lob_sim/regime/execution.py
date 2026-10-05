@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import csv
 import math
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
@@ -146,6 +146,51 @@ def _decimal(value: object, name: str, *, nonnegative: bool = False) -> Decimal:
 
 def _advance(digest: str, row: Mapping[str, Any]) -> str:
     return sha256(bytes.fromhex(digest) + canonical_json(dict(row)).encode("utf-8")).hexdigest()
+
+
+def _parse_execution_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """One serialization contract shared by verification and offline consumers."""
+    if set(row) != set(EXECUTION_FIELDS) or any(value is None for value in row.values()):
+        raise ValueError("malformed execution trace row")
+    json_fields = {
+        "decision",
+        "arrival",
+        "pre_fill",
+        "evidence_ids",
+        "validity",
+        "latency_draws_ms",
+        "quote",
+        "queue_trajectory",
+    }
+    int_fields = {"logical_ns", "fill_id", "qty_lots", "horizon_ms", "queue_ahead_lots"}
+    float_fields = {"time_in_book_ms", "fill_ts_local", "deadline_ts", "observed_ts", "actual_lag_seconds"}
+    parsed: dict[str, Any] = {}
+    for key, value in row.items():
+        if value == "":
+            parsed[key] = None
+        elif key in json_fields:
+            parsed[key] = strict_json(value)
+        elif key in int_fields:
+            parsed[key] = integer(int(value), key)
+        elif key in float_fields:
+            parsed[key] = finite(float(value), key)
+        elif key == "maker":
+            if value not in {"True", "False"}:
+                raise ValueError("invalid execution maker boolean")
+            parsed[key] = value == "True"
+        else:
+            parsed[key] = value
+    return parsed
+
+
+def iter_execution_rows(path: Path) -> Iterator[dict[str, Any]]:
+    """Parse without retaining history; callers must verify semantics and chain."""
+    with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != list(EXECUTION_FIELDS):
+            raise ValueError("execution trace field contract mismatch")
+        for row in reader:
+            yield _parse_execution_row(row)
 
 
 def _blank_horizon() -> dict[str, Any]:
@@ -965,18 +1010,6 @@ def verify_execution_trace(path: Path, summary: Mapping[str, Any]) -> None:
             )
             for cell in sources.values():
                 _validate_summary_cell(cell, schema.horizons)
-    json_fields = {
-        "decision",
-        "arrival",
-        "pre_fill",
-        "evidence_ids",
-        "validity",
-        "latency_draws_ms",
-        "quote",
-        "queue_trajectory",
-    }
-    int_fields = {"logical_ns", "fill_id", "qty_lots", "horizon_ms", "queue_ahead_lots"}
-    float_fields = {"time_in_book_ms", "fill_ts_local", "deadline_ts", "observed_ts", "actual_lag_seconds"}
     digest, count = sha256(CHAIN_DOMAIN).hexdigest(), 0
     last_fill, fill_count = 0, 0
     conditioned = {phase: {label: _blank_cell(schema.horizons) for label in schema.labels} for phase in PHASES}
@@ -1006,24 +1039,7 @@ def verify_execution_trace(path: Path, summary: Mapping[str, Any]) -> None:
         if reader.fieldnames != list(EXECUTION_FIELDS):
             raise ValueError("execution trace field contract mismatch")
         for row in reader:
-            if set(row) != set(EXECUTION_FIELDS) or any(value is None for value in row.values()):
-                raise ValueError("malformed execution trace row")
-            parsed: dict[str, Any] = {}
-            for key, value in row.items():
-                if value == "":
-                    parsed[key] = None
-                elif key in json_fields:
-                    parsed[key] = strict_json(value)
-                elif key in int_fields:
-                    parsed[key] = integer(int(value), key)
-                elif key in float_fields:
-                    parsed[key] = finite(float(value), key)
-                elif key == "maker":
-                    if value not in {"True", "False"}:
-                        raise ValueError("invalid execution maker boolean")
-                    parsed[key] = value == "True"
-                else:
-                    parsed[key] = value
+            parsed = _parse_execution_row(row)
             if parsed["schema_version"] != "lob_sim.hmm_execution.v3" or parsed["symbol"] != schema.symbol:
                 raise ValueError("serialized execution version/symbol mismatch")
             logical = integer(parsed["logical_ns"], "serialized fill time")
