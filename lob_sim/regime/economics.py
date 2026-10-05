@@ -7,8 +7,8 @@ audits, never an execution, risk or core accounting authority.
 
 from __future__ import annotations
 
-import csv
-from collections.abc import Generator, Mapping
+from collections.abc import Callable, Generator, Mapping
+from dataclasses import dataclass
 from decimal import Decimal, localcontext
 from fractions import Fraction
 from hashlib import sha256
@@ -17,9 +17,9 @@ from typing import Any
 
 from ..sim.export import iter_fill_audit_rows
 from ..sim.metrics import FILL_AUDIT_CHAIN_DOMAIN, advance_audit_digest
-from .execution import EXECUTION_FIELDS, _decimal, verify_execution_trace
-from .risk import BASES, iter_risk_rows, verify_risk_trace
-from .validation import integer, strict_json
+from .execution import CHAIN_DOMAIN as EXECUTION_DOMAIN, _decimal, iter_execution_rows, verify_execution_trace
+from .risk import CHAIN_DOMAIN as RISK_DOMAIN, BASES, iter_risk_rows, verify_risk_trace
+from .validation import canonical_json, integer
 
 
 def _fraction(value: object, name: str, *, positive: bool = False) -> Fraction:
@@ -225,20 +225,28 @@ class EconomicLedger:
         }
 
 
-def _execution_fills(path: Path) -> Generator[dict[str, Any], None, None]:
-    with path.open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames != list(EXECUTION_FIELDS):
-            raise ValueError("economic execution schema mismatch")
-        for row in reader:
-            if row["event_type"] == "fill":
-                yield {
-                    **row,
-                    "fill_id": int(row["fill_id"]),
-                    "logical_ns": int(row["logical_ns"]),
-                    "qty_lots": int(row["qty_lots"]),
-                    "pre_fill": strict_json(row["pre_fill"]),
-                }
+@dataclass(frozen=True)
+class EconomicPoint:
+    """Immutable causal state for analysis; provisional until replay verifies EOF."""
+
+    logical_ns: int
+    cash_quote: Fraction
+    fees_quote: Fraction
+    inventory_lots: int
+    quantum_quote_per_tick_lot: Fraction
+    mid_twice_tick: int | None
+    mark_until_ns: int | None
+
+
+def _execution_fills(path: Path, summary: Mapping[str, Any]) -> Generator[dict[str, Any], None, None]:
+    digest, count = sha256(EXECUTION_DOMAIN).hexdigest(), 0
+    for row in iter_execution_rows(path):
+        digest = sha256(bytes.fromhex(digest) + canonical_json(row).encode()).hexdigest()
+        count += 1
+        if row["event_type"] == "fill":
+            yield row
+    if count != summary["trace_count"] or digest != summary["trace_sha256"]:
+        raise ValueError("economic consumed execution audit identity mismatch")
 
 
 def reconstruct_economics(
@@ -250,12 +258,15 @@ def reconstruct_economics(
     execution_summary: Mapping[str, Any],
     fill_count: int,
     fill_sha256: str,
+    on_boundary: Callable[[EconomicPoint], None] | None = None,
 ) -> dict[str, Any]:
     """Re-read three immutable streams, joining exact causal fill-prefix IDs.
 
     Every global fill is hashed, even for other symbols. Selected-symbol cash
     cannot silently inherit global PnL, nor can later fills enter earlier marks.
     No result is returned before all three streams and their totals reconcile.
+    An optional analysis consumer receives immutable exact boundary points; it
+    must not publish provisional statistics before this function returns.
     """
     verify_risk_trace(risk_path, risk_summary)
     verify_execution_trace(execution_path, execution_summary)
@@ -269,9 +280,12 @@ def reconstruct_economics(
     integer(fill_count, "economic global fill count")
     ledger = EconomicLedger(risk_summary["grid"], risk_summary["state_count"])
     count, digest = 0, sha256(FILL_AUDIT_CHAIN_DOMAIN.encode()).digest()
-    fills, executions = iter_fill_audit_rows(trades_path), _execution_fills(execution_path)
+    risk_digest, risk_count = sha256(RISK_DOMAIN).hexdigest(), 0
+    fills, executions = iter_fill_audit_rows(trades_path), _execution_fills(execution_path, execution_summary)
     try:
         for boundary in iter_risk_rows(risk_path):
+            risk_digest = sha256(bytes.fromhex(risk_digest) + canonical_json(boundary).encode()).hexdigest()
+            risk_count += 1
             target = boundary["fill_audit_count"]
             if target < count or target > fill_count:
                 raise ValueError("economic fill prefix count mismatch")
@@ -299,6 +313,18 @@ def reconstruct_economics(
             if boundary["fill_audit_sha256"] != digest.hex():
                 raise ValueError("economic fill prefix digest mismatch")
             ledger.on_boundary(boundary)
+            if on_boundary is not None:
+                on_boundary(
+                    EconomicPoint(
+                        logical_ns=boundary["logical_ns"],
+                        cash_quote=ledger.cash * ledger.quantum,
+                        fees_quote=ledger.fees,
+                        inventory_lots=ledger.inventory,
+                        quantum_quote_per_tick_lot=ledger.quantum,
+                        mid_twice_tick=boundary["mid_twice_tick"],
+                        mark_until_ns=boundary["mark_until_ns"],
+                    )
+                )
         if (
             count != fill_count
             or digest.hex() != fill_sha256
@@ -307,6 +333,8 @@ def reconstruct_economics(
             or ledger.fills != execution_summary["fill_count"]
         ):
             raise ValueError("economic finalized fill census/digest mismatch")
+        if risk_count != risk_summary["trace_count"] or risk_digest != risk_summary["trace_sha256"]:
+            raise ValueError("economic consumed risk audit identity mismatch")
     finally:
         close_fills = getattr(fills, "close", None)
         if close_fills is not None:

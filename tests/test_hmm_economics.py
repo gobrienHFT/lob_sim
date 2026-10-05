@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import random
+from dataclasses import FrozenInstanceError
 from dataclasses import replace
 from decimal import Decimal, localcontext
 from fractions import Fraction
@@ -254,6 +255,56 @@ def test_completed_bundle_economics_matches_independent_transactions_and_core(ec
     assert Fraction(report["fees_quote_rational"]) == fees
     assert float(Fraction(report["net_marked_pnl_quote_rational"])) == pytest.approx(summary["total_pnl"])
     assert "Reconciled single-symbol scenario economics" in inspect_run(files["manifest"].parent)
+
+
+def test_boundary_analysis_points_are_immutable_and_preserve_original_summary(economic_bundle):
+    files, summary = economic_bundle
+    points = []
+    report = reconstruct_economics(
+        files["regime_risk"],
+        files["trades"],
+        files["regime_execution"],
+        risk_summary=summary["hmm_risk"],
+        execution_summary=summary["hmm_execution"],
+        fill_count=summary["fill_count"],
+        fill_sha256=summary["audit_retention"]["fill_audit_sha256"],
+        on_boundary=points.append,
+    )
+    assert report == summary["hmm_economics"]
+    assert len(points) == report["boundary_count"]
+    last = points[-1]
+    assert last.cash_quote == Fraction(report["cash_quote_rational"])
+    assert last.fees_quote == Fraction(report["fees_quote_rational"])
+    assert last.inventory_lots == report["inventory_lots"]
+    with pytest.raises(FrozenInstanceError):
+        last.cash_quote = Fraction(0)
+
+
+@pytest.mark.parametrize("stream", ["risk", "execution_markout", "execution_tail"])
+def test_consumption_time_changes_cannot_inherit_verified_economic_parents(economic_bundle, monkeypatch, stream):
+    import lob_sim.regime.economics as module
+
+    original = module.iter_risk_rows if stream == "risk" else module.iter_execution_rows
+
+    def changed(path):
+        modified = False
+        for event in original(path):
+            if stream == "risk":
+                # Same accounting position and mark; irrelevant order state is
+                # still part of the asserted immutable parent chain.
+                event["pending_bid_lots"] += 1
+            elif event["event_type"] == "markout" and not modified:
+                modified = True
+                if stream == "execution_tail":
+                    continue
+                event["observed_ts"] += 1
+            yield event
+        if stream != "risk":
+            assert modified, "fixture must exercise the markout stream, not only fills"
+
+    monkeypatch.setattr(module, "iter_risk_rows" if stream == "risk" else "iter_execution_rows", changed)
+    with pytest.raises(ValueError, match="consumed .* audit identity"):
+        reconstruct(*economic_bundle)
 
 
 @pytest.mark.parametrize("mutation", ["prefix", "inventory", "count"])
