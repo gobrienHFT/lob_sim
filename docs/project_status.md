@@ -167,8 +167,8 @@ cases and passes the complete clean 15-step reviewer gate: 1,130 Python tests,
 Ruff/format across 165 files, and the existing correctness/artifact/install/
 fixture checks. It does not establish representative HMM overhead.
 
-State economic/drawdown decomposition, registered paired economic evaluation,
-synthetic raw-tape recovery diagnostics and overhead evidence remain required. No trained
+Registered paired economic evaluation, synthetic raw-tape recovery diagnostics
+and representative overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 
