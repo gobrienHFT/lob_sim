@@ -9,7 +9,7 @@ There is no interpolation, EOF extrapolation or sample-count time weighting.
 from __future__ import annotations
 
 import csv
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
 from copy import deepcopy
 from decimal import Decimal, localcontext
 from fractions import Fraction
@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..sim.sinks import EventSink, NullSink
+from ..sim.metrics import FILL_AUDIT_CHAIN_DOMAIN
 from .execution import RegimeExecutionAudit, _decimal, capture_stage
 from .validation import canonical_json, integer, require_keys, strict_json
 
@@ -44,8 +45,11 @@ RISK_FIELDS = (
     "contract_multiplier",
     "regime_trace_count",
     "regime_trace_sha256",
+    "fill_audit_count",
+    "fill_audit_sha256",
 )
-CHAIN_DOMAIN = b"lob_sim.hmm_risk.v1"
+CHAIN_DOMAIN = b"lob_sim.hmm_risk.v2"
+EMPTY_FILL_SHA256 = sha256(FILL_AUDIT_CHAIN_DOMAIN.encode()).hexdigest()
 BASES = ("raw_map", "active")
 COUNTERS = (
     "duration_ns",
@@ -107,6 +111,8 @@ def boundary(
     mark_valid: bool,
     halted: bool,
     receive_clock: bool,
+    fill_audit_count: int = 0,
+    fill_audit_sha256: str = EMPTY_FILL_SHA256,
 ) -> dict[str, Any]:
     """Read-only adapter shared by native boundaries and checkpoint validation."""
     symbol = regime.settings.symbol
@@ -118,7 +124,7 @@ def boundary(
     live = [order for order in orders if order.symbol == symbol]
     pending = [action for action in actions if action.symbol == symbol and action.kind == "order_arrival"]
     return {
-        "schema_version": "lob_sim.hmm_risk_boundary.v1",
+        "schema_version": "lob_sim.hmm_risk_boundary.v2",
         "symbol": symbol,
         "model_sha256": regime.settings.model.model_sha256,
         "logical_ns": logical_ns,
@@ -141,6 +147,8 @@ def boundary(
         "contract_multiplier": str(spec.contract_multiplier),
         "regime_trace_count": regime._trace_count,
         "regime_trace_sha256": regime._trace_sha256,
+        "fill_audit_count": fill_audit_count,
+        "fill_audit_sha256": fill_audit_sha256,
     }
 
 
@@ -163,7 +171,7 @@ class RegimeRiskAudit:
 
     def _row(self, value: object) -> dict[str, Any]:
         row = dict(require_keys(value, set(RISK_FIELDS), "risk boundary"))
-        if row["schema_version"] != "lob_sim.hmm_risk_boundary.v1" or (
+        if row["schema_version"] != "lob_sim.hmm_risk_boundary.v2" or (
             row["symbol"] != self.symbol or row["model_sha256"] != self.model_sha256
         ):
             raise ValueError("risk boundary identity mismatch")
@@ -201,9 +209,13 @@ class RegimeRiskAudit:
             "pending_ask_lots",
             "order_notional_tick_lots",
             "regime_trace_count",
+            "fill_audit_count",
         ):
             integer(row[key], key)
         _digest(row["regime_trace_sha256"], "risk regime trace")
+        _digest(row["fill_audit_sha256"], "risk fill audit")
+        if not row["fill_audit_count"] and row["fill_audit_sha256"] != EMPTY_FILL_SHA256:
+            raise ValueError("empty risk fill prefix digest mismatch")
         if type(row["halted"]) is not bool:
             raise ValueError("risk halted must be boolean")
         grid = tuple(row[key] for key in ("tick_size", "step_size", "contract_multiplier"))
@@ -216,6 +228,11 @@ class RegimeRiskAudit:
             now < self._anchor["logical_ns"]
             or row["regime_trace_count"] < self._anchor["regime_trace_count"]
             or row["clock_basis"] != self._anchor["clock_basis"]
+            or row["fill_audit_count"] < self._anchor["fill_audit_count"]
+            or (
+                row["fill_audit_count"] == self._anchor["fill_audit_count"]
+                and row["fill_audit_sha256"] != self._anchor["fill_audit_sha256"]
+            )
         ):
             raise ValueError("risk boundary clock/trace regression")
         return deepcopy(row)
@@ -308,7 +325,7 @@ class RegimeRiskAudit:
                     else None,
                 )
         return {
-            "schema_version": "lob_sim.hmm_risk_summary.v1",
+            "schema_version": "lob_sim.hmm_risk_summary.v2",
             "symbol": self.symbol,
             "model_sha256": self.model_sha256,
             "state_count": self.state_count,
@@ -330,7 +347,7 @@ class RegimeRiskAudit:
 
     def checkpoint(self) -> dict[str, Any]:
         return {
-            "schema_version": "lob_sim.hmm_risk_checkpoint.v1",
+            "schema_version": "lob_sim.hmm_risk_checkpoint.v2",
             "model_sha256": self.model_sha256,
             "symbol": self.symbol,
             "state_count": self.state_count,
@@ -436,6 +453,8 @@ class RegimeRiskAudit:
             mark_valid=mark_valid,
             halted=core["trading_halted"],
             receive_clock=schema >= 3 and core["receive_clock"],
+            fill_audit_count=core["metrics"]["fill_count"],
+            fill_audit_sha256=core["metrics"]["_fill_audit_digest"].hex(),
         )
         if canonical_json(expected) != canonical_json(self._anchor):
             raise ValueError("risk checkpoint differs from core/regime causal boundary")
@@ -450,6 +469,22 @@ def verify_risk_trace(
 ) -> None:
     """Bounded serialized re-reduction, including every derived denominator."""
     subject = RegimeRiskAudit(summary["model_sha256"], summary["symbol"], summary["state_count"])
+    for row in iter_risk_rows(path):
+        subject.observe(row)
+    expected = subject.summary()
+    expected["memory_bounded_by_tape_duration"] = summary["memory_bounded_by_tape_duration"]
+    if type(summary["memory_bounded_by_tape_duration"]) is not bool or canonical_json(expected) != canonical_json(
+        dict(summary)
+    ):
+        raise ValueError("serialized risk time-weighted summary mismatch")
+    if (regime_path is None) != (regime_summary is None):
+        raise ValueError("risk regime-link verification requires both path and summary")
+    if regime_path is not None and regime_summary is not None:
+        _verify_regime_links(path, regime_path, regime_summary)
+
+
+def iter_risk_rows(path: Path) -> Generator[dict[str, Any], None, None]:
+    """Typed bounded decoding shared by risk and independent economic replay."""
     integer_fields = set(RISK_FIELDS) - {
         "schema_version",
         "symbol",
@@ -462,6 +497,7 @@ def verify_risk_trace(
         "step_size",
         "contract_multiplier",
         "regime_trace_sha256",
+        "fill_audit_sha256",
     }
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -482,17 +518,7 @@ def verify_risk_trace(
                     row[key] = int(value) if value else None
                 else:
                     row[key] = value
-            subject.observe(row)
-    expected = subject.summary()
-    expected["memory_bounded_by_tape_duration"] = summary["memory_bounded_by_tape_duration"]
-    if type(summary["memory_bounded_by_tape_duration"]) is not bool or canonical_json(expected) != canonical_json(
-        dict(summary)
-    ):
-        raise ValueError("serialized risk time-weighted summary mismatch")
-    if (regime_path is None) != (regime_summary is None):
-        raise ValueError("risk regime-link verification requires both path and summary")
-    if regime_path is not None and regime_summary is not None:
-        _verify_regime_links(path, regime_path, regime_summary)
+            yield row
 
 
 def _verify_regime_links(path: Path, regime_path: Path, summary: Mapping[str, Any]) -> None:

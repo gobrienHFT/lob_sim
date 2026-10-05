@@ -102,8 +102,21 @@ delayed arrival rather than assuming unchanged resting quotes create actions.
 Generated local evidence is `outputs/hmm_gate_risk_20261005_verified.json`;
 the report records the tested commit, clean tree and pinned runtime. The CLI
 report also verifies and prints the risk stream from a completed fixture bundle.
-State economic/drawdown decomposition, registered paired
-research, raw synthetic recovery and representative overhead remain.
+Single-symbol economic measurement now reconstructs exact cash/fee/turnover
+and fresh-mark equity from three serialized parents, reconciles inventory at
+every boundary, preserves observed peaks across gaps, and distinguishes
+non-additive state drawdown maxima from mechanical extensions. Risk version 2
+binds each boundary to its global fill prefix. It is a bounded export/report
+consumer, not a change to matching, policy or core accounting. Independent
+cash-flow, reversal, gap and altered-parent regressions are in
+`tests/test_hmm_economics.py`; fresh complete-gate evidence is required before
+this source revision is published. Registered paired research, raw synthetic
+recovery and representative overhead remain.
+The multi-symbol regression found and reproduced a core schema-v3 timer bug:
+another symbol's overdue decision could be inserted after a later market row.
+Global observation-clock scheduling now advances all active integer timers.
+HMM-disabled multi-symbol/quiet-symbol and checkpoint tests prove the repair;
+legacy timer behavior and golden hashes remain unchanged.
 New observer checkpoint version 2 rejects older HMM continuation state rather
 than inventing missing moments/episodes. Execution checkpoint version 3 rejects
 older HMM state rather than fabricating missing quote denominators or

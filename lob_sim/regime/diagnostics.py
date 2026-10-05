@@ -416,4 +416,21 @@ def inspect_run(run_dir: str | Path) -> str:
             directory / "regime_risk.csv", risk, regime_path=directory / "regime_trace.csv", regime_summary=hmm
         )
         report += "\n\n" + format_risk_report(risk)
+        from .economics import format_economic_report, reconstruct_economics
+        from .validation import canonical_json
+
+        if not isinstance(execution, Mapping):
+            raise ValueError("economic report requires execution summary")
+        economic = reconstruct_economics(
+            directory / "regime_risk.csv",
+            directory / "trades.csv",
+            directory / "regime_execution.csv",
+            risk_summary=risk,
+            execution_summary=execution,
+            fill_count=summary["fill_count"],
+            fill_sha256=summary["audit_retention"]["fill_audit_sha256"],
+        )
+        if canonical_json(economic) != canonical_json(summary.get("hmm_economics")):
+            raise ValueError("serialized economic summary mismatch")
+        report += "\n\n" + format_economic_report(economic)
     return report

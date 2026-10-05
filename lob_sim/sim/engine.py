@@ -289,6 +289,8 @@ class SimulationEngine:
                 mark_valid=self._validity_state(symbol, require_trade=False).execution_valid,
                 halted=self._trading_halted,
                 receive_clock=self._capture_schema_version >= 3 and self._receive_clock,
+                fill_audit_count=self.metrics.fill_count,
+                fill_audit_sha256=self.metrics.fill_audit_sha256,
             )
         )
 
@@ -1246,6 +1248,20 @@ class SimulationEngine:
             self._schedule(next_due, "decision", symbol, {})
             next_due += interval
         self._next_decision[symbol] = next_due
+
+    def _schedule_observation_decisions(self, symbol: str, now: float, *, include_now: bool) -> None:
+        """Advance active schema-v3 timers on the global observation clock.
+
+        Scheduling only the arriving symbol could insert another symbol's
+        overdue decision after the current market row had already been traced.
+        Preserve the current-symbol tie priority, then use sorted active symbols;
+        actual dispatch still uses the existing integer-key heap and tie rule.
+        Legacy tapes retain their established per-symbol compatibility behavior.
+        """
+        self._schedule_decisions_up_to(symbol, now, include_now=include_now)
+        if self._market_data_first:
+            for other in sorted(set(self._next_decision_ns) - {symbol}):
+                self._schedule_decisions_up_to(other, now, include_now=include_now)
 
     def _parse_exchange_info(self, rec: RecordedEvent) -> SymbolSpec:
         spec = self.adapter.instrument_spec_from_record(rec)
@@ -2577,7 +2593,7 @@ class SimulationEngine:
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
             receipt_checked = self._prevalidate_capture_boundary(rec, now)
-            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
+            self._schedule_observation_decisions(rec.symbol, symbol_now, include_now=not market_data_first)
             self._drain_events(
                 now,
                 inclusive=not market_data_first,
@@ -3315,6 +3331,20 @@ class SimulationEngine:
             export_mode="bounded_streaming",
             manifest_seed=manifest_seed,
         )
+        if self.regime is not None:
+            from ..regime.economics import reconstruct_economics
+
+            if self.hmm_risk is None or self.hmm_execution is None:
+                raise AssertionError("HMM economic parents missing")
+            summary["hmm_economics"] = reconstruct_economics(
+                output_files["regime_risk"],
+                output_files["trades"],
+                output_files["regime_execution"],
+                risk_summary=self.hmm_risk.summary(),
+                execution_summary=self.hmm_execution.summary(),
+                fill_count=metrics.fill_count,
+                fill_sha256=metrics.fill_audit_sha256,
+            )
         atomic_write_json(output_files["summary"], summary)
         atomic_write_summary_csv(output_files["summary_csv"], summary)
         self._write_manifest(

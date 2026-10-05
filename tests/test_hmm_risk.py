@@ -11,7 +11,7 @@ from fractions import Fraction
 
 import pytest
 
-from lob_sim.regime.risk import BASES, COUNTERS, RISK_FIELDS, RegimeRiskAudit, verify_risk_trace
+from lob_sim.regime.risk import BASES, COUNTERS, RISK_FIELDS, EMPTY_FILL_SHA256, RegimeRiskAudit, verify_risk_trace
 from lob_sim.regime.observation import TRACE_FIELDS
 from lob_sim.regime.diagnostics import inspect_run
 from lob_sim.regime.execution import capture_stage
@@ -43,7 +43,7 @@ def row(time, *, k=2, state=0, active=0, inventory=2, regime_life=100, mark_life
         "epochs": [1, 2, 3],
     }
     return {
-        "schema_version": "lob_sim.hmm_risk_boundary.v1",
+        "schema_version": "lob_sim.hmm_risk_boundary.v2",
         "symbol": "BTCUSDT",
         "model_sha256": "a" * 64,
         "logical_ns": time,
@@ -65,6 +65,8 @@ def row(time, *, k=2, state=0, active=0, inventory=2, regime_life=100, mark_life
         "contract_multiplier": "2",
         "regime_trace_count": 0,
         "regime_trace_sha256": "b" * 64,
+        "fill_audit_count": 0,
+        "fill_audit_sha256": EMPTY_FILL_SHA256,
     }
 
 
@@ -316,6 +318,8 @@ def test_native_checkpoint_resume_identical_risk_and_full_hash(tmp_path, cut):
         ("mid_twice_tick", 999),
         ("halted", True),
         ("regime_trace_count", 0),
+        ("fill_audit_count", 999),
+        ("fill_audit_sha256", "f" * 64),
     ],
 )
 def test_rehashed_native_checkpoint_wrong_core_anchor_rejected_before_core_mutation(tmp_path, key, value):
@@ -334,7 +338,7 @@ def test_rehashed_native_checkpoint_wrong_core_anchor_rejected_before_core_mutat
     )
     subject = SimulationEngine(configuration)
     before = encode(subject._checkpoint_mutable_state())
-    with pytest.raises(ValueError, match="risk checkpoint"):
+    with pytest.raises(ValueError, match="risk (checkpoint|fill prefix)"):
         subject.run(path, resume_from=altered)
     assert encode(subject._checkpoint_mutable_state()) == before
 

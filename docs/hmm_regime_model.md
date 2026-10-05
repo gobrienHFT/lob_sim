@@ -476,8 +476,8 @@ notional of all live and outbound pending new orders. Pending cancels remain
 live until the existing venue model acknowledges them. This is a descriptive
 single-symbol audit of the reservation basis, not a new risk rule, netted
 portfolio exposure, drawdown contribution, funding model or economic benefit.
-State-level drawdown and economic decomposition still require their own
-explicit measurement contract and registered evaluation.
+The separate economic audit below adds an explicit measurement contract;
+registered policy evaluation remains unfinished.
 
 The audit retains one boundary and fixed `2*(K+2)` aggregate cells. Streaming
 verification recomputes the raw integrals and derived denominators. Paired
@@ -498,6 +498,75 @@ remains part of the unfinished research release.
 python -m pytest tests/test_hmm_risk.py
 python -m lob_sim.cli regime-report --run-dir <completed-hmm-run-directory>
 ```
+
+### Reconciled cash, fees, marked equity and observed drawdown
+
+Completed bounded HMM runs include `hmm_economics` in `summary.json`.
+`regime-report` independently reconstructs it before displaying any result.
+This analysis joins `regime_risk.csv`, `trades.csv` and
+`regime_execution.csv` through the global fill-prefix count/hash at each risk
+boundary. It verifies the entire global trade stream, including other symbols,
+but values only the configured HMM symbol. Inventory must reconcile at every
+boundary; fills cannot appear before their accounted prefix. Core global PnL
+is never silently assigned to one symbol.
+
+For a linear contract, let `q = tick_size * step_size * contract_multiplier`.
+Each buy changes signed cash tick-lots by `-price_tick * qty_lots` and each
+sell by the opposite amount. Turnover sums the absolute traded tick-lots.
+Starting with zero cash/inventory, gross marked PnL is
+`cash_tick_lots*q + inventory_lots*mid_twice_tick*q/2`; net subtracts recorded
+fees. Paid fees and rebates are shown separately. This independent cash-flow
+identity handles partial closes and long/short reversals without reusing the
+core average-cost calculation. Exact amounts are rational strings, with
+explicit 50-digit decimal presentation in the human-readable report.
+
+Open inventory requires a fresh independently valid book mark. Its marked PnL
+is null when that mark is missing; last observed equity is labeled separately.
+Flat equity needs no price. A stale interval is detected even without a row
+at the expiry. The audit records unpriced held-inventory nanoseconds and never
+extrapolates beyond the run cutoff. It is not a funding or multi-currency
+portfolio ledger.
+
+Cash/fee/turnover cells use frozen pre-fill raw/active labels. Changes in
+observed marked equity use the previously available holding label, not a
+later state backfilled into an earlier interval. A return bridging an unpriced
+gap is `UNATTRIBUTED`. The two tables answer different descriptive questions;
+pre-fill fees must not be subtracted again from already-net endpoint deltas.
+No causal state-level PnL or strategy advantage is inferred.
+
+Observed drawdown is the running peak minus available net equity, beginning
+at zero and including same-time causal accounting boundaries. Missing prices
+do not reset the peak. It is not continuous-market maximum drawdown: unseen
+peaks/troughs can be missed. State maxima are tagged at the current detection
+label and are **not additive**. New-maximum extensions sum mechanically to the
+observed maximum but are bookkeeping, not causal "drawdown contributions".
+
+The reducer retains fixed `2*(K+3)` cells, one boundary and no transaction
+history. It runs during bounded export finalization and on report inspection,
+not in matching or strategy decisions; its re-verification cost belongs in
+full-audit benchmarks. Economic verification failure leaves `_INCOMPLETE.json`
+and no completed manifest. Risk stream/checkpoint version 2 adds the fill-prefix
+identity; version-1 HMM continuation/report state is rejected rather than
+inventing missing provenance. HMM-disabled artifacts and economics are unchanged.
+
+```bash
+python -m pytest tests/test_hmm_economics.py tests/test_hmm_risk.py
+python -m lob_sim.cli regime-report --run-dir <completed-hmm-run-directory>
+```
+
+These are measurement contracts and deterministic fixture proofs, not a
+trained-market economic result. The registered paired study, raw synthetic
+recovery and representative HMM overhead measurements are still required.
+
+The two-symbol economic regression exposed an existing schema-v3 scheduler
+defect: a symbol's periodic decisions were created only when its own next
+receipt arrived, potentially inserting a 2.04-second decision after another
+symbol's 3-second market trace. Active integer-clock timers now advance before
+each global observation, including control records; dispatch and same-time
+heap rules are unchanged. Independent HMM-disabled tests cover both-symbol and
+quiet-symbol receipt patterns and checkpoint continuation. This is an explicit
+core correctness repair, not an HMM policy change. Legacy per-symbol
+compatibility scheduling and the preimplementation golden hashes are preserved.
 
 ## Quote-lifetime attribution and descriptive execution statistics
 
