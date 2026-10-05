@@ -108,7 +108,10 @@ class RegimeObserver(FeatureDatasetObserver):
         # Sink failure stops the run; no count/hash claims for an unaccepted row.
         row = {key: row.get(key) for key in TRACE_FIELDS}
         next_digest = advance_trace_digest(self._trace_sha256, row)
-        self.sink.write(deepcopy(row))
+        # Only the exact built-in no-op may skip the discarded defensive copy.
+        # Subclasses/custom sinks still receive isolated rows and can fail.
+        if type(self.sink) is not NullSink:
+            self.sink.write(deepcopy(row))
         self._trace_sha256 = next_digest
         self._trace_count += 1
 

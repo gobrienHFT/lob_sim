@@ -190,6 +190,16 @@ not be sold as faster quoting or policy benefit. The console now prints
 quote/cancel/fill counts and warns about zero policy activity. The historical
 report/source hashes remain unchanged; representative overhead is still open.
 
+The null-sink follow-up removes only the discarded defensive copy in four HMM
+audit emitters. Twelve new cases prove exactly one fewer copy per emitted row,
+unchanged canonical hashes/checkpoints, custom-sink mutation isolation and
+write-failure propagation. The focused observation/risk/quote/execution/policy/
+benchmark/null suite passes 310 tests (170.27 s); the separate golden/benchmark/
+null suite passes 27 tests. Full-package plus benchmark typing passes 80 files,
+and Ruff/format passes 184 files. No representative speedup is claimed from
+those mechanical and state-equivalence tests. The original smoke reference
+still names its historical source rather than being relabeled as a newer run.
+
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of
 real exchange participants. Offline inference/replay throughput is not trading

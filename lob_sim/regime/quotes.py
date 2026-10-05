@@ -171,7 +171,9 @@ class RegimeQuoteAudit:
     def _write(self, row: Mapping[str, Any]) -> None:
         self._reduce(row, apply=False)
         digest = _digest(self._trace_sha256, row)
-        self.sink.write(deepcopy(dict(row)))
+        # A subclass is a real consumer, even if it inherits the NullSink name.
+        if type(self.sink) is not NullSink:
+            self.sink.write(deepcopy(dict(row)))
         self._reduce(row)
         self._trace_count += 1
         self._trace_sha256 = digest

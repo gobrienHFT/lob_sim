@@ -487,7 +487,9 @@ class RegimeExecutionAudit:
     def _write(self, row: Mapping[str, Any]) -> None:
         normalized = {key: row.get(key) for key in EXECUTION_FIELDS}
         digest = _advance(self._trace_sha256, normalized)
-        self.sink.write(deepcopy(normalized))
+        # No canonical hash/validation work is omitted on the null path.
+        if type(self.sink) is not NullSink:
+            self.sink.write(deepcopy(normalized))
         self._trace_sha256, self._trace_count = digest, self._trace_count + 1
 
     def _row(self, data: Mapping[str, Any], attribution: Mapping[str, Any]) -> dict[str, Any]:

@@ -1013,6 +1013,16 @@ relax risk controls to make the timing look active. That run also records the
 uncontrolled host and concurrent diagnostic load; it is not a representative
 performance or economic result.
 
+For the exact built-in `NullSink`, observation, risk-boundary, quote-lifecycle
+and execution emitters skip the defensive copy that a no-op would discard.
+Canonical hash chains, input validation, counters, risk integrals and owned
+checkpoint anchors still run. Subclasses and real sinks keep defensive copies
+and write-failure propagation. `tests/test_hmm_null_sink.py` compares that path
+with copying and deliberately mutating custom sinks, including actual fills,
+full engine state, traces and checkpoints. This removes one discarded copy per
+emitted audit row; it is not a quantified end-to-end speedup. The historical
+smoke measurements above predate this optimization.
+
 ## Reproduce checks
 
 ```bash

@@ -285,7 +285,9 @@ class RegimeRiskAudit:
     def observe(self, value: Mapping[str, Any]) -> None:
         row = self._row(value)  # Invalid input is atomic, including aggregate state.
         digest = _advance(self._trace_sha256, row)
-        self.sink.write(deepcopy(row))  # A failed write cannot claim an accepted boundary.
+        # Keep validation/owned anchors/hash work; skip only the no-op copy.
+        if type(self.sink) is not NullSink:
+            self.sink.write(deepcopy(row))  # A failed write cannot claim an accepted boundary.
         self._integrate(row["logical_ns"])
         self._anchor = row
         self._grid = tuple(row[key] for key in ("tick_size", "step_size", "contract_multiplier"))
