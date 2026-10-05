@@ -65,6 +65,22 @@ measurement, and synthetic FIFO is not historical Binance FIFO.
 
 ## Causal regime research in progress
 
+The [active public-capture cost benchmark](benchmark_results/hmm_active_public_reference.md)
+now completes three warmups, thirty measured runs and a separate memory run per
+mode. It ships unchanged inputs and records accepted resting quotes, native
+lifecycle counts, observer parity and all raw timings at clean `8c2a004`.
+Observation overhead is 87.90% on this short workload; policy changes the work
+performed. Its immediate-fill arrivals do not prove passive queue-fill quality.
+The synthetic-trained model is not real-market calibration. Broader performance,
+profiling and eligible registered economic evaluation remain unfinished.
+
+That source passes all eight Linux/Windows CI jobs: 1490 Python and 16 Rust
+tests. Downloaded exact-head reports verify all 15 Linux gate steps and all 14
+Windows steps (only the fixture benchmark skipped). Four separate publication
+checks independently verify report/data hashes, shared configuration, balanced
+order, native activity and raw timing/ratio calculations. Historical milestone
+counts below describe their named revisions, not this latest source.
+
 The optional regime audit now also measures time-weighted signed/absolute
 inventory, population inventory variance, held-inventory maxima, live/pending
 lots, marked inventory/reserved notional and halted duration by raw and active

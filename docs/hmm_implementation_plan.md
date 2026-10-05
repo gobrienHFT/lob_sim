@@ -257,3 +257,34 @@ An HMM posterior is not an edge estimate, Kelly input or causal discovery of
 real exchange participants. Offline inference/replay throughput is not trading
 latency. Negative policy results are valid research outcomes. Safe model JSON
 is not executable pickle; checksums identify content, not a trusted author.
+
+## Active public-capture overhead evidence
+
+The [completed short workload](benchmark_results/hmm_active_public_reference.md)
+records 102 fresh-engine replays: three warmups, thirty measured repetitions
+and one separate traced-memory replay per mode. Its portable capture/model
+bytes are unchanged. Every policy replay has accepted resting quotes, and the
+baseline/observer bounded core, book, fill, markout and latency identities match.
+The declared shared ten-lot size and 500 ms cadence do not loosen hard exposure
+limits or modify execution assumptions. The original inactive smoke and both
+incomplete public attempts remain labeled and preserved.
+
+The grid-compatibility repair treats insignificant Decimal spelling exactly,
+without context rounding or tolerance; raw dataset/trace/checkpoint hashes and
+the frozen model stay intact. Opaque nonminimal legacy hashes are not guessed.
+Native preflight rejects missing/mismatched metadata and corrupt tails before
+timing. Table-based CRC32C is checked against an independent bit-stream oracle,
+byte/Unicode cases and the stored original public-capture checksums.
+
+Clean source `8c2a004` passes all eight hosted CI jobs, including 1490 Python
+and 16 Rust tests. Four publication cases independently reconcile the native
+report/data hashes, configurations, balanced ordering, accepted activity,
+all raw timings and matched ratios. These do not reinterpret the short capture
+as valid research days or the synthetic-trained model as Binance calibration.
+
+The observed 87.90% observation-mode overhead is material engineering cost,
+not a cheap-inference or HFT-latency claim. Policy's 69.94% overhead accompanies
+fewer quotes/fills, and all fill activity appears as immediate-fill arrivals.
+No passive-fill quality or economic benefit follows. Broader representative
+workloads, profiling, dedicated-host performance and eligible registered
+multi-day research remain release work.

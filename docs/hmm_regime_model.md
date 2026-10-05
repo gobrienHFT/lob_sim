@@ -1087,6 +1087,16 @@ bit steps per byte. An independent bit-stream oracle, byte/Unicode cases and
 the original checksummed public tape verify unchanged wire semantics. Neither
 an unfinished run nor passing checksum tests establish a measured speedup.
 
+The [completed active public-capture benchmark](benchmark_results/hmm_active_public_reference.md)
+at clean `8c2a004` records the full three-warmup/thirty-measured/separate-memory
+protocol. It preserves observer core parity and has accepted resting quotes in
+every policy replay. Median matched observation overhead is 87.90%; policy
+overhead is 69.94% on a different quote/fill workload. All fill activity appears
+as immediate-fill arrivals, not passive-queue evidence. The frozen model is
+synthetic-trained and the tape is short; this does not establish calibration,
+benefit, whole-market representativeness or HFT latency. Substantial HMM overhead
+and broader engineering/economic validation remain work, not marketing claims.
+
 For the exact built-in `NullSink`, observation, risk-boundary, quote-lifecycle
 and execution emitters skip the defensive copy that a no-op would discard.
 Canonical hash chains, input validation, counters, risk integrals and owned
