@@ -55,7 +55,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
-| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix; explicit quote denominators; fixed fill-source/queue tables; integer time-weighted inventory, marked notional and live/pending reservation audit implemented; state economic/drawdown decomposition remains |
+| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution, horizon coverage, quote denominators and source/queue tables; integer time-weighted risk plus reconciled single-symbol cash/fee/equity and observed drawdown diagnostics implemented; registered out-of-sample evaluation remains |
 | L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
 | M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
@@ -67,10 +67,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full suite passes at 3b2fea1; repeat after remaining research integration |
+| W | Existing tests pass after integration | Full 1192-test Python suite passes at b0becc8; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (58 source files), Ruff and format (165 files) pass at 3b2fea1; full-package Mypy also passes across 72 source files; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at 3b2fea1, including 1130 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
+| Y | Standard lint and typing pass | Gate Mypy (59 source files), Ruff and format (168 files) pass at b0becc8; full-package Mypy also passes across 73 source files; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at b0becc8, including 1192 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
 
 ## Release boundaries
 
@@ -109,9 +109,14 @@ non-additive state drawdown maxima from mechanical extensions. Risk version 2
 binds each boundary to its global fill prefix. It is a bounded export/report
 consumer, not a change to matching, policy or core accounting. Independent
 cash-flow, reversal, gap and altered-parent regressions are in
-`tests/test_hmm_economics.py`; fresh complete-gate evidence is required before
-this source revision is published. Registered paired research, raw synthetic
-recovery and representative overhead remain.
+`tests/test_hmm_economics.py`. The 62 new regressions and complete clean
+15-step reviewer gate pass at `b0becc8` (779.82 s), including 1192 Python and
+16 Rust tests. Evidence is `outputs/hmm_gate_economics_20261005_verified.json`;
+its source/environment/command identities are explicit. The installed-wheel
+demo passes, and the CLI verifies and prints the fixture economics. The gate's
+80-record HMM-disabled, single-repetition benchmark is not representative HMM
+overhead or a comparative performance result. Registered paired research, raw
+synthetic recovery and representative overhead remain.
 The multi-symbol regression found and reproduced a core schema-v3 timer bug:
 another symbol's overdue decision could be inserted after a later market row.
 Global observation-clock scheduling now advances all active integer timers.

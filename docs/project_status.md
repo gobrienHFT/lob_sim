@@ -74,6 +74,23 @@ coverage; there is no retroactive labeling or schema-v3 EOF extrapolation.
 These remain descriptive single-symbol statistics, not drawdown contribution,
 funding, economic benefit or a held-out strategy result.
 
+Completed HMM bundles also reconstruct exact single-symbol cash, turnover,
+fees/rebates and fresh-mark equity from serialized trade/execution/risk parents.
+Inventory reconciles at each boundary; other-symbol global PnL cannot leak into
+the selected symbol. Missing marks keep open-position PnL null, gap returns are
+unattributed, and observed drawdown retains earlier peaks without claiming a
+continuous path or additive state contributions. This bounded analysis consumer
+does not change matching or core accounting. The two-symbol proof also exposed
+and repaired a schema-v3 global-timer ordering bug, with HMM-disabled and
+checkpoint regressions. Legacy golden behavior is preserved.
+
+The clean economic-audit source commit `b0becc8` passes all 15 reviewer-gate
+steps: 1192 Python tests, 16 Rust tests, typing/lint/format, primitive
+differential checks, artifacts, faults, installed wheel and fixture benchmark.
+The generated report is `outputs/hmm_gate_economics_20261005_verified.json`
+(779.82 s). These are correctness and installation checks, not representative
+HMM overhead, soak reliability, private fill truth or held-out policy benefit.
+
 An optional HMM foundation now provides twelve fixed-grid microstructure
 features, bounded trailing windows, train-only clipping/scaling, immutable
 diagonal Gaussian parameters, a custom log-space forward filter, confidence/
