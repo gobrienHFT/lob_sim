@@ -100,9 +100,14 @@ class RegimePolicyConfig:
     uncertainty_weight: float = 0.25
     stand_aside_risk: float = 0.95
     high_risk_state_confidence: float = 0.90
+    risk_aggregation: str = "posterior_weighted"
 
     def __post_init__(self) -> None:
         for name, value in asdict(self).items():
+            if name == "risk_aggregation":
+                if not isinstance(value, str) or value not in {"posterior_weighted", "hard_active"}:
+                    raise ValueError("risk_aggregation must be posterior_weighted or hard_active")
+                continue
             parsed = finite(value, name)
             if parsed < 0:
                 raise ValueError(f"{name} must be nonnegative")
@@ -120,14 +125,26 @@ class RegimePolicyConfig:
             raise ValueError("base_max_quote_age_ms must be in [1,3600000]")
 
     def as_dict(self) -> dict[str, Any]:
-        return {"schema_version": "lob_sim.hmm_policy_config.v1", **asdict(self)}
+        data = asdict(self)
+        if self.risk_aggregation == "posterior_weighted":
+            data.pop("risk_aggregation")  # Existing default config/identity stays byte-compatible.
+            return {"schema_version": "lob_sim.hmm_policy_config.v1", **data}
+        return {"schema_version": "lob_sim.hmm_policy_config.v2", **data}
 
     @classmethod
     def from_dict(cls, value: object) -> RegimePolicyConfig:
-        data = dict(require_keys(value, set(cls().as_dict()), "policy configuration"))
-        if data.pop("schema_version") != "lob_sim.hmm_policy_config.v1":
+        schema = value.get("schema_version") if isinstance(value, Mapping) else None
+        expected = set(cls().as_dict())
+        if schema == "lob_sim.hmm_policy_config.v2":
+            expected.add("risk_aggregation")
+        original = require_keys(value, expected, "policy configuration")
+        data = dict(original)
+        if data.pop("schema_version") not in {"lob_sim.hmm_policy_config.v1", "lob_sim.hmm_policy_config.v2"}:
             raise ValueError("unsupported policy configuration schema")
-        return cls(**data)
+        result = cls(**data)
+        if result.as_dict() != dict(original):
+            raise ValueError("noncanonical policy configuration")
+        return result
 
     @classmethod
     def load(cls, path: str | Path) -> RegimePolicyConfig:
@@ -232,12 +249,17 @@ class RegimeRiskPolicy:
         ):
             raise ValueError("inconsistent policy posterior diagnostics")
         weighted = math.fsum(p * r for p, r in zip(posterior, self.state_risks))
-        risk = min(1.0, weighted + self.config.uncertainty_weight * entropy)
         active = signal.get("active_state")
+        if active is not None and integer(active, "policy active state") >= k:
+            raise ValueError("policy active state out of range")
+        base_risk = (
+            self.state_risks[active]
+            if self.config.risk_aggregation == "hard_active" and active is not None
+            else weighted
+        )
+        risk = min(1.0, base_risk + self.config.uncertainty_weight * entropy)
         if active is None:
             return self._controls(weighted, risk, True, "unconfirmed_state")
-        if integer(active, "policy active state") >= k:
-            raise ValueError("policy active state out of range")
         if posterior[raw] < enter_probability or entropy > maximum_normalized_entropy:
             return self._controls(weighted, risk, True, "uncertain_state")
         if risk >= self.config.stand_aside_risk:
@@ -248,4 +270,4 @@ class RegimeRiskPolicy:
             and posterior[active] >= self.config.high_risk_state_confidence
         ):
             return self._controls(weighted, risk, True, "high_risk_active_state")
-        return self._controls(weighted, risk, False, "posterior_weighted_risk")
+        return self._controls(weighted, risk, False, self.config.risk_aggregation + "_risk")

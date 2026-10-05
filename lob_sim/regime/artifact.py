@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +41,12 @@ class FrozenRegimeModel:
             "provenance": strict_json(self.provenance_json),
         }
 
-    @property
+    @cached_property
     def model_sha256(self) -> str:
+        # Parameters, scaler, spec and canonical provenance are immutable.
+        # A derived non-dataclass cache avoids reserializing the complete fit
+        # ledger at every risk boundary; it cannot enter artifact/checkpoint
+        # fields or change the independently recomputed serialization identity.
         return identity(self._payload())
 
     def as_dict(self) -> dict[str, Any]:

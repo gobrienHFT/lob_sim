@@ -670,3 +670,34 @@ def test_quote_age_keeps_single_nanosecond_precision_and_rejects_unknown_accepta
         subject.order_age_ns("order", accepted_ns - 1)
     with pytest.raises(ValueError, match="accepted order"):
         subject.order_age_ns("missing", accepted_ns + 1)
+
+
+def test_hard_active_ablation_changes_only_declared_risk_aggregation():
+    model = policy_settings().model
+    weighted = RegimeRiskPolicy(model, RegimePolicyConfig(uncertainty_weight=0))
+    hard_config = RegimePolicyConfig(uncertainty_weight=0, risk_aggregation="hard_active")
+    hard = RegimeRiskPolicy(model, hard_config)
+    observed = signal(model, posterior=(0.8, 0.2), active=0)
+    left, right = weighted.evaluate(observed), hard.evaluate(observed)
+    assert left.posterior_weighted_risk == right.posterior_weighted_risk == pytest.approx(0.2)
+    assert left.effective_risk == pytest.approx(0.2)
+    assert right.effective_risk == 0
+    assert right.reason == "hard_active_risk"
+    assert RegimePolicyConfig.from_dict(hard_config.as_dict()) == hard_config
+    assert hard_config.as_dict()["schema_version"] == "lob_sim.hmm_policy_config.v2"
+    assert RegimePolicyConfig().as_dict()["schema_version"] == "lob_sim.hmm_policy_config.v1"
+    assert "risk_aggregation" not in RegimePolicyConfig().as_dict()
+
+
+@pytest.mark.parametrize("aggregation", ["posterior_weighted", "hard_active"])
+@pytest.mark.parametrize("active,status", [(None, "VALID"), (0, "INVALID_BOOK"), (0, "WARMING_UP")])
+def test_both_policy_aggregations_keep_fail_closed_guards(aggregation, active, status):
+    model = policy_settings().model
+    policy = RegimeRiskPolicy(model, RegimePolicyConfig(risk_aggregation=aggregation))
+    assert policy.evaluate(signal(model, active=active, status=status)).stand_aside
+
+
+@pytest.mark.parametrize("aggregation", ["raw_map", "", True, 0, None])
+def test_policy_aggregation_contract_rejects_unknown_modes(aggregation):
+    with pytest.raises(ValueError, match="risk_aggregation"):
+        RegimePolicyConfig(risk_aggregation=aggregation)

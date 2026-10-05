@@ -73,8 +73,8 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
-| Q | Frozen variant registry before untouched test | Implemented for synthetic recovery; registered paired policy study remains pending |
-| R | Paired moving-block bootstrap study | Pending |
+| Q | Frozen variant registry before untouched test | Implemented in independent-source study runner for baseline/observe/policy, hard-active and cadence variants; full real diagnostic release remains under verification |
+| R | Paired moving-block bootstrap study | Clock-minute inventory/reservation comparisons with independent contiguous strata and explicit 30/5/60-minute unavailability; execution-quality/economic intervals remain |
 | S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |

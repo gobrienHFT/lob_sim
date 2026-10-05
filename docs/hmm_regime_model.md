@@ -12,6 +12,10 @@ published. The [implementation ledger](hmm_implementation_plan.md) tracks the
 remaining registered evaluation and representative overhead work. Known-regime
 raw-tape recovery and source/risk/economic diagnostics are implemented. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
+The registered comparison runner and independent-source collection reader now
+exist; integration tests exercise all five declared variants. Real-data
+evidence and representative three-mode overhead are separate release checks,
+not consequences of a green synthetic fixture.
 
 ## Ownership and data path
 
@@ -288,10 +292,69 @@ The existing frozen variant registry will govern the economic study. At least
 ten joint-valid UTC days are needed for holdout claims;
 otherwise results are diagnostic. The economic study will pair identical tapes,
 seeds, fill scenarios, latencies and fees across baseline, observation-only and
-opt-in policy runs, with moving-block bootstrap sensitivity. No such study has
-been completed by the numerical foundation tests.
+opt-in policy runs, with moving-block bootstrap sensitivity. Numerical
+foundation tests alone do not complete this study.
 
 ## Commands available now
+
+### Registered comparison
+
+```bash
+python experiments/run_hmm_regime_study.py --help
+python experiments/run_hmm_regime_study.py \
+  --input capture_day_a.manifest.json \
+  --input capture_day_b.manifest.json \
+  --input capture_day_c.manifest.json \
+  --out-dir outputs/new_registered_study --requote-ms 500
+```
+
+Use independent single-UTC-day tapes. Each source gets a fresh engine and native
+receive clock; no raw-message concatenation, invented sequence or transition
+between unrelated runs is performed. Collection identity binds every child
+manifest, source checksum, configuration and feature specification. Valid rows
+on different dates do not certify complete joint-valid days. Fitting reads only
+the selected physical calibration/validation files; test access requires the
+frozen registry. The study registers its entire universe before extraction.
+
+Five variants share tapes, fees, instrument metadata, fill assumptions, fixed
+order/cancel latency and a common quote cadence: baseline, observation-only,
+posterior-weighted policy, hard-active-state policy, and 250 ms policy sampling.
+The cadence ablation keeps a ten-second feature window and three-second
+confirmation/minimum-age settings. Default controls and policy-config-v1 bytes
+remain unchanged; hard-active mode has an explicit version-2 configuration.
+All K=2..5 restart attempts, failed fits and failed runs remain visible. No
+best-PnL cell determines selection. Positions reset to zero per independent
+source, which is a diagnostic convention, not continuous multi-day trading.
+
+Observation-sidecar measurements can stand in for baseline measurements only
+after exact baseline/observe core-event, fill-file and markout-file parity.
+Only namespaced HMM event diagnostics are removed for this comparison; no
+economic difference is stripped. Runtime audits stream to disk, rather than
+retaining traces in memory. The immutable model's derived content identity is
+cached; artifact bytes and checkpoint dataclass fields remain unchanged.
+
+Risk comparisons integrate actual left-continuous integer-nanosecond intervals
+into complete UTC-minute buckets, then bootstrap paired period statistics using
+the existing moving-block implementation. Blocks are 30 clock minutes, with
+5/60-minute sensitivities—not 30 event rows. Resampling is independently
+stratified by source/day/validity/contiguous eligible grid at original weights.
+Partial capture edges, stale marks, missing observations and epoch crossings
+remain excluded. Every short stratum must fit the requested block; otherwise
+the interval is null, not silently shortened. The mean within-period inventory
+variance is not whole-path variance, and a period mean is not global drawdown.
+The bootstrap is a conditional descriptive method, not a proof of stationarity,
+independent days, execution-model truth or a multiple-testing-adjusted alpha.
+
+An observed changing wall/monotonic offset or mixed clock basis prevents the
+fixed-UTC projection. The run's native risk/economics audit can still be
+verified, but its clock comparison is explicitly unavailable. This conservative
+restriction must not be sold as a real-data confidence interval. The current
+clock comparison covers inventory and reserved-notional metrics; execution
+quality/economic intervals and representative overhead remain release work.
+Offline fitting/comparison uses explicit row/source/period caps. Those caps are
+distinct from runtime bounded-memory claims and from a 24-hour soak.
+
+### Single-model workflow
 
 First install optional fitting dependencies:
 

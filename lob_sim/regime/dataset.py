@@ -95,9 +95,11 @@ class FeatureDatasetObserver:
         emit: Callable[[Mapping[str, Any]], None],
         *,
         symbols: tuple[str, ...] = (),
+        on_observation: Callable[[MarketObservation], None] | None = None,
     ) -> None:
         self.spec, self.input_sha256, self.emit = spec, input_sha256, emit
         self.symbols = frozenset(symbols)
+        self.on_observation = on_observation
         self.depth_levels = spec.depth_levels
         self._contexts: dict[str, _Context] = {}
         self.sample_count = 0
@@ -158,6 +160,8 @@ class FeatureDatasetObserver:
     def observe(self, observation: MarketObservation) -> None:
         if self.symbols and observation.symbol not in self.symbols:
             return
+        if self.on_observation is not None:
+            self.on_observation(observation)
         instrument = instrument_identity(observation)
         context = self._contexts.get(observation.symbol)
         if context is None or context.instrument_sha256 != instrument:
@@ -270,6 +274,7 @@ def extract_features(
     *,
     spec: FeatureSpec = FeatureSpec(),
     symbols: tuple[str, ...] = (),
+    on_observation: Callable[[MarketObservation], None] | None = None,
 ) -> dict[str, Any]:
     """Immutable daily feature bundle. A failed extraction has no final manifest.
 
@@ -283,7 +288,7 @@ def extract_features(
     source = Path(input_path)
     input_hash = file_sha256(source)
     writer = _DayWriter(Path(directory))
-    observer = FeatureDatasetObserver(spec, input_hash, writer.write, symbols=symbols)
+    observer = FeatureDatasetObserver(spec, input_hash, writer.write, symbols=symbols, on_observation=on_observation)
     engine = SimulationEngine(
         cfg,
         market_observer=observer,
@@ -472,6 +477,31 @@ def read_partition(
     if split != expected_split:
         raise ValueError("split does not match the dataset's chronological UTC-day universe")
     selected_days = getattr(split, role + "_days")
+    rows, lengths, instrument = _read_selected_feature_days(directory, manifest, selected_days, symbol, max_rows)
+    return FeaturePartition(
+        role,
+        selected_days,
+        split.digest,
+        manifest["dataset_sha256"],
+        spec,
+        symbol,
+        instrument,
+        rows,
+        lengths,
+    )
+
+
+def _read_selected_feature_days(
+    directory: str | Path, manifest: Mapping[str, Any], selected_days: tuple[str, ...], symbol: str, max_rows: int
+) -> tuple[tuple[tuple[float, ...], ...], tuple[int, ...], str]:
+    """One decoder for ordinary and independent-source collection partitions.
+
+    Callers enforce the split/registry contract before selected day files open.
+    Native input hashes, clocks, day/epoch boundaries and integrity checks remain
+    identical; this function never concatenates independent source clocks.
+    """
+    integer(max_rows, "max_rows", minimum=1)
+    spec = FeatureSpec.from_dict(manifest["features"])
     rows: list[tuple[float, ...]] = []
     lengths: list[int] = []
     instrument: str | None = None
@@ -552,14 +582,4 @@ def read_partition(
             raise ValueError("feature day counts mismatch")
     if not rows or instrument is None:
         raise ValueError("requested symbol/partition has no valid feature rows")
-    return FeaturePartition(
-        role,
-        selected_days,
-        split.digest,
-        manifest["dataset_sha256"],
-        spec,
-        symbol,
-        instrument,
-        tuple(rows),
-        tuple(lengths),
-    )
+    return tuple(rows), tuple(lengths), instrument

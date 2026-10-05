@@ -247,27 +247,44 @@ def moving_block_bootstrap_mean(
     replicates: int = 2_000,
     confidence: float = 0.95,
     seed: int = 1,
+    lengths: Sequence[int] | None = None,
 ) -> BootstrapInterval:
-    """Return a deterministic percentile interval using overlapping blocks."""
+    """Percentile mean interval; optional independent contiguous strata.
+
+    ``block_size`` counts observations, NOT minutes. With ``lengths``, each
+    contiguous sequence is resampled independently at its original weight;
+    no block crosses a day/source/invalidity boundary. Every sequence must
+    accommodate the requested block. Legacy calls retain their exact RNG path.
+    """
 
     observations = _finite_values(values)
-    if block_size <= 0 or block_size > len(observations):
+    if type(block_size) is not int or block_size <= 0 or block_size > len(observations):
         raise ValueError("block_size must be between 1 and the observation count")
-    if replicates <= 0:
+    if type(replicates) is not int or replicates <= 0:
         raise ValueError("replicates must be positive")
     if not 0 < confidence < 1 or not math.isfinite(confidence):
         raise ValueError("confidence must be finite and between 0 and 1")
 
     rng = _SplitMix64(seed)
-    max_start = len(observations) - block_size + 1
+    spans: tuple[int, ...]
+    if lengths is None:
+        spans = (len(observations),)
+    else:
+        spans = tuple(lengths)
+        if not spans or any(type(n) is not int or n < block_size for n in spans) or sum(spans) != len(observations):
+            raise ValueError("sequence lengths must conserve observations and each accommodate block_size")
     bootstrap_means: list[float] = []
-    block_count = math.ceil(len(observations) / block_size)
     for _ in range(replicates):
         sample: list[float] = []
-        for _ in range(block_count):
-            start = rng.randbelow(max_start)
-            sample.extend(observations[start : start + block_size])
-        bootstrap_means.append(sum(sample[: len(observations)]) / len(observations))
+        offset = 0
+        for length in spans:
+            segment: list[float] = []
+            for _ in range(math.ceil(length / block_size)):
+                start = offset + rng.randbelow(length - block_size + 1)
+                segment.extend(observations[start : start + block_size])
+            sample.extend(segment[:length])
+            offset += length
+        bootstrap_means.append(sum(sample) / len(observations))
 
     bootstrap_means.sort()
     tail = (1.0 - confidence) / 2.0
@@ -280,6 +297,7 @@ def moving_block_bootstrap_mean(
         replicates=replicates,
         sample_count=len(observations),
         seed=int(seed),
+        algorithm="splitmix64_moving_blocks_v1" if lengths is None else "splitmix64_stratified_moving_blocks_v1",
     )
 
 
@@ -291,16 +309,19 @@ def paired_moving_block_bootstrap_mean_delta(
     replicates: int = 2_000,
     confidence: float = 0.95,
     seed: int = 1,
+    lengths: Sequence[int] | None = None,
 ) -> BootstrapInterval:
     """Bootstrap paired ``left - right`` observations on identical events."""
 
     if len(left) != len(right):
         raise ValueError("paired bootstrap inputs must have equal length")
-    deltas = [float(a) - float(b) for a, b in zip(left, right)]
+    left_values, right_values = _finite_values(left), _finite_values(right)
+    deltas = [a - b for a, b in zip(left_values, right_values)]
     return moving_block_bootstrap_mean(
         deltas,
         block_size=block_size,
         replicates=replicates,
         confidence=confidence,
         seed=seed,
+        lengths=lengths,
     )
