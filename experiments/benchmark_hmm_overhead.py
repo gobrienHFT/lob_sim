@@ -72,6 +72,7 @@ def replay_probe(engine: SimulationEngine) -> dict[str, Any]:
         "quote_count": summary["quote_count"],
         "cancel_count": summary["cancel_count"],
         "fill_count": summary["fill_count"],
+        "order_lifecycle_counts": summary["order_lifecycle_counts"],
         "fill_audit_sha256": summary["audit_retention"]["fill_audit_sha256"],
         "markout_audit_sha256": summary["audit_retention"]["markout_audit_sha256"],
         "event_trace_retention": retention,
@@ -89,6 +90,7 @@ def benchmark_hmm(
     warmups: int = 3,
     repetitions: int = 30,
     memory_runs: int = 1,
+    require_active_policy: bool = False,
     progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     """Fresh engines, common tape/config, balanced order, separate tracing runs.
@@ -98,6 +100,8 @@ def benchmark_hmm(
     includes construction, raw input/hash/decode, scheduling and EOF draining;
     model loading, GC preconditioning and diagnostic reduction are outside.
     """
+    if type(require_active_policy) is not bool:
+        raise ValueError("require_active_policy must be boolean")
     for name, count, maximum in (
         ("warmups", warmups, 30),
         ("repetitions", repetitions, 1000),
@@ -156,6 +160,12 @@ def benchmark_hmm(
         prototypes[mode] = probe
         if mode != "baseline" and (probe["hmm"] is None or probe["hmm"]["status_counts"].get("VALID", 0) == 0):
             raise ValueError("benchmark HMM never had valid inference; inactive overhead is not representative")
+        if (
+            mode == "policy"
+            and require_active_policy
+            and (probe["quote_count"] == 0 or probe["order_lifecycle_counts"].get("rested_after_arrival", 0) == 0)
+        ):
+            raise ValueError("active-policy benchmark requires both quote requests and accepted resting quotes")
         return duration, peak
 
     for round_index in range(warmups + repetitions):
@@ -207,7 +217,7 @@ def benchmark_hmm(
             "probe": prototypes[mode],
         }
     report = {
-        "schema_version": "lob_sim.hmm_overhead_benchmark.v1",
+        "schema_version": "lob_sim.hmm_overhead_benchmark.v2",
         "claim_ready": False,
         "input": {"path": path.as_posix(), "size_bytes": path.stat().st_size},
         "model_file": model_path.as_posix(),
@@ -226,6 +236,8 @@ def benchmark_hmm(
             "warmups_per_mode": warmups,
             "measured_repetitions_per_mode": repetitions,
             "memory_runs_per_mode": memory_runs,
+            "active_policy_required": require_active_policy,
+            "active_policy_definition": "at least one quote request and accepted resting quote per replay; fills are not required",
             "measured_order": measured_order,
             "order": "six deterministic permutations cycling; no best-run selection",
             "timing": "engine construction + input read/hash/decode + simulation + EOF drain; no tracemalloc",
@@ -260,6 +272,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--warmups", type=int, default=3)
     parser.add_argument("--repetitions", type=int, default=30)
     parser.add_argument("--memory-runs", type=int, default=1)
+    parser.add_argument(
+        "--require-active-policy",
+        action="store_true",
+        help="fail before publication if policy has no requests or accepted resting quotes; does not relax risk controls",
+    )
     args = parser.parse_args(argv)
     if args.json_out.exists() or args.json_out.with_name(args.json_out.name + ".partial").exists():
         raise FileExistsError("benchmark output already exists")
@@ -281,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         warmups=args.warmups,
         repetitions=args.repetitions,
         memory_runs=args.memory_runs,
+        require_active_policy=args.require_active_policy,
         progress=lambda value: print(value, flush=True),
     )
     args.json_out.parent.mkdir(parents=True, exist_ok=True)

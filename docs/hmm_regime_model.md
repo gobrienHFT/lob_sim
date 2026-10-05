@@ -1048,6 +1048,22 @@ relax risk controls to make the timing look active. That run also records the
 uncontrolled host and concurrent diagnostic load; it is not a representative
 performance or economic result.
 
+Schema-v2 reports also include native order-lifecycle counts and whether an
+active-policy workload was required. Add `--require-active-policy` to reject
+every replay without both a quote request and an accepted resting quote;
+rejected-only requests do not qualify. Fills are not required. This is a
+necessary workload check, not a measure of market representativeness. It does
+not change matching, risk, lot rounding or the policy. Historical schema-v1
+reports remain unchanged.
+
+The [short public-capture workload](benchmark_inputs/hmm_public_btcusdt_20261005/README.md)
+ships byte-identical capture segments, the frozen **synthetic-trained** model
+and a shared ten-lot/500 ms benchmark configuration. It can exercise accepted
+policy quotes without rounding up a suppressed one-lot quote or loosening the
+hard exposure cap. Its capture is about 130 seconds; its model is not calibrated
+on that capture. Neither is sufficient for a real-market policy-benefit,
+holdout, soak or dedicated-host performance claim.
+
 For the exact built-in `NullSink`, observation, risk-boundary, quote-lifecycle
 and execution emitters skip the defensive copy that a no-op would discard.
 Canonical hash chains, input validation, counters, risk integrals and owned

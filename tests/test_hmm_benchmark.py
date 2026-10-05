@@ -106,6 +106,54 @@ def test_invalid_config_rejected_before_model_load(tmp_path):
         module.benchmark_hmm(path, model, replace(configuration, sim_latency_mode="empirical"), symbol="BTCUSDT")
 
 
+@pytest.mark.parametrize("value", [1, None, "true"])
+def test_active_policy_requirement_is_strict_before_model_access(tmp_path, value):
+    with pytest.raises(ValueError, match="boolean"):
+        module.benchmark_hmm(
+            tmp_path / "missing", tmp_path / "missing_model", cfg(), symbol="BTCUSDT", require_active_policy=value
+        )
+
+
+@pytest.mark.parametrize("quotes,rested", [(0, 0), (12, 0)])
+def test_active_policy_gate_rejects_zero_or_rejected_only_quoting(tmp_path, monkeypatch, quotes, rested):
+    path, model, configuration = inputs(tmp_path)
+    original = module.replay_probe
+
+    def no_active_work(engine):
+        probe = original(engine)
+        if engine.regime is not None and engine.regime.settings.mode == "policy":
+            probe["quote_count"] = quotes
+            probe["order_lifecycle_counts"] = {"rested_after_arrival": rested}
+        return probe
+
+    monkeypatch.setattr(module, "replay_probe", no_active_work)
+    with pytest.raises(ValueError, match="accepted resting quotes"):
+        module.benchmark_hmm(
+            path, model, configuration, symbol="BTCUSDT", warmups=1, repetitions=1, require_active_policy=True
+        )
+
+
+def test_real_multilot_policy_can_be_active_without_requiring_fills(tmp_path):
+    from decimal import Decimal
+
+    path, model, configuration = inputs(tmp_path)
+    report = module.benchmark_hmm(
+        path,
+        model,
+        replace(configuration, mm_order_qty=Decimal("0.010"), mm_half_spread_bps=Decimal("100")),
+        symbol="BTCUSDT",
+        warmups=1,
+        repetitions=1,
+        require_active_policy=True,
+    )
+    assert report["schema_version"] == "lob_sim.hmm_overhead_benchmark.v2"
+    assert report["protocol"]["active_policy_required"]
+    probe = report["modes"]["policy"]["probe"]
+    assert probe["quote_count"] > 0
+    assert probe["order_lifecycle_counts"]["rested_after_arrival"] > 0
+    assert probe["fill_count"] == 0  # Live quoting is work even when no trade reaches it.
+
+
 def test_no_valid_inference_is_not_published_as_hmm_overhead(tmp_path, monkeypatch):
     path, model, configuration = inputs(tmp_path)
     original = module.replay_probe
@@ -151,7 +199,10 @@ def test_observation_parity_failure_is_not_a_valid_benchmark(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize("policy_quotes", [0, 12])
-def test_cli_reports_workload_and_warns_only_for_inactive_quoting(tmp_path, monkeypatch, capsys, policy_quotes):
+@pytest.mark.parametrize("require_active", [False, True])
+def test_cli_reports_workload_and_warns_only_for_inactive_quoting(
+    tmp_path, monkeypatch, capsys, policy_quotes, require_active
+):
     report = {
         "modes": {
             name: {
@@ -168,10 +219,20 @@ def test_cli_reports_workload_and_warns_only_for_inactive_quoting(tmp_path, monk
         }
     }
     published = []
-    monkeypatch.setattr(module, "benchmark_hmm", lambda *args, **kwargs: report)
+    options = []
+
+    def benchmark(*args, **kwargs):
+        options.append(kwargs)
+        return report
+
+    monkeypatch.setattr(module, "benchmark_hmm", benchmark)
     monkeypatch.setattr(module, "publish_json", lambda path, value: published.append((path, value)))
     output = tmp_path / "new.json"
-    assert module.main(["--file", "unused", "--model", "unused", "--json-out", str(output)]) == 0
+    arguments = ["--file", "unused", "--model", "unused", "--json-out", str(output)]
+    if require_active:
+        arguments.append("--require-active-policy")
+    assert module.main(arguments) == 0
+    assert options[0]["require_active_policy"] is require_active
     assert published == [(output, report)]
     text = capsys.readouterr().out
     assert f"quotes={policy_quotes}; cancels=3; fills=4" in text
