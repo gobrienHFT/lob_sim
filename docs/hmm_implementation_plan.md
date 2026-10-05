@@ -33,6 +33,17 @@ wheel smoke tests (`--skip-benchmark`). Work is on `codex/hmm-regime-layer`.
    overhead benchmarks, causal regression fixtures, documentation and commands.
    Run the complete reviewer gate and cross-platform CI before release.
 
+The known-regime raw-tape recovery path is now implemented separately from the
+remaining paired economic study. `experiments/run_hmm_synthetic_recovery.py`
+generates ordinary schema-v3 market messages with hidden labels in physically
+separate truth files, extracts through the authoritative engine, reuses the
+whole-day split and frozen registry, fits K=2..5, and evaluates the actual causal
+runtime after training-only alignment. Native ARI, mapped confusion, censored
+switch lag, transition error and complete/censored durations distinguish genuine
+recovery from convenient relabeling. Synthetic snippets do not certify valid
+full days, demonstrate a real-market model or prove policy benefit. The matching
+MBO exchange remains a different mode.
+
 Walk-forward fitting is optional. The primary implementation is a frozen model;
 no implicit refit or test-dependent model selection is permitted. Fewer than ten
 joint-valid UTC days means diagnostic-only research, not a holdout claim.

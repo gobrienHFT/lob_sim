@@ -822,8 +822,79 @@ Schema-v2 HMM traces/checkpoints are not silently upgraded to v3. Reproduce an
 old audit with its original revision, or rerun the same immutable inputs under
 the new revision. Legacy market-tape importers and the HMM-disabled public audit
 schemas are unchanged. Time-weighted inventory/reservation evidence is now
-implemented. State economic/drawdown decomposition and the registered paired
-research study remain unfinished requirements.
+implemented. Reconciled cash/fee/equity and observed drawdown diagnostics are
+also implemented. Registered paired research remains unfinished.
+
+## Known-regime raw market-tape recovery
+
+The synthetic recovery command tests the complete input path rather than fitting
+precomputed Gaussian vectors:
+
+```bash
+python experiments/run_hmm_synthetic_recovery.py --out-dir outputs/hmm_synthetic_recovery
+```
+
+It generates five eight-minute snippets on distinct UTC days. A two-state
+one-second Markov process changes visible spread, depth, price increments and
+public-print activity. Hidden labels are stored in separate per-day truth files,
+never in market messages or emission vectors. This is a synthetic market-by-price
+state-transition fixture, not the separate exact market-by-order exchange, a
+calibrated Binance process, or economic evidence. Both routes disconnect at each
+snippet boundary; compressed monotonic gaps do not represent valid elapsed days.
+
+The ordinary engine reconstructs the tape and feeds the existing fixed-grid
+feature extractor with strategy quoting disabled. Feature files use physical UTC
+partitions. The existing chronological split supplies three calibration snippets,
+one validation snippet and one diagnostic test snippet. All generator, feature,
+fit, hysteresis, alignment and lag specifications are registered and frozen
+before extraction. K=2..5 and every restart—including failed fits—remain in the
+fit report. Scaling, EM fitting, state signatures and label alignment never use
+test observations. No valid fitted candidate means a visible failure report and
+no test prediction access.
+
+After unsupervised model selection, the actual runtime forward filter and
+hysteresis run independently on every contiguous sequence. Labels are aligned
+using **training forward predictions only**. K=2 uses a deterministic exhaustive
+permutation. A selected K>2 uses an explicitly named many-to-one training mapping;
+it is not presented as permutation recovery. Unobserved training states and
+lexicographic tie rules remain visible. Validation/test labels cannot improve
+the frozen mapping.
+
+The recovery report includes:
+
+- confusion matrices, including unavailable active labels;
+- raw clustering adjusted Rand index, which exposes extra fitted clusters even
+  when many-to-one classification looks strong;
+- mapped accuracy with both all-sample and available-sample denominators;
+- sequence-separated empirical transitions, transition error, and fitted
+  geometric durations; fitted parameters can be compared directly to the truth
+  transition matrix only for a two-state permutation;
+- complete and edge-censored quantized episode durations;
+- every observed truth switch, confirmation availability lag, and switches not
+  detected before the next truth switch or sequence cutoff;
+- feature validity/warmup counts, prediction identities, immutable parent
+  checksums, frozen registry and the complete fitting ledger.
+
+Raw detection requires three consecutive mapped matches. Active detection uses
+the first available matching state because the runtime hysteresis has already
+confirmed it. Lag is measured at actual availability, never backdated to the
+first sample in a confirmation streak. Sequence edges and unavailable neighbors
+censor duration statistics; neither gaps nor omitted labels become zero delay.
+
+Trailing-window emissions are correlated and mixed near generating switches;
+they are not a conditionally Gaussian realization of the latent Markov process.
+The model may split states, respond late or miss short episodes. Perfect recovery
+is not required and cannot establish a useful market-making policy. The
+[adjusted Rand reference](https://scikit-learn.org/stable/modules/clustering.html#adjusted-rand-index)
+describes the pair-count statistic; regression tests compare its exact local
+implementation with the independent scikit-learn implementation. Runtime
+filtering remains separate from [hmmlearn fitting](https://hmmlearn.readthedocs.io/en/stable/tutorial.html).
+
+Generation and feature export stream to no-clobber, fsynced partial/final files.
+Offline recovery has an explicit diagnostic cap (30 snippets, at most one hour
+each); it may retain the capped analysis observations. That is distinct from the
+bounded runtime filter/windows and does not claim arbitrary-tape constant-memory
+fitting. Run the command again only with a new output directory.
 
 ## Reproduce checks
 

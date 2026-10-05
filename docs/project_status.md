@@ -167,8 +167,16 @@ cases and passes the complete clean 15-step reviewer gate: 1,130 Python tests,
 Ruff/format across 165 files, and the existing correctness/artifact/install/
 fixture checks. It does not establish representative HMM overhead.
 
-Registered paired economic evaluation, synthetic raw-tape recovery diagnostics
-and representative overhead evidence remain required. No trained
+Known-regime synthetic raw-tape recovery now runs through the authoritative
+book/feature path and actual forward-filter/hysteresis implementation. Labels
+never enter fitting or emissions; training-only alignment, native ARI, mapped
+confusion, sequence-separated transitions, censored duration and confirmation
+availability lag expose mistakes rather than assuming perfect recovery. A frozen
+registry precedes extraction and evaluation. The UTC snippets are diagnostic,
+not certified full valid days, Binance calibration or policy/economic evidence.
+
+Registered paired economic evaluation and representative overhead evidence
+remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 
