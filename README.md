@@ -70,7 +70,7 @@ Read next:
 - [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
-- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect quote/fill/inventory diagnostics and a reconciled cash/fee/equity audit, and test an opt-in risk-constrained quote policy. Registered out-of-sample policy evaluation remains in progress.
+- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect quote/fill/inventory and cash/fee/equity audits, and test an opt-in risk-constrained quote policy. [Known-regime synthetic recovery](docs/strategy_results/hmm_synthetic_recovery_reference.md) exercises the raw-tape inference path and reports imperfect clustering and delayed detection. Registered out-of-sample policy evaluation remains in progress.
 
 ## Core mechanics
 

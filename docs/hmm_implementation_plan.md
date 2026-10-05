@@ -3,7 +3,8 @@
 The HMM is an optional research-layer estimator. Reconstruction, causal event
 ordering, execution scenarios, accounting and hard risk controls remain owned by
 the existing simulator. The current spread/imbalance `regime` bucket is not an HMM
-and is preserved. No fitted HMM or economic benefit is claimed by this ledger.
+and is preserved. The synthetic fitted model is diagnostic; no fitted
+real-market HMM or economic benefit is claimed by this ledger.
 
 ## Baseline and sequence
 
@@ -72,16 +73,16 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
-| Q | Frozen variant registry before untouched test | Pending |
+| Q | Frozen variant registry before untouched test | Implemented for synthetic recovery; registered paired policy study remains pending |
 | R | Paired moving-block bootstrap study | Pending |
 | S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full 1192-test Python suite passes at b0becc8; repeat after remaining research integration |
+| W | Existing tests pass after integration | Full 1239-test Python suite passes at 60b0696; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (59 source files), Ruff and format (168 files) pass at b0becc8; full-package Mypy also passes across 73 source files; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at b0becc8, including 1192 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
+| Y | Standard lint and typing pass | Gate Mypy (61 source files), Ruff and format (172 files) pass at 60b0696; full-package Mypy also passes across 75 source files; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at 60b0696, including 1239 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; documentation-only dirty state is recorded accurately; final research release still pending |
 
 ## Release boundaries
 
@@ -126,8 +127,8 @@ cash-flow, reversal, gap and altered-parent regressions are in
 its source/environment/command identities are explicit. The installed-wheel
 demo passes, and the CLI verifies and prints the fixture economics. The gate's
 80-record HMM-disabled, single-repetition benchmark is not representative HMM
-overhead or a comparative performance result. Registered paired research, raw
-synthetic recovery and representative overhead remain.
+overhead or a comparative performance result. Registered paired research and
+representative overhead remain.
 The multi-symbol regression found and reproduced a core schema-v3 timer bug:
 another symbol's overdue decision could be inserted after a later market row.
 Global observation-clock scheduling now advances all active integer timers.
@@ -137,6 +138,25 @@ New observer checkpoint version 2 rejects older HMM continuation state rather
 than inventing missing moments/episodes. Execution checkpoint version 3 rejects
 older HMM state rather than fabricating missing quote denominators or
 source/queue diagnostics; disabled checkpoints are unchanged.
+
+Raw synthetic recovery adds 47 regressions; the focused recovery/dataset/fit/
+golden suite passes 106 tests. The full 15-step gate passes at `60b0696` in
+708.83 s, including 1239 Python tests (524.98 s), 16 Rust tests, gate typing across
+61 files, formatting across 172 files, and the existing parity/artifact/fault/
+installed-wheel/fixture-benchmark checks. Full-package typing passes 75 files.
+The generated report is `outputs/hmm_gate_synthetic_recovery_20261005_verified.json`.
+It records a documentation-only dirty tree because the reference was written
+during verification; package source bytes remained unchanged. This is not
+represented as a clean-tree run.
+
+The [recorded recovery reference](strategy_results/hmm_synthetic_recovery_reference.md)
+retains the chosen K=5, all forty attempts, lower native ARI despite perfect
+many-to-one raw classification, active detection failures and censored lags.
+Two complete default runs reproduce seven artifacts byte-for-byte. The 19.14 s
+single diagnostic and the gate's 80-record HMM-disabled benchmark are not the
+required representative baseline/observe/policy overhead comparison. Registered
+paired policy/feature/cadence evaluation, clock-period bootstrap sensitivities,
+the real diagnostic study and the final research release remain required.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

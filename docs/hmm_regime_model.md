@@ -9,7 +9,8 @@ implemented under `lob_sim/regime`. `simulate --hmm observe` leaves the strategy
 unchanged; `simulate --hmm policy --strategy hmm_regime_mm` explicitly enables
 adaptation. No strategy benefit, real-data regime result or holdout finding is
 published. The [implementation ledger](hmm_implementation_plan.md) tracks the
-remaining source/risk characterization, evaluation and overhead work. Existing simulation
+remaining registered evaluation and representative overhead work. Known-regime
+raw-tape recovery and source/risk/economic diagnostics are implemented. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 
 ## Ownership and data path
@@ -841,6 +842,9 @@ never in market messages or emission vectors. This is a synthetic market-by-pric
 state-transition fixture, not the separate exact market-by-order exchange, a
 calibrated Binance process, or economic evidence. Both routes disconnect at each
 snippet boundary; compressed monotonic gaps do not represent valid elapsed days.
+The [recorded reference](strategy_results/hmm_synthetic_recovery_reference.md)
+reports both the strong mapped classification and the weaker native clustering
+and hysteretic detection, rather than describing the run as perfect recovery.
 
 The ordinary engine reconstructs the tape and feeds the existing fixed-grid
 feature extractor with strategy quoting disabled. Feature files use physical UTC

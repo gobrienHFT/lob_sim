@@ -174,6 +174,14 @@ confusion, sequence-separated transitions, censored duration and confirmation
 availability lag expose mistakes rather than assuming perfect recovery. A frozen
 registry precedes extraction and evaluation. The UTC snippets are diagnostic,
 not certified full valid days, Binance calibration or policy/economic evidence.
+The [recorded reference](strategy_results/hmm_synthetic_recovery_reference.md)
+shows selected K=5, native test ARI 0.4672 and 84.47% active accuracy rather than
+claiming perfect recovery. The 47 new regressions and all 15 reviewer-gate steps
+pass at source commit `60b0696`: 1239 Python/16 Rust tests, gate typing across
+61 files, full-package typing across 75 files and formatting across 172 files.
+The 708.83 s report records documentation-only dirt during the run, not a clean
+tree. Package source stayed unchanged; repeated default diagnostic artifacts
+are byte-identical. No representative overhead improvement is claimed.
 
 Registered paired economic evaluation and representative overhead evidence
 remain required. No trained
