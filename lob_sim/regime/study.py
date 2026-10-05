@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 from dataclasses import replace
 from decimal import Decimal
+from fractions import Fraction
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,7 @@ from .risk import verify_risk_trace
 from .settings import HMMSettings
 from .study_periods import read_risk_periods, compare_risk_periods
 from .study_outcomes import outcome_contract, read_execution_periods, compare_execution_periods
+from .study_pnl import PNL_CONTRACT, read_pnl_periods, compare_pnl_periods
 from .validation import canonical_json, identity, integer, strict_json
 
 PRIMARY = FeatureSpec()
@@ -147,6 +149,7 @@ def run_regime_study(
                     "replicates": bootstrap_replicates,
                     "seed": cfg.sim_seed,
                     "execution_outcomes": outcome_contract(horizons),
+                    "marked_pnl": dict(PNL_CONTRACT),
                 },
             },
         )
@@ -189,7 +192,7 @@ def run_regime_study(
             span = entry["wall_spans"][0]
             if span["utc_day"] not in split.test_days:
                 continue
-            successful, period_tables, outcome_tables = {}, {}, {}
+            successful, period_tables, outcome_tables, pnl_tables = {}, {}, {}, {}
             for name, spec, policy in variants:
                 label = "cadence_250ms" if name == "cadence_250ms" else "primary"
                 record: dict[str, Any] = {
@@ -270,6 +273,41 @@ def run_regime_study(
                             publish_json(outcome_path, outcome_document)
                             record["artifact_sha256"]["clock_outcomes"] = file_sha256(outcome_path)
                             record["clock_outcomes_path"] = outcome_path.relative_to(root).as_posix()
+                            pnl_tables[name] = read_pnl_periods(
+                                files["regime_risk"],
+                                files["trades"],
+                                files["regime_execution"],
+                                risk_summary=summary["hmm_risk"],
+                                execution_summary=summary["hmm_execution"],
+                                economic_summary=summary["hmm_economics"],
+                                risk_periods=period_tables[name],
+                                span=span,
+                            )
+                            # Separate native consumers must agree on every
+                            # available [start,end) fee total, including rebates
+                            # and excluded-risk minutes. No double subtraction.
+                            for pnl, outcome in zip(pnl_tables[name], outcome_tables[name], strict=True):
+                                if pnl["fees_delta_quote_rational"] is not None and Fraction(
+                                    pnl["fees_delta_quote_rational"]
+                                ) != Fraction(outcome["additive"]["fees_quote"]):
+                                    raise ValueError("PnL endpoint fees differ from native execution clock totals")
+                            pnl_path = files["summary"].parent / "clock_pnl.json"
+                            pnl_document = {
+                                "schema_version": "lob_sim.hmm_clock_pnl_periods.v1",
+                                "source_sha256": hashes[index],
+                                "variant_id": registered[name],
+                                "contract": dict(PNL_CONTRACT),
+                                "wall_span": span,
+                                "parents": summary["hmm_economics"]["parents"],
+                                "model_sha256": summary["hmm_execution"]["model_sha256"],
+                                "grid": summary["hmm_economics"]["grid"],
+                                "periods": list(pnl_tables[name]),
+                                "claim_ready": False,
+                            }
+                            pnl_document["report_sha256"] = identity(pnl_document)
+                            publish_json(pnl_path, pnl_document)
+                            record["artifact_sha256"]["clock_pnl"] = file_sha256(pnl_path)
+                            record["clock_pnl_path"] = pnl_path.relative_to(root).as_posix()
                     successful[name] = record
                 except (ValueError, OSError, RuntimeError) as exc:
                     record.update(status="failed", error_type=type(exc).__name__, error=str(exc))
@@ -310,6 +348,7 @@ def run_regime_study(
                             "observation_core_parity": True,
                             "risk_clock_comparison": None,
                             "execution_clock_comparison": None,
+                            "pnl_clock_comparison": None,
                             "unavailable_reason": "source wall/logical clock mapping is not fixed; source risk/economics audits remain verified",
                         }
                     )
@@ -336,10 +375,17 @@ def run_regime_study(
                             replicates=bootstrap_replicates,
                             seed=cfg.sim_seed,
                         ),
+                        "pnl_clock_comparison": compare_pnl_periods(
+                            pnl_tables[name],
+                            pnl_tables["observe"],
+                            hashes[index],
+                            replicates=bootstrap_replicates,
+                            seed=cfg.sim_seed,
+                        ),
                     }
                 )
     report: dict[str, Any] = {
-        "schema_version": "lob_sim.hmm_regime_study.v2",
+        "schema_version": "lob_sim.hmm_regime_study.v3",
         "status": "completed" if results and not failures else "incomplete",
         "claim_ready": False,
         "claim_reason": "short/legacy UTC snippets are not ten certified full joint-valid days; no holdout or policy-benefit claim",
@@ -353,12 +399,13 @@ def run_regime_study(
         "comparisons": comparisons,
         "failures": failures,
         "scope": "frozen primary models;independent source starts/zero inventory;single fixed-latency scenario;not walk-forward or profitability",
-        "statistics": "paired common complete UTC-minute risk and execution sufficient statistics;ratio-of-sums outcomes;30-minute block primary,5/60 sensitivity;short/gapped strata or undefined ratio replicas yield null CI",
+        "statistics": "paired common complete UTC-minute risk,execution and causal marked-PnL sufficient statistics;ratio-of-sums outcomes and mean equity deltas;30-minute block primary,5/60 sensitivity;short/gapped strata or undefined ratio replicas yield null CI",
         "limitations": [
             "not private FIFO or fill truth",
             "no funding",
             "global PnL and observed drawdown are descriptive scenario outputs",
-            "clock bootstrap includes risk,execution quality,fees and turnover;not marked-net-PnL or full-path drawdown intervals",
+            "PnL clock bootstrap estimates mean eligible-minute equity changes,not total-path PnL or full-path drawdown intervals",
+            "causal equity left limits exclude all same-time observations/fills;unknown endpoints and invalid-risk intervals remain null,not gap-bridged",
             "fill count per minute is activity,not quote-denominated fill probability;native source-conditioned audit summaries remain separate",
             "no drop-feature ablations: cadence and risk aggregation are the registered ablations",
             "artifact hashes identify bytes, not a trusted author or liveness certification",
@@ -380,6 +427,20 @@ def format_study_report(report: dict[str, Any]) -> str:
         lines.append(
             f"{result['utc_day']} {result['variant']}: {result['status']}; "
             f"fills={economic.get('fill_count', 'n/a')}; net marked PnL={economic.get('net_marked_pnl_quote_rational', 'n/a')}"
+        )
+    for comparison in report["comparisons"]:
+        pnl = comparison.get("pnl_clock_comparison")
+        if pnl is None:
+            reason = comparison.get("unavailable_reason", "marked-PnL analysis was not included in this report version")
+            lines.append(f"{comparison['variant']} vs baseline: clock PnL unavailable; {reason}")
+            continue
+        statistic = pnl["metrics"]["net_marked_delta_quote_rational"]["30"]
+        lines.append(
+            f"{comparison['utc_day']} {comparison['variant']} vs baseline: "
+            f"mean eligible-minute net PnL delta={statistic['estimate']} quote/minute; "
+            f"95% 30-minute-block interval={statistic['interval']}; "
+            f"eligible={statistic['eligible_period_count']}/{statistic['period_count']} minutes"
+            + (f"; {statistic['unavailable_reason']}" if statistic.get("unavailable_reason") else "")
         )
     for failure in report["failures"]:
         lines.append(f"FAILED {failure['stage']}: {failure['error']}")

@@ -74,7 +74,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Independent-source runner freezes baseline/observe/policy, hard-active and cadence variants; successful native-clock integration and failed real-data eligibility are recorded separately |
-| R | Paired moving-block bootstrap study | Matched UTC-minute risk and execution sufficient statistics, ratio-of-sums quality/coverage outcomes, fee/turnover activity and explicit 30/5/60-minute unavailability; marked-net-PnL/full-path drawdown intervals and representative held-out evidence remain |
+| R | Paired moving-block bootstrap study | Matched UTC-minute risk, execution and causal gross/net equity-delta statistics; ratio-of-sums quality/coverage, fee/turnover activity and explicit 30/5/60-minute unavailability; mean eligible-minute PnL is not total-path PnL; full-path drawdown intervals and representative held-out evidence remain |
 | S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
@@ -224,6 +224,33 @@ stratification, delayed resolution, zero-activity coverage and consumed-stream
 mutations. Package-plus-benchmark typing passes 81 files; Ruff/format passes
 187 files. Artifact verification and the offline demo also pass. These checks
 are not representative market-performance or economic-benefit evidence.
+
+The causal clock-PnL extension freezes its valuation/assignment contract before
+test access and independently reconstructs risk/trade/execution parents. Every
+consumed risk and execution row is rehashed, including markout-only rows. Exact
+immutable accounting points remain provisional until the whole parent replay
+reconciles. The separate capped sampler uses strict endpoint left limits for
+`[start,end)` minutes, preventing same-time fills or later marks from changing
+the preceding minute's PnL. Missing fresh open-inventory marks and invalid-risk
+minutes stay null; no excluded return is bridged into an eligible period.
+Native fee-minute totals independently reconcile against endpoint fee deltas.
+
+Study schema v3 content-addresses `clock_pnl.json`, including model/grid/source
+and audit parents, valuation reasons and endpoint anchors. Its paired
+30/5/60-minute bootstrap concerns the mean eligible-minute gross/net equity
+change, not whole-run PnL or full-path drawdown. Independent transaction-prefix
+and native-export batch tests check valuation separately from the online
+accounting reducer. None of this establishes representative economic benefit,
+execution truth, a full data release or measured HMM overhead.
+
+Local frozen-source verification passes 116 accounting/outcome/PnL/study cases
+plus the historical-report compatibility regression. Full-package and overhead
+benchmark typing pass 82 source files; Ruff/format pass 189 files. The 33 new
+cases include consumption-time audit mutations, an independent native fill-
+prefix equity oracle, exact-clock and stale-mark boundaries, metadata isolation,
+offline caps, reproducible long-sample intervals and invalid-period block splits.
+These focused checks are not a replacement for the complete reviewer gate or
+representative research evidence.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

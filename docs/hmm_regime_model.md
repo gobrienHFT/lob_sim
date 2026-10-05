@@ -366,8 +366,26 @@ The streaming consumer verifies every execution row and global fill while
 consuming them, including partial capture edges outside the table. Baseline
 still uses observation sidecars only after exact core-event/fill/markout parity.
 Fees and turnover are not marked net PnL, and activity per minute is not a
-quote-denominated fill probability. Marked-net-PnL and full-path drawdown
-intervals and representative overhead remain release work.
+quote-denominated fill probability.
+
+Study schema v3 separately freezes causal marked-PnL rules and publishes
+`clock_pnl.json`. An independent accounting replay rehashes every consumed risk
+and execution row, including markout-only records, and verifies every global
+fill prefix. Its immutable exact boundary states are provisional until the
+complete replay and economic parent reconcile. The clock sampler retains one
+current state plus explicitly capped endpoint/period tables, not a fill history.
+
+Each `[start,end)` minute uses equity immediately before either boundary:
+same-time market observations, actions and fills belong to the new minute.
+Net equity is cash plus fresh marked inventory minus cumulative fees. A fresh
+strictly-earlier mid must remain valid up to an open-inventory endpoint; a later
+mark cannot fill in missing history. Flat equity needs no mid, but an invalid
+risk period still has null PnL. Exact gross/fee/net deltas and independently
+reduced execution fees must agree. No invalid period's return is bridged into
+an eligible minute. The paired 30/5/60-minute bootstrap estimates mean eligible
+minute equity changes, not a total-run PnL or a full-path drawdown interval.
+Short or broken strata retain explicit interval-unavailability reasons.
+Full-path drawdown intervals and representative overhead remain release work.
 Offline fitting/comparison uses explicit row/source/period caps. Those caps are
 distinct from runtime bounded-memory claims and from a 24-hour soak.
 

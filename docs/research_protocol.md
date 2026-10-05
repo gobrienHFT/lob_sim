@@ -74,6 +74,26 @@ including records outside complete minutes. It assigns later-resolved markouts
 to their original integer-clock fill minute. Policy/baseline comparisons use
 the same jointly eligible periods, retaining quiet minutes and excluding
 invalid/stale/warming intervals. Fee/turnover activity is not marked PnL;
-fill count per minute is not quote fill probability. Marked-net-PnL and
-full-path drawdown intervals, representative data and held-out claims remain
-separate unfinished requirements.
+fill count per minute is not quote fill probability.
+
+Study schema v3 freezes a separate marked-PnL contract before test access and
+exports `clock_pnl.json` from verified native risk, execution and trade streams.
+For a complete UTC minute `[start,end)`, gross and net equity deltas use the
+strict left limits at both endpoints. All fills and observations exactly at
+`start` belong to that minute; those exactly at `end` belong to the next one.
+Open inventory needs a fresh strictly-earlier mid at each endpoint. A later
+price cannot rescue a missing or expired mark. Invalid-risk minutes and unknown
+endpoint valuations retain explicit reasons and null PnL, never a gap-bridged
+return. Exact rational gross, fee and net deltas conserve; fee deltas also
+reconcile against the independent execution-minute totals, including rebates.
+
+The paired bootstrap estimates the mean marked-equity change per jointly
+eligible minute, in quote currency per minute. It does not estimate the whole
+run's cumulative PnL or resampled full-path drawdown. Both variants use identical
+eligible periods and the existing 30-minute block/5- and 60-minute sensitivity
+rules. Short strata yield null intervals. Tables carry content hashes, native
+audit parents, model/grid/source identities and causal endpoint anchor times.
+Analysis publication occurs only after all consumed rows reconcile; these
+tables do not change simulation accounting or fill semantics. Full-path
+drawdown intervals, representative data and held-out claims remain separate
+unfinished requirements.

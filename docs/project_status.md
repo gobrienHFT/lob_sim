@@ -189,8 +189,14 @@ pending-cancel fills, quote age, modeled queue evidence, marked spread capture,
 coverage, fees and turnover. Paired ratios pool their actual denominators before
 block resampling; missing outcomes and zero-activity minutes remain distinct.
 The content-hashed minute tables are analysis artifacts, not a new matching
-authority. Marked-net-PnL/full-path drawdown intervals, representative paired
-economic evaluation and representative overhead evidence remain required. No trained
+authority. The study now separately freezes and exports causal gross/net marked
+equity changes on the same complete UTC-minute grid. Equity uses strict left
+limits; same-time fills belong to the new minute, and invalid periods or missing
+fresh endpoint marks remain null. Exact fee deltas reconcile against independent
+execution totals. The paired block bootstrap estimates mean eligible-minute PnL
+changes, not total-run PnL or resampled full-path drawdown. Full-path drawdown
+intervals, representative paired economic evaluation and representative overhead
+evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 
