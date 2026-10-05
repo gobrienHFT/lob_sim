@@ -67,10 +67,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full suite passes at 57f9eba; repeat after remaining research integration |
+| W | Existing tests pass after integration | Full suite passes at 3b2fea1; repeat after remaining research integration |
 | X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (57 source files), Ruff and format (163 files) pass at 57f9eba; full-package Mypy also passes across 71 source files; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at 57f9eba, including 1072 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
+| Y | Standard lint and typing pass | Gate Mypy (58 source files), Ruff and format (165 files) pass at 3b2fea1; full-package Mypy also passes across 72 source files; repeat after remaining work |
+| Z | Complete reviewer gate passes | All 15 steps pass at 3b2fea1, including 1130 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final research release still pending |
 
 ## Release boundaries
 
@@ -94,9 +94,15 @@ it is not representative HMM overhead or exchange latency.
 Time-weighted inventory/risk-reservation intervals now have a bounded sidecar,
 explicit stale/mark coverage, strict checkpoint-to-core anchors, and a paired
 regime-prefix verifier. Independent batch interval arithmetic covers K=2..5,
-large nanosecond clocks and same-time zero-duration transitions. Native risk,
-checkpoint, corruption and full reviewer verification are required before this
-milestone is published. State economic/drawdown decomposition, registered paired
+large nanosecond clocks and same-time zero-duration transitions. The 58 new
+risk regressions and complete clean reviewer gate pass at `3b2fea1` (430.71 s),
+including native unchanged-core, strict checkpoint, false rehashed regime-link
+and incomplete-writer checks. The idle-interval fixture uses an explicit
+delayed arrival rather than assuming unchanged resting quotes create actions.
+Generated local evidence is `outputs/hmm_gate_risk_20261005_verified.json`;
+the report records the tested commit, clean tree and pinned runtime. The CLI
+report also verifies and prints the risk stream from a completed fixture bundle.
+State economic/drawdown decomposition, registered paired
 research, raw synthetic recovery and representative overhead remain.
 New observer checkpoint version 2 rejects older HMM continuation state rather
 than inventing missing moments/episodes. Execution checkpoint version 3 rejects

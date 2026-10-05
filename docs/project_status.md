@@ -144,8 +144,14 @@ typing/lint/format, primitive differential, artifact/determinism/fault checks,
 installed-wheel demo and the HMM-disabled fixture benchmark. Full-package Mypy
 also passes across 71 source files. Representative HMM overhead is still unmeasured.
 
-Time-weighted risk characterization, registered paired economic evaluation, synthetic
-raw-tape recovery diagnostics and overhead evidence remain required. No trained
+The time-weighted inventory/reservation milestone at `3b2fea1` adds 58 regression
+cases and passes the complete clean 15-step reviewer gate: 1,130 Python tests,
+16 Rust tests, gate typing across 58 files, full-package typing across 72 files,
+Ruff/format across 165 files, and the existing correctness/artifact/install/
+fixture checks. It does not establish representative HMM overhead.
+
+State economic/drawdown decomposition, registered paired economic evaluation,
+synthetic raw-tape recovery diagnostics and overhead evidence remain required. No trained
 real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
 [acceptance ledger](hmm_implementation_plan.md).
 

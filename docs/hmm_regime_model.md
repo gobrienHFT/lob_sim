@@ -626,8 +626,8 @@ before printing market-state diagnostics. It verifies that regime audit, not
 raw capture coverage, private fills, economic benefit or an untouched holdout.
 Checksums identify content, not a trusted author.
 
-Source-conditioned outcomes and causal time-weighted inventory still require
-their own execution characterization. Sample counts must not be repurposed as
+Source-conditioned execution and causal time-weighted inventory now have the
+separate audits described here. Sample counts must not be repurposed as
 quote counts or fill probabilities; the existing fill-transition table counts
 fills/partial fills, not unique orders. No per-state net PnL or drawdown
 contribution is invented here.
@@ -752,8 +752,9 @@ after the market-state and quote-cohort diagnostics.
 Schema-v2 HMM traces/checkpoints are not silently upgraded to v3. Reproduce an
 old audit with its original revision, or rerun the same immutable inputs under
 the new revision. Legacy market-tape importers and the HMM-disabled public audit
-schemas are unchanged. State time-weighted risk and a registered paired research
-study remain separate, unfinished evidence requirements.
+schemas are unchanged. Time-weighted inventory/reservation evidence is now
+implemented. State economic/drawdown decomposition and the registered paired
+research study remain unfinished requirements.
 
 ## Reproduce checks
 
@@ -761,6 +762,7 @@ study remain separate, unfinished evidence requirements.
 python -m pip install -r requirements.txt
 python -m pytest -q -k hmm
 python -m pytest -q tests/test_hmm_sources.py
+python -m pytest -q tests/test_hmm_risk.py
 python -m mypy lob_sim/regime
 python scripts/reviewer_gate.py
 ```
