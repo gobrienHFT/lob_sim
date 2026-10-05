@@ -1109,11 +1109,28 @@ smoke measurements above predate this optimization.
 
 ## Reproduce checks
 
+Decision snapshots normalize the current eligible signal once and return an
+independent recursive copy to each consumer. The template holds only the current
+sample, is cleared by new samples and epoch/feed invalidations, and is derived
+state excluded from checkpoint serialization and hashes. Availability and
+strict stale-time checks still run on every read; restoration builds a fresh
+cache. A later or stale query cannot irreversibly relabel an earlier signal.
+
+`tests/test_hmm_snapshot.py` compares this path with the pre-optimization stdlib
+JSON round-trip oracle, including complete observation/policy event traces,
+fills, risk/execution audits, state hashes and checkpoint continuation. It also
+uses the original committed public capture and unchanged frozen synthetic model.
+One hundred repeated eligible reads perform one normalization, not one hundred.
+That proves eliminated work, not an end-to-end speedup. The published overhead
+measurement retains its earlier source identity and is not relabeled as a
+measurement of this implementation.
+
 ```bash
 python -m pip install -r requirements.txt
 python -m pytest -q -k hmm
 python -m pytest -q tests/test_hmm_sources.py
 python -m pytest -q tests/test_hmm_risk.py
+python -m pytest -q tests/test_hmm_snapshot.py
 python -m mypy lob_sim/regime
 python scripts/reviewer_gate.py
 ```

@@ -310,3 +310,15 @@ hashes, latency draws and exact checkpoints must agree. A cache, if added,
 may retain only a copy of the current signal, cannot bypass validity checks,
 and must remain outside serialized continuation state. No end-to-end speedup
 is established by this contract.
+
+The implementation now lazily canonicalizes one current eligible signal and
+copies its normalized JSON containers without repeated serialization. Every
+query still checks time, availability and staleness. New samples and immediate
+fault/epoch invalidations release the template; restore constructs fresh derived
+state without changing the checkpoint schema. Independent ownership extends
+to arbitrary nested JSON shapes, not just today's flat feature/posterior lists.
+Primed failed restore remains atomic. No policy, matching, accounting, risk,
+model/data bytes or default configuration changed. The original 29-case contract
+passed before this change; additional tests check normalization counts, cache
+invalidation, nested ownership and full public-capture replay parity. Published
+benchmark artifacts retain source `8c2a004`; no new timing claim is made.

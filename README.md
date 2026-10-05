@@ -71,7 +71,7 @@ Read next:
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
 - [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect quote/fill/inventory and cash/fee/equity audits, and run registered baseline/observe/policy comparisons. [Known-regime synthetic recovery](docs/strategy_results/hmm_synthetic_recovery_reference.md) reports imperfect clustering and delayed detection. The [real-data eligibility audit](docs/strategy_results/hmm_regime_reference.md) explains why the available tapes do not yet support a held-out policy result.
-- [HMM replay cost](docs/benchmark_results/hmm_active_public_reference.md): thirty measured repetitions on a short public capture, with accepted policy quotes and observer parity. Observation overhead is about 88% on this workload; this is not trading latency or evidence of a better strategy.
+- [HMM replay cost](docs/benchmark_results/hmm_active_public_reference.md): thirty measured repetitions on a short public capture, with accepted policy quotes and observer parity. At the recorded revision, observation overhead is about 88%; later snapshot-copy optimization has not yet been rebenchmarked. This is not trading latency or evidence of a better strategy.
 
 ## Core mechanics
 

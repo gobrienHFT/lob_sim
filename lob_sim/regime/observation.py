@@ -71,6 +71,15 @@ def advance_trace_digest(previous: str, row: Mapping[str, Any]) -> str:
     return sha256(bytes.fromhex(previous) + canonical_json(dict(row)).encode("utf-8")).hexdigest()
 
 
+def _copy_json_tree(value: Any) -> Any:
+    """Copy an already JSON-normalized tree; its scalar leaves are immutable."""
+    if isinstance(value, dict):
+        return {key: _copy_json_tree(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_json_tree(item) for item in value]
+    return value
+
+
 class RegimeObserver(FeatureDatasetObserver):
     """One frozen symbol/model. History is emitted, not retained."""
 
@@ -85,6 +94,8 @@ class RegimeObserver(FeatureDatasetObserver):
         self._expected_instrument = training.get("instrument_sha256") if isinstance(training, dict) else None
         self._labels = tuple(f"STATE_{index}" for index in range(settings.model.parameters.state_count))
         self._latest: dict[str, Any] | None = None
+        # Derived, bounded and deliberately absent from checkpoints/hashes.
+        self._snapshot_template: dict[str, Any] | None = None
         self._immediate_status = "WARMING_UP"
         self._immediate_reason = "initialization"
         self._trace_count = 0
@@ -149,6 +160,7 @@ class RegimeObserver(FeatureDatasetObserver):
         self._write(output)
         self.diagnostics.observe(output)
         self._latest = output
+        self._snapshot_template = None
         self._immediate_status = sample.status
         self._immediate_reason = sample.status if sample.status != "VALID" else "valid_sample"
         if raw is not None:
@@ -190,6 +202,7 @@ class RegimeObserver(FeatureDatasetObserver):
             ):
                 self.estimator.invalidate(reason)
                 self._latest = None
+                self._snapshot_template = None
                 self._previous_active = None
                 self._write(
                     {
@@ -222,8 +235,12 @@ class RegimeObserver(FeatureDatasetObserver):
             or logical_ns - context.sampler._last_book_ns > self.spec.stale_after_ns
         )
         if latest is not None and latest["available_at_ns"] <= logical_ns and latest["status"] == "VALID" and not stale:
-            # Deep copy prevents a trace consumer from mutating runtime state.
-            return dict(strict_json(canonical_json(latest)))
+            # Normalize once per current sample, not once per risk/action read.
+            # Every read still owns its nested lists/dicts; eligibility above
+            # is checked again even when the template is already populated.
+            if self._snapshot_template is None:
+                self._snapshot_template = dict(strict_json(canonical_json(latest)))
+            return cast(dict[str, Any], _copy_json_tree(self._snapshot_template))
         return {
             "model_sha256": self._model_sha256,
             "status": "STALE"
