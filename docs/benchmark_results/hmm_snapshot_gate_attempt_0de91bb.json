@@ -1,0 +1,33 @@
+{
+  "schema_version": "lob_sim.incomplete_reviewer_attempt.v1",
+  "claim_ready": false,
+  "source": {
+    "git_commit": "0de91bbff137e7ec4253679b761c73173195f40f",
+    "git_branch": "codex/hmm-regime-layer",
+    "git_dirty": false
+  },
+  "gate": {
+    "status": "failed",
+    "complete": false,
+    "elapsed_seconds": 647.06629,
+    "failed_step": "unit and invariant tests",
+    "exit_code": 4294967295,
+    "disposition": "stopped only the verified owned pytest process after a failure marker and separate deterministic arithmetic reproduction; remaining gate steps did not run",
+    "native_report": "outputs/hmm_snapshot_reviewer_20261005.json"
+  },
+  "diagnostic": {
+    "test": "tests/test_hmm_benchmark.py::test_real_three_mode_measurements_are_separate_bounded_deterministic_and_paired",
+    "assertion": "exact equality between the linear-interpolated median and independently summed midpoint",
+    "controlled_duration_integers": [48931, 77387, 8602, 67510],
+    "linear_median": 0.3798539106633672,
+    "midpoint_median": 0.37985391066336727,
+    "absolute_difference": 5.551115123125783e-17,
+    "measured_performance": false,
+    "scope": "separate controlled-clock reproduction of a one-ULP arithmetic assertion flaw; the interrupted suite has no final traceback or complete test outcome"
+  },
+  "non_claims": [
+    "not a passing reviewer gate",
+    "not benchmark data or an end-to-end speedup",
+    "not a change to simulator or published benchmark calculations"
+  ]
+}

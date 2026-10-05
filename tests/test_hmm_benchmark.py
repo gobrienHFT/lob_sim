@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import tracemalloc
 from dataclasses import replace
 from hashlib import sha256
@@ -75,7 +76,20 @@ def test_real_three_mode_measurements_are_separate_bounded_deterministic_and_pai
             for value, baseline in zip(result["raw_wall_ns"], report["modes"]["baseline"]["raw_wall_ns"])
         ]
         expected_median = sum(sorted(ratios)) / 2
-        assert result["matched_round_relative_runtime"]["median"] == expected_median
+        # Addition and linear interpolation can round one bit differently.
+        # This is an arithmetic oracle, not a bitwise timing identity.
+        assert result["matched_round_relative_runtime"]["median"] == pytest.approx(
+            expected_median, rel=0, abs=math.ulp(expected_median)
+        )
+
+
+def test_matched_round_median_oracle_handles_one_ulp_roundoff(tmp_path, monkeypatch):
+    # Synthetic clock values reproduce the original intermittent assertion.
+    # They are arithmetic test data, never a benchmark or speedup result.
+    durations = [100000] * 3 + [77387, 77387, 48931, 8602, 67510, 67510] + [100000] * 3
+    clock = iter(value for duration in durations for value in (0, duration))
+    monkeypatch.setattr(module.time, "perf_counter_ns", lambda: next(clock))
+    test_real_three_mode_measurements_are_separate_bounded_deterministic_and_paired(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("control", [{"warmups": 0}, {"repetitions": True}, {"repetitions": 1001}, {"memory_runs": 11}])

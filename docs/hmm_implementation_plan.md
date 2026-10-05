@@ -322,3 +322,14 @@ model/data bytes or default configuration changed. The original 29-case contract
 passed before this change; additional tests check normalization counts, cache
 invalidation, nested ownership and full public-capture replay parity. Published
 benchmark artifacts retain source `8c2a004`; no new timing claim is made.
+
+The first local full-gate attempt at `0de91bb` is
+[preserved as incomplete](benchmark_results/hmm_snapshot_gate_attempt_0de91bb.json),
+not called green. A deterministic controlled-clock reproduction exposes a
+pre-existing exact-float assertion in the benchmark test: equivalent midpoint
+and linear interpolation formulas differ by one ULP. The test now permits only
+that rounding bound while all parent/probe/report hash assertions remain exact.
+A fixed-duration regression exercises the same native benchmark protocol;
+its artificial durations are not performance evidence. Simulator and benchmark
+calculation code are unchanged. The full reviewer gate must pass at the repair
+commit before this attempt can be superseded.
