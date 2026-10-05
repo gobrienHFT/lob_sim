@@ -244,7 +244,7 @@ def test_transactional_runtime_bundle_reproduces_regime_audit_and_preserves_base
     base_cfg = replace(cfg(), record_dir=tmp_path / "base")
     baseline_files, baseline_summary = run_bounded_simulation(base_cfg, path)
     files, summary = run_bounded_simulation(replace(base_cfg, record_dir=tmp_path / "hmm", hmm=settings()), path)
-    assert len(files) == 10 and not (files["manifest"].parent / "_INCOMPLETE.json").exists()
+    assert len(files) == 11 and not (files["manifest"].parent / "_INCOMPLETE.json").exists()
     verify_trace(files["regime_trace"], summary["hmm"])
     manifest = json.loads(files["manifest"].read_text())
     assert manifest["config"]["hmm"]["model_sha256"] == settings().model.model_sha256

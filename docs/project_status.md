@@ -65,6 +65,15 @@ measurement, and synthetic FIFO is not historical Binance FIFO.
 
 ## Causal regime research in progress
 
+The optional regime audit now also measures time-weighted signed/absolute
+inventory, population inventory variance, held-inventory maxima, live/pending
+lots, marked inventory/reserved notional and halted duration by raw and active
+state. It uses exact integer interval statistics and actual signal availability,
+not sample-count fractions. Stale marks and unavailable regimes have separate
+coverage; there is no retroactive labeling or schema-v3 EOF extrapolation.
+These remain descriptive single-symbol statistics, not drawdown contribution,
+funding, economic benefit or a held-out strategy result.
+
 An optional HMM foundation now provides twelve fixed-grid microstructure
 features, bounded trailing windows, train-only clipping/scaling, immutable
 diagonal Gaussian parameters, a custom log-space forward filter, confidence/

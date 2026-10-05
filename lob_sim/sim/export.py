@@ -294,6 +294,7 @@ class StreamingSimulationExport:
     regime_sink: StreamingCsvSink | None = None
     regime_execution_sink: StreamingCsvSink | None = None
     regime_quote_sink: StreamingCsvSink | None = None
+    regime_risk_sink: StreamingCsvSink | None = None
 
     @classmethod
     def create(
@@ -341,16 +342,19 @@ class StreamingSimulationExport:
             regime_sink = None
             regime_execution_sink = None
             regime_quote_sink = None
+            regime_risk_sink = None
             if cfg.hmm is not None:
                 from ..regime.artifact import save_model
                 from ..regime.observation import TRACE_FIELDS
                 from ..regime.execution import EXECUTION_FIELDS
                 from ..regime.quotes import QUOTE_FIELDS
+                from ..regime.risk import RISK_FIELDS
 
                 output_files["hmm_model"] = run_dir / "hmm_model.json"
                 output_files["regime_trace"] = run_dir / "regime_trace.csv"
                 output_files["regime_execution"] = run_dir / "regime_execution.csv"
                 output_files["regime_quotes"] = run_dir / "regime_quotes.csv"
+                output_files["regime_risk"] = run_dir / "regime_risk.csv"
                 save_model(output_files["hmm_model"], cfg.hmm.model)
                 regime_sink = StreamingCsvSink(output_files["regime_trace"], TRACE_FIELDS)
                 sinks.append(regime_sink)
@@ -358,6 +362,8 @@ class StreamingSimulationExport:
                 sinks.append(regime_execution_sink)
                 regime_quote_sink = StreamingCsvSink(output_files["regime_quotes"], QUOTE_FIELDS)
                 sinks.append(regime_quote_sink)
+                regime_risk_sink = StreamingCsvSink(output_files["regime_risk"], RISK_FIELDS)
+                sinks.append(regime_risk_sink)
         except Exception:
             for sink in sinks:
                 sink.abort()
@@ -374,6 +380,7 @@ class StreamingSimulationExport:
             regime_sink=regime_sink,
             regime_execution_sink=regime_execution_sink,
             regime_quote_sink=regime_quote_sink,
+            regime_risk_sink=regime_risk_sink,
         )
 
     @property
@@ -384,7 +391,9 @@ class StreamingSimulationExport:
     def audit_sinks(self) -> tuple[StreamingCsvSink, ...]:
         ordinary = (self.event_sink, self.fill_sink, self.markout_sink)
         return ordinary + tuple(
-            sink for sink in (self.regime_sink, self.regime_execution_sink, self.regime_quote_sink) if sink is not None
+            sink
+            for sink in (self.regime_sink, self.regime_execution_sink, self.regime_quote_sink, self.regime_risk_sink)
+            if sink is not None
         )
 
     def __enter__(self) -> "StreamingSimulationExport":

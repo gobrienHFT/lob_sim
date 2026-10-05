@@ -127,6 +127,9 @@ def controlled(engine, *, high_at=None):
         return value
 
     engine.regime.snapshot = snapshot
+    # The substituted policy oracle deliberately lacks a real sampler clock.
+    # Native risk integration is tested with the actual estimator separately.
+    engine.hmm_risk = None
 
 
 def policy_tape(path):

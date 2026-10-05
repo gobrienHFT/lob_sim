@@ -224,7 +224,7 @@ def test_native_execution_audit_does_not_change_fills_or_accounting(tmp_path, fi
 def test_execution_audit_transactional_bundle_and_serialized_hash(tmp_path):
     path = execution_tape(tmp_path / "input.ndjson")
     files, summary = run_bounded_simulation(replace(cfg(), record_dir=tmp_path / "runs", hmm=settings()), path)
-    assert len(files) == 10
+    assert len(files) == 11
     assert not (files["manifest"].parent / "_INCOMPLETE.json").exists()
     verify_execution_trace(files["regime_execution"], summary["hmm_execution"])
     content = files["regime_execution"].read_text()
@@ -268,6 +268,10 @@ def test_native_decision_arrival_and_pending_cancel_fill_can_have_different_stat
         return snapshot
 
     engine.regime.snapshot = controlled_snapshot
+    # This artificial attribution oracle intentionally emits VALID before a
+    # real feature/book context exists. Time-weighted risk has its own native
+    # estimator tests and must not infer staleness from this substituted oracle.
+    engine.hmm_risk = None
     engine.run(path)
     fills = [row for row in sink.rows if row["event_type"] == "fill"]
     assert fills

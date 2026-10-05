@@ -401,4 +401,19 @@ def inspect_run(run_dir: str | Path) -> str:
         )
         report += "\n\n" + format_quote_report(execution["quote_lifecycles"])
         report += "\n\n" + format_execution_report(execution)
+    risk = summary.get("hmm_risk")
+    if risk is not None:
+        from .risk import format_risk_report, verify_risk_trace
+
+        if (
+            not isinstance(risk, Mapping)
+            or risk.get("model_sha256") != model.model_sha256
+            or risk.get("symbol") != hmm["config"]["symbol"]
+            or risk.get("state_count") != model.parameters.state_count
+        ):
+            raise ValueError("risk report model/symbol identity mismatch")
+        verify_risk_trace(
+            directory / "regime_risk.csv", risk, regime_path=directory / "regime_trace.csv", regime_summary=hmm
+        )
+        report += "\n\n" + format_risk_report(risk)
     return report

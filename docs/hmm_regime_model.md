@@ -436,13 +436,68 @@ returns null posterior/confidence, never the last apparently confident state.
 This does not change the base strategy's trade-stream execution requirements.
 
 Each enabled bounded run adds `hmm_model.json`, `regime_trace.csv`,
-`regime_execution.csv` and `regime_quotes.csv` to its
+`regime_execution.csv`, `regime_quotes.csv` and `regime_risk.csv` to its
 existing manifest. The trace includes raw/scaled features, posterior, next-state
 prior, generic state label, confidence/entropy, hysteresis, validity/epochs and
 reset reasons. Sample counts, sample-state transitions and entropy aggregates
 are model diagnostics, not economic attribution. The trace is streamed back
 through its canonical hash chain before the completion sentinel is removed.
 Writer/verification failures leave the bundle visibly incomplete.
+
+### Time-weighted inventory and reserved exposure
+
+`regime_risk.csv` freezes the actual information set at market receipts,
+internal actions, accounted fills and the final cutoff. Both raw-MAP and
+confirmed-active state tables integrate the left-continuous interval
+`[boundary_ns, next_boundary_ns)`, starting at the first audited boundary after
+the instrument metadata is available. A sample's earlier `sample_ns` never makes
+its label available before `available_at_ns`. Multiple labels becoming
+available at the same receipt have zero intervening duration. A market-data gap
+does not erase inventory or invent a fresh mark.
+
+The sufficient statistics use integer nanoseconds, signed lots, lots squared,
+and twice-midpoint ticks. Staleness splits an interval at
+`last_book_ns + stale_after_ns + 1`, matching the runtime's strict `>` stale
+rule. This split does not need a subsequent market event. Unknown/invalid
+regimes are `UNAVAILABLE`; a valid unconfirmed active state is `UNCONFIRMED`.
+Inventory remains measured in both. Trade-stream invalidity can make the
+regime unavailable while the independent book mark remains valid.
+
+For duration `D`, signed-lot integral `I`, and squared-lot integral `Q`, the
+reported population time-weighted variance is `(Q*D - I*I) / D^2`. Exact lot
+ratios are stored as rational strings; quantity/notional presentation values
+are Decimal strings at explicit 50-digit precision. Empty denominators are
+null. Means of marked inventory and reserved notional use **marked duration**,
+with its coverage reported; a missing mark is never treated as a zero price.
+Maxima describe positive-duration holdings, not zero-time transients.
+
+Reservation here means absolute marked inventory plus the limit-price
+notional of all live and outbound pending new orders. Pending cancels remain
+live until the existing venue model acknowledges them. This is a descriptive
+single-symbol audit of the reservation basis, not a new risk rule, netted
+portfolio exposure, drawdown contribution, funding model or economic benefit.
+State-level drawdown and economic decomposition still require their own
+explicit measurement contract and registered evaluation.
+
+The audit retains one boundary and fixed `2*(K+2)` aggregate cells. Streaming
+verification recomputes the raw integrals and derived denominators. Paired
+verification checks each referenced regime-prefix count/hash and valid
+information set; internal hash consistency alone is insufficient. Checkpoint
+loading cross-checks the current inventory, live/pending orders, mark,
+staleness, halt state and regime anchor against decoded core state before
+restoring anything. Older HMM checkpoints lacking risk state are rejected;
+HMM-disabled checkpoint and artifact contracts remain unchanged.
+
+Schema-v3 measurement stops at the last observation. Legacy action-first
+post-tape draining is labeled `legacy_compatibility_nanoseconds`, not certified
+market wall-time coverage. These diagnostics are not a held-out HMM study or
+a performance measurement. Representative baseline/observe/policy overhead
+remains part of the unfinished research release.
+
+```bash
+python -m pytest tests/test_hmm_risk.py
+python -m lob_sim.cli regime-report --run-dir <completed-hmm-run-directory>
+```
 
 ## Quote-lifetime attribution and descriptive execution statistics
 

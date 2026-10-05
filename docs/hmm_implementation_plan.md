@@ -55,7 +55,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
-| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix; bounded decision/arrival quote cohorts with explicit request, acceptance, rejection and unique-filled denominators; fixed-cardinality fill-source/queue tables and streamed sufficient-statistic verification implemented; time-weighted risk remains |
+| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution; configured-horizon coverage and quantity-weighted markouts; decision-to-fill matrix; explicit quote denominators; fixed fill-source/queue tables; integer time-weighted inventory, marked notional and live/pending reservation audit implemented; state economic/drawdown decomposition remains |
 | L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
 | M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
@@ -91,8 +91,13 @@ identities. The 53 new source/queue regressions and complete clean reviewer gate
 pass at 57f9eba, including independent batch reductions for K=2..5 and native
 unchanged-core checks. The benchmark still uses the 80-record HMM-disabled clip;
 it is not representative HMM overhead or exchange latency.
-Time-weighted state risk, registered paired research, raw synthetic
-recovery and representative overhead remain.
+Time-weighted inventory/risk-reservation intervals now have a bounded sidecar,
+explicit stale/mark coverage, strict checkpoint-to-core anchors, and a paired
+regime-prefix verifier. Independent batch interval arithmetic covers K=2..5,
+large nanosecond clocks and same-time zero-duration transitions. Native risk,
+checkpoint, corruption and full reviewer verification are required before this
+milestone is published. State economic/drawdown decomposition, registered paired
+research, raw synthetic recovery and representative overhead remain.
 New observer checkpoint version 2 rejects older HMM continuation state rather
 than inventing missing moments/episodes. Execution checkpoint version 3 rejects
 older HMM state rather than fabricating missing quote denominators or

@@ -17,6 +17,7 @@ from ..config import Config
 from ..regime.observation import RegimeObserver
 from ..regime.execution import RegimeExecutionAudit, capture_stage
 from ..regime.policy import RegimeControls, RegimeRiskPolicy
+from ..regime.risk import RegimeRiskAudit, boundary as risk_boundary
 from ..regime.validation import integer
 from ..record.envelope import ValidityState, require_nonnegative_int
 from ..replay.adapters import DEFAULT_REPLAY_ADAPTER, ReplayFeedAdapter
@@ -99,6 +100,7 @@ class SimulationEngine:
         regime_sink: EventSink | None = None,
         regime_execution_sink: EventSink | None = None,
         regime_quote_sink: EventSink | None = None,
+        regime_risk_sink: EventSink | None = None,
     ) -> None:
         self.cfg = cfg
         self.adapter = adapter
@@ -110,7 +112,16 @@ class SimulationEngine:
             raise ValueError("regime execution sink requires HMM enabled")
         if cfg.hmm is None and regime_quote_sink is not None:
             raise ValueError("regime quote sink requires HMM enabled")
+        if cfg.hmm is None and regime_risk_sink is not None:
+            raise ValueError("regime risk sink requires HMM enabled")
         self.regime = RegimeObserver(cfg.hmm, regime_sink) if cfg.hmm is not None else None
+        self.hmm_risk = (
+            RegimeRiskAudit(
+                cfg.hmm.model.model_sha256, cfg.hmm.symbol, cfg.hmm.model.parameters.state_count, regime_risk_sink
+            )
+            if cfg.hmm is not None
+            else None
+        )
         self.hmm_policy = (
             RegimeRiskPolicy(cfg.hmm.model, cfg.hmm.policy)
             if cfg.hmm is not None and cfg.hmm.policy is not None
@@ -256,6 +267,30 @@ class SimulationEngine:
                     changes=changes if symbol == rec.symbol else (),
                 )
             )
+        self._observe_hmm_risk(logical_ns, "after_market")
+
+    def _observe_hmm_risk(self, logical_ns: int, reason: str) -> None:
+        if self.regime is None or self.hmm_risk is None:
+            return
+        symbol = self.regime.settings.symbol
+        spec = self._specs.get(symbol)
+        if spec is None:
+            return
+        self.hmm_risk.observe(
+            risk_boundary(
+                self.regime,
+                logical_ns,
+                reason,
+                spec=spec,
+                book=self._books.get(symbol),
+                orders=self.fill_model._orders.values(),
+                actions=self._actions,
+                inventory_lots=self.metrics.inventory_lots(symbol),
+                mark_valid=self._validity_state(symbol, require_trade=False).execution_valid,
+                halted=self._trading_halted,
+                receive_clock=self._capture_schema_version >= 3 and self._receive_clock,
+            )
+        )
 
     def event_trace_retention(self) -> dict[str, Any]:
         sink_memory_bounded = bool(getattr(self._event_sink, "memory_bounded", False))
@@ -2046,6 +2081,7 @@ class SimulationEngine:
                 book.mid_price(),
                 hmm_attribution=hmm_attributions[index] if hmm_attributions is not None else None,
             )
+            self._observe_hmm_risk(self._active_logical_ns or self._last_logical_ns, "fill_accounted")
             self._trace(
                 fill.ts_local,
                 fill.symbol,
@@ -2119,6 +2155,7 @@ class SimulationEngine:
                     self._handle_trades(
                         event.payload.get("fills", []), hmm_attributions=event.payload.get("hmm_attributions")
                     )
+                self._observe_hmm_risk(event.logical_ns, "after_action")
             finally:
                 self._active_logical_ns = previous_logical_ns
                 self._active_legacy_subns = previous_legacy_subns
@@ -2324,6 +2361,7 @@ class SimulationEngine:
         if self.regime is not None:
             state["regime"] = self.regime.checkpoint()
             state["hmm_execution"] = self.hmm_execution.checkpoint() if self.hmm_execution is not None else None
+            state["hmm_risk"] = self.hmm_risk.checkpoint() if self.hmm_risk is not None else None
         checkpoint = Checkpoint.create(
             event_index=index,
             logical_time=(
@@ -2359,6 +2397,7 @@ class SimulationEngine:
             raise ValueError("simulation checkpoint adapter identity does not match current adapter")
         candidate_regime = None
         candidate_execution = None
+        candidate_risk = None
         if self.regime is not None:
             candidate_regime = self.regime.validated_copy(state.get("regime"))
             if self.hmm_execution is None:
@@ -2367,6 +2406,10 @@ class SimulationEngine:
             candidate_execution.validate_continuation(
                 decode_checkpoint(state["engine"]), self.metrics._primary_markout_horizon_ms
             )
+            if self.hmm_risk is None:
+                raise AssertionError("HMM risk audit missing")
+            candidate_risk = self.hmm_risk.validated_copy(state.get("hmm_risk"))
+            candidate_risk.validate_continuation(decode_checkpoint(state["engine"]), candidate_regime)
             if self.hmm_policy is not None:
                 decoded = decode_checkpoint(state["engine"])
                 for action in decoded["actions"]:
@@ -2380,6 +2423,7 @@ class SimulationEngine:
             self._market_observer = candidate_regime
             self.hmm_execution = candidate_execution
             self.metrics._regime_execution = candidate_execution
+            self.hmm_risk = candidate_risk
         self._last_ts = float(state["last_ts"])
         self._last_event_index = int(state["event_index"])
         self._market_data_first = bool(state["market_data_first"])
@@ -2417,6 +2461,8 @@ class SimulationEngine:
             )
         if self.regime is not None:
             self.regime.bind_input(file_sha256(input_file))
+            if resume_from is not None and self.hmm_risk is not None and type(self.hmm_risk.sink) is not NullSink:
+                raise ValueError("regime risk checkpoint resume requires NullSink")
             if resume_from is not None and not isinstance(self.regime.sink, NullSink):
                 raise ValueError("regime checkpoint resume requires NullSink; do not append an incomplete audit")
             if (
@@ -2461,6 +2507,7 @@ class SimulationEngine:
             # never reach the normal market/markout drain below. Emit them at
             # this causal boundary, not after later observations or at EOF.
             self._trace_markout_events(self.metrics.drain_new_markout_events())
+            self._observe_hmm_risk(self._last_logical_ns, "after_record")
             # A control/invalid record is still a replay boundary. Previously
             # early continues bypassed both periodic checkpoints and stop limits.
             should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
@@ -2538,6 +2585,7 @@ class SimulationEngine:
                 legacy_subns=legacy_subns,
             )
             if self._market_observer is not None:
+                self._observe_hmm_risk(logical_ns, "before_market")
                 self._market_observer.before_record(logical_ns)
             self._observe_capture_epoch(rec, now, receipt_checked=receipt_checked)
             self._trace_market_record(rec, now, observed_ts)
@@ -2796,6 +2844,7 @@ class SimulationEngine:
         self._trace_markout_events(self.metrics.drain_new_markout_events())
         shutdown_symbol = next(iter(self._books), "")
         self._handle_kill_switch(mark_ts, shutdown_symbol, "shutdown", verbose)
+        self._observe_hmm_risk(self._schedule_time_key(mark_ts)[0], "finish")
         self._verbose(
             verbose,
             f"[simulate] completed records={records_processed} fills={self.metrics.fill_count} "
@@ -3067,6 +3116,7 @@ class SimulationEngine:
         if self.regime is not None:
             state["hmm"] = self.regime.checkpoint()
             state["hmm_execution"] = self.hmm_execution.checkpoint() if self.hmm_execution is not None else None
+            state["hmm_risk"] = self.hmm_risk.checkpoint() if self.hmm_risk is not None else None
         return state_hash(state)
 
     def _prepare_output_summary(
@@ -3090,6 +3140,7 @@ class SimulationEngine:
         if self.regime is not None:
             summary["hmm"] = self.regime.summary()
             summary["hmm_execution"] = self.hmm_execution.summary() if self.hmm_execution is not None else None
+            summary["hmm_risk"] = self.hmm_risk.summary() if self.hmm_risk is not None else None
         summary["state_sha256"] = self.state_sha256()
         seed = manifest_seed or build_run_manifest(file_path, self.cfg, output_files, adapter=self.adapter)
         summary["run_id"] = seed.run_id
@@ -3204,7 +3255,7 @@ class SimulationEngine:
             raise RuntimeError("bounded streaming finalization requires all detail retention to be disabled")
         required = {"event_trace", "markouts", "summary", "summary_csv", "trades", "manifest"}
         if self.regime is not None:
-            required |= {"regime_trace", "hmm_model", "regime_execution", "regime_quotes"}
+            required |= {"regime_trace", "hmm_model", "regime_execution", "regime_quotes", "regime_risk"}
         if set(output_files) != required:
             raise RuntimeError(f"unexpected streaming output contract: {sorted(output_files)}")
         audit_names = ("event_trace", "trades", "markouts")
@@ -3245,6 +3296,16 @@ class SimulationEngine:
                 self.hmm_execution.quotes.summary(),
                 self.hmm_execution.labels,
                 execution_path=output_files["regime_execution"],
+            )
+            from ..regime.risk import verify_risk_trace
+
+            if self.hmm_risk is None:
+                raise AssertionError("HMM risk audit missing")
+            verify_risk_trace(
+                output_files["regime_risk"],
+                self.hmm_risk.summary(),
+                regime_path=output_files["regime_trace"],
+                regime_summary=self.regime.summary(),
             )
 
         summary, seed = self._prepare_output_summary(

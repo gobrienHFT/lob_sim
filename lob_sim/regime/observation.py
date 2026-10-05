@@ -10,7 +10,7 @@ import math
 import csv
 from copy import deepcopy
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
@@ -540,8 +540,8 @@ class RegimeObserver(FeatureDatasetObserver):
         self.emit = self._receive_sample
 
 
-def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
-    """Stream serialized rows back through the same canonical audit hash."""
+def iter_trace_rows(path: Path) -> Generator[dict[str, Any], None, None]:
+    """Strict bounded row decoding shared by state and cross-stream audits."""
     integer_fields = {
         "sample_ns",
         "available_at_ns",
@@ -557,12 +557,6 @@ def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
     float_fields = {"confidence", "entropy", "normalized_entropy"}
     bool_fields = {"state_switched", "confident"}
     json_fields = {"epochs", "validity", "features", "scaled_features", "posterior", "next_prior"}
-    count, digest = 0, sha256(CHAIN_DOMAIN).hexdigest()
-    sample_count = 0
-    statuses: Counter[str] = Counter()
-    diagnostics = RegimeDiagnostics(
-        len(summary["raw_map_sample_counts"]), summary["state_diagnostics"]["sampling_interval_ns"]
-    )
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != list(TRACE_FIELDS):
@@ -586,12 +580,24 @@ def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
                     row[key] = strict_json(value)
                 else:
                     row[key] = value
-            digest = advance_trace_digest(digest, row)
-            diagnostics.observe(row)
-            if row["event_type"] == "sample":
-                sample_count += 1
-                statuses[row["status"]] += 1
-            count += 1
+            yield row
+
+
+def verify_trace(path: Path, summary: Mapping[str, Any]) -> None:
+    """Stream serialized rows back through the same canonical audit hash."""
+    count, digest = 0, sha256(CHAIN_DOMAIN).hexdigest()
+    sample_count = 0
+    statuses: Counter[str] = Counter()
+    diagnostics = RegimeDiagnostics(
+        len(summary["raw_map_sample_counts"]), summary["state_diagnostics"]["sampling_interval_ns"]
+    )
+    for row in iter_trace_rows(path):
+        digest = advance_trace_digest(digest, row)
+        diagnostics.observe(row)
+        if row["event_type"] == "sample":
+            sample_count += 1
+            statuses[row["status"]] += 1
+        count += 1
     if count != summary["trace_count"] or digest != summary["trace_sha256"]:
         raise ValueError("serialized regime audit count/hash mismatch")
     if diagnostics.summary(summary["sample_count"]) != summary["state_diagnostics"]:
