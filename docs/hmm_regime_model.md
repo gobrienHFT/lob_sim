@@ -963,6 +963,47 @@ each); it may retain the capped analysis observations. That is distinct from the
 bounded runtime filter/windows and does not claim arbitrary-tape constant-memory
 fitting. Run the command again only with a new output directory.
 
+## Measuring baseline, observation and policy overhead
+
+```bash
+python experiments/benchmark_hmm_overhead.py \
+  --file outputs/hmm_synthetic_recovery/tape/market.ndjson \
+  --model outputs/hmm_synthetic_recovery/model.json \
+  --json-out outputs/hmm_overhead.json --requote-ms 500
+```
+
+Generate the preceding recovery bundle first, or supply an immutable compatible
+tape/model pair. The command explicitly uses a shared `research_mm` reference
+and the model's default conservative policy; the effective configuration is
+recorded for all three modes. The example's 500 ms quote cadence is a declared
+diagnostic workload, not an optimized setting or the default 40 ms cadence.
+Synthetic input remains synthetic: this command does not establish real-market
+representativeness, economic benefit or an untouched market holdout.
+
+Defaults are three warmups and thirty measured repetitions per mode, rotating
+all six mode orders. Each replay starts a fresh engine with null/aggregate sinks.
+Model loading, GC preconditioning and bounded diagnostic reduction are outside
+timing; initialization, raw input read/hash/decode, scheduling and EOF draining
+are inside. Ordinary runtime GC remains enabled. Separate tracemalloc runs do
+not contaminate timing; their peak excludes the already-loaded model and is not
+process RSS. Median/p95/p99 are **run-duration** quantiles, not per-event latency.
+Every raw sample, matched-round ratio, workload count, parent/source checksum
+and runtime identity remains in the no-clobber JSON report.
+
+Observation mode must reproduce the baseline's core summary, final book, fill,
+markout and latency identities. Every mode must be deterministic across runs;
+HMM modes must actually produce valid inference. A changed artifact/source,
+inactive estimator or parity failure aborts rather than publishing an apparently
+successful benchmark. Existing event-by-event observer tests remain a separate
+proof; the benchmark's bounded summary/hash probe is not a full trace oracle.
+
+The policy can reduce or change quote/fill work, so its ratio is total workload
+cost, not isolated inference cost. The host is unpinned and power/frequency/load
+are uncontrolled. The command does not assert dedicated-host thresholds,
+allocation-free processing, full audit-I/O speed, soak reliability or trading
+latency. No representative measurement is claimed merely because this command
+and its tests exist.
+
 ## Reproduce checks
 
 ```bash

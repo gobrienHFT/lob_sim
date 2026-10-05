@@ -73,16 +73,16 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
 | O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
-| Q | Frozen variant registry before untouched test | Implemented in independent-source study runner for baseline/observe/policy, hard-active and cadence variants; full real diagnostic release remains under verification |
+| Q | Frozen variant registry before untouched test | Independent-source runner freezes baseline/observe/policy, hard-active and cadence variants; successful native-clock integration and failed real-data eligibility are recorded separately |
 | R | Paired moving-block bootstrap study | Clock-minute inventory/reservation comparisons with independent contiguous strata and explicit 30/5/60-minute unavailability; execution-quality/economic intervals remain |
 | S | Human-readable model/state diagnostics | regime-inspect includes every valid K's likelihood, convergence, occupancy and duration diagnostics; regime-report verifies serialized causal raw/active state summaries before printing |
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full 1239-test Python suite passes at 60b0696; repeat after remaining research integration |
-| X | New tests pass | Foundation, dataset/fit, observation/checkpoint, execution-attribution and policy suites implemented; final evaluation checks pending |
-| Y | Standard lint and typing pass | Gate Mypy (61 source files), Ruff and format (172 files) pass at 60b0696; full-package Mypy also passes across 75 source files; repeat after remaining work |
-| Z | Complete reviewer gate passes | All 15 steps pass at 60b0696, including 1239 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; documentation-only dirty state is recorded accurately; final research release still pending |
+| W | Existing tests pass after integration | Full 1320-test Python suite passes on clean source commit ae676fa; the additional overhead command has 12 separately passing tests |
+| X | New tests pass | 81 new collection, clock-statistics, policy, study and cache cases enter the full gate; 12 overhead regressions also pass; empirical release conditions remain |
+| Y | Standard lint and typing pass | Gate Mypy (65 files), Ruff and format (181 files) pass at ae676fa; package plus overhead-script Mypy passes 80 files and current Ruff/format passes 183 files |
+| Z | Complete reviewer gate passes | All 15 steps pass on clean ae676fa in 1554.78 s, including 1320 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final empirical release still pending |
 
 ## Release boundaries
 
@@ -157,6 +157,29 @@ single diagnostic and the gate's 80-record HMM-disabled benchmark are not the
 required representative baseline/observe/policy overhead comparison. Registered
 paired policy/feature/cadence evaluation, clock-period bootstrap sensitivities,
 the real diagnostic study and the final research release remain required.
+
+Registered independent-source research adds 81 test cases. The complete clean
+15-step gate passes at `ae676fa` in 1554.78 s, including 1320 Python tests
+(1368.42 s), 16 Rust tests, 65 gate typing targets and 181 formatted files.
+Evidence is `outputs/hmm_gate_registered_study_20261005_clean.json`. An earlier
+attempt passed Python/lint but stopped because this shell could not find
+`cargo-fmt`; its failed report is preserved. Adding the already-installed pinned
+toolchain to this process's PATH allowed the complete rerun, without skipping
+checks. Timings are local execution records, not controlled performance results.
+
+The [real-data eligibility audit](strategy_results/hmm_regime_reference.md)
+records two admissible dates, no fitted real model and no evaluated real policy
+result. Invalid-clock legacy rows and zero-quantity prints are not silently
+promoted into usable training data. A fresh public capture supplies receipt and
+bounded-writer diagnostics, not a soak or ten-day coverage certificate.
+
+The overhead command has 12 independent regressions, including exact observer
+core-summary/book/fill/markout/latency parity, actual valid inference, separate
+tracing phases, source races, no-clobber and scalar quantile/ratio checks.
+Full-package plus script typing passes 80 source files; Ruff/format passes 183
+files. This separate verification is not misrepresented as part of the earlier
+1320-test gate. Representative measurements and the empirical research release
+remain outstanding.
 
 Public L2 cannot identify private FIFO, hidden liquidity or actual private fills.
 An HMM posterior is not an edge estimate, Kelly input or causal discovery of

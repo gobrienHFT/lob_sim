@@ -104,3 +104,18 @@ and dedicated-host performance gates are separately incomplete.
 The technical work sample is stronger because it makes this boundary observable:
 a study cannot manufacture eligibility, confidence or a favourable result from
 broken or insufficient inputs.
+
+## Verification record
+
+All fifteen reviewer steps passed on clean source commit `ae676fa`:
+1,320 Python tests, 16 Rust tests, typing/lint/format, the existing 10,000-case
+primitive differential, artifact/golden checks, fault injection, installed-wheel
+demo and the small HMM-disabled fixture benchmark. The full local report is
+`outputs/hmm_gate_registered_study_20261005_clean.json` (1,554.78 s). An earlier
+attempt stopped at Rust formatting because the shell lacked the pinned
+toolchain directory on PATH; that failed report was preserved before the full
+successful rerun. No validation was bypassed.
+
+The overhead command is separately tested and documented in the technical
+guide. Its existence is not a representative timing result, a real-market
+policy comparison or an extension of this report's eligibility evidence.
