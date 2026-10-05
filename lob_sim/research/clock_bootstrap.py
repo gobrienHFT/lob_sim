@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from .protocol import paired_moving_block_bootstrap_mean_delta
+from .protocol import paired_moving_block_bootstrap_mean_delta, paired_moving_block_bootstrap_ratio_delta
 
 SECOND = 1_000_000_000
 DAY = 86_400 * SECOND
@@ -59,21 +59,15 @@ class PairedClockPeriod:
             raise ValueError("missing paired statistic requires an excluded reason")
 
 
-def paired_clock_bootstrap(
+def _clock_plan(
     periods: Sequence[PairedClockPeriod],
     *,
     block_minutes: int = 30,
     replicates: int = 2000,
     confidence: float = 0.95,
     seed: int = 7,
-) -> dict[str, Any]:
-    """Bootstrap left-minus-right mean of complete jointly eligible periods.
-
-    The target is the mean period statistic, not necessarily a whole-path
-    statistic: e.g. averaging within-period drawdowns is NOT global drawdown.
-    Clock coverage and common-period denominators accompany every result.
-    Short strata are not silently discarded to produce an attractive interval.
-    """
+) -> tuple[dict[str, Any], list[float], list[float]]:
+    """Shared clock eligibility; zero activity does not break a valid stratum."""
     _integer(block_minutes, "block_minutes", 1)
     _integer(replicates, "replicates", 1)
     _integer(seed, "seed")
@@ -122,7 +116,6 @@ def paired_clock_bootstrap(
             left.append(period.left)
             right.append(period.right)
         previous = period
-    interval = None
     reason = None
     if not lengths:
         reason = "no jointly eligible complete periods"
@@ -130,35 +123,147 @@ def paired_clock_bootstrap(
         reason = "at least one independent contiguous stratum is shorter than the registered clock block"
     elif sum(n // block_size for n in lengths) < 2:
         reason = "fewer than two complete clock blocks; no informative resampling interval"
-    else:
+    return (
+        {
+            "schema_version": "lob_sim.paired_clock_bootstrap.v1",
+            "estimand": "mean_complete_joint_period_statistic:left-minus-right;not_whole_path_drawdown",
+            "period_ns": width,
+            "block_minutes": block_minutes,
+            "block_size": block_size,
+            "confidence": confidence,
+            "replicates": replicates,
+            "seed": seed,
+            "period_count": len(periods),
+            "eligible_period_count": len(left),
+            "eligible_duration_ns": len(left) * width,
+            "excluded_period_counts": excluded,
+            "source_count": len(sources),
+            "utc_days": sorted(days),
+            "sequence_lengths": lengths,
+            "unavailable_reason": reason,
+            "boundary_rule": "stratified by source,UTC day,validity epoch and contiguous eligible grid;no gap crossing",
+            "claim_ready": False,
+        },
+        left,
+        right,
+    )
+
+
+def paired_clock_bootstrap(
+    periods: Sequence[PairedClockPeriod],
+    *,
+    block_minutes: int = 30,
+    replicates: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 7,
+) -> dict[str, Any]:
+    """Mean period delta; averaging period drawdowns is NOT global drawdown."""
+    plan, left, right = _clock_plan(
+        periods, block_minutes=block_minutes, replicates=replicates, confidence=confidence, seed=seed
+    )
+    interval = None
+    if plan["unavailable_reason"] is None:
         interval = paired_moving_block_bootstrap_mean_delta(
             left,
             right,
-            block_size=block_size,
+            block_size=plan["block_size"],
             replicates=replicates,
             confidence=confidence,
             seed=seed,
-            lengths=lengths,
+            lengths=plan["sequence_lengths"],
         ).as_dict()
     return {
-        "schema_version": "lob_sim.paired_clock_bootstrap.v1",
-        "estimand": "mean_complete_joint_period_statistic:left-minus-right;not_whole_path_drawdown",
-        "period_ns": width,
-        "block_minutes": block_minutes,
-        "block_size": block_size,
-        "confidence": confidence,
-        "replicates": replicates,
-        "seed": seed,
-        "period_count": len(periods),
-        "eligible_period_count": len(left),
-        "eligible_duration_ns": len(left) * width,
-        "excluded_period_counts": excluded,
-        "source_count": len(sources),
-        "utc_days": sorted(days),
-        "sequence_lengths": lengths,
+        **plan,
         "estimate": math.fsum(a - b for a, b in zip(left, right)) / len(left) if left else None,
         "interval": interval,
-        "unavailable_reason": reason,
-        "boundary_rule": "stratified by source,UTC day,validity epoch and contiguous eligible grid;no gap crossing",
+    }
+
+
+@dataclass(frozen=True)
+class PairedClockRatioPeriod:
+    """Sufficient statistics on one common period, including true zero activity."""
+
+    clock: PairedClockPeriod
+    left_numerator: float
+    left_denominator: float
+    right_numerator: float
+    right_denominator: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.clock, PairedClockPeriod):
+            raise ValueError("ratio period requires validated clock metadata")
+        for n, d in (
+            (self.left_numerator, self.left_denominator),
+            (self.right_numerator, self.right_denominator),
+        ):
+            if any(isinstance(v, bool) or not isinstance(v, (float, int)) or not math.isfinite(v) for v in (n, d)):
+                raise ValueError("ratio period components must be finite numeric values")
+            if d < 0 or (d == 0 and n != 0):
+                raise ValueError("zero/nonnegative ratio denominator contract violated")
+
+
+def paired_clock_ratio_bootstrap(
+    periods: Sequence[PairedClockRatioPeriod],
+    *,
+    block_minutes: int = 30,
+    replicates: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 7,
+) -> dict[str, Any]:
+    """Ratio-of-sums delta on jointly valid matched UTC blocks.
+
+    Missing resolution is retained in separate coverage denominators, not
+    imputed as zero markout. Block-length failures precede any resampling.
+    """
+    if any(not isinstance(p, PairedClockRatioPeriod) for p in periods):
+        raise ValueError("expected paired clock ratio periods")
+    plan, _, _ = _clock_plan(
+        [p.clock for p in periods],
+        block_minutes=block_minutes,
+        replicates=replicates,
+        confidence=confidence,
+        seed=seed,
+    )
+    eligible = [p for p in periods if p.clock.excluded_reason is None]
+    ln, ld, rn, rd = (
+        math.fsum(getattr(p, field) for p in eligible)
+        for field in ("left_numerator", "left_denominator", "right_numerator", "right_denominator")
+    )
+    if not all(math.isfinite(v) for v in (ln, ld, rn, rd)):
+        raise ValueError("clock ratio totals must remain finite")
+    result: dict[str, Any] = {
+        "estimate": ln / ld - rn / rd if ld and rd else None,
+        "left_numerator_sum": ln,
+        "left_denominator_sum": ld,
+        "right_numerator_sum": rn,
+        "right_denominator_sum": rd,
+        "interval": None,
+        "undefined_replicates": 0,
+        "evaluated_replicates": 0,
+        "zero_activity_periods": {
+            "left": sum(p.left_denominator == 0 for p in eligible),
+            "right": sum(p.right_denominator == 0 for p in eligible),
+        },
+        "unavailable_reason": plan["unavailable_reason"],
+    }
+    if result["estimate"] is not None and not math.isfinite(result["estimate"]):
+        raise ValueError("clock ratio delta must remain finite")
+    if plan["unavailable_reason"] is None:
+        result = paired_moving_block_bootstrap_ratio_delta(
+            [p.left_numerator for p in eligible],
+            [p.left_denominator for p in eligible],
+            [p.right_numerator for p in eligible],
+            [p.right_denominator for p in eligible],
+            block_size=plan["block_size"],
+            lengths=plan["sequence_lengths"],
+            replicates=replicates,
+            confidence=confidence,
+            seed=seed,
+        )
+    return {
+        **plan,
+        **result,
+        "schema_version": "lob_sim.paired_clock_ratio_bootstrap.v1",
+        "estimand": "ratio_of_sums:left-minus-right;not_mean_of_period_ratios",
         "claim_ready": False,
     }
