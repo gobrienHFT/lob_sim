@@ -115,6 +115,7 @@ class SimulationEngine:
         self._books: Dict[str, LocalOrderBook] = {}
         self._syncers: Dict[str, BookSynchronizer] = {}
         self._next_decision: Dict[str, float] = {}
+        self._next_decision_ns: Dict[str, int] = {}
         self._actions: list[_EngineEvent] = []
         self._id_counter = 0
         self._trace_counter = 0
@@ -358,6 +359,7 @@ class SimulationEngine:
         self._actions = [action for action in self._actions if action.symbol != symbol]
         heapify(self._actions)
         self._next_decision.pop(symbol, None)
+        self._next_decision_ns.pop(symbol, None)
         return {
             "invalidated_active_order_count": active_order_count,
             "cleared_pending_cancel_count": pending_cancel_count,
@@ -1046,6 +1048,19 @@ class SimulationEngine:
         book = self._books.get(symbol)
         if syncer is None or book is None or not syncer.synced:
             return
+        if self._market_data_first:
+            # The legacy float accumulator plus epsilon could defer a
+            # 8.999999999999984 action until after the receipt at 9.0, then
+            # violate the trace's exact causal ordering. Schema-v3 decisions
+            # must use the same integer key as its market observations.
+            now_ns, _ = self._schedule_time_key(now)
+            interval_ns = max(1, int(Decimal(str(self.cfg.mm_requote_ms)) * 1_000_000))
+            next_ns = self._next_decision_ns.get(symbol, now_ns)
+            while next_ns <= now_ns if include_now else next_ns < now_ns:
+                self._schedule(next_ns / NANOSECONDS_PER_SECOND, "decision", symbol, {}, logical_ns=next_ns)
+                next_ns += interval_ns
+            self._next_decision_ns[symbol] = next_ns
+            return
         interval = self.cfg.mm_requote_ms / 1000.0
         next_due = self._next_decision.get(symbol)
         if next_due is None:
@@ -1061,6 +1076,20 @@ class SimulationEngine:
             self._schedule(next_due, "decision", symbol, {})
             next_due += interval
         self._next_decision[symbol] = next_due
+
+    def _schedule_observation_decisions(self, symbol: str, now: float, *, include_now: bool) -> None:
+        """Advance active schema-v3 timers on the global observation clock.
+
+        Scheduling only the arriving symbol could insert another symbol's
+        overdue decision after the current market row had already been traced.
+        Preserve the current-symbol tie priority, then use sorted active symbols;
+        actual dispatch still uses the existing integer-key heap and tie rule.
+        Legacy tapes retain their established per-symbol compatibility behavior.
+        """
+        self._schedule_decisions_up_to(symbol, now, include_now=include_now)
+        if self._market_data_first:
+            for other in sorted(set(self._next_decision_ns) - {symbol}):
+                self._schedule_decisions_up_to(other, now, include_now=include_now)
 
     def _parse_exchange_info(self, rec: RecordedEvent) -> SymbolSpec:
         spec = self.adapter.instrument_spec_from_record(rec)
@@ -1789,6 +1818,7 @@ class SimulationEngine:
             "capture_invalidations": self._capture_invalidations,
             "capture_invalid_reason": self._capture_invalid_reason,
             "next_decision": self._next_decision,
+            "next_decision_ns": self._next_decision_ns,
             "actions": self._actions,
             "event_trace": self.event_trace,
             "event_trace_count": self._event_trace_count,
@@ -1842,6 +1872,7 @@ class SimulationEngine:
         raw_capture_reason = state.get("capture_invalid_reason")
         self._capture_invalid_reason = None if raw_capture_reason is None else str(raw_capture_reason)
         self._next_decision = dict(state["next_decision"])
+        self._next_decision_ns = dict(state["next_decision_ns"])
         self._actions = list(state["actions"])
         heapify(self._actions)
         self.event_trace = list(state["event_trace"])
@@ -2095,7 +2126,7 @@ class SimulationEngine:
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
             receipt_checked = self._prevalidate_capture_boundary(rec, now)
-            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
+            self._schedule_observation_decisions(rec.symbol, symbol_now, include_now=not market_data_first)
             self._drain_events(
                 now,
                 inclusive=not market_data_first,
