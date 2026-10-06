@@ -62,9 +62,13 @@ joint-valid UTC days means diagnostic-only research, not a holdout claim.
 The independently repaired core passes every local reviewer step at clean
 `b9519d1` (657 Python / 16 Rust tests) and all eight hosted Linux/Windows jobs.
 The pre-split HMM source `01d32ec` passes every local step (1,554 Python / 16 Rust
-tests). Neither result certifies the subsequently merged HMM source: a fresh
-gate and exhaustive comparison against the unchanged core-only reference are
-required before publishing the integration.
+tests). The subsequently merged implementation passes a fresh 15-step local
+gate at clean `8cf44fc`: 1,668 Python / 16 Rust tests, 71 Mypy source files and
+266 formatted files. All 112 cases / 648 checkpoint-resume comparisons match
+the unchanged core-only reference, with a separate exact saved-JSON comparison.
+The [native evidence projection](regression_results/hmm_core_separation_review.json)
+retains source identities, native file hashes and every gate step. Later
+publication commits still require their own hosted checks.
 
 The historical entries below identify the source revision they tested; their
 counts are not a current-head certificate. The clean `676ec15` gate passed all
@@ -82,8 +86,8 @@ five native test variants and four independently verified serialized HMM audit
 reports. Its focused native study/recovery suite passes 64 tests; 16 source and
 publication tests pass independently, including exact default input regeneration.
 All three HMM experiment entrypoints were included in that source's gate typing
-(70 source files). The current publication still requires a complete reviewer gate and
-hosted CI; it does not inherit the previous revision's certificate. The
+(70 source files). Later publication still requires hosted CI; it does not
+inherit the previous revision's certificate. The
 [engineering handoff](hmm_release_review.md) maps the complete deliverable and
 acceptance criteria to source-qualified evidence and remaining limitations.
 
@@ -117,10 +121,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Last clean full gate: 1,532 Python / 16 Rust tests at 676ec15; current changes require a fresh full gate |
+| W | Existing tests pass after integration | Clean merged-source full gate at 8cf44fc: 1,668 Python / 16 Rust tests; unaffected legacy golden hashes unchanged |
 | X | New tests pass | 64 native study/recovery and 16 synthetic source/publication cases pass for the current comparison producer; snapshot and publication tests remain in the normal suite |
-| Y | Standard lint and typing pass | Source-qualified historical typing/lint/format results are retained; the merged source requires its own full gate |
-| Z | Complete reviewer gate passes | All 15 steps plus eight hosted jobs passed at 676ec15; no current-head certificate is inferred from that result |
+| Y | Standard lint and typing pass | Clean 8cf44fc gate: Mypy 71 source files; Ruff/format 266 files; Rust fmt/Clippy warnings denied |
+| Z | Complete reviewer gate passes | All 15 steps passed at clean merged source 8cf44fc; source-qualified projection published, later publication CI verified separately |
 
 ## Release boundaries
 

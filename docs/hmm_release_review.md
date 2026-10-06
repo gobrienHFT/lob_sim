@@ -7,8 +7,9 @@ platform roadmap remains incomplete; see [project status](project_status.md).
 Core correctness and HMM integration have separate review boundaries. Review
 [core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99) against master first,
 then [HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98) against the
-repaired core. The merged source requires its own reviewer gate and exhaustive
-HMM-off comparison; historical measurements do not certify a later revision.
+repaired core. The merged implementation passes its own reviewer gate and
+exhaustive HMM-off comparison at clean `8cf44fc`; historical measurements still
+do not certify later revisions.
 
 ## What the layer does
 
@@ -34,7 +35,13 @@ regressions. These are technical proofs, not a real-market policy result.
 The core-only source `b9519d1` passes all 15 local steps (657 Python / 16 Rust
 tests) and all eight hosted Linux/Windows jobs. The pre-split HMM source
 `01d32ec` passes all 15 local steps (1,554 Python / 16 Rust tests). These results
-are independently source-qualified; merged-source verification is separate.
+are independently source-qualified. Merged source `8cf44fc` passes all 15 local
+steps: 1,668 Python / 16 Rust tests, Mypy across 71 source files and formatting
+across 266 files, with no skips. All 112 HMM-off cases / 648 checkpoint-resume
+comparisons match the unchanged core-only reference. A separate standard-library
+check also compares the complete saved behavioral JSON exactly, not just its
+declared digest. [Native evidence projection](regression_results/hmm_core_separation_review.json)
+records both producers, file hashes, all gate steps and exact commands.
 Source `676ec15` passes the full local reviewer gate (1,532 Python / 16 Rust tests,
 all 15 steps), plus all eight hosted Linux/Windows CI jobs. Publication changes
 must receive their own verification; they do not inherit that gate result.
@@ -152,8 +159,8 @@ not a reason to fill missing values or claim policy benefit.
 The focused producer/publication/reviewer tests pass 31 cases, including default
 source regeneration, exact native-manifest hashes, partial-write failures and
 no-clobber. Native study/recovery checks pass 64 cases. Historical producer
-typing/formatting results stay bound to their source revisions. These targeted results do not replace
-the final full gate or cross-platform CI.
+typing/formatting results stay bound to their source revisions. These targeted
+results do not replace the merged-source full gate or later publication CI.
 
 A direct standalone `regime-fit` smoke caught an import-scope error after the
 model/report had been safely saved. The successful-command regression failed
@@ -360,6 +367,7 @@ A	tests/test_hmm_synthetic_sources.py
 A	tests/test_ratio_bootstrap.py
 M	tests/test_reviewer_gate.py
 A	docs/hmm_release_review.md
+A	docs/regression_results/hmm_core_separation_review.json
 A	docs/strategy_results/hmm_synthetic_study_reference.json
 A	docs/strategy_results/hmm_synthetic_study_reference.md
 ```

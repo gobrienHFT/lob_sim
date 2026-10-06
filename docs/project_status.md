@@ -74,8 +74,13 @@ steps (657 Python / 16 Rust tests) at clean `b9519d1`, and all eight hosted
 Linux/Windows jobs. The independent core reference contains 112 cases and 648
 checkpoint/resume comparisons. HMM-off must match that reference without dropping
 clock, risk or economic fields; source identities remain distinct. See the
-[core contract](core_repairs.md). The merged HMM source needs its own full gate
-and exhaustive parity result, not an exception to disabled behavior.
+[core contract](core_repairs.md). Clean merged HMM source `8cf44fc` passes its
+own complete 15-step local gate (1,668 Python / 16 Rust tests), and all 112 cases /
+648 checkpoint-resume comparisons match the independent reference. A separate
+standard-library check confirms exact saved-JSON behavior. The
+[native evidence projection](regression_results/hmm_core_separation_review.json)
+preserves source and file identities; later publication CI is separate. There
+is no disabled-mode exception for the HMM integration.
 
 The [post-cache public measurement](benchmark_results/hmm_snapshot_public_reference.md)
 is complete at clean `676ec15`: 102 fresh-engine replays, accepted policy quotes,
