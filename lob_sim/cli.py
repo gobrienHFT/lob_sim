@@ -878,6 +878,8 @@ def cmd_simulate(
     progress_every: int = 5000,
     in_memory_export: bool = False,
 ) -> None:
+    if in_memory_export and config.hmm is not None:
+        raise ValueError("HMM mode requires bounded streaming export; omit --in-memory-export")
     if in_memory_export:
         engine = SimulationEngine(config)
         metrics = engine.run(file, verbose=verbose, progress_every=progress_every)
@@ -1250,8 +1252,52 @@ def main() -> None:
     n.add_argument("--batch-size", type=int, default=65_536)
     n.set_defaults(func=cmd_normalize)
 
+    features = sub.add_parser(
+        "regime-features", help="Extract causal validated HMM features into immutable UTC-day files"
+    )
+    features.add_argument("--file", required=True)
+    features.add_argument("--out", required=True)
+    features.add_argument("--symbol", action="append", default=[])
+    features.add_argument("--interval-ms", type=int, default=1000)
+    features.add_argument("--window-steps", type=int, default=10)
+    features.add_argument("--depth-levels", type=int, default=5)
+    features.add_argument("--stale-after-ms", type=int, default=5000)
+
+    fit = sub.add_parser("regime-fit", help="Fit train-only HMM restarts and select using validation, never test")
+    fit.add_argument("--dataset", required=True)
+    fit.add_argument("--symbol", required=True)
+    fit.add_argument("--model", required=True)
+    fit.add_argument("--report", required=True)
+    fit.add_argument("--state-counts", default="2,3,4,5")
+    fit.add_argument("--restarts", type=int, default=10)
+    fit.add_argument("--seed", type=int, default=7)
+    fit.add_argument("--max-iterations", type=int, default=300)
+    fit.add_argument("--max-rows", type=int, default=1_000_000)
+
+    inspect_regime = sub.add_parser(
+        "regime-inspect", help="Inspect safe frozen HMM JSON and training-only state signatures"
+    )
+    inspect_regime.add_argument("--model", required=True)
+    inspect_regime.add_argument("--json", action="store_true")
+
+    report_regime = sub.add_parser(
+        "regime-report", help="Verify a completed regime audit and show state, quote-cohort and fill-source diagnostics"
+    )
+    report_regime.add_argument("--run-dir", required=True)
+
     s = sub.add_parser("simulate")
     s.add_argument("--file", required=True)
+    s.add_argument("--strategy", choices=("baseline", "layered_mm", "research_mm", "hmm_regime_mm"))
+    s.add_argument(
+        "--hmm",
+        choices=("off", "observe", "policy"),
+        help="Forward-only regime observation or conservative quote policy",
+    )
+    s.add_argument("--hmm-model", help="Safe frozen JSON model (required for --hmm observe/policy)")
+    s.add_argument("--hmm-policy-config", help="Strict versioned JSON controls; only with --hmm policy")
+    s.add_argument(
+        "--hmm-symbol", help="Override/check model training symbol; required for hand-specified diagnostic models"
+    )
     s.add_argument(
         "--fill-profile",
         choices=FILL_ASSUMPTION_PROFILES,
@@ -1298,6 +1344,50 @@ def main() -> None:
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
+    if args.command == "regime-report":
+        from .regime.diagnostics import inspect_run
+
+        try:
+            print(inspect_run(Path(args.run_dir)))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            parser.error(f"cannot inspect regime run: {exc}")
+        return
+    if args.command == "regime-inspect":
+        from .regime.artifact import load_model
+        from .regime.fit import inspect_model
+
+        model = load_model(args.model)
+        print(json.dumps(model.as_dict(), indent=2, sort_keys=True) if args.json else inspect_model(model))
+        return
+    if args.command == "regime-fit":
+        from .regime.artifact import save_model
+        from .regime.dataset import dataset_split, publish_json, read_partition
+        from .regime.fit import FitConfig, fit_candidates, inspect_model
+
+        try:
+            settings = FitConfig(
+                state_counts=tuple(int(value.strip()) for value in args.state_counts.split(",")),
+                restarts=args.restarts,
+                seed=args.seed,
+                max_iterations=args.max_iterations,
+            )
+            for output in (args.model, args.report):
+                if Path(output).exists() or Path(output + ".partial").exists():
+                    raise FileExistsError(output)
+            if Path(args.model).resolve() == Path(args.report).resolve():
+                raise ValueError("model and report must be different files")
+            split = dataset_split(args.dataset)
+            training = read_partition(args.dataset, split, "calibration", symbol=args.symbol, max_rows=args.max_rows)
+            validation = read_partition(args.dataset, split, "validation", symbol=args.symbol, max_rows=args.max_rows)
+            result = fit_candidates(training, validation, settings)
+            publish_json(Path(args.report), result.report())
+            if result.model is None:
+                raise SystemExit("No valid HMM candidate. Full failed-attempt ledger: " + args.report)
+            save_model(args.model, result.model)
+            print(inspect_model(result.model))
+        except (OSError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        return
     if args.command == "options-demo":
         args.func(
             args.out_dir,
@@ -1335,15 +1425,64 @@ def main() -> None:
         return
 
     cfg = load_config(args.env or ".env")
-    if args.command in {"capture", "collect"}:
+    if args.command == "regime-features":
+        from .regime.dataset import extract_features
+        from .regime.features import FeatureSpec
+
+        try:
+            feature_spec = FeatureSpec(
+                interval_ns=args.interval_ms * 1_000_000,
+                window_steps=args.window_steps,
+                depth_levels=args.depth_levels,
+                stale_after_ns=args.stale_after_ms * 1_000_000,
+            )
+            report = extract_features(args.file, args.out, cfg, spec=feature_spec, symbols=tuple(args.symbol))
+            print(json.dumps(report, indent=2, sort_keys=True))
+        except (OSError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+    elif args.command in {"capture", "collect"}:
         asyncio.run(args.func(cfg, args.verbose))
     elif args.command == "doctor":
         args.func(cfg)
     elif args.command == "replay":
         args.func(cfg, args.file, args.verbose, args.progress_every)
     elif args.command == "simulate":
+        overrides: dict[str, Any] = {}
         if args.fill_profile is not None:
-            cfg = replace(cfg, fill_assumption=fill_assumption_config_for_profile(args.fill_profile))
+            overrides["fill_assumption"] = fill_assumption_config_for_profile(args.fill_profile)
+        if args.strategy is not None:
+            overrides["mm_strategy_profile"] = args.strategy
+        if args.hmm == "off":
+            if args.hmm_model or args.hmm_symbol or args.hmm_policy_config:
+                parser.error("--hmm off cannot include model/symbol arguments")
+            overrides["hmm"] = None
+        elif args.hmm in {"observe", "policy"}:
+            from .regime.settings import HMMSettings
+            from .regime.policy import RegimePolicyConfig
+
+            if args.hmm_model is None:
+                parser.error(f"--hmm {args.hmm} requires --hmm-model")
+            if args.hmm_policy_config and args.hmm != "policy":
+                parser.error("--hmm-policy-config requires --hmm policy")
+            try:
+                overrides["hmm"] = HMMSettings.load(
+                    args.hmm_model,
+                    symbol=args.hmm_symbol,
+                    mode=args.hmm,
+                    policy=RegimePolicyConfig.load(args.hmm_policy_config) if args.hmm_policy_config else None,
+                )
+            except (OSError, ValueError) as exc:
+                parser.error(str(exc))
+        elif args.hmm_model or args.hmm_symbol or args.hmm_policy_config:
+            parser.error("--hmm-model/--hmm-symbol/--hmm-policy-config requires --hmm observe/policy")
+        try:
+            # Validate the final namespace atomically: profile and policy mode
+            # are mutually required and cannot pass through an invalid interim config.
+            cfg = replace(cfg, **overrides)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if cfg.hmm is not None and args.in_memory_export:
+            parser.error("HMM mode requires bounded streaming export; omit --in-memory-export")
         args.func(cfg, args.file, args.verbose, args.progress_every, args.in_memory_export)
     elif args.command == "compare":
         args.func(cfg, args.file, args.repetitions)

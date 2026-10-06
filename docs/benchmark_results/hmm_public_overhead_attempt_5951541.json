@@ -1,0 +1,23 @@
+{
+  "schema_version": "lob_sim.hmm_overhead_attempt.v1",
+  "status": "deliberately_aborted_for_checksum_implementation_review",
+  "claim_ready": false,
+  "source_commit": "59515413f36ae922db14679977a67f799a42ea7c",
+  "benchmark_report_published": false,
+  "requested_output": "outputs/hmm_public_overhead_20261005_active_5951541.json",
+  "input": "docs/benchmark_inputs/hmm_public_btcusdt_20261005/capture_1791203092_f912172cf0594437a728d2eb9160d85e.manifest.json",
+  "model": "docs/benchmark_inputs/hmm_public_btcusdt_20261005/synthetic_frozen_model.json",
+  "environment": "docs/benchmark_results/hmm_active_public_reference.env",
+  "requested_protocol": {
+    "warmups_per_mode": 3,
+    "measured_repetitions_per_mode": 30,
+    "memory_runs_per_mode": 1,
+    "active_policy_required": true
+  },
+  "completed_warmup_rounds": 3,
+  "completed_measured_rounds_observed_in_console": 1,
+  "memory_round_completed": false,
+  "reason": "Stop the owned benchmark process before modifying source: replace eight interpreted CRC32C bit steps per byte with an independently checked table-based implementation, then rerun the unchanged workload and full protocol from a clean revision.",
+  "timing_samples": null,
+  "limitations": "Unfinished attempt, not a benchmark result. No before/after speedup, observer parity or final repeated-run claim is inferred from provisional warmup/measured work. Original capture/model artifacts and historical smoke results remain unchanged."
+}

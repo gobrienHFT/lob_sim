@@ -1,2 +1,2 @@
 # Compatibility shim for launchers and quick local setup.
--e .[dev,storage]
+-e .[dev,storage,hmm]

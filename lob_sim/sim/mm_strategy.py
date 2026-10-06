@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from typing import Any
 
 from ..book.local_book import LocalOrderBook
 from ..book.types import AggTradeEvent
 from ..config import Config
+from ..regime.policy import RegimeControls
 from .orders import Order, OrderSide
 
 
@@ -152,10 +153,21 @@ class MarketMakingStrategy:
         round_trip_maker_fee = max(Decimal("0"), self.cfg.fees_maker_bps * Decimal("2"))
         return (round_trip_maker_fee / Decimal("2")) + self.cfg.mm_fee_floor_buffer_bps
 
-    def should_refresh(self, target: QuoteTarget, order: Order | None) -> bool:
+    def should_refresh(
+        self,
+        target: QuoteTarget,
+        order: Order | None,
+        *,
+        controls: RegimeControls | None = None,
+        age_ns: int = 0,
+    ) -> bool:
         if order is None:
             return False
-        if self.cfg.mm_strategy_profile in {"layered_mm", "research_mm"} and order.refresh_key != target.refresh_key:
+        if controls is not None and age_ns >= controls.max_quote_age_ns:
+            return True
+        if self.cfg.mm_strategy_profile in {"layered_mm", "research_mm", "hmm_regime_mm"} and (
+            order.refresh_key != target.refresh_key
+        ):
             return True
         return order.queue_ahead_lots > self.cfg.mm_queue_repost_lots
 
@@ -289,15 +301,20 @@ class MarketMakingStrategy:
         book: LocalOrderBook,
         inventory_qty: Decimal,
         size_lots: int,
+        *,
+        controls: RegimeControls | None = None,
     ) -> tuple[list[QuoteTarget], dict[str, Any]]:
         bid_tick, ask_tick, mid_ticks, skew_ticks = self._base_quote_inputs(book, inventory_qty)
+        width = Decimal(str(controls.spread_multiplier)) if controls is not None else Decimal("1")
+        if controls is not None:
+            skew_ticks *= Decimal(str(controls.skew_multiplier))
         volatility = self._volatility(book.symbol)
         spread_scale = Decimal("1") + (volatility * self.cfg.mm_volatility_spread_factor)
         combined_imbalance = self._combined_imbalance(book)
         toxicity_bps = abs(combined_imbalance) * self.cfg.mm_toxicity_spread_factor
         base_half_spread_bps = self.cfg.mm_half_spread_bps * spread_scale
         fee_floor_bps = self._fee_floor_half_spread_bps()
-        half_spread_bps = max(Decimal("0"), base_half_spread_bps + toxicity_bps, fee_floor_bps)
+        half_spread_bps = max(Decimal("0"), base_half_spread_bps + toxicity_bps, fee_floor_bps) * width
         half_spread_ticks = max(Decimal("1"), self._bps_to_ticks(book, half_spread_bps))
 
         threshold = self.cfg.mm_microstructure_gate_threshold
@@ -343,7 +360,7 @@ class MarketMakingStrategy:
         ask_near = self._tick_round(reservation_ticks + half_spread_ticks + ask_extra)
         outer_spread_ticks = max(
             half_spread_ticks + Decimal("1"),
-            self._bps_to_ticks(book, max(self.cfg.mm_layered_outer_spread_bps, half_spread_bps * Decimal("2"))),
+            self._bps_to_ticks(book, max(self.cfg.mm_layered_outer_spread_bps * width, half_spread_bps * Decimal("2"))),
         )
         diagnostics["outer_spread_ticks"] = self._format_decimal(outer_spread_ticks)
         bid_far = min(self._tick_round(reservation_ticks - outer_spread_ticks - bid_extra), bid_near - 1)
@@ -365,18 +382,39 @@ class MarketMakingStrategy:
             diagnostics,
         )
 
-    def propose(self, book: LocalOrderBook, inventory_qty: Decimal) -> StrategyDecision:
+    def propose(
+        self, book: LocalOrderBook, inventory_qty: Decimal, *, controls: RegimeControls | None = None
+    ) -> StrategyDecision:
+        if self.cfg.mm_strategy_profile == "hmm_regime_mm":
+            if not isinstance(controls, RegimeControls):
+                raise ValueError("hmm_regime_mm requires explicit immutable causal controls")
+        elif controls is not None:
+            raise ValueError("HMM controls must not alter an existing strategy profile")
         self._update_volatility(book)
         if book.best_ticks() is None:
             return StrategyDecision(reason="no_best_quotes")
 
         size_lots = max(1, self._size_lots(book))
-        if self.cfg.mm_strategy_profile == "research_mm":
-            quotes, diagnostics = self._research_quotes(book, inventory_qty, size_lots)
+        if controls is not None:
+            if controls.stand_aside:
+                return StrategyDecision(reason="hmm_stand_aside", diagnostics={"hmm_controls": controls.as_dict()})
+            # Lots only round down. A sub-lot reduction must suppress the quote,
+            # not get promoted back to the historical one-lot minimum.
+            size_lots = int(
+                (Decimal(size_lots) * Decimal(str(controls.size_multiplier))).to_integral_value(rounding=ROUND_FLOOR)
+            )
+            if size_lots == 0:
+                return StrategyDecision(
+                    reason="hmm_size_below_one_lot", diagnostics={"hmm_controls": controls.as_dict()}
+                )
+        if self.cfg.mm_strategy_profile in {"research_mm", "hmm_regime_mm"}:
+            quotes, diagnostics = self._research_quotes(book, inventory_qty, size_lots, controls=controls)
         elif self.cfg.mm_strategy_profile == "layered_mm":
             quotes, diagnostics = self._layered_quotes(book, inventory_qty, size_lots)
         else:
             quotes, diagnostics = self._baseline_quotes(book, inventory_qty, size_lots)
+        if controls is not None:
+            diagnostics["hmm_controls"] = controls.as_dict()
 
         if not quotes:
             return StrategyDecision(reason="crossing_quotes", diagnostics=diagnostics)

@@ -281,7 +281,7 @@ def streaming_output_paths(run_dir: Path) -> dict[str, Path]:
 
 @dataclass
 class StreamingSimulationExport:
-    """Own the three bounded audit sinks and the run completion sentinel."""
+    """Own bounded audit sinks and the run completion sentinel."""
 
     input_path: Path
     output_files: dict[str, Path]
@@ -291,6 +291,10 @@ class StreamingSimulationExport:
     markout_sink: StreamingCsvSink
     incomplete_path: Path
     _audit_finalized: bool = False
+    regime_sink: StreamingCsvSink | None = None
+    regime_execution_sink: StreamingCsvSink | None = None
+    regime_quote_sink: StreamingCsvSink | None = None
+    regime_risk_sink: StreamingCsvSink | None = None
 
     @classmethod
     def create(
@@ -335,6 +339,31 @@ class StreamingSimulationExport:
             sinks.append(fill_sink)
             markout_sink = StreamingCsvSink(output_files["markouts"], MARKOUT_AUDIT_FIELDS)
             sinks.append(markout_sink)
+            regime_sink = None
+            regime_execution_sink = None
+            regime_quote_sink = None
+            regime_risk_sink = None
+            if cfg.hmm is not None:
+                from ..regime.artifact import save_model
+                from ..regime.observation import TRACE_FIELDS
+                from ..regime.execution import EXECUTION_FIELDS
+                from ..regime.quotes import QUOTE_FIELDS
+                from ..regime.risk import RISK_FIELDS
+
+                output_files["hmm_model"] = run_dir / "hmm_model.json"
+                output_files["regime_trace"] = run_dir / "regime_trace.csv"
+                output_files["regime_execution"] = run_dir / "regime_execution.csv"
+                output_files["regime_quotes"] = run_dir / "regime_quotes.csv"
+                output_files["regime_risk"] = run_dir / "regime_risk.csv"
+                save_model(output_files["hmm_model"], cfg.hmm.model)
+                regime_sink = StreamingCsvSink(output_files["regime_trace"], TRACE_FIELDS)
+                sinks.append(regime_sink)
+                regime_execution_sink = StreamingCsvSink(output_files["regime_execution"], EXECUTION_FIELDS)
+                sinks.append(regime_execution_sink)
+                regime_quote_sink = StreamingCsvSink(output_files["regime_quotes"], QUOTE_FIELDS)
+                sinks.append(regime_quote_sink)
+                regime_risk_sink = StreamingCsvSink(output_files["regime_risk"], RISK_FIELDS)
+                sinks.append(regime_risk_sink)
         except Exception:
             for sink in sinks:
                 sink.abort()
@@ -348,6 +377,10 @@ class StreamingSimulationExport:
             fill_sink=fill_sink,
             markout_sink=markout_sink,
             incomplete_path=incomplete_path,
+            regime_sink=regime_sink,
+            regime_execution_sink=regime_execution_sink,
+            regime_quote_sink=regime_quote_sink,
+            regime_risk_sink=regime_risk_sink,
         )
 
     @property
@@ -355,8 +388,13 @@ class StreamingSimulationExport:
         return self.incomplete_path.parent
 
     @property
-    def audit_sinks(self) -> tuple[StreamingCsvSink, StreamingCsvSink, StreamingCsvSink]:
-        return (self.event_sink, self.fill_sink, self.markout_sink)
+    def audit_sinks(self) -> tuple[StreamingCsvSink, ...]:
+        ordinary = (self.event_sink, self.fill_sink, self.markout_sink)
+        return ordinary + tuple(
+            sink
+            for sink in (self.regime_sink, self.regime_execution_sink, self.regime_quote_sink, self.regime_risk_sink)
+            if sink is not None
+        )
 
     def __enter__(self) -> "StreamingSimulationExport":
         return self

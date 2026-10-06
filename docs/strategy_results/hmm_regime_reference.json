@@ -1,0 +1,452 @@
+{
+  "schema_version": "lob_sim.hmm_real_data_diagnostic.v1",
+  "status": "incomplete_no_eligible_real_study",
+  "claim_ready": false,
+  "source_package": {
+    "algorithm": "sha256",
+    "file_count": 79,
+    "schema_version": "lob_sim.checkpoint_code_identity.v1",
+    "sha256": "ae66f0de3e0cecf481fb44cccdc51208f5102701b91a0be5cae446b0c5d1f9fc"
+  },
+  "report_sha256": "545434d5746c0f27f227cc4d67ba6b94c82860d8db68230b236770f14304793b",
+  "registry_sha256": "95909fa5473c4c98be9673250c970e502e5efc6775ea3a005e594866b2bae965",
+  "registered_variants": {
+    "baseline": "6a916c9c7356acaf",
+    "cadence_250ms": "4dab084ca0a496fc",
+    "hard_active": "e1476c708859b806",
+    "observe": "0e4f11d3951f2c2f",
+    "policy": "2b7bd44c3a654f5f"
+  },
+  "failures": [
+    {
+      "error": "at least three distinct UTC days are required",
+      "error_type": "ValueError",
+      "stage": "fit",
+      "variant": "primary"
+    },
+    {
+      "error": "at least three distinct UTC days are required",
+      "error_type": "ValueError",
+      "stage": "fit",
+      "variant": "cadence_250ms"
+    }
+  ],
+  "interpretation": "No real model fitted and no real test scoring or policy-benefit comparison published. Only two dates have admissible features.",
+  "collection_censuses": {
+    "primary": {
+      "collection_sha256": "4909dcb8bef0c5ac61b781ccdbf835a93d986db93ae09951fab3c58a1649a5f9",
+      "sample_count": 267,
+      "sources": [
+        {
+          "input_sha256": "3cd7b6211c3ba251e80c28a60cf92e217a5c81c46507524c272d8d5e8251a7d9",
+          "dataset_sha256": "60bec00254dbaeb34ffa9687ab7ff870708e46ab9930e30953098470aa2fd79f",
+          "day_files": [
+            {
+              "file_sha256": "3554e156c5c2988a2e83daa3d8f512b34e715e2795167b985a64975759760cbd",
+              "path": "2026-02-26.jsonl",
+              "rows": 23,
+              "status_counts": {
+                "INVALID_BOOK": 5,
+                "INVALID_CLOCK": 18
+              },
+              "utc_day": "2026-02-26"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772138835932655600,
+              "first_wall_ns": 1772138835932655600,
+              "last_logical_ns": 1772138858131000000,
+              "last_wall_ns": 1772138858131000000,
+              "observations": 816,
+              "utc_day": "2026-02-26",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "95b2f641fc78ef870d2113efa8a39454b1ce5d3704cb7ac74da3b057771873b7",
+          "dataset_sha256": "bba04b815c1226853d87a570be1ba305265a335e347f77cdd39776609ae21b7a",
+          "day_files": [
+            {
+              "file_sha256": "561ed70aa625cbeb296f6aae6a51aa2cd69c6d1bc59750b1b16b216b3fbf40b7",
+              "path": "2026-03-04.jsonl",
+              "rows": 30,
+              "status_counts": {
+                "INVALID_BOOK": 2,
+                "INVALID_CLOCK": 28
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772633364447308500,
+              "first_wall_ns": 1772633364447308500,
+              "last_logical_ns": 1772633394535000000,
+              "last_wall_ns": 1772633394535000000,
+              "observations": 1028,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8",
+          "dataset_sha256": "a914df470e15cebff6ad3dd2f9e3e6b78d71a70d9c52ba520520a848ca2cf517",
+          "day_files": [
+            {
+              "file_sha256": "9f2b7f3a619a47f8a9d6571e6f76c928cfcaa3ae1b0cb2575223c8356c099a16",
+              "path": "2026-03-04.jsonl",
+              "rows": 30,
+              "status_counts": {
+                "INVALID_BOOK": 2,
+                "INVALID_CLOCK": 28
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772633472397899800,
+              "first_wall_ns": 1772633472397899800,
+              "last_logical_ns": 1772633502485000000,
+              "last_wall_ns": 1772633502485000000,
+              "observations": 1997,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "82d15a6972e0e58ad49dbc37d3cc2a00345aac16ce848ccbfd00db7ee08610cb",
+          "dataset_sha256": "078e4743c1092b74b7d9a32332a547a4d8f9d2d36aefa6adb4416cf8e8022630",
+          "day_files": [
+            {
+              "file_sha256": "e69a902fddb3f5f27fe1b384c4d91dc593e6db8aa842ac566d42225c1d36ddb6",
+              "path": "2026-03-04.jsonl",
+              "rows": 30,
+              "status_counts": {
+                "INVALID_BOOK": 2,
+                "INVALID_CLOCK": 28
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772634538227740700,
+              "first_wall_ns": 1772634538227740700,
+              "last_logical_ns": 1772634568359000000,
+              "last_wall_ns": 1772634568359000000,
+              "observations": 1534,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "cccd50b3eda564c4e8606189e6f7778ac3ce25310285ceb85eecf400cc4d51a4",
+          "dataset_sha256": "29009ae09f15030d023231f02dbed478a5f5ebdf3fb4378fabbcdce1c841bb56",
+          "day_files": [
+            {
+              "file_sha256": "0c6c079e20ac9d2a4740dbd8ac508e5bd2178dfd1411a074b425e66c5a289ebc",
+              "path": "2026-09-30.jsonl",
+              "rows": 24,
+              "status_counts": {
+                "INVALID_BOOK": 2,
+                "STALE": 4,
+                "VALID": 8,
+                "WARMING_UP": 10
+              },
+              "utc_day": "2026-09-30"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "receive_nanoseconds",
+              "first_logical_ns": 34612424218000,
+              "first_wall_ns": 1790790653812158700,
+              "last_logical_ns": 34636497561200,
+              "last_wall_ns": 1790790677885656800,
+              "observations": 595,
+              "utc_day": "2026-09-30",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "a60ded6cea347f0396fe01a4a423f1a31f60bd7c3ab4be8c2f4b976ba8b5a7aa",
+          "dataset_sha256": "0a740649786333a20c8e3579feee11a32771b555896b55db74fc7136725231ab",
+          "day_files": [
+            {
+              "file_sha256": "530851564c9f497df55e7e9569a156bfc67db6fec86fc9123c770a7ab09dfbef",
+              "path": "2026-10-05.jsonl",
+              "rows": 130,
+              "status_counts": {
+                "INVALID_BOOK": 2,
+                "STALE": 6,
+                "VALID": 112,
+                "WARMING_UP": 10
+              },
+              "utc_day": "2026-10-05"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "receive_nanoseconds",
+              "first_logical_ns": 113335047878000,
+              "first_wall_ns": 1791203093430282000,
+              "last_logical_ns": 113465064743300,
+              "last_wall_ns": 1791203223447256000,
+              "observations": 2363,
+              "utc_day": "2026-10-05",
+              "wall_offset_ns": null
+            }
+          ]
+        }
+      ]
+    },
+    "cadence_250ms": {
+      "collection_sha256": "cfd11dbb8a38984678a5b5f1b35b02cbdbbb1842e669136313f507fa7f980e7d",
+      "sample_count": 1067,
+      "sources": [
+        {
+          "input_sha256": "3cd7b6211c3ba251e80c28a60cf92e217a5c81c46507524c272d8d5e8251a7d9",
+          "dataset_sha256": "c8b841a30d091bad454c99407b106e3e137ea2ff547f1b2d7aaa81b0600dc98e",
+          "day_files": [
+            {
+              "file_sha256": "753c5b0427a1c5b4479cbab72b2e4f024af8e267a0b0ff4272e382bddffe421c",
+              "path": "2026-02-26.jsonl",
+              "rows": 89,
+              "status_counts": {
+                "INVALID_BOOK": 18,
+                "INVALID_CLOCK": 71
+              },
+              "utc_day": "2026-02-26"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772138835932655600,
+              "first_wall_ns": 1772138835932655600,
+              "last_logical_ns": 1772138858131000000,
+              "last_wall_ns": 1772138858131000000,
+              "observations": 816,
+              "utc_day": "2026-02-26",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "95b2f641fc78ef870d2113efa8a39454b1ce5d3704cb7ac74da3b057771873b7",
+          "dataset_sha256": "7c11de5b2312a85164e678afeba50edf8ed8a90b3ddb5dcde38a0718ee49c7e7",
+          "day_files": [
+            {
+              "file_sha256": "089c65aa855095a5a591bc1cf9ae2574896c539ac3bde82bed4d6dc6b4292d5f",
+              "path": "2026-03-04.jsonl",
+              "rows": 121,
+              "status_counts": {
+                "INVALID_BOOK": 8,
+                "INVALID_CLOCK": 113
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772633364447308500,
+              "first_wall_ns": 1772633364447308500,
+              "last_logical_ns": 1772633394535000000,
+              "last_wall_ns": 1772633394535000000,
+              "observations": 1028,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "520e65919c86c552162028c52da92b642018daf69b4bdb8ca8a9d1626eecb5c8",
+          "dataset_sha256": "ce8c9add424f8b85d35da919aea4cedd16bbf75d6a98bb98862ef8818f84f597",
+          "day_files": [
+            {
+              "file_sha256": "8e44edfc81e0c2fcfb0e57a85599acf37b9985ee40365248b5e62f695c9ee2ee",
+              "path": "2026-03-04.jsonl",
+              "rows": 120,
+              "status_counts": {
+                "INVALID_BOOK": 7,
+                "INVALID_CLOCK": 113
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772633472397899800,
+              "first_wall_ns": 1772633472397899800,
+              "last_logical_ns": 1772633502485000000,
+              "last_wall_ns": 1772633502485000000,
+              "observations": 1997,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "82d15a6972e0e58ad49dbc37d3cc2a00345aac16ce848ccbfd00db7ee08610cb",
+          "dataset_sha256": "664813e8429f4465104977705dab91dc0d7c08d67fea0f77bee991581314fe4f",
+          "day_files": [
+            {
+              "file_sha256": "39471d6e8463569058585da1324dc9f397a643c7c1c58f954f8e8aa5170f7bd0",
+              "path": "2026-03-04.jsonl",
+              "rows": 121,
+              "status_counts": {
+                "INVALID_BOOK": 9,
+                "INVALID_CLOCK": 112
+              },
+              "utc_day": "2026-03-04"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "legacy_compatibility_nanoseconds",
+              "first_logical_ns": 1772634538227740700,
+              "first_wall_ns": 1772634538227740700,
+              "last_logical_ns": 1772634568359000000,
+              "last_wall_ns": 1772634568359000000,
+              "observations": 1534,
+              "utc_day": "2026-03-04",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "cccd50b3eda564c4e8606189e6f7778ac3ce25310285ceb85eecf400cc4d51a4",
+          "dataset_sha256": "1f7d72340e2c14692ecf7d88eb8b27013268ff11807470024546c2db6dc8eb09",
+          "day_files": [
+            {
+              "file_sha256": "728ffbdd2250609472d7665ea97ffee62138899928cfe8f38cfdd07d9e4a9f40",
+              "path": "2026-09-30.jsonl",
+              "rows": 96,
+              "status_counts": {
+                "INVALID_BOOK": 10,
+                "STALE": 16,
+                "VALID": 30,
+                "WARMING_UP": 40
+              },
+              "utc_day": "2026-09-30"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "receive_nanoseconds",
+              "first_logical_ns": 34612424218000,
+              "first_wall_ns": 1790790653812158700,
+              "last_logical_ns": 34636497561200,
+              "last_wall_ns": 1790790677885656800,
+              "observations": 595,
+              "utc_day": "2026-09-30",
+              "wall_offset_ns": null
+            }
+          ]
+        },
+        {
+          "input_sha256": "a60ded6cea347f0396fe01a4a423f1a31f60bd7c3ab4be8c2f4b976ba8b5a7aa",
+          "dataset_sha256": "cbbeb57bc6f787fd6c0200b22675b154ba57745cd4c4f0f6d7321568feff9dba",
+          "day_files": [
+            {
+              "file_sha256": "0dc87df9cead0fef27d20c83cf7e8586635116d89bc01dfcf3363f3f98d512d1",
+              "path": "2026-10-05.jsonl",
+              "rows": 520,
+              "status_counts": {
+                "INVALID_BOOK": 8,
+                "STALE": 21,
+                "VALID": 451,
+                "WARMING_UP": 40
+              },
+              "utc_day": "2026-10-05"
+            }
+          ],
+          "wall_spans": [
+            {
+              "clock_basis": "receive_nanoseconds",
+              "first_logical_ns": 113335047878000,
+              "first_wall_ns": 1791203093430282000,
+              "last_logical_ns": 113465064743300,
+              "last_wall_ns": 1791203223447256000,
+              "observations": 2363,
+              "utc_day": "2026-10-05",
+              "wall_offset_ns": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "fresh_capture": {
+    "manifest_file_sha256": "a60ded6cea347f0396fe01a4a423f1a31f60bd7c3ab4be8c2f4b976ba8b5a7aa",
+    "capture_id": "capture_1791203092_f912172cf0594437a728d2eb9160d85e",
+    "capture_runtime": {
+      "writer": {
+        "aborted": false,
+        "complete": true,
+        "failure_type": null,
+        "max_writer_lag_ms": 27.701,
+        "outstanding_high_water": 7,
+        "overflow_count": 0,
+        "queue_capacity": 65536,
+        "queue_high_water": 7,
+        "records_enqueued": 2364,
+        "records_pending": 0,
+        "records_written": 2364
+      }
+    },
+    "capture_schema_version": "lob_sim.record.v3",
+    "compression": "zstd",
+    "event_count": 2364,
+    "first_recv_seq": 1,
+    "last_recv_seq": 2364,
+    "manifest_sha256": "323ac05fc4c1990eca402c2426295cf4c1999dec8db3aba700712f8b0e1f78af",
+    "schema_version": "lob_sim.capture_manifest.v1",
+    "segment_count": 1,
+    "segments": [
+      {
+        "content_sha256": "0f6aeae415bafe3649fef2bbee55811fc5e78bb6a00f4d0af5c95a05785df6ea",
+        "count": 2364,
+        "file_sha256": "514d464398c4ce2d1951a542c62be71681815935bdf68744921658ca11a0ce0a",
+        "first_recv_seq": 1,
+        "last_recv_seq": 2364,
+        "path": "capture_1791203092_f912172cf0594437a728d2eb9160d85e_000000.ndjson.zst",
+        "segment_index": 0,
+        "size_bytes": 750136
+      }
+    ]
+  },
+  "capture_validation": {
+    "structurally_valid": true,
+    "receipt_integrity_ok": true,
+    "capture_invalidation_event_count": 0,
+    "receive_sequence_gaps": 0,
+    "receive_sequence_regressions": 0,
+    "monotonic_regressions": 0,
+    "trailer_seen": true,
+    "record_count": 2364,
+    "scope": "schema_and_capture_receipt;not_book_joint_valid_coverage_or_24h_soak"
+  },
+  "reproduction": "python experiments/run_hmm_regime_study.py --input data/raw_1772138833.ndjson.gz --input data/raw_1772633364.ndjson --input data/raw_1772633471.ndjson --input data/raw_1772634537.ndjson --input outputs/capture_smoke/capture_1790790653_77e27ff6a3f6410d84c5d5376b9016cd.manifest.json --input outputs/hmm_public_capture_20261005/capture_1791203092_f912172cf0594437a728d2eb9160d85e.manifest.json --out-dir outputs/new_real_diagnostic --requote-ms 500 --restarts 10 --max-iterations 300 --bootstrap-replicates 2000",
+  "data_availability": "Raw captures stay external/local; hashes and integrity metadata are committed. Fixture integration tests reproduce the executable comparison path without these raw files.",
+  "limitations": [
+    "Not ten joint-valid complete days",
+    "Not real-market model selection or test PnL",
+    "No bootstrap interval inferred from short/invalid clips",
+    "Fresh receipt validation is not economic validity or soak evidence",
+    "Source tree was uncommitted during diagnostic; package SHA binds actual code bytes"
+  ]
+}

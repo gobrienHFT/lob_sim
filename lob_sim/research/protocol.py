@@ -247,27 +247,44 @@ def moving_block_bootstrap_mean(
     replicates: int = 2_000,
     confidence: float = 0.95,
     seed: int = 1,
+    lengths: Sequence[int] | None = None,
 ) -> BootstrapInterval:
-    """Return a deterministic percentile interval using overlapping blocks."""
+    """Percentile mean interval; optional independent contiguous strata.
+
+    ``block_size`` counts observations, NOT minutes. With ``lengths``, each
+    contiguous sequence is resampled independently at its original weight;
+    no block crosses a day/source/invalidity boundary. Every sequence must
+    accommodate the requested block. Legacy calls retain their exact RNG path.
+    """
 
     observations = _finite_values(values)
-    if block_size <= 0 or block_size > len(observations):
+    if type(block_size) is not int or block_size <= 0 or block_size > len(observations):
         raise ValueError("block_size must be between 1 and the observation count")
-    if replicates <= 0:
+    if type(replicates) is not int or replicates <= 0:
         raise ValueError("replicates must be positive")
     if not 0 < confidence < 1 or not math.isfinite(confidence):
         raise ValueError("confidence must be finite and between 0 and 1")
 
     rng = _SplitMix64(seed)
-    max_start = len(observations) - block_size + 1
+    spans: tuple[int, ...]
+    if lengths is None:
+        spans = (len(observations),)
+    else:
+        spans = tuple(lengths)
+        if not spans or any(type(n) is not int or n < block_size for n in spans) or sum(spans) != len(observations):
+            raise ValueError("sequence lengths must conserve observations and each accommodate block_size")
     bootstrap_means: list[float] = []
-    block_count = math.ceil(len(observations) / block_size)
     for _ in range(replicates):
         sample: list[float] = []
-        for _ in range(block_count):
-            start = rng.randbelow(max_start)
-            sample.extend(observations[start : start + block_size])
-        bootstrap_means.append(sum(sample[: len(observations)]) / len(observations))
+        offset = 0
+        for length in spans:
+            segment: list[float] = []
+            for _ in range(math.ceil(length / block_size)):
+                start = offset + rng.randbelow(length - block_size + 1)
+                segment.extend(observations[start : start + block_size])
+            sample.extend(segment[:length])
+            offset += length
+        bootstrap_means.append(sum(sample) / len(observations))
 
     bootstrap_means.sort()
     tail = (1.0 - confidence) / 2.0
@@ -280,6 +297,7 @@ def moving_block_bootstrap_mean(
         replicates=replicates,
         sample_count=len(observations),
         seed=int(seed),
+        algorithm="splitmix64_moving_blocks_v1" if lengths is None else "splitmix64_stratified_moving_blocks_v1",
     )
 
 
@@ -291,16 +309,143 @@ def paired_moving_block_bootstrap_mean_delta(
     replicates: int = 2_000,
     confidence: float = 0.95,
     seed: int = 1,
+    lengths: Sequence[int] | None = None,
 ) -> BootstrapInterval:
     """Bootstrap paired ``left - right`` observations on identical events."""
 
     if len(left) != len(right):
         raise ValueError("paired bootstrap inputs must have equal length")
-    deltas = [float(a) - float(b) for a, b in zip(left, right)]
+    left_values, right_values = _finite_values(left), _finite_values(right)
+    deltas = [a - b for a, b in zip(left_values, right_values)]
     return moving_block_bootstrap_mean(
         deltas,
         block_size=block_size,
         replicates=replicates,
         confidence=confidence,
         seed=seed,
+        lengths=lengths,
     )
+
+
+def paired_moving_block_bootstrap_ratio_delta(
+    left_numerators: Sequence[float | int],
+    left_denominators: Sequence[float | int],
+    right_numerators: Sequence[float | int],
+    right_denominators: Sequence[float | int],
+    *,
+    block_size: int,
+    replicates: int = 2_000,
+    confidence: float = 0.95,
+    seed: int = 7,
+    lengths: Sequence[int] | None = None,
+) -> dict[str, Any]:
+    """Paired ratio-of-sums, not a mean of period ratios or iid fills.
+
+    All four components use the same sampled block indices. Zero-activity
+    periods stay in the clock sequence. A replicate with a zero denominator
+    is counted, never discarded/redrawn: any such replicate makes the interval
+    unavailable. Independent strata retain their original number of periods.
+    """
+    for values in (left_numerators, left_denominators, right_numerators, right_denominators):
+        if any(type(value) not in (int, float) for value in values):
+            raise TypeError("ratio components must be numeric, not bool or coercible strings")
+    components = tuple(
+        _finite_values(values) for values in (left_numerators, left_denominators, right_numerators, right_denominators)
+    )
+    count = len(components[0])
+    if any(len(values) != count for values in components):
+        raise ValueError("paired ratio components must have equal length")
+    if type(block_size) is not int or not 1 <= block_size <= count:
+        raise ValueError("block_size must be between 1 and the observation count")
+    if type(replicates) is not int or replicates < 1:
+        raise ValueError("replicates must be positive")
+    if type(seed) is not int or seed < 0:
+        raise ValueError("seed must be a nonnegative integer")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (float, int))
+        or not math.isfinite(confidence)
+        or not 0 < confidence < 1
+    ):
+        raise ValueError("confidence must be finite and between 0 and 1")
+    spans = (count,) if lengths is None else tuple(lengths)
+    if not spans or any(type(n) is not int or n < block_size for n in spans) or sum(spans) != count:
+        raise ValueError("sequence lengths must conserve observations and each accommodate block_size")
+    for nums, dens in ((components[0], components[1]), (components[2], components[3])):
+        if any(d < 0 or (d == 0 and n != 0) for n, d in zip(nums, dens)):
+            raise ValueError("ratio denominators must be nonnegative; zero denominator requires zero numerator")
+
+    def totals(indices: Sequence[int] | range) -> tuple[float, float, float, float]:
+        result = tuple(math.fsum(values[i] for i in indices) for values in components)
+        if not all(math.isfinite(value) for value in result):
+            raise ValueError("ratio component totals must remain finite")
+        return result[0], result[1], result[2], result[3]
+
+    ln, ld, rn, rd = totals(range(count))
+    estimate = ln / ld - rn / rd if ld and rd else None
+    deltas: list[float] = []
+    undefined = 0
+    if estimate is not None:
+        rng = _SplitMix64(seed)
+        for _ in range(replicates):
+            indices: list[int] = []
+            offset = 0
+            for length in spans:
+                segment: list[int] = []
+                for _ in range(math.ceil(length / block_size)):
+                    start = offset + rng.randbelow(length - block_size + 1)
+                    segment.extend(range(start, start + block_size))
+                indices.extend(segment[:length])
+                offset += length
+            sn, sd, tn, td = totals(indices)
+            if not sd or not td:
+                undefined += 1
+            else:
+                delta = sn / sd - tn / td
+                if not math.isfinite(delta):
+                    raise ValueError("bootstrap ratio delta must remain finite")
+                deltas.append(delta)
+    if estimate is not None and not math.isfinite(estimate):
+        raise ValueError("ratio delta must remain finite")
+    interval = None
+    reason = None
+    if estimate is None:
+        reason = "at least one strategy has zero aggregate denominator"
+    elif undefined:
+        reason = "zero denominator in a paired bootstrap replicate; no conditional discard or redraw"
+    else:
+        deltas.sort()
+        tail = (1 - confidence) / 2
+        interval = BootstrapInterval(
+            estimate=estimate,
+            lower=_linear_quantile(deltas, tail),
+            upper=_linear_quantile(deltas, 1 - tail),
+            confidence=confidence,
+            block_size=block_size,
+            replicates=replicates,
+            sample_count=count,
+            seed=seed,
+            algorithm="splitmix64_stratified_paired_ratio_of_sums_v1",
+        ).as_dict()
+    return {
+        "schema_version": "lob_sim.paired_ratio_bootstrap.v1",
+        "estimand": "sum(left_numerator)/sum(left_denominator)-sum(right_numerator)/sum(right_denominator)",
+        "estimate": estimate,
+        "left_numerator_sum": ln,
+        "left_denominator_sum": ld,
+        "right_numerator_sum": rn,
+        "right_denominator_sum": rd,
+        "interval": interval,
+        "unavailable_reason": reason,
+        "undefined_replicates": undefined,
+        "evaluated_replicates": replicates if estimate is not None else 0,
+        "zero_activity_periods": {
+            "left": sum(d == 0 for d in components[1]),
+            "right": sum(d == 0 for d in components[3]),
+        },
+        "sequence_lengths": list(spans),
+        "block_size": block_size,
+        "replicates": replicates,
+        "confidence": confidence,
+        "seed": seed,
+    }

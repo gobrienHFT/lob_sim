@@ -38,12 +38,17 @@ MYPY_TARGETS = (
     "lob_sim/sim/run_manifest.py",
     "lob_sim/sim/mm_strategy.py",
     "lob_sim/sim/contracts.py",
+    "lob_sim/sim/observation.py",
     "lob_sim/sim/latency.py",
     "lob_sim/sim/sinks.py",
     "lob_sim/sim/synthetic_exchange.py",
     "lob_sim/sim/synthetic_demo.py",
     "lob_sim/audit",
     "lob_sim/research",
+    "lob_sim/regime",
+    "experiments/benchmark_hmm_overhead.py",
+    "experiments/run_hmm_regime_study.py",
+    "experiments/run_hmm_synthetic_recovery.py",
     "scripts/core_regression_probe.py",
 )
 

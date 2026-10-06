@@ -63,6 +63,193 @@ There is no defensible single “percent finished” for these independent gates
 A green fixture suite is not soak evidence, a throughput target is not a
 measurement, and synthetic FIFO is not historical Binance FIFO.
 
+## Causal regime research in progress
+
+Core correctness and HMM integration now have separate review boundaries:
+[core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99) fixes receipt-clock
+timers, missing-unit/orphan-order reservations and record/checkpoint boundaries;
+[HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98) sits on that repaired
+baseline. Review the core first. The core-only branch passes all 15 local gate
+steps (657 Python / 16 Rust tests) at clean `b9519d1`, and all eight hosted
+Linux/Windows jobs. The independent core reference contains 112 cases and 648
+checkpoint/resume comparisons. HMM-off must match that reference without dropping
+clock, risk or economic fields; source identities remain distinct. See the
+[core contract](core_repairs.md). Clean merged HMM source `8cf44fc` passes its
+own complete 15-step local gate (1,668 Python / 16 Rust tests), and all 112 cases /
+648 checkpoint-resume comparisons match the independent reference. A separate
+standard-library check confirms exact saved-JSON behavior. The
+[native evidence projection](regression_results/hmm_core_separation_review.json)
+preserves source and file identities; later publication CI is separate. There
+is no disabled-mode exception for the HMM integration.
+
+The [post-cache public measurement](benchmark_results/hmm_snapshot_public_reference.md)
+is complete at clean `676ec15`: 102 fresh-engine replays, accepted policy quotes,
+all thirty raw timing samples per mode and exact cross-report configuration/probe
+identity. Descriptive observation overhead is 80.65%, policy 67.13%. Absolute
+times are over three times slower than the earlier uncontrolled run; this does
+not establish a causal speedup or dedicated-host regression. Earlier evidence
+and source identities are preserved, not rewritten.
+
+The registered comparison now has a self-contained `--synthetic-demo` workflow.
+It uses independent generated UTC snippets, not altered exchange captures, and
+reuses the standard five-variant fitter, registry, native replay and audits.
+Generator early termination, raw-writer fsync and manifest failures leave visible
+incomplete evidence. The reviewer type gate also covers all three HMM experiment
+entrypoints. None of this closes the real-data/soak/full-Rust evidence gaps above.
+The historical test counts below describe their named sources; verification of
+new changes must come from their own reviewer reports and CI.
+
+The [active public-capture cost benchmark](benchmark_results/hmm_active_public_reference.md)
+now completes three warmups, thirty measured runs and a separate memory run per
+mode. It ships unchanged inputs and records accepted resting quotes, native
+lifecycle counts, observer parity and all raw timings at clean `8c2a004`.
+Observation overhead is 87.90% on this short workload; policy changes the work
+performed. Its immediate-fill arrivals do not prove passive queue-fill quality.
+The synthetic-trained model is not real-market calibration. Broader performance,
+profiling and eligible registered economic evaluation remain unfinished.
+
+That source passes all eight Linux/Windows CI jobs: 1490 Python and 16 Rust
+tests. Downloaded exact-head reports verify all 15 Linux gate steps and all 14
+Windows steps (only the fixture benchmark skipped). Four separate publication
+checks independently verify report/data hashes, shared configuration, balanced
+order, native activity and raw timing/ratio calculations. Historical milestone
+counts below describe their named revisions, not this latest source.
+
+The optional regime audit now also measures time-weighted signed/absolute
+inventory, population inventory variance, held-inventory maxima, live/pending
+lots, marked inventory/reserved notional and halted duration by raw and active
+state. It uses exact integer interval statistics and actual signal availability,
+not sample-count fractions. Stale marks and unavailable regimes have separate
+coverage; there is no retroactive labeling or schema-v3 EOF extrapolation.
+These remain descriptive single-symbol statistics, not drawdown contribution,
+funding, economic benefit or a held-out strategy result.
+
+Completed HMM bundles also reconstruct exact single-symbol cash, turnover,
+fees/rebates and fresh-mark equity from serialized trade/execution/risk parents.
+Inventory reconciles at each boundary; other-symbol global PnL cannot leak into
+the selected symbol. Missing marks keep open-position PnL null, gap returns are
+unattributed, and observed drawdown retains earlier peaks without claiming a
+continuous path or additive state contributions. This bounded analysis consumer
+does not change matching or core accounting. The two-symbol proof also exposed
+and repaired a schema-v3 global-timer ordering bug, with HMM-disabled and
+checkpoint regressions. Legacy golden behavior is preserved.
+
+The clean economic-audit source commit `b0becc8` passes all 15 reviewer-gate
+steps: 1192 Python tests, 16 Rust tests, typing/lint/format, primitive
+differential checks, artifacts, faults, installed wheel and fixture benchmark.
+The generated report is `outputs/hmm_gate_economics_20261005_verified.json`
+(779.82 s). These are correctness and installation checks, not representative
+HMM overhead, soak reliability, private fill truth or held-out policy benefit.
+
+An optional HMM foundation now provides twelve fixed-grid microstructure
+features, bounded trailing windows, train-only clipping/scaling, immutable
+diagonal Gaussian parameters, a custom log-space forward filter, confidence/
+entropy and hysteresis, and checksummed no-clobber JSON model artifacts.
+Independent latent-path enumeration tests distinguish filtering from smoothing;
+prefix-mutation tests check that future observations cannot rewrite earlier
+features or inference. The pre-HMM summary/trace behavioral hashes are frozen.
+
+Validated raw-tape extraction now uses read-only observations from the existing
+engine and writes checksummed, no-clobber UTC-day feature files. Calibration and
+validation readers do not open test row files. The optional fitter supports
+K=2..5, seeded restarts, failure ledgers, train-only preprocessing, explicit
+convergence/numerical gates, validation/BIC selection and training-only canonical
+state signatures. `regime-features`, `regime-fit` and `regime-inspect` are available.
+Synthetic numeric fitting tests are not representative exchange/economic evidence.
+
+Observation-only inference now runs through the authoritative simulation clock
+without changing the paired strategy's actions, fills, queue model or accounting.
+It streams samples and immediate feed invalidations, exposes decision diagnostics,
+and includes the frozen model in a verified audit bundle. Bounded feature/filter/
+hysteresis checkpoints resume identically through market, control and outage
+boundaries. Disabled configurations retain their pre-HMM behavioral hashes.
+
+Execution audits now freeze distinct decision, arrival and pre-fill information
+sets, preserve them through all configured markout horizons, and report
+state-conditioned quantities, fees, quote age, signed markouts, coverage and
+decision-to-fill transitions. Live contexts and pending horizon metadata are
+bounded, and checkpoint loading cross-checks the audit against core execution
+state. The paired base fill/markout CSVs and accounting remain unchanged.
+
+The opt-in `hmm_regime_mm` profile now composes the research baseline with six
+explicit conservative controls: width, lot-floored size, soft desired inventory,
+skew strength, maximum quote age and stand-aside behavior. Training-relative
+risk and a nonnegative entropy penalty drive bounded multipliers. Live and
+outbound reservations remain binding; pending cancels cannot free capacity
+before acknowledgement. Hard position/notional, validity, post-only and kill
+checks remain authoritative. Policy constraints travel with each sent intent;
+later model information affects later decisions, not earlier order arrivals.
+
+State summaries now separate raw MAP and active hysteretic labels, conditional
+market-feature/confidence/entropy moments, and complete versus censored label
+episodes. `regime-report` independently reduces a completed regime CSV before
+printing those diagnostics. Candidate inspection includes every valid K's
+likelihood, convergence, occupancy, transition and duration diagnostics.
+Sample-grid fractions are not wall-clock validity coverage or fill rates.
+
+Quote cohorts now distinguish scheduled, arrived, accepted, rejected and
+discarded requests from unique filled orders and partial-fill events. Original
+decision/arrival labels, explicit denominators and cutoff censoring remain
+visible in the bounded lifecycle stream and `regime-report`; collector
+checkpoints are cross-checked against actual orders and pending requests.
+These fractions are descriptive scenario outcomes, not live fill probabilities.
+The clean quote-cohort milestone at `218027e` passes all 15 reviewer-gate steps:
+1,019 Python tests, 16 Rust tests, typing/lint/format, primitive differential,
+artifact/determinism/fault checks, installed-wheel verification and fixture
+benchmark. It adds 48 regression cases; this is not representative HMM overhead
+or a dedicated-host performance result.
+
+Fill-source/queue characterization now separates depth-inferred, trade-driven,
+taker and unavailable/other fill populations under every frozen regime phase.
+Missing queue fields have explicit coverage rather than assumed zeros. The
+streamed verifier checks all execution sufficient statistics and fill/horizon
+identities, while checkpoint loading checks source totals and pending horizons
+against core state. This adds no new execution or profitability claim.
+The source/queue milestone at `57f9eba` adds 53 regression cases and passes the
+complete clean 15-step reviewer gate: 1,072 Python tests, 16 Rust tests, standard
+typing/lint/format, primitive differential, artifact/determinism/fault checks,
+installed-wheel demo and the HMM-disabled fixture benchmark. Full-package Mypy
+also passes across 71 source files. Representative HMM overhead is still unmeasured.
+
+The time-weighted inventory/reservation milestone at `3b2fea1` adds 58 regression
+cases and passes the complete clean 15-step reviewer gate: 1,130 Python tests,
+16 Rust tests, gate typing across 58 files, full-package typing across 72 files,
+Ruff/format across 165 files, and the existing correctness/artifact/install/
+fixture checks. It does not establish representative HMM overhead.
+
+Known-regime synthetic raw-tape recovery now runs through the authoritative
+book/feature path and actual forward-filter/hysteresis implementation. Labels
+never enter fitting or emissions; training-only alignment, native ARI, mapped
+confusion, sequence-separated transitions, censored duration and confirmation
+availability lag expose mistakes rather than assuming perfect recovery. A frozen
+registry precedes extraction and evaluation. The UTC snippets are diagnostic,
+not certified full valid days, Binance calibration or policy/economic evidence.
+The [recorded reference](strategy_results/hmm_synthetic_recovery_reference.md)
+shows selected K=5, native test ARI 0.4672 and 84.47% active accuracy rather than
+claiming perfect recovery. The 47 new regressions and all 15 reviewer-gate steps
+pass at source commit `60b0696`: 1239 Python/16 Rust tests, gate typing across
+61 files, full-package typing across 75 files and formatting across 172 files.
+The 708.83 s report records documentation-only dirt during the run, not a clean
+tree. Package source stayed unchanged; repeated default diagnostic artifacts
+are byte-identical. No representative overhead improvement is claimed.
+
+The registered study now also freezes and exports common-clock execution
+sufficient statistics: signed markouts, adverse fractions, observed lag,
+pending-cancel fills, quote age, modeled queue evidence, marked spread capture,
+coverage, fees and turnover. Paired ratios pool their actual denominators before
+block resampling; missing outcomes and zero-activity minutes remain distinct.
+The content-hashed minute tables are analysis artifacts, not a new matching
+authority. The study now separately freezes and exports causal gross/net marked
+equity changes on the same complete UTC-minute grid. Equity uses strict left
+limits; same-time fills belong to the new minute, and invalid periods or missing
+fresh endpoint marks remain null. Exact fee deltas reconcile against independent
+execution totals. The paired block bootstrap estimates mean eligible-minute PnL
+changes, not total-run PnL or resampled full-path drawdown. Full-path drawdown
+intervals, representative paired economic evaluation and representative overhead
+evidence remain required. No trained
+real-market model, alpha or holdout claim is made. See the [model specification](hmm_regime_model.md) and
+[acceptance ledger](hmm_implementation_plan.md).
+
 ## Integrity repairs in this revision
 
 Adversarial review identified cases absent from the previous regression suite:
@@ -97,6 +284,13 @@ skip damage to yield later observations. Arrow normalization now preserves
 existing final/partial outputs, rejects source/destination aliasing, fails
 closed on publication races, and checks input-file identity before publication.
 These are integrity improvements, not new economic or performance evidence.
+
+Policy integration adds a fail-closed risk regression: gross portfolio
+reservations previously skipped nonzero exposure when its instrument metadata
+was absent. Unknown units now block reservation rather than masquerading as
+zero notional, with a disabled-HMM regression too. Global risk halts also clear
+the diagnostic live-order contexts after core orders terminate; this does not
+change the existing kill-switch matching or accounting rules.
 
 ## Reproduce the release checks
 

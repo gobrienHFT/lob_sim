@@ -70,6 +70,9 @@ Read next:
 - [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
+- [Repaired core baseline](docs/core_repairs.md): standalone clock, exposure and replay-boundary fixes. The HMM is reviewed on top of this baseline; disabling it must introduce no additional behavior change.
+- [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect quote/fill/inventory and cash/fee/equity audits, and run registered baseline/observe/policy comparisons. [Known-regime synthetic recovery](docs/strategy_results/hmm_synthetic_recovery_reference.md) reports imperfect clustering and delayed detection. The [real-data eligibility audit](docs/strategy_results/hmm_regime_reference.md) explains why the available tapes do not yet support a held-out policy result.
+- [HMM replay cost](docs/benchmark_results/hmm_snapshot_public_reference.md): thirty measured repetitions after snapshot-copy optimization, with accepted policy quotes and unchanged replay probes. Observation overhead is about 81% on this short workload. Absolute times varied greatly between uncontrolled runs; this is not a causal speedup, trading latency or evidence of a better strategy.
 
 ## Core mechanics
 
@@ -105,6 +108,29 @@ fixture scale. The older reports in `docs/real_data_runs/` remain regression
 history from before the current semantic repairs; they are not current economic
 results. A new public-data report needs a finalized capture, a complete valid
 interval, resolvable fill provenance, and a clean pack audit.
+
+## Optional causal regime experiment
+
+For a self-contained HMM comparison, install the optional fitting dependencies
+and use a new output directory:
+
+```bash
+python -m pip install -e ".[hmm]"
+python experiments/run_hmm_regime_study.py --synthetic-demo --out-dir outputs/hmm_paired_demo
+```
+
+See the [recorded synthetic comparison](docs/strategy_results/hmm_synthetic_study_reference.md)
+and [engineering handoff](docs/hmm_release_review.md) for the exact fit/inspect/
+observe/policy/report commands, causal proofs, source identities and deferrals.
+
+This generates five short synthetic UTC snippets and compares baseline,
+observation-only, posterior-weighted policy, hard-state policy and 250 ms sampling
+through the normal registered replay/audit path. It fits on calibration, selects
+on validation and evaluates the separate test snippet. Models, failed attempts,
+the frozen registry and native state/economic audits remain inspectable.
+These are diagnostic snippets, not full valid days or evidence of market alpha;
+short bootstrap intervals remain unavailable. See the
+[model specification](docs/hmm_regime_model.md) for assumptions and commands.
 
 ## What a completed run gives you
 

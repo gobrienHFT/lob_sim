@@ -36,6 +36,25 @@ This profile is intended for research inspection. It is still not a production m
 
 Every strategy decision emitted by `SimulationEngine` includes a structured diagnostics object in `event_trace.csv`. For `research_mm`, that object records the best ticks, mid, inventory, volatility, `book_imbalance`, `trade_imbalance`, `combined_imbalance`, reservation tick, spread components, fee floor, toxicity spread, `gate_label`, `gate_reason`, `threshold`, `bid_extra_ticks`, and `ask_extra_ticks`. This is audit metadata: it explains why a quote was placed without presenting the profile as a predictive alpha model.
 
+## Optional HMM profile
+
+`hmm_regime_mm` composes `research_mm`; it is not a new fill model or default
+strategy. A frozen causal HMM can conservatively widen quotes, reduce size and
+desired inventory, increase inventory skew, adjust refresh cadence or stand aside.
+The posterior is a statistical state estimate, not a trade-win/Kelly probability.
+Hard live-plus-pending exposure, arrival-time checks and kill switches dominate
+every model decision. Invalid or stale inference cannot carry old confidence
+through a feed gap, and pending cancels remain fillable until acknowledgement.
+
+Use `simulate --strategy research_mm --hmm observe --hmm-model MODEL.json` to
+attach diagnostics without changing paired strategy actions. Policy requires
+explicit `--strategy hmm_regime_mm --hmm policy --hmm-model MODEL.json`; default
+profiles remain unchanged. Sub-lot reduced quantities are suppressed, never
+rounded up to force activity. See the [causal specification](hmm_regime_model.md)
+for feature/scaler/model identities, strict configuration and the self-contained
+registered diagnostic. Neither the synthetic examples nor the public cost
+benchmark establishes economic benefit.
+
 ## Signals Used
 
 - Top-of-book imbalance from visible best-bid and best-ask size
