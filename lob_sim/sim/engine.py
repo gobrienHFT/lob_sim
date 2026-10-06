@@ -2081,6 +2081,28 @@ class SimulationEngine:
             records = islice(records, start_index, None)
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         interrupted = False
+
+        def checkpoint_record() -> bool:
+            # Invalidations can originate in control or rejected records that
+            # never reach the normal market/markout drain below. Emit them at
+            # this causal boundary, not after later observations or at EOF.
+            self._trace_markout_events(self.metrics.drain_new_markout_events())
+            # A control/invalid record is still a replay boundary. Previously
+            # early continues bypassed both periodic checkpoints and stop limits.
+            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
+            should_stop = stop_after_records is not None and records_processed >= stop_after_records
+            if should_checkpoint or should_stop:
+                if checkpoint_path is None:
+                    raise AssertionError("checkpoint path missing after checkpoint validation")
+                self.write_state_checkpoint(
+                    file_path,
+                    checkpoint_path,
+                    event_index=records_processed,
+                    last_ts=last_ts,
+                    market_data_first=market_data_first,
+                )
+            return should_stop
+
         for rec in records:
             records_processed += 1
             record_evidence_id = self._record_evidence_id(rec, records_processed)
@@ -2151,21 +2173,33 @@ class SimulationEngine:
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
             if rec.type in {"captureMeta", "captureEvent"}:
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
             if rec.type == "exchangeInfo":
                 try:
                     spec = self._parse_exchange_info(rec)
                 except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                     self._record_normalization_failure(rec, now, exc)
+                    if checkpoint_record():
+                        interrupted = True
+                        break
                     continue
                 self._get_or_create_book(rec.symbol)
                 self._verbose(
                     verbose,
                     f"[simulate] loaded symbol={rec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
                 )
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.symbol not in self._specs:
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type in {"snapshot", "depthUpdate"} and not self._depth_stream_is_valid(rec.symbol):
@@ -2179,6 +2213,9 @@ class SimulationEngine:
                         "reason": self._stream_invalid_reason.get((rec.symbol, "public")),
                     },
                 )
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type == "snapshot":
@@ -2196,6 +2233,9 @@ class SimulationEngine:
                         snapshot = self.adapter.snapshot_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     syncer = self._get_sync(rec.symbol)
                     if syncer is not None:
@@ -2236,6 +2276,9 @@ class SimulationEngine:
                         event = self.adapter.depth_update_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     try:
                         changes = syncer.on_depth_update(event)
@@ -2267,6 +2310,9 @@ class SimulationEngine:
                         trade = self.adapter.agg_trade_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     self._latest_trade_evidence[rec.symbol] = record_evidence_id
                     self.strategy.observe_trade(trade)
@@ -2306,19 +2352,7 @@ class SimulationEngine:
             self._last_legacy_subns = legacy_subns
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
-            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
-            should_stop = stop_after_records is not None and records_processed >= stop_after_records
-            if should_checkpoint or should_stop:
-                if checkpoint_path is None:
-                    raise AssertionError("checkpoint path missing after checkpoint validation")
-                self.write_state_checkpoint(
-                    file_path,
-                    checkpoint_path,
-                    event_index=records_processed,
-                    last_ts=last_ts,
-                    market_data_first=market_data_first,
-                )
-            if should_stop:
+            if checkpoint_record():
                 interrupted = True
                 break
 
