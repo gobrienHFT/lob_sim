@@ -343,4 +343,3 @@ A	docs/hmm_release_review.md
 A	docs/strategy_results/hmm_synthetic_study_reference.json
 A	docs/strategy_results/hmm_synthetic_study_reference.md
 ```
-
