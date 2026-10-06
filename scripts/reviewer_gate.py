@@ -49,6 +49,7 @@ MYPY_TARGETS = (
     "experiments/benchmark_hmm_overhead.py",
     "experiments/run_hmm_regime_study.py",
     "experiments/run_hmm_synthetic_recovery.py",
+    "scripts/core_regression_probe.py",
 )
 
 
