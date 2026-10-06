@@ -9,13 +9,34 @@ implemented under `lob_sim/regime`. `simulate --hmm observe` leaves the strategy
 unchanged; `simulate --hmm policy --strategy hmm_regime_mm` explicitly enables
 adaptation. No strategy benefit, real-data regime result or holdout finding is
 published. The [implementation ledger](hmm_implementation_plan.md) tracks the
-remaining registered evaluation and representative overhead work. Known-regime
+implementation and empirical evidence separately. Known-regime
 raw-tape recovery and source/risk/economic diagnostics are implemented. Existing simulation
 profiles and their descriptive spread/imbalance `regime` field are unchanged.
 The registered comparison runner and independent-source collection reader now
 exist; integration tests exercise all five declared variants. Real-data
-evidence and representative three-mode overhead are separate release checks,
+evidence and broader workload/dedicated-host overhead are separate release checks,
 not consequences of a green synthetic fixture.
+
+## Research question and assumptions
+
+Can causal latent microstructure states improve market-maker execution quality
+or risk control relative to the same non-HMM strategy, tapes and execution
+assumptions? That is a question to test, not the conclusion of this implementation.
+
+An HMM is a compact baseline for persistent, unobserved statistical states. It
+combines continuous emissions, a small transition matrix and a full uncertainty
+vector without requiring a directional price forecast. A hidden state means a
+latent component of this specified model, not a known participant strategy or
+an objectively existing market category. States can split one economic condition
+or merge different conditions; K=5 does not establish five true regimes.
+
+The first-order, time-homogeneous transition model implies geometric durations.
+Diagonal Gaussian emissions assume conditional feature independence and light
+tails within a state. Correlated features, heavy-tailed stress, changing scales
+and nonstationary transitions can violate those assumptions. Training-only
+clipping limits extreme leverage but can also hide crisis magnitudes. Likelihood,
+occupancy, covariance, entropy and execution coverage must all be inspected;
+confidence under a misspecified model is not calibrated probability of profit.
 
 ## Ownership and data path
 
@@ -146,8 +167,8 @@ The independent test oracle enumerates all latent paths for short sequences
 in probability space. A separate fixture shows that future observations change
 the *smoothed* earlier posterior while the runtime earlier posterior stays
 identical. Future-mutation tests also compare raw MAP, hysteretic state,
-confirmation streaks and switch records. End-to-end raw-tape/strategy causality
-proof remains required at integration.
+confirmation streaks and switch records. Raw-tape observation and policy tests
+also freeze historical decision/fill attribution and checkpoint continuation.
 
 ## State IDs, duration and uncertainty
 
@@ -288,9 +309,9 @@ Numeric switching tests recover separated synthetic Gaussian emissions and
 compare prefix-end posteriors and sequence likelihoods with hmmlearn. They are
 not a synthetic exchange calibration or evidence that Binance has those states.
 
-The existing frozen variant registry will govern the economic study. At least
+The existing frozen variant registry governs the economic study. At least
 ten joint-valid UTC days are needed for holdout claims;
-otherwise results are diagnostic. The economic study will pair identical tapes,
+otherwise results are diagnostic. The implemented study pairs identical tapes,
 seeds, fill scenarios, latencies and fees across baseline, observation-only and
 opt-in policy runs, with moving-block bootstrap sensitivity. Numerical
 foundation tests alone do not complete this study.
@@ -298,6 +319,27 @@ foundation tests alone do not complete this study.
 ## Commands available now
 
 ### Registered comparison
+
+For a self-contained synthetic diagnostic, use a new directory:
+
+```bash
+python experiments/run_hmm_regime_study.py --synthetic-demo --out-dir outputs/hmm_paired_demo
+```
+
+This generates five independent three-minute UTC snippets and runs the same
+five-variant registered fitter/replay/audit pipeline, with K=2..5 and ten restarts
+per K for each cadence. Its common ten-lot/500 ms reference workload is declared
+before test execution, not selected by PnL. Existing hard caps, fees and execution
+rules are unchanged. Hidden truth never enters the input files. Synthetic receipt
+origins/header replication are recorded explicitly and never applied to real data.
+The default 60/20/20 split is three calibration snippets, one validation snippet
+and one test snippet, not five full valid days. Short bootstrap strata retain null
+intervals; this cannot support a market-calibration or policy-benefit claim.
+Outputs include `inputs/manifest.json`, the frozen `study/registry.json`, fitted
+models/candidate ledgers, native run audits and `study/study_report.json`.
+Failures preserve `_INCOMPLETE.json`; existing evidence is never replaced.
+
+For actual immutable independent single-day inputs, retain the external workflow:
 
 ```bash
 python experiments/run_hmm_regime_study.py --help
@@ -385,7 +427,8 @@ reduced execution fees must agree. No invalid period's return is bridged into
 an eligible minute. The paired 30/5/60-minute bootstrap estimates mean eligible
 minute equity changes, not a total-run PnL or a full-path drawdown interval.
 Short or broken strata retain explicit interval-unavailability reasons.
-Full-path drawdown intervals and representative overhead remain release work.
+Full-path drawdown intervals, broader workloads and dedicated-host performance
+remain separate work. The short public overhead report below is not that evidence.
 Offline fitting/comparison uses explicit row/source/period caps. Those caps are
 distinct from runtime bounded-memory claims and from a 24-hour soak.
 
@@ -443,7 +486,7 @@ and unsafe bounds fail. Environment equivalents are `HMM_MODE=policy`,
 `MM_STRATEGY_PROFILE=hmm_regime_mm`, `HMM_MODEL_PATH`, optional `HMM_SYMBOL` and
 optional `HMM_POLICY_PATH`. Model and policy content are frozen once; editing
 their files later cannot change the run. The complete config is in its manifest.
-The registered paired-study command remains a future milestone.
+The registered paired-study command above uses this same frozen policy contract.
 
 ## Conservative quote policy
 
@@ -590,8 +633,8 @@ HMM-disabled checkpoint and artifact contracts remain unchanged.
 Schema-v3 measurement stops at the last observation. Legacy action-first
 post-tape draining is labeled `legacy_compatibility_nanoseconds`, not certified
 market wall-time coverage. These diagnostics are not a held-out HMM study or
-a performance measurement. Representative baseline/observe/policy overhead
-remains part of the unfinished research release.
+a performance measurement. The short public three-mode measurement below is
+separate; broader workloads and dedicated-host performance remain unfinished.
 
 ```bash
 python -m pytest tests/test_hmm_risk.py
@@ -654,8 +697,9 @@ python -m lob_sim.cli regime-report --run-dir <completed-hmm-run-directory>
 ```
 
 These are measurement contracts and deterministic fixture proofs, not a
-trained-market economic result. The registered paired study, raw synthetic
-recovery and representative HMM overhead measurements are still required.
+trained-market economic result. Registered comparison, synthetic recovery and
+the short public overhead measurement have separate evidence below; none
+establish a representative real-market economic result.
 
 The two-symbol economic regression exposed an existing schema-v3 scheduler
 defect: a symbol's periodic decisions were created only when its own next
@@ -734,9 +778,9 @@ requires a null execution sink, as for the other audits.
 
 These tables answer descriptive quote-lifetime questions under the selected
 public-L2 fill/latency assumptions. They do not demonstrate predictive power,
-private Binance FIFO, true fills or profitable regime adaptation. Registered
-paired evaluation and representative overhead measurement remain
-required next milestones. The opt-in conservative policy is implemented; its
+private Binance FIFO, true fills or profitable regime adaptation. The registered
+comparison path is implemented; eligible real-market evaluation and broader
+performance evidence remain separate. The opt-in conservative policy's
 economic usefulness is not established by those mechanical tests.
 
 Feature windows, the current book anchor, forward log probabilities, hysteresis,
@@ -922,7 +966,8 @@ old audit with its original revision, or rerun the same immutable inputs under
 the new revision. Legacy market-tape importers and the HMM-disabled public audit
 schemas are unchanged. Time-weighted inventory/reservation evidence is now
 implemented. Reconciled cash/fee/equity and observed drawdown diagnostics are
-also implemented. Registered paired research remains unfinished.
+also implemented. Registered paired comparison is available; claim-ready
+real-market evidence remains unavailable.
 
 ## Known-regime raw market-tape recovery
 
@@ -1121,9 +1166,13 @@ JSON round-trip oracle, including complete observation/policy event traces,
 fills, risk/execution audits, state hashes and checkpoint continuation. It also
 uses the original committed public capture and unchanged frozen synthetic model.
 One hundred repeated eligible reads perform one normalization, not one hundred.
-That proves eliminated work, not an end-to-end speedup. The published overhead
-measurement retains its earlier source identity and is not relabeled as a
-measurement of this implementation.
+That proves eliminated work, not an end-to-end speedup. The original overhead
+measurement retains its earlier source identity. The separate
+[post-cache measurement](benchmark_results/hmm_snapshot_public_reference.md)
+at clean `676ec15` completes the same protocol and preserves every mode's config
+and bounded probe. Observation overhead is 80.65% and policy overhead 67.13%.
+Absolute runtimes are over three times slower in all modes than the earlier
+uncontrolled run; no causal speedup or dedicated-host regression is inferred.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -1144,6 +1193,22 @@ a just-before-t action after the t market record and raise a causal trace error.
 That boundary is deliberately repaired; legacy golden behavior remains intact.
 
 Fitting reference: [hmmlearn API](https://hmmlearn.readthedocs.io/en/stable/api.html).
+
+## Model failure cases
+
+Emission, transition and scaling drift can make a frozen model obsolete. Rare
+stress observations may be too scarce to characterize, and increasing K can
+turn a few outliers into a misleading state. State splitting/merging, Gaussian
+misspecification and unrealistic geometric durations can impair interpretation
+even with a numerically valid fit. Training diagnostics do not resolve these
+failures; an untouched, adequate evaluation is still needed.
+
+Feed invalidity clears inference, rather than forwarding confidence through a
+gap. High uncertainty can only make the optional controls more conservative;
+hard exposure, stale-feed and kill-switch rules remain outside the HMM. There
+is no automatic drift-triggered refit: refitting creates a new frozen artifact
+and research registry before another test, not another attempt on the same
+"untouched" holdout. Walk-forward alignment/drift is deliberately deferred.
 
 ## Limitations and portfolio claim
 

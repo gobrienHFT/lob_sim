@@ -34,8 +34,8 @@ wheel smoke tests (`--skip-benchmark`). Work is on `codex/hmm-regime-layer`.
    overhead benchmarks, causal regression fixtures, documentation and commands.
    Run the complete reviewer gate and cross-platform CI before release.
 
-The known-regime raw-tape recovery path is now implemented separately from the
-remaining paired economic study. `experiments/run_hmm_synthetic_recovery.py`
+The known-regime raw-tape recovery path is implemented separately from the
+registered paired study. `experiments/run_hmm_synthetic_recovery.py`
 generates ordinary schema-v3 market messages with hidden labels in physically
 separate truth files, extracts through the authoritative engine, reuses the
 whole-day split and frozen registry, fits K=2..5, and evaluates the actual causal
@@ -48,6 +48,25 @@ MBO exchange remains a different mode.
 Walk-forward fitting is optional. The primary implementation is a frozen model;
 no implicit refit or test-dependent model selection is permitted. Fewer than ten
 joint-valid UTC days means diagnostic-only research, not a holdout claim.
+
+## Current evidence
+
+The historical entries below identify the source revision they tested; their
+counts are not a current-head certificate. The clean `676ec15` gate passed all
+15 steps (1,532 Python / 16 Rust tests) and all eight hosted Linux/Windows jobs.
+The subsequent [post-cache overhead measurement](benchmark_results/hmm_snapshot_public_reference.md)
+completed all 102 native executions at that same clean source. All shared
+configurations and bounded replay probes equal the earlier measurement exactly.
+Median paired overhead remains 80.65% for observation and 67.13% for policy.
+Absolute runtimes were over three times slower on the uncontrolled host: no
+causal speedup or regression is claimed.
+
+The self-contained synthetic comparison now uses independent UTC-day sources
+and the existing five-variant registered runner. Its focused native study and
+recovery suite passes 64 tests; 14 new source/failure tests pass independently.
+All three HMM experiment entrypoints are included in gate typing (70 source
+files). This change still needs its own default demonstration and complete
+reviewer gate; it does not inherit the previous revision's certificate.
 
 ## Acceptance tracking
 
@@ -67,7 +86,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | H | Invalid/stale epochs cannot report a valid regime | Integrated observer clears confidence at between-grid feed faults; stale diagnostics contain no posterior |
 | I | Observation-only simulation mode | simulate --hmm observe; bounded verified trace and frozen model export |
 | J | Observer versus baseline action identity | Exact core action/state/accounting parity across three profiles and trade/depth fill modes; extra diagnostics explicitly separated |
-| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution, horizon coverage, quote denominators and source/queue tables; integer time-weighted risk plus reconciled single-symbol cash/fee/equity and observed drawdown diagnostics implemented; registered out-of-sample evaluation remains |
+| K | State-conditioned execution and markouts | Frozen decision/arrival/pre-fill attribution, horizon coverage, quote denominators and source/queue tables; integer time-weighted risk plus reconciled single-symbol cash/fee/equity and observed drawdown diagnostics implemented; native registered synthetic evaluation is tested, representative real-market evidence remains |
 | L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
 | M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
@@ -79,10 +98,10 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | T | Filtering versus smoothing documentation | Documented in hmm_regime_model.md |
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
-| W | Existing tests pass after integration | Full 1320-test Python suite passes on clean source commit ae676fa; the additional overhead command has 12 separately passing tests |
-| X | New tests pass | 81 new collection, clock-statistics, policy, study and cache cases enter the full gate; 12 overhead regressions also pass; empirical release conditions remain |
-| Y | Standard lint and typing pass | Gate Mypy (65 files), Ruff and format (181 files) pass at ae676fa; package plus overhead-script Mypy passes 80 files and current Ruff/format passes 183 files |
-| Z | Complete reviewer gate passes | All 15 steps pass on clean ae676fa in 1554.78 s, including 1320 Python/16 Rust tests, primitive differential, artifacts, faults, installed wheel and fixture benchmark; final empirical release still pending |
+| W | Existing tests pass after integration | Last clean full gate: 1,532 Python / 16 Rust tests at 676ec15; current changes require a fresh full gate |
+| X | New tests pass | 64 native study/recovery and 14 synthetic source cases pass for the current comparison producer; snapshot and publication tests remain in the normal suite |
+| Y | Standard lint and typing pass | Current gate Mypy passes 70 source files, Ruff and format pass 194 files; final clean gate still required |
+| Z | Complete reviewer gate passes | All 15 steps plus eight hosted jobs passed at 676ec15; no current-head certificate is inferred from that result |
 
 ## Release boundaries
 

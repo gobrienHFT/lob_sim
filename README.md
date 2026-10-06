@@ -108,6 +108,25 @@ history from before the current semantic repairs; they are not current economic
 results. A new public-data report needs a finalized capture, a complete valid
 interval, resolvable fill provenance, and a clean pack audit.
 
+## Optional causal regime experiment
+
+For a self-contained HMM comparison, install the optional fitting dependencies
+and use a new output directory:
+
+```bash
+python -m pip install -e ".[hmm]"
+python experiments/run_hmm_regime_study.py --synthetic-demo --out-dir outputs/hmm_paired_demo
+```
+
+This generates five short synthetic UTC snippets and compares baseline,
+observation-only, posterior-weighted policy, hard-state policy and 250 ms sampling
+through the normal registered replay/audit path. It fits on calibration, selects
+on validation and evaluates the separate test snippet. Models, failed attempts,
+the frozen registry and native state/economic audits remain inspectable.
+These are diagnostic snippets, not full valid days or evidence of market alpha;
+short bootstrap intervals remain unavailable. See the
+[model specification](docs/hmm_regime_model.md) for assumptions and commands.
+
 ## What a completed run gives you
 
 A futures run produces a self-describing directory containing:

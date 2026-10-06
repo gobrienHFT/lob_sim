@@ -65,6 +65,23 @@ measurement, and synthetic FIFO is not historical Binance FIFO.
 
 ## Causal regime research in progress
 
+The [post-cache public measurement](benchmark_results/hmm_snapshot_public_reference.md)
+is complete at clean `676ec15`: 102 fresh-engine replays, accepted policy quotes,
+all thirty raw timing samples per mode and exact cross-report configuration/probe
+identity. Descriptive observation overhead is 80.65%, policy 67.13%. Absolute
+times are over three times slower than the earlier uncontrolled run; this does
+not establish a causal speedup or dedicated-host regression. Earlier evidence
+and source identities are preserved, not rewritten.
+
+The registered comparison now has a self-contained `--synthetic-demo` workflow.
+It uses independent generated UTC snippets, not altered exchange captures, and
+reuses the standard five-variant fitter, registry, native replay and audits.
+Generator early termination, raw-writer fsync and manifest failures leave visible
+incomplete evidence. The reviewer type gate also covers all three HMM experiment
+entrypoints. None of this closes the real-data/soak/full-Rust evidence gaps above.
+The historical test counts below describe their named sources; verification of
+new changes must come from their own reviewer reports and CI.
+
 The [active public-capture cost benchmark](benchmark_results/hmm_active_public_reference.md)
 now completes three warmups, thirty measured runs and a separate memory run per
 mode. It ships unchanged inputs and records accepted resting quotes, native

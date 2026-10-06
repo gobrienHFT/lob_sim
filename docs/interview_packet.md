@@ -127,4 +127,8 @@ prints the two modes separately and labels the synthetic result explicitly.
 
 ### What would you add next?
 
-Add more venues behind `ReplayFeedAdapter`, run longer public tapes with the real-data runbook, calibrate strategy parameters without claiming alpha, and optionally add private execution reports when a venue/account can legally provide them.
+Close the existing evidence gaps first: representative capture/soak, adequate
+joint-valid days for a registered untouched study, integrated Rust-engine parity
+and dedicated-host performance. The optional HMM makes causal state estimation
+and risk adaptation auditable; it has not established profitable alpha. I would
+not add more venues, a dashboard or another strategy before those proofs.
