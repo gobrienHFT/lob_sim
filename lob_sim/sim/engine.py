@@ -1412,8 +1412,6 @@ class SimulationEngine:
         missing_marks: list[str] = []
         for symbol in sorted(symbols):
             spec = self._specs.get(symbol)
-            if spec is None:
-                continue
             inventory_lots = self.metrics.inventory_lots(symbol)
             live_orders = [
                 order
@@ -1431,6 +1429,11 @@ class SimulationEngine:
             extra_applies = extra_symbol == symbol and extra_qty_lots > 0 and extra_price_tick is not None
             has_exposure = bool(inventory_lots or live_orders or pending_orders or extra_applies)
             if not has_exposure:
+                continue
+            if spec is None:
+                # Unknown units are unknown exposure, not a zero reservation.
+                # This matches accounting's unmarkable-inventory semantics.
+                missing_marks.append(symbol)
                 continue
 
             book = self._books.get(symbol)
