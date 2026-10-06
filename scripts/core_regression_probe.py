@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.expected is None and args.write is None:
         parser.error("provide --expected and/or --write")
-    result = {
+    result: dict[str, Any] = {
         "producer": {"source": source_state(), "package": checkpoint_code_identity()},
         "behavior": collect(),
     }
