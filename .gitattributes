@@ -1,3 +1,4 @@
+.gitattributes text eol=lf
 *.py text eol=lf
 *.toml text eol=lf
 *.yml text eol=lf
@@ -11,3 +12,6 @@ Makefile text eol=lf
 *.csv text eol=crlf
 *.bat text eol=crlf
 *.png binary
+
+# Native hash matrix: keep reproducible bytes, collapse generated evidence in reviews.
+docs/regression_results/repaired_core_baseline.json linguist-generated=true

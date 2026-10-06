@@ -44,6 +44,7 @@ MYPY_TARGETS = (
     "lob_sim/sim/synthetic_demo.py",
     "lob_sim/audit",
     "lob_sim/research",
+    "scripts/core_regression_probe.py",
 )
 
 

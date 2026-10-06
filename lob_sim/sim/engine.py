@@ -115,6 +115,7 @@ class SimulationEngine:
         self._books: Dict[str, LocalOrderBook] = {}
         self._syncers: Dict[str, BookSynchronizer] = {}
         self._next_decision: Dict[str, float] = {}
+        self._next_decision_ns: Dict[str, int] = {}
         self._actions: list[_EngineEvent] = []
         self._id_counter = 0
         self._trace_counter = 0
@@ -358,6 +359,7 @@ class SimulationEngine:
         self._actions = [action for action in self._actions if action.symbol != symbol]
         heapify(self._actions)
         self._next_decision.pop(symbol, None)
+        self._next_decision_ns.pop(symbol, None)
         return {
             "invalidated_active_order_count": active_order_count,
             "cleared_pending_cancel_count": pending_cancel_count,
@@ -1046,6 +1048,19 @@ class SimulationEngine:
         book = self._books.get(symbol)
         if syncer is None or book is None or not syncer.synced:
             return
+        if self._market_data_first:
+            # The legacy float accumulator plus epsilon could defer a
+            # 8.999999999999984 action until after the receipt at 9.0, then
+            # violate the trace's exact causal ordering. Schema-v3 decisions
+            # must use the same integer key as its market observations.
+            now_ns, _ = self._schedule_time_key(now)
+            interval_ns = max(1, int(Decimal(str(self.cfg.mm_requote_ms)) * 1_000_000))
+            next_ns = self._next_decision_ns.get(symbol, now_ns)
+            while next_ns <= now_ns if include_now else next_ns < now_ns:
+                self._schedule(next_ns / NANOSECONDS_PER_SECOND, "decision", symbol, {}, logical_ns=next_ns)
+                next_ns += interval_ns
+            self._next_decision_ns[symbol] = next_ns
+            return
         interval = self.cfg.mm_requote_ms / 1000.0
         next_due = self._next_decision.get(symbol)
         if next_due is None:
@@ -1061,6 +1076,20 @@ class SimulationEngine:
             self._schedule(next_due, "decision", symbol, {})
             next_due += interval
         self._next_decision[symbol] = next_due
+
+    def _schedule_observation_decisions(self, symbol: str, now: float, *, include_now: bool) -> None:
+        """Advance active schema-v3 timers on the global observation clock.
+
+        Scheduling only the arriving symbol could insert another symbol's
+        overdue decision after the current market row had already been traced.
+        Preserve the current-symbol tie priority, then use sorted active symbols;
+        actual dispatch still uses the existing integer-key heap and tie rule.
+        Legacy tapes retain their established per-symbol compatibility behavior.
+        """
+        self._schedule_decisions_up_to(symbol, now, include_now=include_now)
+        if self._market_data_first:
+            for other in sorted(set(self._next_decision_ns) - {symbol}):
+                self._schedule_decisions_up_to(other, now, include_now=include_now)
 
     def _parse_exchange_info(self, rec: RecordedEvent) -> SymbolSpec:
         spec = self.adapter.instrument_spec_from_record(rec)
@@ -1375,6 +1404,7 @@ class SimulationEngine:
         """
 
         symbols = set(self._specs) | set(self._books) | set(self.metrics.position)
+        symbols.update(order.symbol for order in self.fill_model._orders.values())
         symbols.update(action.symbol for action in self._actions if action.kind == "order_arrival")
         if extra_symbol is not None:
             symbols.add(extra_symbol)
@@ -1383,8 +1413,6 @@ class SimulationEngine:
         missing_marks: list[str] = []
         for symbol in sorted(symbols):
             spec = self._specs.get(symbol)
-            if spec is None:
-                continue
             inventory_lots = self.metrics.inventory_lots(symbol)
             live_orders = [
                 order
@@ -1402,6 +1430,11 @@ class SimulationEngine:
             extra_applies = extra_symbol == symbol and extra_qty_lots > 0 and extra_price_tick is not None
             has_exposure = bool(inventory_lots or live_orders or pending_orders or extra_applies)
             if not has_exposure:
+                continue
+            if spec is None:
+                # Unknown units are unknown exposure, not a zero reservation.
+                # This matches accounting's unmarkable-inventory semantics.
+                missing_marks.append(symbol)
                 continue
 
             book = self._books.get(symbol)
@@ -1789,6 +1822,7 @@ class SimulationEngine:
             "capture_invalidations": self._capture_invalidations,
             "capture_invalid_reason": self._capture_invalid_reason,
             "next_decision": self._next_decision,
+            "next_decision_ns": self._next_decision_ns,
             "actions": self._actions,
             "event_trace": self.event_trace,
             "event_trace_count": self._event_trace_count,
@@ -1842,6 +1876,7 @@ class SimulationEngine:
         raw_capture_reason = state.get("capture_invalid_reason")
         self._capture_invalid_reason = None if raw_capture_reason is None else str(raw_capture_reason)
         self._next_decision = dict(state["next_decision"])
+        self._next_decision_ns = dict(state["next_decision_ns"])
         self._actions = list(state["actions"])
         heapify(self._actions)
         self.event_trace = list(state["event_trace"])
@@ -2046,6 +2081,28 @@ class SimulationEngine:
             records = islice(records, start_index, None)
         self._verbose(verbose, f"[simulate] starting simulation for {file_path}")
         interrupted = False
+
+        def checkpoint_record() -> bool:
+            # Invalidations can originate in control or rejected records that
+            # never reach the normal market/markout drain below. Emit them at
+            # this causal boundary, not after later observations or at EOF.
+            self._trace_markout_events(self.metrics.drain_new_markout_events())
+            # A control/invalid record is still a replay boundary. Previously
+            # early continues bypassed both periodic checkpoints and stop limits.
+            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
+            should_stop = stop_after_records is not None and records_processed >= stop_after_records
+            if should_checkpoint or should_stop:
+                if checkpoint_path is None:
+                    raise AssertionError("checkpoint path missing after checkpoint validation")
+                self.write_state_checkpoint(
+                    file_path,
+                    checkpoint_path,
+                    event_index=records_processed,
+                    last_ts=last_ts,
+                    market_data_first=market_data_first,
+                )
+            return should_stop
+
         for rec in records:
             records_processed += 1
             record_evidence_id = self._record_evidence_id(rec, records_processed)
@@ -2095,7 +2152,7 @@ class SimulationEngine:
             # Legacy v1 fixtures preserve their historical action-first tie
             # policy. Schema-v3 captures use market-data-first ties.
             receipt_checked = self._prevalidate_capture_boundary(rec, now)
-            self._schedule_decisions_up_to(rec.symbol, symbol_now, include_now=not market_data_first)
+            self._schedule_observation_decisions(rec.symbol, symbol_now, include_now=not market_data_first)
             self._drain_events(
                 now,
                 inclusive=not market_data_first,
@@ -2116,21 +2173,33 @@ class SimulationEngine:
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
             if rec.type in {"captureMeta", "captureEvent"}:
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
             if rec.type == "exchangeInfo":
                 try:
                     spec = self._parse_exchange_info(rec)
                 except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                     self._record_normalization_failure(rec, now, exc)
+                    if checkpoint_record():
+                        interrupted = True
+                        break
                     continue
                 self._get_or_create_book(rec.symbol)
                 self._verbose(
                     verbose,
                     f"[simulate] loaded symbol={rec.symbol} tick_size={spec.tick_size} step_size={spec.step_size}",
                 )
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.symbol not in self._specs:
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type in {"snapshot", "depthUpdate"} and not self._depth_stream_is_valid(rec.symbol):
@@ -2144,6 +2213,9 @@ class SimulationEngine:
                         "reason": self._stream_invalid_reason.get((rec.symbol, "public")),
                     },
                 )
+                if checkpoint_record():
+                    interrupted = True
+                    break
                 continue
 
             if rec.type == "snapshot":
@@ -2161,6 +2233,9 @@ class SimulationEngine:
                         snapshot = self.adapter.snapshot_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     syncer = self._get_sync(rec.symbol)
                     if syncer is not None:
@@ -2201,6 +2276,9 @@ class SimulationEngine:
                         event = self.adapter.depth_update_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     try:
                         changes = syncer.on_depth_update(event)
@@ -2232,6 +2310,9 @@ class SimulationEngine:
                         trade = self.adapter.agg_trade_from_record(rec, spec)
                     except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
                         self._record_normalization_failure(rec, now, exc)
+                        if checkpoint_record():
+                            interrupted = True
+                            break
                         continue
                     self._latest_trade_evidence[rec.symbol] = record_evidence_id
                     self.strategy.observe_trade(trade)
@@ -2271,19 +2352,7 @@ class SimulationEngine:
             self._last_legacy_subns = legacy_subns
             self._last_event_index = records_processed
             self._market_data_first = market_data_first
-            should_checkpoint = checkpoint_every > 0 and records_processed % checkpoint_every == 0
-            should_stop = stop_after_records is not None and records_processed >= stop_after_records
-            if should_checkpoint or should_stop:
-                if checkpoint_path is None:
-                    raise AssertionError("checkpoint path missing after checkpoint validation")
-                self.write_state_checkpoint(
-                    file_path,
-                    checkpoint_path,
-                    event_index=records_processed,
-                    last_ts=last_ts,
-                    market_data_first=market_data_first,
-                )
-            if should_stop:
+            if checkpoint_record():
                 interrupted = True
                 break
 
