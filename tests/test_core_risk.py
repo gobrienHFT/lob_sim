@@ -20,7 +20,6 @@ def test_unknown_instrument_units_never_become_zero_exposure(exposure):
         engine.fill_model._orders[("UNKNOWN", "bid", "base")] = Order(
             "unknown", "UNKNOWN", "bid", 100, 1, remaining_lots=1
         )
-        engine.metrics.position["UNKNOWN"] = PositionState()
     if exposure == "pending":
         engine._schedule(1.0, "order_arrival", "UNKNOWN", {"price_tick": 100, "qty_lots": 1, "side": "bid"})
     if exposure == "extra":

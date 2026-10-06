@@ -1404,6 +1404,7 @@ class SimulationEngine:
         """
 
         symbols = set(self._specs) | set(self._books) | set(self.metrics.position)
+        symbols.update(order.symbol for order in self.fill_model._orders.values())
         symbols.update(action.symbol for action in self._actions if action.kind == "order_arrival")
         if extra_symbol is not None:
             symbols.add(extra_symbol)
