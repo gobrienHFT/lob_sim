@@ -7,6 +7,7 @@ Run on the independently repaired core before running on the HMM branch.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from dataclasses import replace
@@ -128,11 +129,14 @@ def digest(value: Any) -> str:
 
 
 def fingerprint(engine: SimulationEngine) -> dict[str, Any]:
+    # get_summary updates valuation/sample statistics. Read a detached metrics
+    # snapshot rather than accidentally perturbing checkpoint comparisons.
+    summary = copy.deepcopy(engine.metrics).get_summary(engine._books, engine._specs)
     return {
         "state_sha256": engine.state_sha256(),
         "continuation_sha256": digest(engine._checkpoint_mutable_state()),
         "events_sha256": digest(engine.event_trace),
-        "metrics_sha256": digest(engine.metrics.get_summary(engine._books, engine._specs)),
+        "metrics_sha256": digest(summary),
         "annotations_sha256": digest(engine._summary_annotations()),
         "fills_sha256": engine.metrics.fill_audit_sha256,
         "markouts_sha256": engine.metrics.markout_audit_sha256,
