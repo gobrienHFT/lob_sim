@@ -146,6 +146,14 @@ no-clobber. Native study/recovery checks pass 64 cases. Current Mypy covers 70
 source files; Ruff/format cover 194 files. These targeted results do not replace
 the final full gate or cross-platform CI.
 
+A direct standalone `regime-fit` smoke caught an import-scope error after the
+model/report had been safely saved. The successful-command regression failed
+before the one-line import repair. It uses actual artifact serialization and
+inspection, verifies calibration/validation-only access, and checks that a
+second invocation cannot clobber either output. The failed command's artifacts
+were preserved; validation must include the successful path, not only rejected
+fits or the separate study runner.
+
 ## Measured engineering cost
 
 The [completed post-cache measurement](benchmark_results/hmm_snapshot_public_reference.md)

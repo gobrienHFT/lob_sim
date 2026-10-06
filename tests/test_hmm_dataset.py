@@ -444,3 +444,60 @@ def test_cli_extraction_and_failed_fit_preserve_report_without_publishing_model(
     saved = json.loads(report.read_text())
     assert saved["status"] == "no_valid_candidate" and len(saved["attempts"]) == 8
     assert not model.exists()
+
+
+def test_cli_successful_fit_prints_model_and_preserves_no_clobber(tmp_path, monkeypatch, capsys):
+    from lob_sim.cli import main
+    import lob_sim.regime.dataset as dataset
+    import lob_sim.regime.fit as fitting
+    from lob_sim.regime.artifact import load_model
+    from test_hmm_preprocess_artifact import _artifact
+
+    # Orchestration test: the independent fitter/filter numerical oracles live
+    # in test_hmm_fit/filter. Use actual model serialization and human inspection.
+    artifact = _artifact()
+    split, training, validation = object(), object(), object()
+    reads, fits = [], []
+    monkeypatch.setattr(dataset, "dataset_split", lambda _: split)
+
+    def read_selected(directory, actual_split, role, *, symbol, max_rows):
+        assert actual_split is split and symbol == "BTCUSDT" and max_rows == 1_000_000
+        reads.append(role)
+        return {"calibration": training, "validation": validation}[role]
+
+    def accept(train, valid, config):
+        assert train is training and valid is validation
+        assert config.state_counts == (2, 3, 4, 5) and config.restarts == 10
+        fits.append(config)
+        return fitting.FitResult(artifact, json.dumps({"status": "fitted", "claim_ready": False}))
+
+    monkeypatch.setattr(dataset, "read_partition", read_selected)
+    monkeypatch.setattr(fitting, "fit_candidates", accept)
+    model, report = tmp_path / "model.json", tmp_path / "fit.json"
+    arguments = [
+        "lob-sim",
+        "regime-fit",
+        "--dataset",
+        str(tmp_path / "selected-only"),
+        "--symbol",
+        "BTCUSDT",
+        "--model",
+        str(model),
+        "--report",
+        str(report),
+    ]
+    monkeypatch.setattr("sys.argv", arguments)
+    main()
+    output = capsys.readouterr().out
+    assert artifact.model_sha256 in output and "Transition matrix" in output
+    assert reads == ["calibration", "validation"] and len(fits) == 1
+    assert load_model(model) == artifact
+    assert json.loads(report.read_text()) == {"status": "fitted", "claim_ready": False}
+    before = model.read_bytes(), report.read_bytes()
+    with pytest.raises(SystemExit) as failure:
+        main()
+    assert failure.value.code == 2
+    assert (model.read_bytes(), report.read_bytes()) == before and len(fits) == 1
+    monkeypatch.setattr("sys.argv", ["lob-sim", "regime-inspect", "--model", str(model), "--json"])
+    main()
+    assert json.loads(capsys.readouterr().out)["model_sha256"] == artifact.model_sha256

@@ -1362,7 +1362,7 @@ def main() -> None:
     if args.command == "regime-fit":
         from .regime.artifact import save_model
         from .regime.dataset import dataset_split, publish_json, read_partition
-        from .regime.fit import FitConfig, fit_candidates
+        from .regime.fit import FitConfig, fit_candidates, inspect_model
 
         try:
             settings = FitConfig(
