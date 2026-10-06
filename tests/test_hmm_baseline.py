@@ -1,4 +1,4 @@
-"""Freeze behavioral hashes before regime integration; code provenance may change."""
+"""Preserve the unaffected legacy fixture; repaired-core parity is tested separately."""
 
 from pathlib import Path
 
@@ -7,7 +7,7 @@ from lob_sim.replay.adapters import DEFAULT_REPLAY_ADAPTER
 from scripts.check_futures_determinism import _run_once
 
 
-def test_hmm_disabled_preserves_preimplementation_behavioral_hashes() -> None:
+def test_hmm_disabled_preserves_unaffected_legacy_golden_hashes() -> None:
     result = _run_once(
         Path("docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson"),
         load_config(".env.example", inherit_environment=False),

@@ -8,10 +8,18 @@ real-market HMM or economic benefit is claimed by this ledger.
 
 ## Baseline and sequence
 
-Canonical repository: `gobrienHFT/lob_sim`; base `b2764b39d1785991555531a3eae66c0dc8f03a6a`.
+Canonical repository: `gobrienHFT/lob_sim`; original base `b2764b39d1785991555531a3eae66c0dc8f03a6a`.
 Before implementation the reviewer gate passed 543 Python tests, 16 Rust tests,
 typing, formatting, differential parity, artifacts, fault checks and installed
 wheel smoke tests (`--skip-benchmark`). Work is on `codex/hmm-regime-layer`.
+
+The review sequence is now explicit: [core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99)
+is independent of HMM; [HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98)
+is reviewed against its repaired baseline, `b9519d1`. Existing mixed history is
+preserved through a normal related-history merge, not rewritten. With HMM off,
+the integration must introduce zero additional behavioral change. Independent
+core tests and the native 112-case/648-checkpoint reference are described in
+[core repairs](core_repairs.md); unaffected legacy golden hashes remain covered.
 
 1. Specify bounded fixed-grid microstructure features; independently test their
    formulas, warmup, epoch boundaries, missingness and prefix causality.
@@ -51,6 +59,13 @@ joint-valid UTC days means diagnostic-only research, not a holdout claim.
 
 ## Current evidence
 
+The independently repaired core passes every local reviewer step at clean
+`b9519d1` (657 Python / 16 Rust tests) and all eight hosted Linux/Windows jobs.
+The pre-split HMM source `01d32ec` passes every local step (1,554 Python / 16 Rust
+tests). Neither result certifies the subsequently merged HMM source: a fresh
+gate and exhaustive comparison against the unchanged core-only reference are
+required before publishing the integration.
+
 The historical entries below identify the source revision they tested; their
 counts are not a current-head certificate. The clean `676ec15` gate passed all
 15 steps (1,532 Python / 16 Rust tests) and all eight hosted Linux/Windows jobs.
@@ -66,8 +81,8 @@ completed at clean `0c8d505`: independent UTC-day sources, all eighty fit attemp
 five native test variants and four independently verified serialized HMM audit
 reports. Its focused native study/recovery suite passes 64 tests; 16 source and
 publication tests pass independently, including exact default input regeneration.
-All three HMM experiment entrypoints are included in gate typing (70 source
-files). The current publication still requires a complete reviewer gate and
+All three HMM experiment entrypoints were included in that source's gate typing
+(70 source files). The current publication still requires a complete reviewer gate and
 hosted CI; it does not inherit the previous revision's certificate. The
 [engineering handoff](hmm_release_review.md) maps the complete deliverable and
 acceptance criteria to source-qualified evidence and remaining limitations.
@@ -94,7 +109,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | L | Opt-in HMM market-making profile | hmm_regime_mm composes research_mm; six actual bounded controls, explicit policy mode, immutable training-risk/config identities |
 | M | Hard risk dominance tests | Live-plus-pending send/arrival guards, portfolio and unknown-unit exposure, sub-lot suppression, feed faults and kill-switch tests; no model override |
 | N | Hysteresis and uncertainty tests | Estimator tests plus independent scalar policy oracle, 1001-risk monotonicity, uncertainty penalties and real pending-cancel/refresh races |
-| O | HMM-disabled golden baseline identity | Preimplementation summary/trace hashes preserved through observation-mode integration |
+| O | HMM-off identity against independently repaired core | Native core-only reference: 112 cases / 648 checkpoint comparisons; complete state, traces, risk, accounting, fills, markouts and config. Twenty-three selected comparisons run in the normal suite; exhaustive cross-revision probe is required. Unaffected legacy golden hashes remain covered. |
 | P | Existing chronological research protocol reused | Reused for physical dataset partitions; diagnostic-only without coverage certification |
 | Q | Frozen variant registry before untouched test | Independent-source runner freezes baseline/observe/policy, hard-active and cadence variants; successful native-clock integration and failed real-data eligibility are recorded separately |
 | R | Paired moving-block bootstrap study | Matched UTC-minute risk, execution and causal gross/net equity-delta statistics; ratio-of-sums quality/coverage, fee/turnover activity and explicit 30/5/60-minute unavailability; mean eligible-minute PnL is not total-path PnL; full-path drawdown intervals and representative held-out evidence remain |
@@ -104,7 +119,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
 | W | Existing tests pass after integration | Last clean full gate: 1,532 Python / 16 Rust tests at 676ec15; current changes require a fresh full gate |
 | X | New tests pass | 64 native study/recovery and 16 synthetic source/publication cases pass for the current comparison producer; snapshot and publication tests remain in the normal suite |
-| Y | Standard lint and typing pass | Current gate Mypy passes 70 source files, Ruff and format pass 194 files; final clean gate still required |
+| Y | Standard lint and typing pass | Source-qualified historical typing/lint/format results are retained; the merged source requires its own full gate |
 | Z | Complete reviewer gate passes | All 15 steps plus eight hosted jobs passed at 676ec15; no current-head certificate is inferred from that result |
 
 ## Release boundaries

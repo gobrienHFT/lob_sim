@@ -70,6 +70,7 @@ Read next:
 - [Walkthrough](WALKTHROUGH.md): follow a fill, read the outputs, and find the code.
 - [Results Memo](docs/reviewer_results_memo.md): the committed measurements and historical-data caveats.
 - [Assumptions and limits](docs/claims.md): what the feed observes and what the simulator models.
+- [Repaired core baseline](docs/core_repairs.md): standalone clock, exposure and replay-boundary fixes. The HMM is reviewed on top of this baseline; disabling it must introduce no additional behavior change.
 - [Causal regime research](docs/hmm_regime_model.md): fit frozen HMMs, inspect quote/fill/inventory and cash/fee/equity audits, and run registered baseline/observe/policy comparisons. [Known-regime synthetic recovery](docs/strategy_results/hmm_synthetic_recovery_reference.md) reports imperfect clustering and delayed detection. The [real-data eligibility audit](docs/strategy_results/hmm_regime_reference.md) explains why the available tapes do not yet support a held-out policy result.
 - [HMM replay cost](docs/benchmark_results/hmm_snapshot_public_reference.md): thirty measured repetitions after snapshot-copy optimization, with accepted policy quotes and unchanged replay probes. Observation overhead is about 81% on this short workload. Absolute times varied greatly between uncontrolled runs; this is not a causal speedup, trading latency or evidence of a better strategy.
 

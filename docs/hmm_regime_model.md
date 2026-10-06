@@ -708,8 +708,9 @@ symbol's 3-second market trace. Active integer-clock timers now advance before
 each global observation, including control records; dispatch and same-time
 heap rules are unchanged. Independent HMM-disabled tests cover both-symbol and
 quiet-symbol receipt patterns and checkpoint continuation. This is an explicit
-core correctness repair, not an HMM policy change. Legacy per-symbol
-compatibility scheduling and the preimplementation golden hashes are preserved.
+core correctness repair, not an HMM policy change. It belongs to the standalone
+[repaired core](core_repairs.md), which is reviewed before HMM integration.
+Legacy per-symbol compatibility scheduling and unaffected golden hashes are preserved.
 
 ## Quote-lifetime attribution and descriptive execution statistics
 
@@ -1184,13 +1185,22 @@ python -m mypy lob_sim/regime
 python scripts/reviewer_gate.py
 ```
 
-The HMM-disabled golden fixture freezes preimplementation summary and event
-trace hashes. Adding source necessarily changes repository/code provenance;
-that is not a behavioral change and is not disguised as identical source.
-Schema-v3 requote timers now use integer nanoseconds. The new long-enough receipt
-fixture exposed a pre-existing float-accumulation/epsilon bug that could schedule
-a just-before-t action after the t market record and raise a causal trace error.
-That boundary is deliberately repaired; legacy golden behavior remains intact.
+HMM-off must match the independently repaired core, not a mixture of HMM changes
+and exceptions for unrelated defects. The core-only reference contains 112
+cases and 648 checkpoint/resume comparisons with complete state, configuration,
+trace, risk, accounting, fill and markout identities. The producer has no regime
+imports; normal tests cover 23 selected cases and the exhaustive comparison is:
+
+```bash
+python scripts/core_regression_probe.py --expected docs/regression_results/repaired_core_baseline.json
+```
+
+Source identities remain explicit and checkpoints remain source-bound. Behavioral
+equality does not mean cross-revision checkpoint portability or identical code.
+The unaffected legacy fixture separately retains its original summary/trace
+hashes. Integer timers, global scheduling, unknown-unit/orphan-order risk and
+record-boundary fixes are reviewed first in [core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99),
+then [HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98) is reviewed on top.
 
 Fitting reference: [hmmlearn API](https://hmmlearn.readthedocs.io/en/stable/api.html).
 

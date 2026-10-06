@@ -65,6 +65,18 @@ measurement, and synthetic FIFO is not historical Binance FIFO.
 
 ## Causal regime research in progress
 
+Core correctness and HMM integration now have separate review boundaries:
+[core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99) fixes receipt-clock
+timers, missing-unit/orphan-order reservations and record/checkpoint boundaries;
+[HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98) sits on that repaired
+baseline. Review the core first. The core-only branch passes all 15 local gate
+steps (657 Python / 16 Rust tests) at clean `b9519d1`, and all eight hosted
+Linux/Windows jobs. The independent core reference contains 112 cases and 648
+checkpoint/resume comparisons. HMM-off must match that reference without dropping
+clock, risk or economic fields; source identities remain distinct. See the
+[core contract](core_repairs.md). The merged HMM source needs its own full gate
+and exhaustive parity result, not an exception to disabled behavior.
+
 The [post-cache public measurement](benchmark_results/hmm_snapshot_public_reference.md)
 is complete at clean `676ec15`: 102 fresh-engine replays, accepted policy quotes,
 all thirty raw timing samples per mode and exact cross-report configuration/probe

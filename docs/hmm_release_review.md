@@ -4,8 +4,11 @@ The optional research implementation has a runnable registered synthetic study,
 independent causal oracles and published overhead evidence. It does **not** have
 a fitted real-market model or evidence of economic benefit. The broader HFT
 platform roadmap remains incomplete; see [project status](project_status.md).
-The final current-head reviewer check is required separately from the completed
-historical measurements below.
+Core correctness and HMM integration have separate review boundaries. Review
+[core PR #99](https://github.com/gobrienHFT/lob_sim/pull/99) against master first,
+then [HMM PR #98](https://github.com/gobrienHFT/lob_sim/pull/98) against the
+repaired core. The merged source requires its own reviewer gate and exhaustive
+HMM-off comparison; historical measurements do not certify a later revision.
 
 ## What the layer does
 
@@ -13,9 +16,10 @@ The optional HMM estimates statistical latent states from causal public-book
 and trade features. It has two modes: `observe` adds diagnostics without changing
 strategy actions; `policy` conservatively adapts the existing `research_mm`
 quotes. Neither mode repairs public-L2 execution uncertainty or establishes
-economic benefit. The existing profiles remain the defaults. The frozen legacy
-baseline hashes are unchanged; separately documented core correctness repairs
-are not a claim of byte identity on every historical input.
+economic benefit. The existing profiles remain the defaults. With HMM off,
+integration must match the independently repaired core without any additional
+behavior change. The [core repairs](core_repairs.md) are standalone fixes, not
+exceptions inside the HMM PR. Unaffected legacy golden hashes remain unchanged.
 
 The path is authoritative replay/book state → bounded fixed-grid features →
 frozen training-only scaler → log-space forward filter → diagnostic audits or
@@ -27,6 +31,10 @@ automatic refitting, future smoothing in strategy decisions, or LLM strategy loo
 
 The following maps the supplied A–Z criteria to implementation and independent
 regressions. These are technical proofs, not a real-market policy result.
+The core-only source `b9519d1` passes all 15 local steps (657 Python / 16 Rust
+tests) and all eight hosted Linux/Windows jobs. The pre-split HMM source
+`01d32ec` passes all 15 local steps (1,554 Python / 16 Rust tests). These results
+are independently source-qualified; merged-source verification is separate.
 Source `676ec15` passes the full local reviewer gate (1,532 Python / 16 Rust tests,
 all 15 steps), plus all eight hosted Linux/Windows CI jobs. Publication changes
 must receive their own verification; they do not inherit that gate result.
@@ -47,7 +55,7 @@ must receive their own verification; they do not inherit that gate result.
 | L — opt-in policy | `hmm_regime_mm` composes `research_mm`; strict `HMMSettings`, immutable model/policy identities, six bounded controls. |
 | M — hard risk dominance | Independent send/arrival live-plus-pending position/notional guards, missing units/marks, post-only arrival, feed invalidity and kill-switch regressions. |
 | N — uncertainty/hysteresis | Scalar policy oracle, 1,001-risk monotonicity grid, uncertainty penalty, confirmation/age requirements and actual cancel/fill/refresh races. |
-| O — disabled identity | `test_hmm_baseline.py` freezes the preimplementation legacy fixture's summary and event-trace hashes. Documented receipt-clock/global-timer, invalidation-trace and missing-unit risk repairs have separate disabled-mode regressions; source/provenance changes and their narrower scope are not hidden. |
+| O — disabled identity | `test_core_reference.py` compares 23 selected cases against a reference produced on the clean core-only branch, without regime imports. The exhaustive `core_regression_probe.py` covers 112 cases / 648 checkpoint comparisons, including complete mutable state, traces, risk, accounting, fills, markouts and config. HMM-off must match this repaired baseline; `test_hmm_baseline.py` separately preserves the unaffected legacy fixture. |
 | P — chronological protocol | Existing 60/20/20 whole-day protocol reused. Snippets and invalid clocks cannot certify complete joint-valid days. |
 | Q — frozen variants | `study.py` freezes baseline, observer, posterior policy, hard-active and 250 ms cadence variants before extraction/test access; attempted failures remain visible. |
 | R — paired bootstrap available | Existing matched 30-minute clock blocks and 5/60-minute sensitivities; independent batch/RNG and native audit tests. Short/broken strata retain null intervals. |
@@ -109,6 +117,7 @@ foreach ($hmmRun in $hmmStudy.results) {
     }
 }
 python -m pytest -q -k hmm
+python scripts/core_regression_probe.py --expected docs/regression_results/repaired_core_baseline.json
 python scripts/reviewer_gate.py
 ```
 
@@ -142,8 +151,8 @@ not a reason to fill missing values or claim policy benefit.
 
 The focused producer/publication/reviewer tests pass 31 cases, including default
 source regeneration, exact native-manifest hashes, partial-write failures and
-no-clobber. Native study/recovery checks pass 64 cases. Current Mypy covers 70
-source files; Ruff/format cover 194 files. These targeted results do not replace
+no-clobber. Native study/recovery checks pass 64 cases. Historical producer
+typing/formatting results stay bound to their source revisions. These targeted results do not replace
 the final full gate or cross-platform CI.
 
 A direct standalone `regime-fit` smoke caught an import-scope error after the
@@ -188,13 +197,16 @@ HFT-platform roadmap still lacks end-to-end Rust engine parity, representative
 24-hour capture/soak, ten-day held-out economics and dedicated-host performance.
 Venue/risk/statistical/public-claim interpretation still needs human review.
 
-Separately reviewed core repairs address schema-v3 float timer boundaries,
-global quiet-symbol timers, control-record markout trace flushing, and risk
-reservation with missing instrument units. These are explicit correctness
-changes with disabled-HMM regressions, not effects of a latent-state policy.
-Golden fixture identity cannot prove global before/after identity across all
-historical inputs. No unsafe legacy behavior should be restored to make such
-an overbroad claim appear true.
+The standalone core PR repairs schema-v3 timer boundaries, quiet-symbol timers,
+record/markout/checkpoint boundaries, missing instrument units and orphan live
+orders. Its CRC32C optimization has an independent wire-equivalence oracle.
+HMM is based on that repaired core through a normal related-history merge;
+old mixed commits remain visible, without force-pushing or rewriting history.
+The reference was generated at clean `900475f` without HMM source. No risk or
+economic fields are removed or rounded to force agreement. Code identities
+necessarily differ and remain provenance, not behavioral hashes. Checkpoints
+remain source-bound; cross-revision portability is not claimed. Equality over
+this adversarial matrix is evidence, not proof for every conceivable tape.
 
 Failure modes include drifting feature/emission/transition distributions,
 inappropriate Gaussian/conditional-independence assumptions, state splitting or
@@ -209,8 +221,9 @@ New implementation families are `lob_sim/regime/`, the three HMM experiment
 entrypoints, HMM tests, and model/research/benchmark documents and evidence.
 Integration modifies the native CLI/config, simulation observation/scheduling,
 audits/metrics/export/checkpoint path, optional dependencies and reviewer checks.
-An exact inventory against the standalone base is available without relying on
-this prose: `git diff --name-status b2764b39d1785991555531a3eae66c0dc8f03a6a HEAD`.
+An exact HMM-only inventory against the repaired core is available without
+relying on this prose: `git diff --name-status b9519d1fd3a4124bd44010bd92e5a889afa9ad71 HEAD`.
+The core repairs are reviewed separately against master.
 
 For a technical interview, demonstrate the independent filtering oracle, a
 future-mutation test, observer/reference identity, an invalid epoch, and a
@@ -239,8 +252,8 @@ unchanged and explicitly identified by their historical producers.
 
 ## Base-to-feature file inventory
 
-This snapshot is relative to standalone base
-`b2764b39d1785991555531a3eae66c0dc8f03a6a`. The command above returns the exact
+This snapshot is relative to repaired core
+`b9519d1fd3a4124bd44010bd92e5a889afa9ad71`. The command above returns the exact
 current inventory, including later evidence-only publication commits.
 
 ```text
@@ -276,7 +289,6 @@ A	experiments/run_hmm_regime_study.py
 A	experiments/run_hmm_synthetic_recovery.py
 M	lob_sim/cli.py
 M	lob_sim/config.py
-M	lob_sim/record/envelope.py
 A	lob_sim/regime/__init__.py
 A	lob_sim/regime/artifact.py
 A	lob_sim/regime/collection.py
