@@ -38,6 +38,9 @@ def test_reviewer_gate_steps_match_local_evidence_path() -> None:
     assert "lob_sim/sim/engine.py" in steps[1].command
     assert "lob_sim/sim/run_manifest.py" in steps[1].command
     assert "lob_sim/sim/mm_strategy.py" in steps[1].command
+    assert "experiments/benchmark_hmm_overhead.py" in steps[1].command
+    assert "experiments/run_hmm_regime_study.py" in steps[1].command
+    assert "experiments/run_hmm_synthetic_recovery.py" in steps[1].command
     assert steps[2].command == ("python", "-m", "ruff", "check", ".")
     assert steps[3].command == ("python", "-m", "ruff", "format", "--check", ".")
     assert steps[4].command == ("cargo", "fmt", "--all", "--", "--check")

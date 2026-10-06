@@ -9,7 +9,7 @@ import pytest
 
 from lob_sim.regime.fit import FitConfig, FitResult
 from lob_sim.regime.study import run_regime_study, core_audit_hashes, format_study_report
-from lob_sim.regime.synthetic import SyntheticTapeConfig, synthetic_rows
+from lob_sim.regime.synthetic import SyntheticTapeConfig, generate_synthetic_sources, synthetic_rows
 from lob_sim.regime.study_periods import risk_clock_periods, compare_risk_periods, PERIOD_NS
 from lob_sim.regime.study_pnl import PNL_CONTRACT, read_pnl_periods
 from test_hmm_dataset import cfg, SECOND, WALL
@@ -51,7 +51,9 @@ def study_cfg():
 @pytest.fixture(scope="module")
 def completed_study(tmp_path_factory):
     root = tmp_path_factory.mktemp("registered-study")
-    inputs = independent_sources(root)
+    source_root = root / "inputs"
+    generated = generate_synthetic_sources(source_root, SyntheticTapeConfig(days=3, seconds_per_day=180))
+    inputs = tuple(source_root / entry["path"] for entry in generated["sources"])
     directory = root / "study"
     report = run_regime_study(
         inputs,

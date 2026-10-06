@@ -240,3 +240,90 @@ def generate_synthetic_tape(
     report["manifest_sha256"] = identity(report)
     publish_json(root / "manifest.json", report)
     return report
+
+
+def generate_synthetic_sources(
+    directory: str | Path, config: SyntheticTapeConfig = SyntheticTapeConfig(seconds_per_day=180)
+) -> dict[str, Any]:
+    """Publish independent diagnostic snippets, never transform real captures.
+
+    Market payloads and UTC receipt times come unchanged from synthetic_rows.
+    Only synthetic receipt identity is made local to each source. Hidden truth
+    is discarded; the existing combined raw/truth generator stays unchanged.
+    Writer state is bounded by the configured day cap, not the event count.
+    """
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=False)
+    incomplete = root / "_INCOMPLETE.json"
+    publish_json(
+        incomplete, {"schema_version": "lob_sim.synthetic_regime_sources.pending.v1", "config": config.as_dict()}
+    )
+    headers: list[dict[str, Any]] = []
+    paths: dict[str, Path] = {}
+    counts: dict[str, int] = {}
+    completed = False
+    with ExitStack() as stack:
+        handles: dict[str, Any] = {}
+
+        def write(day: str, value: dict[str, Any], *, header: bool = False) -> None:
+            # Copy just the objects being changed; nested market arrays are read
+            # only by canonical_json and are neither mutated nor retained.
+            index = (date.fromisoformat(day) - date.fromisoformat(config.start_day)).days
+            item = dict(value)
+            payload = dict(item["data"])
+            capture = dict(payload["_capture"])
+            if header:
+                capture["recvWallNs"] += index * DAY_NS
+                capture["streamEpoch"] = capture["syncEpoch"] = index
+            else:
+                capture["recvMonotonicNs"] -= index * (config.seconds_per_day + 2) * SECOND
+            capture["recvSeq"] = counts[day]
+            payload["_capture"] = capture
+            item["data"] = payload
+            item["ts_local"] = capture["recvWallNs"] / SECOND
+            handles[day].write((canonical_json(item) + "\n").encode("utf-8"))
+            counts[day] += 1
+
+        for kind, row in synthetic_rows(config):
+            if kind != "raw":
+                continue
+            if len(headers) < 2:
+                headers.append(row)
+                continue
+            completed = row["type"] == "captureEvent" and row["data"].get("event") == "capture_trailer"
+            wall_ns = row["data"]["_capture"]["recvWallNs"]
+            day = datetime.fromtimestamp(wall_ns // SECOND, timezone.utc).date().isoformat()
+            if day not in handles:
+                paths[day] = root / (day + ".ndjson")
+                partial = paths[day].with_suffix(".ndjson.partial")
+                handles[day] = stack.enter_context(partial.open("xb"))
+                counts[day] = 0
+                for value in headers:
+                    write(day, value, header=True)
+            write(day, row)
+        if not completed or len(paths) != config.days:
+            raise ValueError("synthetic generation ended before declared source/trailer completion")
+        for handle in handles.values():
+            handle.flush()
+            os.fsync(handle.fileno())
+    for path in paths.values():
+        partial = path.with_suffix(".ndjson.partial")
+        os.link(partial, path)
+        partial.unlink()
+    report: dict[str, Any] = {
+        "schema_version": "lob_sim.synthetic_regime_sources.v1",
+        "synthetic": True,
+        "config": config.as_dict(),
+        "sources": [
+            {"utc_day": day, "path": path.name, "sha256": file_sha256(path), "records": counts[day]}
+            for day, path in sorted(paths.items())
+        ],
+        "receipt_transform": "synthetic only: replicate capture/instrument headers; local monotonic origin and sequence; preserve market payloads, UTC times, ordering and stream/sync epochs",
+        "storage": "NDJSON importer with schema-v3 receipt metadata; not finalized segmented exchange captures",
+        "claim_ready": False,
+        "limitations": "short synthetic UTC snippets, not complete valid days, Binance calibration, private FIFO, real fills or policy benefit; hidden truth never enters inputs",
+    }
+    report["manifest_sha256"] = identity(report)
+    publish_json(root / "manifest.json", report)
+    incomplete.unlink()
+    return report

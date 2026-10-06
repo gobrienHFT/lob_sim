@@ -46,6 +46,9 @@ MYPY_TARGETS = (
     "lob_sim/audit",
     "lob_sim/research",
     "lob_sim/regime",
+    "experiments/benchmark_hmm_overhead.py",
+    "experiments/run_hmm_regime_study.py",
+    "experiments/run_hmm_synthetic_recovery.py",
 )
 
 
