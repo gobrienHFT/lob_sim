@@ -1,0 +1,219 @@
+{
+  "schema_version": "lob_sim.synthetic_regime_study_reference.v1",
+  "synthetic": true,
+  "claim_ready": false,
+  "scope": "Compact projection of an actual completed registered synthetic study, not its full native audit bundle; regenerate and verify native parents with the documented command.",
+  "native_run_manifest": {
+    "claim_ready": false,
+    "common_demo_quote_overrides": {
+      "quantity": "0.010",
+      "requote_ms": 500
+    },
+    "generator_manifest_sha256": "a7e80b55db4a77832623bf9f50bf6baeb6910b6e633c9385116b2200fb5083b8",
+    "input_manifest": {
+      "path": "inputs/manifest.json",
+      "sha256": "729ef0ce8b16636e588fce376090ab0e10d83d0bff8bb2e666da60ac30101d08"
+    },
+    "manifest_sha256": "c7f58fa504037f37df903754ce6fab42d5efab70e2138cefc01af2d3c3455a0b",
+    "producer": {
+      "package": {
+        "algorithm": "sha256",
+        "file_count": 81,
+        "schema_version": "lob_sim.checkpoint_code_identity.v1",
+        "sha256": "e32377c6ef5630f88890ab1f836137939674d1f52b7fbcf37b6e0d98e4d1f0ed"
+      },
+      "script_sha256": "8585aa43978ca41c69d973ef1c75eb64e83d029e6f1c986ad8ff0c8cdd9ef26e",
+      "source": {
+        "git_branch": "codex/hmm-regime-layer",
+        "git_commit": "0c8d505f9c419c3d6d12a155be6297b296ee08b3",
+        "git_dirty": false
+      }
+    },
+    "registry_sha256": "77a8a4cf49c597d29f575be36f0f7500ed3d21ae898d4738cdc4c09f6c34a59f",
+    "schema_version": "lob_sim.synthetic_regime_study_demo.v1",
+    "scope": "generated synthetic snippets; actual registered native study; not real-market calibration, full valid days, private fills or policy benefit",
+    "status": "completed",
+    "study_report": {
+      "path": "study/study_report.json",
+      "sha256": "8ca302a740480a105ec2ec5c05fcd578c661a686ca79113988712fdf42634006"
+    },
+    "synthetic": true
+  },
+  "native_run_manifest_file_sha256": "fe94a2b9c98379ac240e2f35c66ed66b27f153c8ed4e1c8abcbb664e1859b19d",
+  "native_source_manifest": {
+    "claim_ready": false,
+    "config": {
+      "days": 5,
+      "seconds_per_day": 180,
+      "seed": 7,
+      "start_day": "2025-01-01"
+    },
+    "limitations": "short synthetic UTC snippets, not complete valid days, Binance calibration, private FIFO, real fills or policy benefit; hidden truth never enters inputs",
+    "manifest_sha256": "a7e80b55db4a77832623bf9f50bf6baeb6910b6e633c9385116b2200fb5083b8",
+    "receipt_transform": "synthetic only: replicate capture/instrument headers; local monotonic origin and sequence; preserve market payloads, UTC times, ordering and stream/sync epochs",
+    "schema_version": "lob_sim.synthetic_regime_sources.v1",
+    "sources": [
+      {
+        "path": "2025-01-01.ndjson",
+        "records": 937,
+        "sha256": "7ce201ce433a7aea48cd6f629a1d279b0836e3928bcc0984779a46812c226cdf",
+        "utc_day": "2025-01-01"
+      },
+      {
+        "path": "2025-01-02.ndjson",
+        "records": 987,
+        "sha256": "c01e8b2f10de5c74491d2bb1ac4c2d54f27c188ff29fb1b649020c69f2cff162",
+        "utc_day": "2025-01-02"
+      },
+      {
+        "path": "2025-01-03.ndjson",
+        "records": 997,
+        "sha256": "0a9be49163df2dc6a4a8d70a568daf19b01e0a3deae0fed2d2d20ef1938dde46",
+        "utc_day": "2025-01-03"
+      },
+      {
+        "path": "2025-01-04.ndjson",
+        "records": 782,
+        "sha256": "cd9a466ac04e979a15d1f6e1015d429ffeb5d3c87eb927570df83e6f18d70513",
+        "utc_day": "2025-01-04"
+      },
+      {
+        "path": "2025-01-05.ndjson",
+        "records": 763,
+        "sha256": "13ce0b3f81ede43f79cbbb66461a26b80d30dc6a48ceacd9e375c477a019dbdc",
+        "utc_day": "2025-01-05"
+      }
+    ],
+    "storage": "NDJSON importer with schema-v3 receipt metadata; not finalized segmented exchange captures",
+    "synthetic": true
+  },
+  "native_study_report_sha256": "0bd03bbeaa2d1044310b93014b7b4022a297eb7ba735de044f57aae43ada2dd2",
+  "split": {
+    "calibration_days": [
+      "2025-01-01",
+      "2025-01-02",
+      "2025-01-03"
+    ],
+    "validation_days": [
+      "2025-01-04"
+    ],
+    "test_days": [
+      "2025-01-05"
+    ]
+  },
+  "models": {
+    "primary": {
+      "k": 5,
+      "restart": 9,
+      "attempts": 40,
+      "failed_attempts": 0,
+      "training_rows": 510,
+      "validation_rows": 170,
+      "model_sha256": "0c00f7a777959e1c3bd599d6fdb36bef85683926f6ce1ad008638f64c2971aec",
+      "fit_report_sha256": "6d86a7e2eb9d3f2d65d01a8aa944a5d9b1b74b603f6a71554cc9f96093d42339"
+    },
+    "cadence_250ms": {
+      "k": 5,
+      "restart": 8,
+      "attempts": 40,
+      "failed_attempts": 3,
+      "training_rows": 2037,
+      "validation_rows": 679,
+      "model_sha256": "d0077df12e77b1d9d804e96670548720c5affc9d0834cb155d3be960a166b617",
+      "fit_report_sha256": "5d3549891adda5aaf5ef7daa42c408484426bd332292bb3e1b23d33cb2878d4e",
+      "failures": [
+        {
+          "k": 5,
+          "restart": 0,
+          "reason": "not_converged_or_likelihood_decreased"
+        },
+        {
+          "k": 5,
+          "restart": 1,
+          "reason": "not_converged_or_likelihood_decreased"
+        },
+        {
+          "k": 5,
+          "restart": 4,
+          "reason": "indistinguishable_emission_means"
+        }
+      ]
+    }
+  },
+  "baseline_observe_core_audits": {
+    "core_event_sha256": "6173461d2c3528d1d11814bf43b6d0a1318ccb7a59f2a135e285e50bfbf92cec",
+    "event_count": 9569,
+    "markouts_file_sha256": "a428ff43ffeff298c1160f7769e007587185a0458a25b9ac3dcc91beb5506cb2",
+    "trades_file_sha256": "acb851a82cf44db42eb7b8958d5377bae148e6aefc30771ce5f5bed7eb220dae"
+  },
+  "results": [
+    {
+      "variant": "baseline",
+      "fills": 477,
+      "fees_quote_rational": "635193/40000",
+      "inventory_lots": -50,
+      "status": "completed",
+      "net_marked_pnl_quote_rational": null,
+      "unpriced_inventory_ns": 200000000
+    },
+    {
+      "variant": "observe",
+      "fills": 477,
+      "fees_quote_rational": "635193/40000",
+      "inventory_lots": -50,
+      "status": "completed",
+      "net_marked_pnl_quote_rational": null,
+      "unpriced_inventory_ns": 200000000
+    },
+    {
+      "variant": "policy",
+      "fills": 408,
+      "fees_quote_rational": "17412141/1562500",
+      "inventory_lots": -40,
+      "status": "completed",
+      "net_marked_pnl_quote_rational": null,
+      "unpriced_inventory_ns": 200000000
+    },
+    {
+      "variant": "hard_active",
+      "fills": 396,
+      "fees_quote_rational": "10987771/1000000",
+      "inventory_lots": -41,
+      "status": "completed",
+      "net_marked_pnl_quote_rational": null,
+      "unpriced_inventory_ns": 200000000
+    },
+    {
+      "variant": "cadence_250ms",
+      "fills": 413,
+      "fees_quote_rational": "284694063/25000000",
+      "inventory_lots": -39,
+      "status": "completed",
+      "net_marked_pnl_quote_rational": null,
+      "unpriced_inventory_ns": 200000000
+    }
+  ],
+  "comparison_coverage": {
+    "eligible_period_count": 2,
+    "period_count": 2,
+    "period_seconds": 60,
+    "block_minutes": [
+      30,
+      5,
+      60
+    ],
+    "bootstrap_replicates": 2000,
+    "all_intervals": null,
+    "unavailable_reason": "at least one independent contiguous stratum is shorter than the registered clock block"
+  },
+  "audit_verification": {
+    "regime_report_variants": [
+      "observe",
+      "policy",
+      "hard_active",
+      "cadence_250ms"
+    ],
+    "exit_code": 0,
+    "scope": "full serialized regime/quote/execution/risk/economics parents, not private fills or real-market validity"
+  }
+}

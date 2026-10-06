@@ -118,6 +118,10 @@ python -m pip install -e ".[hmm]"
 python experiments/run_hmm_regime_study.py --synthetic-demo --out-dir outputs/hmm_paired_demo
 ```
 
+See the [recorded synthetic comparison](docs/strategy_results/hmm_synthetic_study_reference.md)
+and [engineering handoff](docs/hmm_release_review.md) for the exact fit/inspect/
+observe/policy/report commands, causal proofs, source identities and deferrals.
+
 This generates five short synthetic UTC snippets and compares baseline,
 observation-only, posterior-weighted policy, hard-state policy and 250 ms sampling
 through the normal registered replay/audit path. It fits on calibration, selects

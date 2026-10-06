@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,59 @@ from lob_sim.regime.validation import identity
 
 SECOND = 1_000_000_000
 DAY = 86_400 * SECOND
+REFERENCE = Path(__file__).resolve().parents[1] / "docs/strategy_results/hmm_synthetic_study_reference.json"
+
+
+def test_committed_default_input_bytes_are_reproducible_not_a_full_research_certificate(tmp_path):
+    reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
+    expected = reference["native_source_manifest"]
+    root = tmp_path / "default-sources"
+    actual = generate_synthetic_sources(root, SyntheticTapeConfig(**expected["config"]))
+    assert actual == expected
+    assert (
+        sha256((root / "manifest.json").read_bytes()).hexdigest()
+        == (reference["native_run_manifest"]["input_manifest"]["sha256"])
+    )
+    for entry in expected["sources"]:
+        assert sha256((root / entry["path"]).read_bytes()).hexdigest() == entry["sha256"]
+    assert reference["synthetic"] is True and reference["claim_ready"] is False
+    assert reference["split"] == {
+        "calibration_days": ["2025-01-01", "2025-01-02", "2025-01-03"],
+        "validation_days": ["2025-01-04"],
+        "test_days": ["2025-01-05"],
+    }
+
+
+def test_committed_native_manifest_and_insufficient_coverage_keep_their_exact_scope():
+    reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
+    manifest = reference["native_run_manifest"]
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert sha256((canonical + "\n").encode()).hexdigest() == reference["native_run_manifest_file_sha256"]
+    unhashed = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    canonical = json.dumps(unhashed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert sha256(canonical.encode()).hexdigest() == manifest["manifest_sha256"]
+    assert manifest["producer"]["source"] == {
+        "git_branch": "codex/hmm-regime-layer",
+        "git_commit": "0c8d505f9c419c3d6d12a155be6297b296ee08b3",
+        "git_dirty": False,
+    }
+    assert manifest["status"] == "completed" and manifest["claim_ready"] is False
+    assert manifest["generator_manifest_sha256"] == reference["native_source_manifest"]["manifest_sha256"]
+    assert manifest["study_report"]["sha256"] == "8ca302a740480a105ec2ec5c05fcd578c661a686ca79113988712fdf42634006"
+    assert reference["models"]["primary"]["attempts"] == reference["models"]["cadence_250ms"]["attempts"] == 40
+    assert [row["variant"] for row in reference["results"]] == [
+        "baseline",
+        "observe",
+        "policy",
+        "hard_active",
+        "cadence_250ms",
+    ]
+    for row in reference["results"]:
+        assert row["net_marked_pnl_quote_rational"] is None and row["unpriced_inventory_ns"] > 0
+    coverage = reference["comparison_coverage"]
+    assert coverage["eligible_period_count"] == coverage["period_count"] == 2
+    assert coverage["block_minutes"] == [30, 5, 60]
+    assert coverage["all_intervals"] is None and coverage["unavailable_reason"]
 
 
 def independent_daily_rows(config):

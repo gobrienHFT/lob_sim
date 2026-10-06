@@ -61,12 +61,16 @@ Median paired overhead remains 80.65% for observation and 67.13% for policy.
 Absolute runtimes were over three times slower on the uncontrolled host: no
 causal speedup or regression is claimed.
 
-The self-contained synthetic comparison now uses independent UTC-day sources
-and the existing five-variant registered runner. Its focused native study and
-recovery suite passes 64 tests; 14 new source/failure tests pass independently.
+The [self-contained synthetic comparison](strategy_results/hmm_synthetic_study_reference.md)
+completed at clean `0c8d505`: independent UTC-day sources, all eighty fit attempts,
+five native test variants and four independently verified serialized HMM audit
+reports. Its focused native study/recovery suite passes 64 tests; 16 source and
+publication tests pass independently, including exact default input regeneration.
 All three HMM experiment entrypoints are included in gate typing (70 source
-files). This change still needs its own default demonstration and complete
-reviewer gate; it does not inherit the previous revision's certificate.
+files). The current publication still requires a complete reviewer gate and
+hosted CI; it does not inherit the previous revision's certificate. The
+[engineering handoff](hmm_release_review.md) maps the complete deliverable and
+acceptance criteria to source-qualified evidence and remaining limitations.
 
 ## Acceptance tracking
 
@@ -99,7 +103,7 @@ milestone is verified; do not mark the goal complete from this plan alone.
 | U | Public-L2 limitations documented | Documented in hmm_regime_model.md |
 | V | Bounded runtime windows and audit output | Streamed audits; fixed windows, one signal, two current diagnostic episodes, fixed K-by-feature moments, capped live-order contexts and core pending horizons; independent generated census/virtual stream regressions (not soak evidence) |
 | W | Existing tests pass after integration | Last clean full gate: 1,532 Python / 16 Rust tests at 676ec15; current changes require a fresh full gate |
-| X | New tests pass | 64 native study/recovery and 14 synthetic source cases pass for the current comparison producer; snapshot and publication tests remain in the normal suite |
+| X | New tests pass | 64 native study/recovery and 16 synthetic source/publication cases pass for the current comparison producer; snapshot and publication tests remain in the normal suite |
 | Y | Standard lint and typing pass | Current gate Mypy passes 70 source files, Ruff and format pass 194 files; final clean gate still required |
 | Z | Complete reviewer gate passes | All 15 steps plus eight hosted jobs passed at 676ec15; no current-head certificate is inferred from that result |
 
