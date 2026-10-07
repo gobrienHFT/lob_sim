@@ -38,7 +38,7 @@ KNOWN_EVENTS = frozenset(
 )
 
 
-def strict_envelopes(path: Path) -> Iterator[EventEnvelope]:
+def strict_envelopes(path: Path, *, exact_fields: bool = False) -> Iterator[EventEnvelope]:
     """Bound wire size and reject duplicate fields before permissive decoding.
 
     The native segment validator still verifies header/trailer and row CRC
@@ -72,6 +72,13 @@ def strict_envelopes(path: Path) -> Iterator[EventEnvelope]:
                 }
                 if not isinstance(event, dict) or not mandatory.issubset(event):
                     raise ValueError("research envelope is missing causal/checksum fields")
+                if set(event) - (mandatory | {"exchange_event_ns", "exchange_transaction_ns"}):
+                    raise ValueError("schema-v3 research envelope contains unsupported wire fields")
+                if exact_fields and (
+                    set(event) != mandatory | {"exchange_event_ns", "exchange_transaction_ns"}
+                    or set(row) != {"record", "recv_seq", "event", "payload_checksum"}
+                ):
+                    raise ValueError("normalized view has extraneous or missing wire fields")
                 if not isinstance(event["raw_payload_checksum"], str) or not event["raw_payload_checksum"]:
                     raise ValueError("research envelope must carry its raw checksum,not compute a missing one")
                 yield EventEnvelope.from_dict(event)

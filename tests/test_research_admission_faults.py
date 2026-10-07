@@ -68,6 +68,13 @@ def test_null_raw_checksum_cannot_be_computed_into_admission(tmp_path):
         audit_receipts(path, cfg().symbols)
 
 
+def test_unknown_v3_envelope_field_cannot_be_silently_normalized_away(tmp_path):
+    path = capture(tmp_path)
+    change_segment(path, lambda events: events[0]["event"].update(unrecognized_clock_ns=123))
+    with pytest.raises(ValueError, match="unsupported wire fields"):
+        audit_receipts(path, cfg().symbols)
+
+
 def test_public_provenance_label_cannot_replace_full_contract_metadata(tmp_path):
     path = capture(tmp_path)
 

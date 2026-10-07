@@ -113,7 +113,11 @@ def _experiment_from_snapshot(base: dict[str, Any]) -> dict[str, Any]:
             "unit": "single_symbol_source_day;fresh engine and zero inventory per unit",
             "wall_clock": "fixed first-receipt capture projection;not fitted to future anchors",
             "freshness": "causal explicit depth/trade timeout controls at five/sixty seconds;new observations cannot rescue elapsed intervals",
+            "joint_execution": "both BTC/ETH native books, trades, clocks and marks must be valid;only the experiment symbol may quote;counterpart invalidation clears experiment live/pending orders and markouts",
+            "cutoff": "scored interval is half-open;no source record at the endpoint may fill;trailer clears orders without inventing a future mark",
+            "markout_observation": "resolve only on validated depth observations of the quoted symbol;timeouts,other-symbol records and EOF cannot invent observed prices;position valuation may use a still-fresh known mark",
             "warmup": "source-day book reconstruction before scoring;no cross-partition feature window",
+            "warmup_seconds": 30,
             "scope": "conditional day/source experiments;not one continuously funded portfolio",
         },
         "fees": {
@@ -127,6 +131,12 @@ def _experiment_from_snapshot(base: dict[str, Any]) -> dict[str, Any]:
             "reserved_exposure",
             "quote_cancel_activity",
         ],
+        "primary_definitions": {
+            "maker_signed_markout_1s_bps": "quantity-weighted resolved maker observations;10000*signed_markout/fill_price;coverage and actual lag separate",
+            "time_weighted_absolute_inventory": "mean absolute base quantity over complete joint-valid UTC-minute periods",
+            "reserved_exposure": "mean gross live-plus-pending reserved quote notional over complete joint-valid UTC-minute periods",
+            "quote_cancel_activity": "scheduled quote requests and terminal cancel acknowledgements per complete UTC minute;not target quotes or cancel requests",
+        },
         "secondary_outcomes": [
             "fills_by_source_and_liquidity",
             "fees",
@@ -162,6 +172,7 @@ def _experiment_from_snapshot(base: dict[str, Any]) -> dict[str, Any]:
         "resource_limits": {
             "maximum_fit_rows_per_partition": 1_000_000,
             "maximum_registered_days": 4096,
+            "maximum_study_units": 32,
             "minimum_free_disk_bytes": 2 * 1024**3,
         },
         "claims": "registered conditional public-L2 execution scenarios;not real fills, profitability, production or employer equivalence",

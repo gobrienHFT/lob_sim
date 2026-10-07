@@ -13,12 +13,15 @@ from lob_sim.regime.dataset import publish_json
 from lob_sim.regime.validation import strict_json
 
 JSON_LIMIT = 8 * 1024 * 1024
+STUDY_JSON_LIMIT = 64 * 1024 * 1024
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Path, *, maximum_bytes: int = JSON_LIMIT) -> dict[str, Any]:
+    if type(maximum_bytes) is not int or not 1 <= maximum_bytes <= STUDY_JSON_LIMIT:
+        raise ValueError("unsupported evidence JSON size budget")
     with path.open("rb") as handle:
-        raw = handle.read(JSON_LIMIT + 1)
-    if len(raw) > JSON_LIMIT:
+        raw = handle.read(maximum_bytes + 1)
+    if len(raw) > maximum_bytes:
         raise ValueError("evidence JSON exceeds its explicit size limit")
     value = strict_json(raw.decode("utf-8"))
     if not isinstance(value, dict):
