@@ -39,9 +39,13 @@ The [real-market evidence workflow](real_market_research.md) adds bounded
 native validity intervals, source-bound whole-UTC-day admission, an independent
 interval/day re-reader, a guarded paired-symbol soak runner and full-protocol
 registration. These are admission/reliability mechanisms, not a completed
-held-out study. Physical research preparation, the registered study runner and
-complete research-bundle verification remain implementation gates. Short live
-captures and synthetic admission tests cannot close the empirical gates below.
+held-out study. Physical causal partitions, calibration/validation fitting,
+model-frozen day views, the complete registered scenario runner and a serialized
+research-graph verifier are implemented. Their mechanics and fault boundaries
+are tested separately from empirical admission. The long native graph test is
+explicitly synthetic and substitutes its parent admission/fitting boundaries
+only inside pytest. No admitted real-market held-out study has been published.
+Short live captures and synthetic tests cannot close the empirical gates below.
 
 | Requirement | Evidence still needed |
 | --- | --- |

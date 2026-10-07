@@ -40,3 +40,24 @@ commit a small regression fixture with independently specified expected
 behavior before changing the implementation. Do not update the committed
 expected hashes merely to make a divergence disappear. A green extended job
 only validates its tested corpus and the scope stated in its report.
+
+## Serialized research graph
+
+The separate **Extended research verification** workflow runs manually and
+weekly on Windows and Linux. Run its native integration locally with:
+
+```bash
+python -m pytest tests/test_research_study_graph.py -m long_research -q --durations=10
+```
+
+This reduced synthetic grid executes matching, bounded exports, scenario
+configuration and independent serialized economic/risk/statistical audits.
+It retains failures rather than rewriting their files. The hand models and
+pytest-only admission/fitting substitutions test graph mechanics, not real
+day admission or fitted market regimes. Production exposes no bypass flag.
+The fast reviewer gate explicitly excludes `long_research`; its short fault,
+partition, model, replay and hand-calculated statistical tests still run.
+
+Actual public capture and full admitted research are separate local jobs in
+[the research guide](real_market_research.md). Do not download large tapes into
+Git or substitute this harness for the required empirical evidence.

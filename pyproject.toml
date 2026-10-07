@@ -61,6 +61,7 @@ lob_sim = ["py.typed", "resources/*.env", "resources/*.ndjson"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["long_research: native multi-case serialized research-graph integration; run explicitly outside the fast gate"]
 
 [tool.ruff]
 line-length = 120
