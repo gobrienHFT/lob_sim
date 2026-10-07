@@ -23,3 +23,21 @@ fall outside these conditions are diagnostic, not current economic results.
 Treat a report as diagnostic until it has a complete validity interval, a replay
 validity timeline, and a self-describing manifest. A final book that
 resynchronizes after an invalidated epoch does not erase that interval.
+
+## Real-market evidence admission
+
+The [research workflow](real_market_research.md) distinguishes finalized raw
+capture, valid intervals, eligible complete UTC days and registered experiments.
+The new reader checks raw receipts and independently integrates serialized
+interval/day geometry. It is not an independent exchange reconstruction or a
+trusted-author signature. Admission is conditional on declared public-network
+provenance and a first-receipt host-clock projection; absolute UTC accuracy and
+venue-side packet loss remain unknown.
+
+The paired-symbol runner records sampled host RSS, disk and event-loop/writer
+telemetry with exclusive interruption/restart evidence. Its existence does not
+prove a successful 24-hour soak. Registration freezes a complete experiment
+only after ten independently admitted days, but is not a substitute for the
+still-outstanding physical preparation, registered execution and full-bundle
+statistical verification stages. No new held-out, profitability or HFT-latency
+claim follows from these mechanisms.

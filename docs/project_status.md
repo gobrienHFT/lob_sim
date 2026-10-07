@@ -35,6 +35,14 @@ evidence, and the raw tapes remain local.
 
 ## What still separates this from the original HFT-platform goal
 
+The [real-market evidence workflow](real_market_research.md) adds bounded
+native validity intervals, source-bound whole-UTC-day admission, an independent
+interval/day re-reader, a guarded paired-symbol soak runner and full-protocol
+registration. These are admission/reliability mechanisms, not a completed
+held-out study. Physical research preparation, the registered study runner and
+complete research-bundle verification remain implementation gates. Short live
+captures and synthetic admission tests cannot close the empirical gates below.
+
 | Requirement | Evidence still needed |
 | --- | --- |
 | End-to-end Rust hot path | Integrated engine-level differential traces for every execution scenario, accounting state, checkpoint, and manifest; the million-event valid/invalid corpus and long fuzz evidence. |
