@@ -25,6 +25,21 @@ python -m lob_sim.cli --env .env.example capture-soak --out outputs/paired_day_0
 python -m lob_sim.cli capture-soak-verify --bundle outputs/paired_day_01
 ```
 
+A 25-hour run tests reliability, not automatic UTC-day admission. Depending
+on its start time, it can straddle two incomplete dates and admit zero days.
+For example, the current attempt starts at 00:42 UTC, outside the first day's
+99% coverage requirement. For a new attempt intended to contain a whole UTC
+day, use the supported 48-hour duration (or plan consecutive non-overlapping
+captures); validity and coverage thresholds still apply:
+
+```powershell
+python -m lob_sim.cli --env .env.example capture-soak --seconds 172800 --out outputs/paired_48h_01
+```
+
+Do not launch overlapping captures into the same admission bundle or extend
+an existing attempt by rewriting its frozen request. Longer duration does not
+guarantee eligibility or replace the ten-day requirement.
+
 The runner fixes the paired universe and public production endpoints. It
 preserves the complete initial symbol metadata and filters, sampled host RSS,
 disk availability, event-loop lag and writer statistics. Sampling does not
@@ -246,8 +261,9 @@ parent-admission/fitting substitutions. It does not certify a real research
 day, recovered regimes, fitted models or held-out performance. Separate tests
 exercise the admission and train-only fitting boundaries. Production has no
 synthetic bypass or reduced-grid flag. The **Extended research verification**
-workflow runs the long graph on Windows/Linux manually and weekly, outside
-normal CI. The full real-market sequence above still needs admitted real data.
+workflow runs the long graph on Windows/Linux for relevant pull requests,
+manually and weekly, separately from the normal fast gate. The full real-market
+sequence above still needs admitted real data.
 
 Required empirical evidence also remains: a finalized audited 24-hour-plus
 soak, at least ten eligible UTC days, untouched test results and a dedicated
@@ -257,6 +273,11 @@ headline research question is robustness of incremental regime information,
 not the best simulated PnL cell.
 
 ## Current admission evidence
+
+The [pipeline verification projection](regression_results/real_market_pipeline_review_20261007.json)
+binds the clean local revision, native report hashes, disabled-mode reference,
+extended synthetic graph checks and empirical blockers. It is a compact
+projection, not a replacement for the retained native reports or source data.
 
 The [2026-10-07 public smoke report](capture_results/real_market_admission_smoke_20261007.json)
 binds the actual two-symbol capture, host telemetry, raw manifests and the

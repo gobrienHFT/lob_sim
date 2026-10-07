@@ -2,6 +2,15 @@ name: Extended research verification
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/extended-research.yml"
+      - "lob_sim/research/**"
+      - "lob_sim/audit/**"
+      - "tests/test_research_*.py"
+      - "tests/test_streaming_bundle_audit.py"
+      - "pyproject.toml"
+      - "requirements.txt"
   schedule:
     - cron: "15 5 * * 0"
 

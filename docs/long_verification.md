@@ -43,8 +43,9 @@ only validates its tested corpus and the scope stated in its report.
 
 ## Serialized research graph
 
-The separate **Extended research verification** workflow runs manually and
-weekly on Windows and Linux. Run its native integration locally with:
+The separate **Extended research verification** workflow runs for relevant
+pull requests, manually and weekly on Windows and Linux. Run its native
+integration locally with:
 
 ```bash
 python -m pytest tests/test_research_study_graph.py -m long_research -q --durations=10

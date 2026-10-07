@@ -41,6 +41,15 @@ The committed public smoke contains zero eligible full UTC days. The separate
 installed `c88970e` wheel. While in progress, its partial telemetry is not a
 completed soak, a joint-validity percentage or venue-packet-loss evidence.
 It must be finalized and independently audited before publication.
+Its off-midnight 25-hour window does not itself supply a complete eligible UTC
+day. Subsequent capture planning must cover whole dates without overlapping
+sources or rewriting the attempt's request.
+
+The [local verification projection](regression_results/real_market_pipeline_review_20261007.json)
+records the tested clean source and exact native report identities. All 15
+reviewer steps, four long synthetic graph tests and the 112-case/648-checkpoint
+corrected-core comparison passed. These are mechanics/regression checks, not
+evidence that the outstanding empirical requirements are met.
 
 Required next evidence is a completed 24-hour-plus reliability report, at least
 ten eligible real UTC days, a frozen registry and untouched held-out results.
