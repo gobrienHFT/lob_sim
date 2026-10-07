@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,100 @@ from lob_sim.audit import streaming_bundle
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = REPO_ROOT / "docs" / "sample_outputs" / "futures_replay_walkthrough" / "input_fixture.ndjson"
+
+
+def test_depth_only_disabled_trade_is_ignored_not_falsely_reported_as_netted(tmp_path):
+    config = replace(
+        load_config(str(REPO_ROOT / ".env.example"), inherit_environment=False),
+        sim_fill_model="depth",
+        record_dir=tmp_path,
+    )
+    files, summary = run_bounded_simulation(config, FIXTURE)
+    assert config.hmm is None and summary["fill_assumption"]["agg_trades_consume_queue"] is False
+    with files["event_trace"].open(encoding="utf-8", newline="") as handle:
+        ignored = [
+            json.loads(row["details"])
+            for row in csv.DictReader(handle)
+            if row["event_type"] == "queue_consumption" and row["source"] == "agg_trade"
+        ]
+    assert any(row["observed_lots"] > row["overlap_netted_lots"] and row["modeled_lots"] == 0 for row in ignored)
+    assert audit_streaming_bundle(files["manifest"].parent)["ok"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"modeled_lots": 1},
+        {"queue_consumed_lots": 1},
+        {"unmatched_lots": 1},
+        {"overlap_netted_lots": 21},
+    ],
+)
+def test_disabled_trade_audit_still_rejects_consumption_or_impossible_overlap(changes):
+    issues = streaming_bundle._Issues()
+    details = {
+        "observed_lots": 20,
+        "modeled_lots": 0,
+        "queue_consumed_lots": 0,
+        "unmatched_lots": 0,
+        "overlap_netted_lots": 4,
+    }
+    details.update(changes)
+    streaming_bundle._audit_queue_consumption(
+        Path("trace.csv"), 2, "agg_trade", details, streaming_bundle._TraceState(), issues, trade_consumes_queue=False
+    )
+    assert issues.total > 0
+
+
+def test_enabled_trade_audit_does_not_accept_the_disabled_signal_exception():
+    issues = streaming_bundle._Issues()
+    streaming_bundle._audit_queue_consumption(
+        Path("trace.csv"),
+        2,
+        "agg_trade",
+        {
+            "observed_lots": 20,
+            "modeled_lots": 0,
+            "queue_consumed_lots": 0,
+            "unmatched_lots": 0,
+            "overlap_netted_lots": 4,
+        },
+        streaming_bundle._TraceState(),
+        issues,
+    )
+    assert any("netted lots" in message for message in issues.messages)
+
+
+@pytest.mark.parametrize("oversized", [False, True])
+def test_aggregate_summary_csv_has_a_finite_budget_and_restores_global_limit(tmp_path, oversized):
+    from lob_sim.audit.csv_limits import MAX_AGGREGATE_FIELD_CHARS
+
+    summary = {
+        name: "same"
+        for name in ("strategy_profile", "fill_assumption_profile", "run_id", "input_sha256", "config_sha256")
+    }
+    summary.update(
+        {
+            name: 0
+            for name in (
+                "fill_count",
+                "quote_count",
+                "cancel_count",
+                "self_trade_prevention_count",
+                "event_trace_count",
+            )
+        }
+    )
+    row = {**summary, "bounded_aggregate": "x" * (MAX_AGGREGATE_FIELD_CHARS + 1 if oversized else 140_000)}
+    with (tmp_path / "summary.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+    before = csv.field_size_limit()
+    issues = streaming_bundle._Issues()
+    streaming_bundle._audit_summary_csv(tmp_path, summary, issues)
+    assert csv.field_size_limit() == before
+    assert any("could not be read" in message for message in issues.messages) == oversized
 
 
 def _create_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, dict]:
