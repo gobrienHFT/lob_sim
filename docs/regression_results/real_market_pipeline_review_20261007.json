@@ -1,0 +1,92 @@
+{
+  "schema_version": "lob_sim.real_market_pipeline_review.v1",
+  "scope": "Compact projection of retained native local verification reports; not a held-out economic study or completed soak",
+  "claim_ready": false,
+  "tested_source": {
+    "git_commit": "384bb4e382cc81ae9a40e849e577cbaaf06c85a3",
+    "git_branch": "codex/real-market-evidence",
+    "git_dirty": false,
+    "python_code_identity": {
+      "schema_version": "lob_sim.checkpoint_code_identity.v1",
+      "algorithm": "sha256",
+      "file_count": 118,
+      "sha256": "7efa9e3d80a43001b8da4526c77c3824f1ea96aa9b210a3191a21aed0101c4e8"
+    },
+    "runtime": "Windows 11 x86-64; Python 3.13.1; Rust and Cargo 1.82.0"
+  },
+  "reviewer_gate": {
+    "status": "passed",
+    "completed_steps": 15,
+    "python_tests_passed": 1817,
+    "long_research_tests_explicitly_excluded": 4,
+    "rust_tests_passed": 16,
+    "mypy_source_files": 108,
+    "elapsed_seconds": 1112.379159,
+    "report": "outputs/real_market_pipeline_final_gate_384bb4e_20261007.json",
+    "report_sha256": "26de660a15d64b190b5834e3c99ae4966fd9fc2e05d99588292f0324b811a548",
+    "determinism_report": "outputs/real_market_pipeline_final_determinism_384bb4e_20261007.json",
+    "determinism_report_sha256": "6a255286304699bbee0cfe5414b815a4cecadd7cccfcebf97a8b74c57fcf1a15",
+    "benchmark_report": "outputs/real_market_pipeline_final_benchmark_384bb4e_20261007.json",
+    "benchmark_report_sha256": "739a040b252aeb083b476daac9f40a4efc0e930848adbf5a5f54c6415bc34602",
+    "benchmark_scope": "Short unpinned diagnostic on a recorded clip; not release throughput, trading latency or full-day study resource evidence",
+    "rust_parity_scope": "Published primitive families and composed smoke contract; full_engine_parity remains false"
+  },
+  "corrected_core_reference": {
+    "matches": true,
+    "cases": 112,
+    "checkpoint_resume_comparisons": 648,
+    "behavior_sha256": "de0409402a588284e528f2df939e828c7b7f5fc538f6856ff4a7bbc2d64c23a0",
+    "reference": "docs/regression_results/repaired_core_baseline.json",
+    "reference_file_sha256": "6ee660b702e51ad12783756c2eac36cfa4998b5f1e00d4a9734137f3b54842fd",
+    "report": "outputs/real_market_pipeline_final_core_384bb4e_20261007.json",
+    "report_sha256": "daea2c2a6272dc39d8259598260caf12900dbe814d0531ec0d23e23de98a5138",
+    "contract": "Core PR #99 repairs are the independent baseline. HMM PR #98 and opt-in research integration have no disabled ordinary-engine behavior exceptions. Baseline/observe study cases must separately match their native core hashes."
+  },
+  "extended_graph": {
+    "tests_passed": 4,
+    "cases": 18,
+    "paired_cells": 6,
+    "elapsed_seconds_pytest_console": 521.59,
+    "report": "outputs/real_market_graph_final_384bb4e_20261007.xml",
+    "report_sha256": "9c6670bb70d244ba448bbe7952d27200e80cdf1ec1358be073b671e56440eb43",
+    "scope": "Synthetic source and hand models; pytest-only parent admission/fitting substitutions; native matching and serialized downstream verification with matching disabled; nonempty fills and complete clock outcome; rehashed census/scenario attacks rejected",
+    "real_market_admission_proof": false
+  },
+  "public_smoke_recheck": {
+    "verified": true,
+    "source_count": 1,
+    "day_bundle_sha256": "0a3f594e584a9801ef849a1eccc720446937c560a66b67e853b773e1fb143510",
+    "eligible_utc_days": [],
+    "ready_for_registration": false,
+    "registration_cli_exit_code": 2,
+    "registration_created": false,
+    "committed_projection": "docs/capture_results/real_market_admission_smoke_20261007.json",
+    "raw_sources": "Retained externally/local; not committed in Git"
+  },
+  "empirical_blockers": {
+    "eligible_days_available": 0,
+    "minimum_eligible_days_required": 10,
+    "held_out_study_published": false,
+    "completed_24h_soak_published": false,
+    "running_capture": {
+      "source_commit": "c88970e",
+      "start_utc": "2026-10-07T00:42:31Z",
+      "requested_seconds": 90000,
+      "complete_at_local_verification": false,
+      "scope": "Frozen independently installed wheel; in-progress telemetry is not completed-soak evidence and this off-midnight window does not itself qualify a whole UTC day"
+    },
+    "full_day_grid_resource_cost_measured": false,
+    "human_semantic_and_statistical_signoff": "Still required"
+  },
+  "reproduction_commands": [
+    "python scripts/reviewer_gate.py",
+    "python scripts/core_regression_probe.py --expected docs/regression_results/repaired_core_baseline.json --write outputs/research_core_recheck.json",
+    "python -m pytest tests/test_research_study_graph.py -m long_research -q --durations=10",
+    "Follow docs/real_market_research.md for exact external source/registry/model bindings; do not substitute synthetic parents for empirical admission"
+  ],
+  "non_claims": [
+    "No historical Binance FIFO, private execution truth or venue-side zero-packet-loss claim",
+    "No profitability, significant regime benefit, measured gateway latency, production readiness or employer-equivalence claim",
+    "No completed original HFT-platform roadmap or full-engine Rust parity claim"
+  ]
+}

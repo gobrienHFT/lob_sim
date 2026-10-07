@@ -1224,6 +1224,10 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    from .research.cli import dispatch as dispatch_research, register_commands as register_research
+
+    register_research(sub)
+
     for capture_command in ("capture", "collect"):
         c = sub.add_parser(capture_command)
         c.add_argument("--verbose", action="store_true")
@@ -1344,6 +1348,8 @@ def main() -> None:
     o.set_defaults(func=cmd_options_demo)
 
     args = parser.parse_args()
+    if dispatch_research(args, parser):
+        return
     if args.command == "regime-report":
         from .regime.diagnostics import inspect_run
 
