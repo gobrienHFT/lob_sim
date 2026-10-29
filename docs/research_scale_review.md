@@ -236,6 +236,56 @@ No new network collector has been launched.
 
 ## Full objective and outstanding proof
 
+### Measured copy/checksum optimization
+
+A 16,012-record joint-book null-sink profile identified redundant payload
+serialization/CRC work and a second deep copy of already-owned risk rows.
+Risk observation accounted for 150.60 cumulative seconds in a 263.70-second
+profiled run; the 30 actual valid HMM updates accounted for 0.0278 seconds.
+These overlapping call-tree times are not additive or uninstrumented latency.
+No risk boundary, feature cadence, audit row, quote timer or warmup was removed.
+
+Three narrowly scoped changes remove the discarded recursive `asdict` payload
+copy, reuse the CRC just recomputed by envelope construction when checking the
+outer storage binding, and avoid copying an independently detached risk row
+twice. Corrupt inner/outer checksums still fail separately. A stdlib serializer
+and bitwise CRC oracle cover 1,000 generated nested payloads; hostile sink and
+caller-mutation tests cover risk ownership. The 233 focused checks pass.
+
+The interleaved 16,012-record experiment uses the current engine with four
+explicitly selected old function bodies from `f18c458e`, not a historical
+whole-binary build. Each mode has one warmup pair and three measured pairs;
+mode and old/new execution order are balanced. Every repeated event, fill,
+markout, accounting and complete checkpoint-state probe agrees, including
+HMM-risk continuation. Baseline and observation-only core probes agree too.
+
+| Mode | Before median wall seconds | After median wall seconds | Change |
+| --- | ---: | ---: | ---: |
+| HMM off | 10.4485 | 9.3937 | -10.10% |
+| HMM observe | 43.2092 | 26.0330 | -39.75% |
+| HMM policy | 33.1093 | 21.6837 | -34.51% |
+
+Raw rows and full identities are retained at
+`outputs/research_scale_paired_16012_20261029/report.json`. The shared,
+unpinned Windows host exhibited large within-pair variation, including some
+slower candidate trials. These are diagnostic medians, not a confidence
+interval, causal certification of the earlier approximately 4x cross-run
+timing difference, per-event tail latency, or an HFT performance claim.
+
+Separate full-audit before/after runs independently reverify and match all
+event/fill/markout/regime/policy/risk/model/table bytes and non-provenance
+summary fields. Their common artifact fingerprint is
+`f373743e2c88b0b05359cf9b31207afa7a42cd9cebde418018543540cec4e60f`.
+The comparison report is
+`outputs/research_scale_audit_observe_comparison_20261029.json`, SHA-256
+`85aedcc35ae17a3be80a700f60c4e0a0b495b2609355a45b095f71ada4527882`.
+Audit size was 64,954,729 versus 64,954,685 bytes; the 44-byte difference is
+metadata, not suppressed audit evidence. Separate monitored 3,212-record
+audit runs used approximately 19.15 MB peak managed logical file lengths
+including temporary indexes in both versions. Peak process RSS was about
+101.1 versus 102.1 MB: there is **no measured whole-process memory reduction**.
+The disk sampler is not physical filesystem allocation or a continuous peak.
+
 | Phase | Current status / required evidence |
 | --- | --- |
 | Adversarial audit | Partial: role-binding defect reproduced/repaired. Clock, lifecycle, queue, risk, aliasing, fitting, valuation, statistics and crash-publication review remain open. Preserve corrected-core historical references. |
