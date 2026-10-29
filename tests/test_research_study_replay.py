@@ -122,6 +122,16 @@ def test_case_artifact_labels_cannot_alias_another_valid_hashed_file(bounded_pai
         verify_case(root, changed, case, configuration, path, unit)
 
 
+def test_boolean_cannot_impersonate_frozen_numeric_case_configuration(bounded_pair):
+    root, original, case, configuration, path, unit = bounded_pair[0]
+    assert verify_case(root, original, case, configuration, path, unit) is None
+    changed = deepcopy(original)
+    assert changed["configuration"]["sim_order_latency_ms"] == 0.0
+    changed["configuration"]["sim_order_latency_ms"] = False
+    with pytest.raises(ValueError, match="correspondence"):
+        verify_case(root, changed, case, configuration, path, unit)
+
+
 def test_disk_floor_failure_preserves_partial_audits_and_no_completion(tmp_path):
     _, path, entry = view(tmp_path)
     configuration = research_config(cfg(), mm_enabled=True, record_dir=tmp_path / "failed")

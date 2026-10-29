@@ -21,7 +21,11 @@ def verify_case(
     root: Path, record: dict[str, Any], case: dict[str, Any], cfg: ResearchConfig, view_path: Path, unit: dict[str, Any]
 ) -> tuple[dict[str, Any], ...] | None:
     # Never follow a record's directory until its full registered case binds.
-    if record.get("case") != case or record.get("configuration") != config_snapshot(cfg):
+    # JSON identity, not Python numeric equality: False == 0.0 must not
+    # silently change an externally frozen configuration or case binding.
+    if canonical_json(record.get("case")) != canonical_json(case) or canonical_json(
+        record.get("configuration")
+    ) != canonical_json(config_snapshot(cfg)):
         raise ValueError("research case/scenario/configuration correspondence differs")
     folder = (root / record["run_directory"]).resolve()
     if not folder.is_relative_to(root.resolve()) or not record["run_directory"].startswith(
@@ -31,7 +35,7 @@ def verify_case(
     summary = read_json(folder / "summary.json")
     manifest = read_json(folder / "manifest.json")
     if (
-        manifest.get("config") != config_snapshot(cfg)
+        canonical_json(manifest.get("config")) != canonical_json(config_snapshot(cfg))
         or summary.get("input_sha256") != unit["view"]["sha256"]
         or manifest.get("input", {}).get("sha256") != unit["view"]["sha256"]
     ):
@@ -81,7 +85,7 @@ def verify_case(
             raise ValueError("baseline acquired regime-specific outputs")
         return None
     inspect_run(folder)  # Model, state, lifecycle, risk, markout and economics chains.
-    if cfg.hmm is None or summary["hmm"]["config"] != cfg.hmm.as_dict():
+    if cfg.hmm is None or canonical_json(summary["hmm"]["config"]) != canonical_json(cfg.hmm.as_dict()):
         raise ValueError("serialized regime runtime differs from registered model/policy")
     actual = reduce_tables(files, summary, unit["contract"])
     path = folder / record["tables"]["path"]

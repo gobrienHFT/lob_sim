@@ -42,6 +42,31 @@ Reproduce the focused tests with:
 python -m pytest tests/test_research_study_replay.py -q
 ```
 
+### Clean initial gate and strict JSON identity repair
+
+Clean `1fe8610b05113f5cff5125c56338512264e0cc8e` subsequently passed all
+15 reviewer steps: 1,819 Python tests, 16 Rust tests, Mypy/Ruff/format,
+published primitive/composed differential references, deterministic/artifact
+and fault checks, installed-wheel smoke and the short diagnostic benchmark.
+The retained native report is `outputs/research_scale_initial_gate_20261029.json`,
+SHA-256 `5bda9f3fd5c5f01932d4d22be5a9c95d32a6ca901c3aeef2ae5847aeda099185`.
+Elapsed time was 2,668.23 seconds under competing diagnostic work; this is
+correctness evidence, not a controlled performance baseline. The extended
+graph marker is not included in this fast gate.
+
+A second actual defect was reproduced afterward: Python dictionary equality
+accepted boolean `false` in place of the frozen numeric `0.0` new-order
+latency in a study record. The genuine native bundle and its expected numeric
+configuration were unchanged. That failing regression is retained in
+`outputs/scale_boolean_binding_before_20261029.xml`, SHA-256
+`8e789f1d12872930abc7f4259ba7c47bd1e611b6054da87ac6f574e4176f932c`.
+
+Case/configuration and native configuration bindings now compare canonical
+JSON, not Python's boolean/numeric equality. All 11 focused native replay/case
+tests pass, together with Mypy and Ruff/format. This later repair is **not**
+retrospectively covered by the clean `1fe8610` full-gate report. It changes the
+research verifier only; ordinary matching, clocks and accounting are untouched.
+
 ## Existing public capture: incomplete, not missing or successfully finished
 
 The original `outputs/real_market_soak_25h_c88970e_20261007` directory exists.
