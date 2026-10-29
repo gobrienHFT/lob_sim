@@ -69,6 +69,34 @@ research verifier only; ordinary matching, clocks and accounting are untouched.
 
 ## Case storage and publication components
 
+### Subsequent capture aliasing repair
+
+Two new failing tests reproduced a distinct storage defect: nested payloads
+remain caller-owned even when their `EventEnvelope` dataclass is frozen.
+Changing such a payload before writing allowed a completed manifest whose
+receipt checksum was invalid. Changing it between serialization and content
+hashing also allowed a completed segment with a mismatched trailer digest.
+This is not a claim that the observed interrupted public capture suffered
+either defect; its terminal cause remains unknown.
+
+The failure report is `outputs/scale_payload_aliasing_before_20261029.xml`,
+SHA-256 `3c5b0bb24d0587861e4826644b707f2a3ad3ef2f8b714f9b52768a27b223b4a4`.
+The writer now freezes one serialized snapshot, checks its payload against
+the original receipt checksum before rotation/writing, and hashes exactly
+that same snapshot. A mismatch latches failure and leaves incomplete evidence;
+it cannot publish a complete manifest. Ordinary simulation/HMM logic is not
+changed. This correctness repair is committed separately from optimizations.
+
+All 45 targeted aliasing, preservation, segment-recovery and forensic checks
+pass, as does Mypy. The report is
+`outputs/scale_payload_aliasing_after_20261029.xml`, SHA-256
+`bbda6ac3d7ac9db1f5016d02f02bbad5c877f1d8630f99cda8d0203c7786e5bf`.
+The earlier 112-case/648-checkpoint comparison matches the unchanged behavioral
+digest `de0409402a588284e528f2df939e828c7b7f5fc538f6856ff4a7bbc2d64c23a0`;
+its file hash is `b3113214041498a7cf3377db3e4b5c975fcd36376feb5edfd9fa08c311007abb`.
+That comparison predates this storage repair, so a final current-source rerun
+is still required. Its reference has not been rewritten.
+
 `research.case_store.CaseStore` now provides a frozen full-plan snapshot,
 exclusive OS-backed executor lock, exclusive attempt directories, immutable
 completion receipts and mandatory independent verification on both first

@@ -209,20 +209,26 @@ class SegmentedCaptureWriter:
             raise
 
     def _write_event(self, envelope: EventEnvelope) -> None:
+        # Freeze exactly the snapshot that will be stored. A frozen dataclass
+        # does not freeze nested caller-owned payloads, including while this
+        # envelope waits behind the off-loop writer queue.
+        event = json.loads(envelope.to_json())
+        if event["raw_payload_checksum"] != payload_checksum(event["payload"]):
+            raise SegmentIntegrityError("serialized payload does not match its receipt checksum")
+        content = canonical_json(event)
         if self._should_rotate(envelope):
             self.finalize()
             self._segment_index += 1
             self._open_segment()
-        payload = envelope.to_json()
         self._write_json(
             {
                 "record": "event",
                 "recv_seq": envelope.recv_seq,
-                "payload_checksum": envelope.raw_payload_checksum or payload_checksum(envelope.payload),
-                "event": json.loads(payload),
+                "payload_checksum": event["raw_payload_checksum"],
+                "event": event,
             }
         )
-        self._content_hash.update(canonical_json(envelope.as_dict()))
+        self._content_hash.update(content)
         self._segment_count += 1
         self._first_seq = envelope.recv_seq if self._first_seq is None else self._first_seq
         self._last_seq = envelope.recv_seq
