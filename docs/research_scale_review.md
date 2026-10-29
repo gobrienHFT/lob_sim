@@ -97,11 +97,54 @@ Reproduce these components with:
 python -m pytest tests/test_research_case_store.py tests/test_research_case_publication.py -q
 ```
 
-These components are not yet wired into the registered study CLI. They do not
-make the existing one-shot runner resumable. Windows process-kill behavior is
-tested; Linux runtime checks and physical reboot/power-loss testing are not
-claimed. File fsync and POSIX parent-directory fsync do not establish a
-filesystem/controller-wide durability guarantee.
+The registered study now accepts opt-in `--case-store` and `--resume-store`.
+The existing one-shot v1 path remains available. Durable v2 publications bind
+the full frozen census, independently verified case receipts and external
+failed-attempt identities; a separate reader verifies that evidence without
+running cases. Eight mutation/control tests pass for this serialized reader,
+including a rehashed boolean/numeric plan substitution, missing cases, aliased
+receipts, changed attempt ordering, unsafe paths and typed-size corruption.
+
+The complete native matching interruption/restart test now passes (932.95
+seconds on the contended host). It kills a live process during the second
+case, independently reuses the first completion without running it, retries
+the interrupted case, and preserves the original partial bytes. Resumed and
+clean three-case synthetic graphs independently verify and agree on exact
+event/fill/markout/regime/policy/risk/model/table bytes and every non-runtime
+summary/manifest field. Explicit exceptions are output paths, creation and
+file-modification times, and summary hashes/sizes derived from those paths.
+A third publication forbids all matching and reuses all three verified cases.
+A rehashed missing-case mutation is rejected by the separate graph reader.
+
+The passing JUnit report is
+`outputs/scale_native_matching_recovery_v3_20261029.xml`, SHA-256
+`8369e5d252c6f24ede5d835cdf7799dab6c5f9b9d51acb5c77049ee37c378d5b`.
+The raw synthetic test tree was copied, without rewriting origin metadata,
+to `outputs/research_scale_native_recovery_evidence_20261029` before ordinary
+pytest temporary-directory retention can remove it. These are working-tree
+Windows test results, not a clean-clone release or real-day/grid recovery.
+No physical power failure or execution-order permutation is certified.
+
+Thirty focused case, reader, publication and legacy replay tests also pass;
+the four original extended graph cases remain separate. The report is
+`outputs/scale_case_execution_focused_20261029.xml`, SHA-256
+`ad1a695dbf65df6709b15ff676c0e1ec45c0a65b840d406fa7e3e9a69bfd6e51`.
+Mypy passes with both Windows and Linux targets; Linux runtime remains
+unverified until hosted checks run. Reproduce the native recovery test with:
+
+```powershell
+python -m pytest tests/test_research_study_recovery.py -m long_research -q
+```
+
+File fsync and POSIX parent-directory fsync do not establish a filesystem/
+controller-wide durability guarantee. Linux runtime and physical reboot/
+power-loss testing remain separate from Windows process-termination checks.
+
+The corrected-core behavioral reference remains immutable. Clock/risk repairs
+are standalone historical fixes, not HMM-off exceptions; all HMM-off behavior
+must match that repaired baseline exactly. This research work does not change
+the ordinary engine or refresh the 112-case/648-checkpoint reference to accept
+changed outputs.
 
 ## Existing public capture: incomplete, not missing or successfully finished
 
@@ -116,7 +159,23 @@ The last retained telemetry row has sample index 10,070 and receive wall time
 or proof of final delivery. The producer's terminal cause is unknown: absent
 failure metadata cannot distinguish power loss, forced termination or another
 interruption. No source bytes were altered or tails finalized by this review.
-Independent full receipt/prefix integrity remains to be examined.
+The full segment/prefix census has now completed. All 167 finalized segments
+pass native envelope/checksum/trailer checks, containing 2,712,607 records.
+The partial segment retains another 13,252 fully checked records, followed
+by an unterminated JSON string and no completion trailer. Checked receive
+sequence ranges are contiguous through record 2,725,859. This is **not**
+proof of upstream packet delivery, valid book/trade/clock intervals, or a
+complete capture. Source size, modification time and SHA-256 snapshots agree
+before and after the read; no bytes were repaired, renamed or finalized.
+
+The retained forensic report is
+`outputs/research_scale_incomplete_capture_forensics_20261029.json`, SHA-256
+`a91e104ccd49915905b5387d7ee61f56ff2d3a4bab4b2a78e902dc54ce160c04`.
+It records each segment's file/content hashes, record count, sequence range
+and failure details. The processor was loaded at clean `1fe8610`; relevant
+capture validators were unchanged during the run. Elapsed time was 5,096.90
+seconds under competing work, not a controlled validation benchmark. This
+audit checks serialized receipts, not an independent book reconstruction.
 
 The existing independent completion command correctly rejects this directory
 with exit code 2:
@@ -137,8 +196,8 @@ No new network collector has been launched.
 | Adversarial audit | Partial: role-binding defect reproduced/repaired. Clock, lifecycle, queue, risk, aliasing, fitting, valuation, statistics and crash-publication review remain open. Preserve corrected-core historical references. |
 | Workload measurement | Open: several sizes including substantial replay; raw timings, CPU/wall/RSS/allocations, cold/warm initialization, profiles, snapshots/scheduling/inference/queue/export costs and bytes/event. |
 | Optimization | Not started. Duplicate scans/reductions and repeated regime inspection are hypotheses, not measured bottlenecks. Require identical-workload before/after performance, memory/disk and behavioral parity. |
-| Durable execution | Partial: case-storage/reuse and native zero-copy publication components pass seven checks, including actual process termination. Full registered-study integration and clean-versus-resumed matching/artifact proof remain open. |
-| Real-market readiness | Original attempt found incomplete; preserve and investigate prefix integrity. Audit other available tapes and apply unchanged UTC eligibility. Capture planning needs resource/liveness checks first. |
+| Durable execution | CLI integration, 30 focused checks and the complete real-process interruption/clean-equivalence/all-completed-reuse synthetic test pass on Windows. Full-grid, execution-order permutations, Linux-runtime and power-loss evidence remain open. |
+| Real-market readiness | Original attempt remains incomplete. All 167 finalized segments pass native structural/checksum checks; the checked partial prefix ends in truncated JSON. Audit other available tapes and apply unchanged UTC eligibility. Capture planning needs resource/liveness checks first. |
 | Execution evidence | Open: count maker/taker, queue/crossing, pending-cancel and missing-markout samples; compare event/quantity weighting and dependence. No maker sufficiency claim. |
 | Verification | Focused repair tests pass. Full current Python/Rust/golden/checkpoint/audit/wheel checks and bounded extended workload workflow remain required. |
 | Public package | This initial review exists; measured tables, projections with explicit assumptions, profiler evidence, actual interruption/recovery reports and final adversarial review remain required. |
