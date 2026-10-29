@@ -38,9 +38,12 @@ or exceptions to the HMM-off reference.
 
 The committed public smoke contains zero eligible full UTC days. The separate
 25-hour capture started at `2026-10-07 00:42:31 UTC` from the independently
-installed `c88970e` wheel. While in progress, its partial telemetry is not a
-completed soak, a joint-validity percentage or venue-packet-loss evidence.
-It must be finalized and independently audited before publication.
+installed `c88970e` wheel. October 29 inspection found that attempt incomplete,
+with partial telemetry/segment evidence, no final capture manifest/completion
+record and no matching collector process. Its terminal cause is unknown.
+See the [scale/recovery review](research_scale_review.md). Retained segment
+checks do not turn it into a completed soak or an eligible research day;
+do not finalize or rewrite the old attempt to manufacture that evidence.
 Its off-midnight 25-hour window does not itself supply a complete eligible UTC
 day. Subsequent capture planning must cover whole dates without overlapping
 sources or rewriting the attempt's request.

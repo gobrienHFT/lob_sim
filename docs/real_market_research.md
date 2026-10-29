@@ -27,8 +27,9 @@ python -m lob_sim.cli capture-soak-verify --bundle outputs/paired_day_01
 
 A 25-hour run tests reliability, not automatic UTC-day admission. Depending
 on its start time, it can straddle two incomplete dates and admit zero days.
-For example, the current attempt starts at 00:42 UTC, outside the first day's
-99% coverage requirement. For a new attempt intended to contain a whole UTC
+For example, the October 7 attempt started at 00:42 UTC, outside the first day's
+99% coverage requirement; it was later found incomplete, not still running
+(see the [scale/recovery review](research_scale_review.md)). For a new attempt intended to contain a whole UTC
 day, use the supported 48-hour duration (or plan consecutive non-overlapping
 captures); validity and coverage thresholds still apply:
 

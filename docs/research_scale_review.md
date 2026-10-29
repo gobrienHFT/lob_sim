@@ -67,6 +67,42 @@ tests pass, together with Mypy and Ruff/format. This later repair is **not**
 retrospectively covered by the clean `1fe8610` full-gate report. It changes the
 research verifier only; ordinary matching, clocks and accounting are untouched.
 
+## Case storage and publication components
+
+`research.case_store.CaseStore` now provides a frozen full-plan snapshot,
+exclusive OS-backed executor lock, exclusive attempt directories, immutable
+completion receipts and mandatory independent verification on both first
+completion and reuse. Failed/interrupted attempts remain separate and are
+never reinterpreted as completed cases. The controller is sequential and
+rejects case execution from a different process/thread owner. Retry and case
+counts have explicit caps.
+
+Seven component/native-bundle tests pass. The interruption test launches and
+kills a real child holding the executor lock mid-attempt, then proves that
+restart reuses the verified earlier completion without rerunning it, retries
+the interrupted case, and retains its partial bytes. Separate checks reject
+corruption, plan drift, boolean/integer plan substitution and cross-thread
+execution. The control payload in that kill test is deliberately not a market
+simulation; full-study interrupted/resumed matching equivalence remains open.
+
+`research.case_publication.materialize_case` hard-links verified native files
+into a fresh publication tree without rewriting their bytes or stored origin
+paths. Baseline, observe and policy bundles independently reverify after this
+relocation; source/destination file identities agree. A cross-volume failure
+is explicit, with no silent copying or metadata repair fallback.
+
+Reproduce these components with:
+
+```powershell
+python -m pytest tests/test_research_case_store.py tests/test_research_case_publication.py -q
+```
+
+These components are not yet wired into the registered study CLI. They do not
+make the existing one-shot runner resumable. Windows process-kill behavior is
+tested; Linux runtime checks and physical reboot/power-loss testing are not
+claimed. File fsync and POSIX parent-directory fsync do not establish a
+filesystem/controller-wide durability guarantee.
+
 ## Existing public capture: incomplete, not missing or successfully finished
 
 The original `outputs/real_market_soak_25h_c88970e_20261007` directory exists.
@@ -101,7 +137,7 @@ No new network collector has been launched.
 | Adversarial audit | Partial: role-binding defect reproduced/repaired. Clock, lifecycle, queue, risk, aliasing, fitting, valuation, statistics and crash-publication review remain open. Preserve corrected-core historical references. |
 | Workload measurement | Open: several sizes including substantial replay; raw timings, CPU/wall/RSS/allocations, cold/warm initialization, profiles, snapshots/scheduling/inference/queue/export costs and bytes/event. |
 | Optimization | Not started. Duplicate scans/reductions and repeated regime inspection are hypotheses, not measured bottlenecks. Require identical-workload before/after performance, memory/disk and behavioral parity. |
-| Durable execution | Open: current runner starts a fresh exclusive study after failure. No completed-case reuse or real process-interruption recovery has yet been implemented or demonstrated. |
+| Durable execution | Partial: case-storage/reuse and native zero-copy publication components pass seven checks, including actual process termination. Full registered-study integration and clean-versus-resumed matching/artifact proof remain open. |
 | Real-market readiness | Original attempt found incomplete; preserve and investigate prefix integrity. Audit other available tapes and apply unchanged UTC eligibility. Capture planning needs resource/liveness checks first. |
 | Execution evidence | Open: count maker/taker, queue/crossing, pending-cancel and missing-markout samples; compare event/quantity weighting and dependence. No maker sufficiency claim. |
 | Verification | Focused repair tests pass. Full current Python/Rust/golden/checkpoint/audit/wheel checks and bounded extended workload workflow remain required. |
