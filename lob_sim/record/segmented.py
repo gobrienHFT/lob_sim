@@ -25,6 +25,30 @@ except ImportError:  # pragma: no cover - exercised only on minimal installs
     zstd = None  # type: ignore[assignment]
 
 _READ_ERRORS = (OSError, EOFError, UnicodeError) + ((zstd.ZstdError,) if zstd is not None else ())
+MAX_SEGMENT_ISSUES = 128
+MAX_SEGMENT_ISSUE_CHARS = 512
+
+
+class _SegmentIssues:
+    """Bound retained diagnostics, not validation or fail-closed decisions."""
+
+    def __init__(self) -> None:
+        self._messages: list[str] = []
+        self._omitted = 0
+
+    def append(self, message: str) -> None:
+        if len(self._messages) >= MAX_SEGMENT_ISSUES:
+            self._omitted += 1
+            return
+        suffix = " [diagnostic truncated]"
+        if len(message) > MAX_SEGMENT_ISSUE_CHARS:
+            message = message[: MAX_SEGMENT_ISSUE_CHARS - len(suffix)] + suffix
+        self._messages.append(message)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self._messages
+        if self._omitted:
+            yield f"{self._omitted} additional issues omitted; validation remains failed"
 
 
 def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -462,7 +486,7 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
 
 def validate_segment(path: str | Path) -> SegmentValidationReport:
     source = Path(path)
-    issues: list[str] = []
+    issues = _SegmentIssues()
     count = 0
     first_seq: int | None = None
     last_seq: int | None = None

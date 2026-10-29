@@ -97,6 +97,23 @@ its file hash is `b3113214041498a7cf3377db3e4b5c975fcd36376feb5edfd9fa08c311007a
 That comparison predates this storage repair, so a final current-source rerun
 is still required. Its reference has not been rewritten.
 
+### Corrupt-tape diagnostic bounds
+
+Two further failing controls showed that segment validation retained 1,000
+messages for 1,000 unknown records and a 20,030-character message for one
+oversized record label. Diagnostic retention therefore grew with corrupt
+tape length. The pre-repair report is
+`outputs/scale_segment_diagnostic_bounds_before_20261029.xml`, SHA-256
+`3622f7ca9e7a18846f5273c7b5e1842fc884fe6390bf131f2ff060fba561a79c`.
+
+The validator now retains at most 128 detailed messages of at most 512
+characters, plus an explicit omitted-count message. Validation still rejects
+the entire damaged tape; forensic recovery still stops at the first invalid
+record. This does not bound the size of an input row or change valid receipts.
+All 52 targeted storage/wire/recovery checks and Mypy pass afterward. The
+report is `outputs/scale_segment_diagnostic_bounds_after_20261029.xml`, SHA-256
+`7a02397004c724b5d0edbfa6db614ceee380b92113b3c75712e9728de3032306`.
+
 `research.case_store.CaseStore` now provides a frozen full-plan snapshot,
 exclusive OS-backed executor lock, exclusive attempt directories, immutable
 completion receipts and mandatory independent verification on both first
