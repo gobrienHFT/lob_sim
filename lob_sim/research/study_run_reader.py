@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from lob_sim.audit.streaming_bundle import audit_streaming_bundle
+from lob_sim.audit.streaming_bundle import EXPECTED_FILES, audit_streaming_bundle
 from lob_sim.regime.diagnostics import inspect_run
 from lob_sim.regime.study import core_audit_hashes
-from lob_sim.regime.validation import canonical_json
+from lob_sim.regime.validation import canonical_json, require_keys
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.research.evidence_io import read_json
 from lob_sim.research.study_tables import iter_tables, reduce_tables
@@ -36,9 +36,24 @@ def verify_case(
         or manifest.get("input", {}).get("sha256") != unit["view"]["sha256"]
     ):
         raise ValueError("native run configuration/view identity differs")
+    expected = dict(EXPECTED_FILES)
+    if case["variant"] != "baseline":
+        expected.update(
+            hmm_model="hmm_model.json",
+            regime_trace="regime_trace.csv",
+            regime_execution="regime_execution.csv",
+            regime_quotes="regime_quotes.csv",
+            regime_risk="regime_risk.csv",
+        )
+    artifacts = require_keys(record.get("artifacts"), set(expected), "research case artifact binding")
     files = {}
-    for key, binding in record["artifacts"].items():
+    for key, filename in expected.items():
+        binding = require_keys(artifacts[key], {"path", "sha256"}, "research case artifact binding")
         name = binding["path"]
+        # A genuine hash proves bytes, not their semantic role. Bind the graph
+        # label to the same canonical file inspected by the native auditor.
+        if name != filename:
+            raise ValueError("research case artifact role/path binding differs")
         path = (folder / name).resolve()
         if (
             not isinstance(name, str)

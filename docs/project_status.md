@@ -75,6 +75,10 @@ There is no defensible single “percent finished” for these independent gates
 A green fixture suite is not soak evidence, a throughput target is not a
 measurement, and synthetic FIFO is not historical Binance FIFO.
 
+The [scale and recovery review](research_scale_review.md) is in progress.
+The former 25-hour attempt remains incomplete on disk, not a completed soak.
+Full-grid feasibility and durable study-case recovery are still unproven.
+
 ## Causal regime research in progress
 
 Core correctness and HMM integration now have separate review boundaries:

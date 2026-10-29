@@ -110,6 +110,18 @@ def test_relocated_input_is_checked_not_trusted(bounded_pair, tmp_path):
     assert not audit_streaming_bundle(bundle, input_override=bad)["ok"]
 
 
+@pytest.mark.parametrize("variant_index,label", [(0, "summary_csv"), (1, "hmm_model")])
+def test_case_artifact_labels_cannot_alias_another_valid_hashed_file(bounded_pair, variant_index, label):
+    root, original, case, configuration, path, unit = bounded_pair[variant_index]
+    # Keep every real native file intact and pass its genuine hash. The graph
+    # binding alone is forged: these labels must not refer to summary.json.
+    assert verify_case(root, original, case, configuration, path, unit) == (None if variant_index == 0 else ())
+    changed = deepcopy(original)
+    changed["artifacts"][label] = deepcopy(changed["artifacts"]["summary"])
+    with pytest.raises(ValueError, match="artifact.*binding"):
+        verify_case(root, changed, case, configuration, path, unit)
+
+
 def test_disk_floor_failure_preserves_partial_audits_and_no_completion(tmp_path):
     _, path, entry = view(tmp_path)
     configuration = research_config(cfg(), mm_enabled=True, record_dir=tmp_path / "failed")
