@@ -182,8 +182,34 @@ three fill profiles, six fixed delays and three variants. The frozen unit cap
 is 32; exceeding it fails, rather than choosing a favourable subset. Every
 attempt is journalled. A failed case blocks whole-study publication and keeps
 its partial artifacts. Restart into new exclusive output directories; this
-study wrapper does not resume audit sinks or change the ordinary engine's
+study wrapper does not append audit sinks or change the ordinary engine's
 checkpoint contract.
+
+For verified case-level restart, add `--case-store outputs/held_out_cases` to
+the study command **on the first attempt**. The store and publication must be
+disjoint, on the same volume, and outside all immutable parent directories.
+After interruption, repeat the identical command with `--resume-store` and
+a **new** `--out` directory. Keep source, configuration, registry, models and
+views unchanged. For example, keep the parent arguments above unchanged and
+use these endings:
+
+```powershell
+# First attempt:
+# ... research-study [same parent arguments] --case-store outputs/held_out_cases --out outputs/study_attempt_01
+# Restart:
+# ... research-study [same parent arguments] --case-store outputs/held_out_cases --resume-store --out outputs/study_attempt_02
+```
+
+The full registered census is frozen before the first case. An OS-backed lock
+permits one executor; incomplete attempts are never overwritten. Every reused
+case is independently re-read before its immutable files are hard-linked into
+the new publication. Corruption or changed parents blocks reuse. An interrupted
+case restarts from its beginning, not from appended trace rows. A v2 complete
+study includes the frozen plan, completion receipts and retained-attempt byte
+identities. Its ordinary verification command needs no case-store access;
+failed data remains external and its recorded identities are not provenance
+authentication. Windows/Linux physical reboot or power-loss survival is not
+certified merely by file fsync or process-termination tests.
 
 Event detail remains streamed; fit rows and offline UTC-minute tables have
 fixed caps. A study's complete grid metadata has a separate 64 MiB JSON budget

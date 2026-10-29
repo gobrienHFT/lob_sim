@@ -69,6 +69,11 @@ def register_commands(sub: argparse._SubParsersAction) -> None:
             child.add_argument("--views", required=True)
         if command == "research-study-verify":
             child.add_argument("--study", required=True)
+        if command == "research-study":
+            child.add_argument("--case-store", help="Disjoint immutable execution store; same volume as --out")
+            child.add_argument(
+                "--resume-store", action="store_true", help="Verify and reuse the existing frozen case store"
+            )
 
 
 def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
@@ -140,6 +145,8 @@ def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
                         Path(args.views),
                         folder,
                         load_config(args.env or ".env"),
+                        case_store=Path(args.case_store) if args.case_store else None,
+                        resume_store=args.resume_store,
                         **common,
                     )
                     if args.command == "research-study"

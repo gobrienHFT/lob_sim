@@ -158,7 +158,7 @@ def hand_models(root, protocol):
 
 
 @pytest.fixture(scope="module")
-def graph(tmp_path_factory):
+def graph_inputs(tmp_path_factory):
     import lob_sim.research.study as producer
     import lob_sim.research.study_reader as reader
 
@@ -239,12 +239,20 @@ def graph(tmp_path_factory):
         configuration,
     )
     try:
-        report = producer.run_registered_study(
-            args[1], args[2], args[3], args[4], args[5], args[6], args[0], args[7], registry_sha256=protocol.digest
-        )
-        yield args, protocol, report
+        yield args, protocol
     finally:
         patch.undo()
+
+
+@pytest.fixture(scope="module")
+def graph(graph_inputs):
+    from lob_sim.research.study import run_registered_study
+
+    args, protocol = graph_inputs
+    report = run_registered_study(
+        args[1], args[2], args[3], args[4], args[5], args[6], args[0], args[7], registry_sha256=protocol.digest
+    )
+    return args, protocol, report
 
 
 @pytest.mark.long_research
