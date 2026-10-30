@@ -1,0 +1,118 @@
+name: Extended research workload
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/extended-research-scale.yml"
+      - "experiments/*research_scale*.py"
+      - "experiments/audit_fill_evidence.py"
+      - "lob_sim/research/**"
+      - "lob_sim/record/**"
+      - "lob_sim/regime/**"
+      - "lob_sim/sim/**"
+      - "scripts/core_regression_probe.py"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  workload:
+    name: Bounded synthetic workload on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Prepare labelled synthetic audit input
+        run: python experiments/prepare_research_scale.py --out outputs/scale-ci-input --rounds 800 --period-ns 50000000 --levels 20
+      - name: Exercise audited export with bounded resource controller
+        shell: python
+        run: |
+          import json, subprocess, sys
+          from pathlib import Path
+          root = Path("outputs/scale-ci-input")
+          fixture = json.loads((root / "fixture.json").read_text())
+          subprocess.run([
+              sys.executable, "experiments/research_scale_resources.py",
+              "--file", str(root / fixture["view"]["path"]),
+              "--contract", str(root / "contract.json"),
+              "--model", "docs/benchmark_inputs/hmm_public_btcusdt_20261005/synthetic_frozen_model.json",
+              "--out", "outputs/scale-ci-resource", "--mode", "observe",
+              "--timeout-seconds", "900",
+          ], check=True, timeout=960)
+      - name: Prepare substantial synthetic decoding input
+        run: python experiments/prepare_research_scale.py --out outputs/scale-ci-large --rounds 25000 --levels 20
+      - name: Measure repeated validated decoding without noisy speed thresholds
+        shell: python
+        run: |
+          import json, subprocess, sys
+          from pathlib import Path
+          root = Path("outputs/scale-ci-large")
+          fixture = json.loads((root / "fixture.json").read_text())
+          subprocess.run([
+              sys.executable, "experiments/benchmark_research_scale.py",
+              "--file", str(root / fixture["view"]["path"]),
+              "--contract", str(root / "contract.json"),
+              "--model", "docs/benchmark_inputs/hmm_public_btcusdt_20261005/synthetic_frozen_model.json",
+              "--out", "outputs/scale-ci-decoding", "--mode", "baseline",
+              "--workload", "raw", "--warmups", "1", "--repetitions", "3",
+          ], check=True, timeout=300)
+      - name: Retain timings, failures, logs and native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-workload-${{ matrix.os }}
+          path: outputs/scale-ci-*/
+          if-no-files-found: error
+
+  corrected-core:
+    name: Immutable corrected-core reference on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare every historical case and checkpoint without refreshing it
+        shell: python
+        run: |
+          import subprocess, sys
+          from pathlib import Path
+          Path("outputs").mkdir(exist_ok=True)
+          subprocess.run([
+              sys.executable, "scripts/core_regression_probe.py",
+              "--expected", "docs/regression_results/repaired_core_baseline.json",
+              "--write", "outputs/corrected-core-current.json",
+          ], check=True, timeout=2400)
+      - name: Retain current-source behavioral comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrected-core-${{ matrix.os }}
+          path: outputs/corrected-core-current.json
+          if-no-files-found: error
