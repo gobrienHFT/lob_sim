@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
+import lob_sim.research.study_run_reader as case_reader
 
 from lob_sim.audit.streaming_bundle import audit_streaming_bundle
 from lob_sim.config import ConfigError
@@ -130,6 +131,60 @@ def test_boolean_cannot_impersonate_frozen_numeric_case_configuration(bounded_pa
     changed["configuration"]["sim_order_latency_ms"] = False
     with pytest.raises(ValueError, match="correspondence"):
         verify_case(root, changed, case, configuration, path, unit)
+
+
+def test_changed_model_after_reduction_cannot_return_a_verified_case(bounded_pair, monkeypatch):
+    args = bounded_pair[1]
+    assert verify_case(*args) == ()  # Genuine full native control.
+    root, record, *_ = args
+    model = root / record["run_directory"] / "hmm_model.json"
+    prior = model.read_bytes()
+    original = case_reader.reduce_tables
+
+    def change_after_reading(*a, **k):
+        result = original(*a, **k)
+        model.write_bytes(b"{}")
+        return result
+
+    monkeypatch.setattr(case_reader, "reduce_tables", change_after_reading)
+    try:
+        with pytest.raises(ValueError, match="artifact.*changed|identity.*changed"):
+            verify_case(*args)
+    finally:
+        model.write_bytes(prior)
+
+
+@pytest.mark.parametrize("variant", [0, 1])
+@pytest.mark.parametrize("mutation", ["delete", "partial", "incomplete"])
+def test_native_case_finalization_is_rechecked_after_semantic_readers(bounded_pair, monkeypatch, variant, mutation):
+    args = bounded_pair[variant]
+    root, record, *_ = args
+    folder = root / record["run_directory"]
+    target = folder / {"delete": "summary.csv", "partial": "late.partial", "incomplete": "_INCOMPLETE.json"}[mutation]
+    prior = target.read_bytes() if target.exists() else None
+    # Mutate after the final semantic consumer in either branch, so this
+    # specifically exercises the completion guard rather than an earlier
+    # reader's independently enforced finalization check.
+    consumer = "verify_markout_observations" if variant == 0 else "reduce_tables"
+    original = getattr(case_reader, consumer)
+
+    def change_after_reading(*a, **k):
+        result = original(*a, **k)
+        if mutation == "delete":
+            target.unlink()
+        else:
+            target.write_bytes(b"{}")
+        return result
+
+    monkeypatch.setattr(case_reader, consumer, change_after_reading)
+    try:
+        with pytest.raises(ValueError, match="artifact.*changed|identity.*changed"):
+            verify_case(*args)
+    finally:
+        if prior is not None:
+            target.write_bytes(prior)
+        elif target.exists():
+            target.unlink()
 
 
 def test_disk_floor_failure_preserves_partial_audits_and_no_completion(tmp_path):

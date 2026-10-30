@@ -10,7 +10,7 @@ from lob_sim.regime.diagnostics import inspect_run
 from lob_sim.regime.study import core_audit_hashes
 from lob_sim.regime.validation import canonical_json, require_keys
 from lob_sim.replay.inspection import file_sha256
-from lob_sim.research.evidence_io import read_json
+from lob_sim.research.evidence_io import read_json, require_finalized
 from lob_sim.research.study_tables import iter_tables, reduce_tables
 from lob_sim.sim.run_manifest import config_snapshot
 from lob_sim.research.replay_engine import ResearchConfig
@@ -83,6 +83,7 @@ def verify_case(
     if case["variant"] == "baseline":
         if record["tables"] is not None or any(k.startswith("hmm") for k in summary):
             raise ValueError("baseline acquired regime-specific outputs")
+        _require_unchanged(folder, files, artifacts)
         return None
     inspect_run(folder)  # Model, state, lifecycle, risk, markout and economics chains.
     if cfg.hmm is None or canonical_json(summary["hmm"]["config"]) != canonical_json(cfg.hmm.as_dict()):
@@ -92,4 +93,24 @@ def verify_case(
     stored = iter_tables(path, record["tables"])
     if any(canonical_json(a) != canonical_json(b) for a, b in zip(actual, stored, strict=True)):
         raise ValueError("serialized clock tables differ from native audit reducers")
+    _require_unchanged(folder, files, artifacts)
+    if file_sha256(path) != record["tables"]["sha256"]:
+        raise ValueError("native case table identity changed during verification")
     return actual
+
+
+def _require_unchanged(folder: Path, files: dict[str, Path], artifacts: Any) -> None:
+    """Do not publish a completion for artifacts changed during long readers.
+
+    This detects observed drift; it is not a filesystem snapshot or a defense
+    against a hostile process restoring bytes between observations. The case
+    executor's exclusive ownership remains necessary.
+    """
+    try:
+        require_finalized(folder, "manifest.json")
+        if (folder / "_INCOMPLETE.json").exists() or any(
+            file_sha256(path) != artifacts[label]["sha256"] for label, path in files.items()
+        ):
+            raise ValueError("native case artifact identity changed during verification")
+    except (OSError, ValueError) as exc:
+        raise ValueError("native case artifact identity changed during verification") from exc
