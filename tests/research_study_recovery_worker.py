@@ -31,9 +31,10 @@ def main(root, output, store, mode):
     from lob_sim.research.study_replay import GuardedResearchEngine
 
     original = GuardedResearchEngine._trace
+    forbid_matching = mode == "reuse"
 
     def trace(engine, *args, **kwargs):
-        if mode == "reuse" or (mode == "resume" and engine.cfg.hmm is None):
+        if forbid_matching or (mode == "resume" and engine.cfg.hmm is None):
             raise AssertionError("completed case was re-executed instead of verified/reused")
         original(engine, *args, **kwargs)
         if mode == "interrupt" and engine.cfg.hmm is not None and engine._resource_count == 100:
@@ -49,18 +50,55 @@ def main(root, output, store, mode):
             context.enter_context(patch.object(module, "expected_cases", reduced_grid))
         context.enter_context(patch.object(GuardedResearchEngine, "_trace", trace))
         registry = root / "registry.json"
+        source = next((root / "raw").glob("*.manifest.json"))
+        configuration = replace(cfg(), mm_requote_ms=1_000.0)
+        if mode == "reverse":
+            from lob_sim.research.registered_protocol import load_protocol
+            from lob_sim.research.fit_bundle import load_model_set
+            from lob_sim.research.study_views import load_views
+            from lob_sim.research.study_cases import case_configuration
+            from lob_sim.research.case_store import CaseStore
+            from lob_sim.research.execution_evidence import execution_specification
+            from lob_sim.research.study_case_execution import execute_case
+
+            digest = strict_json(registry.read_text())["registry_sha256"]
+            protocol = load_protocol(registry, registry_sha256=digest)
+            models = load_model_set(root / "models", protocol, registry_sha256=digest)
+            views = load_views(root / "views", protocol, models, registry_sha256=digest)
+            cases = reduced_grid(protocol, views)
+            specification = execution_specification(
+                protocol.snapshot(), digest, models["models_sha256"], views["views_sha256"], cases
+            )
+            units = {unit["unit_id"]: unit for unit in views["units"]}
+            prewarm_root = root / "reverse_materialization"
+            with CaseStore(store, specification).opened() as executor:
+                for case in reversed(cases):
+                    unit = units[case["unit_id"]]
+                    case_cfg = case_configuration(
+                        configuration, protocol, case, root / "models", models, prewarm_root / "runs" / case["case_id"]
+                    )
+                    execute_case(
+                        prewarm_root,
+                        case,
+                        case_cfg,
+                        root / "views" / unit["directory"] / unit["view"]["path"],
+                        unit,
+                        protocol.snapshot()["experiment"]["resource_limits"]["minimum_free_disk_bytes"],
+                        store=executor,
+                    )
+            forbid_matching = True
         result = producer.run_registered_study(
-            (next((root / "raw").glob("*.manifest.json")),),
+            (source,),
             root / "dummy_days",
             registry,
             root / "dummy_prepared",
             root / "models",
             root / "views",
             output,
-            replace(cfg(), mm_requote_ms=1_000.0),
+            configuration,
             registry_sha256=strict_json(registry.read_text())["registry_sha256"],
             case_store=store,
-            resume_store=mode in {"resume", "reuse"},
+            resume_store=mode in {"resume", "reuse", "reverse"},
         )
     assert len(result["results"]) == 3
     print("VERIFIED_COMPLETE", flush=True)

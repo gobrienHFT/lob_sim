@@ -157,3 +157,9 @@ def test_kill_native_matching_resume_and_clean_run_equivalence(graph_inputs, mon
             verify_registered_study(*verify_args, registry_sha256=protocol.digest)
     finally:
         path.write_bytes(prior)
+
+    reverse_root = root / "reverse_order"
+    reversed_result = completed(root, reverse_root, root / "reverse_store", "reverse")
+    for left, right in zip(reversed_result["results"], original["results"], strict=True):
+        equivalent_artifacts(reverse_root, left, clean, right)
+    assert reversed_result["comparisons"] == original["comparisons"]
