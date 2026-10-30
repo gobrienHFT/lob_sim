@@ -17,7 +17,7 @@ from typing import Any, Iterator
 from lob_sim.book.types import SymbolSpec
 from lob_sim.regime.dataset import FeaturePartition, ROW_FIELDS, instrument_grid_identity, utc_day
 from lob_sim.regime.features import FeatureSample, FeatureSpec
-from lob_sim.regime.validation import identity, integer, require_keys, strict_json
+from lob_sim.regime.validation import canonical_json, identity, integer, require_keys, strict_json
 from lob_sim.record.envelope import ValidityState
 from lob_sim.research.capture_clock import CaptureClock
 from lob_sim.research.day_decision import DAY_NS
@@ -110,9 +110,14 @@ def load_prepared(root: Path, protocol: FrozenProtocol, *, registry_sha256: str)
     if manifest["prepared_sha256"] != identity({k: v for k, v in manifest.items() if k != "prepared_sha256"}):
         raise ValueError("prepared artifact identity mismatch")
     registered = protocol.snapshot()
-    if any(manifest[k] != registered[k] for k in ("registry_sha256", "day_bundle_sha256", "code_identity")):
+    if any(
+        canonical_json(manifest[k]) != canonical_json(registered[k])
+        for k in ("registry_sha256", "day_bundle_sha256", "code_identity")
+    ):
         raise ValueError("prepared protocol/code parents differ")
-    if manifest["configuration"] != {**registered["experiment"]["base_configuration"], "mm_enabled": False}:
+    if canonical_json(manifest["configuration"]) != canonical_json(
+        {**registered["experiment"]["base_configuration"], "mm_enabled": False}
+    ):
         raise ValueError("prepared configuration differs from the frozen extraction contract")
     cadences = manifest["cadences"]
     if not isinstance(cadences, list) or len(cadences) != len(registered["experiment"]["features"]):
@@ -124,7 +129,9 @@ def load_prepared(root: Path, protocol: FrozenProtocol, *, registry_sha256: str)
             "prepared cadence",
         )
         spec = FeatureSpec.from_dict(contract)
-        if entry["features"] != contract or entry["directory"] != "cadence_" + str(spec.interval_ns):
+        if canonical_json(entry["features"]) != canonical_json(contract) or entry["directory"] != "cadence_" + str(
+            spec.interval_ns
+        ):
             raise ValueError("prepared cadence identity mismatch")
         files = entry["day_files"]
         if not isinstance(files, list) or len(files) > 8192:
