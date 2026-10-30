@@ -95,20 +95,22 @@ def verify_registered_study(
         raise ValueError("paired sensitivity grid census differs")
     for key, binding in zip(cells, manifest["comparisons"], strict=True):
         require_keys(binding, {"cell", "path", "sha256"}, "paired comparison binding")
-        if binding["cell"] != list(key) or binding["path"] != (
+        if canonical_json(binding["cell"]) != canonical_json(list(key)) or binding["path"] != (
             "comparisons/" + identity({"registry_sha256": protocol.digest, "cell": key}) + ".json"
         ):
             raise ValueError("paired comparison cell/path differs")
     plan = read_json(root / "plan.json")
     if (
-        plan
-        != {
-            "registry_sha256": protocol.digest,
-            "models_sha256": models["models_sha256"],
-            "views_sha256": views["views_sha256"],
-            "cases": cases,
-            "claim_ready": False,
-        }
+        canonical_json(plan)
+        != canonical_json(
+            {
+                "registry_sha256": protocol.digest,
+                "models_sha256": models["models_sha256"],
+                "views_sha256": views["views_sha256"],
+                "cases": cases,
+                "claim_ready": False,
+            }
+        )
         or file_sha256(root / "plan.json") != manifest["plan_sha256"]
     ):
         raise ValueError("study plan differs from its complete registered grid")
@@ -188,7 +190,7 @@ def verify_registered_study(
         name = "comparisons/" + identity({"registry_sha256": protocol.digest, "cell": key}) + ".json"
         path = (root / name).resolve()
         if (
-            binding["cell"] != list(key)
+            canonical_json(binding["cell"]) != canonical_json(list(key))
             or binding["path"] != name
             or not path.is_relative_to(root)
             or file_sha256(path) != binding["sha256"]

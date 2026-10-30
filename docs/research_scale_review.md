@@ -67,6 +67,32 @@ tests pass, together with Mypy and Ruff/format. This later repair is **not**
 retrospectively covered by the clean `1fe8610` full-gate report. It changes the
 research verifier only; ordinary matching, clocks and accounting are untouched.
 
+A later front-of-reader audit reproduced the same Python equality pitfall at
+two additional graph boundaries: a rehashed `plan.json` could replace latency
+`0` with `false` or `claim_ready: false` with `0`, and a comparison cell could
+replace its zero latency with `false`. Three focused tests currently fail
+before the repair; the genuine numeric control reaches the next reader
+boundary. Parent admission is deliberately substituted only inside these
+boundary tests, which stop before any native case audit. This is not a claim
+that the substitute graph is a complete admitted study. The failure report is
+`outputs/scale_plan_identity_before_v2_20261029.xml`, SHA-256
+`d0125b6870c4d35de4c66ab0328487a789dcff401c8fa3aaf678851230c3dab3`.
+Four further failing controls reproduced integer/boolean/float substitutions
+in a retained failed-fit ledger and its training provenance. Their pre-repair
+report is `outputs/scale_fit_ledger_identity_before_20261029.xml`, SHA-256
+`21f9941a40ca5edeeacd57b13dadd6d13d87af4c443e9fd10dbc5febd798b2bd`.
+No fitting or test-partition admission was needed to reproduce this problem.
+
+Both readers now compare canonical JSON for these frozen identities. Fitted
+provenance/selection bindings and state-permutation indices also retain exact
+types. All 18 focused graph-boundary and successful/failed-fit tests pass,
+including every new failure, and Mypy passes. The post-repair report is
+`outputs/scale_graph_fit_identity_after_20261030.xml`, SHA-256
+`6655fe658674da3e1c323f0a9a69ac8a2642bf78d10637c1aa86de0ec0a800b9`.
+Full native-graph mutations and clean-source release verification remain
+separate required checks. These reader repairs do not change replay physics
+or the HMM-off behavioral reference.
+
 ## Case storage and publication components
 
 ### Subsequent capture aliasing repair

@@ -312,6 +312,37 @@ def test_rehashed_whole_graph_cannot_change_case_or_sensitivity_census(graph, mu
         path.write_bytes(previous)
 
 
+@pytest.mark.long_research
+@pytest.mark.parametrize("mutation", ["plan_latency", "plan_claim_flag", "comparison_latency"])
+def test_rehashed_native_graph_rejects_boolean_numeric_plan_or_cell_aliases(graph, mutation):
+    from lob_sim.research.study_reader import verify_registered_study
+
+    args, protocol, original = graph
+    manifest_path, plan_path = args[0] / "manifest.json", args[0] / "plan.json"
+    original_manifest, original_plan = manifest_path.read_bytes(), plan_path.read_bytes()
+    changed = deepcopy(original)
+    if mutation == "comparison_latency":
+        assert changed["comparisons"][0]["cell"][3] == 0
+        changed["comparisons"][0]["cell"][3] = False
+    else:
+        plan = strict_json(original_plan.decode())
+        if mutation == "plan_latency":
+            assert plan["cases"][0]["latency_ms"] == 0
+            plan["cases"][0]["latency_ms"] = False
+        else:
+            plan["claim_ready"] = 0
+        plan_path.write_text(canonical_json(plan), encoding="utf-8")
+        changed["plan_sha256"] = file_sha256(plan_path)
+    changed["study_sha256"] = identity({k: v for k, v in changed.items() if k != "study_sha256"})
+    manifest_path.write_text(canonical_json(changed), encoding="utf-8")
+    try:
+        with pytest.raises(ValueError, match="study plan differs|comparison cell/path differs"):
+            verify_registered_study(*args, registry_sha256=protocol.digest)
+    finally:
+        manifest_path.write_bytes(original_manifest)
+        plan_path.write_bytes(original_plan)
+
+
 def test_unreduced_grid_contains_all_registered_cases_and_enforces_unit_cap():
     protocol = FrozenProtocol(canonical_json(mechanical_payload()))
     unit = {"unit_id": "3" * 64, "symbol": "BTCUSDT", "utc_day": "2025-01-09", "source_sha256": "4" * 64}
