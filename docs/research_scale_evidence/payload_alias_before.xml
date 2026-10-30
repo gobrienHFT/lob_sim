@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.731" timestamp="2026-10-29T22:01:39.184455+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="tests.test_capture_payload_aliasing" name="test_payload_changed_after_receipt_cannot_be_published_as_completed_capture" time="0.065"><failure message="Failed: DID NOT RAISE SegmentIntegrityError">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-18/test_payload_changed_after_rec0')
+
+    def test_payload_changed_after_receipt_cannot_be_published_as_completed_capture(tmp_path):
+        payload = {"nested": {"quantity": "1"}}
+        event = envelope(payload)
+        payload["nested"]["quantity"] = "2"
+&gt;       with pytest.raises(SegmentIntegrityError, match="payload.*checksum"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SegmentIntegrityError
+
+tests\test_capture_payload_aliasing.py:17: Failed</failure></testcase><testcase classname="tests.test_capture_payload_aliasing" name="test_content_digest_uses_the_same_serialized_snapshot_as_the_stored_row" time="0.054"><failure message="AssertionError: assert False&#10; +  where False = SegmentValidationReport(path='C:\\Users\\PC\\AppData\\Local\\Temp\\pytest-of-PC\\pytest-18\\test_content_digest_uses_t...sha256='371d109e82fb8befef11ead6036ec294dc32ecb33dfaf3ab46655a8a00475c80', issues=('trailer content_sha256 mismatch',)).ok&#10; +    where SegmentValidationReport(path='C:\\Users\\PC\\AppData\\Local\\Temp\\pytest-of-PC\\pytest-18\\test_content_digest_uses_t...sha256='371d109e82fb8befef11ead6036ec294dc32ecb33dfaf3ab46655a8a00475c80', issues=('trailer content_sha256 mismatch',)) = validate_segment(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-18/test_content_digest_uses_the_s0/alias_000000.ndjson'))">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-18/test_content_digest_uses_the_s0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E5D382C770&gt;
+
+    def test_content_digest_uses_the_same_serialized_snapshot_as_the_stored_row(tmp_path, monkeypatch):
+        payload = {"nested": {"quantity": "1"}}
+        event = envelope(payload)
+        original = EventEnvelope.to_json
+    
+        def mutate_after_serialization(self):
+            encoded = original(self)
+            payload["nested"]["quantity"] = "2"
+            return encoded
+    
+        monkeypatch.setattr(EventEnvelope, "to_json", mutate_after_serialization)
+        with SegmentedCaptureWriter(tmp_path, "alias", compression="none") as writer:
+            writer.write(event)
+        segment = next(tmp_path.glob("*.ndjson"))
+&gt;       assert validate_segment(segment).ok
+E       AssertionError: assert False
+E        +  where False = SegmentValidationReport(path='C:\\Users\\PC\\AppData\\Local\\Temp\\pytest-of-PC\\pytest-18\\test_content_digest_uses_t...sha256='371d109e82fb8befef11ead6036ec294dc32ecb33dfaf3ab46655a8a00475c80', issues=('trailer content_sha256 mismatch',)).ok
+E        +    where SegmentValidationReport(path='C:\\Users\\PC\\AppData\\Local\\Temp\\pytest-of-PC\\pytest-18\\test_content_digest_uses_t...sha256='371d109e82fb8befef11ead6036ec294dc32ecb33dfaf3ab46655a8a00475c80', issues=('trailer content_sha256 mismatch',)) = validate_segment(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-18/test_content_digest_uses_the_s0/alias_000000.ndjson'))
+
+tests\test_capture_payload_aliasing.py:40: AssertionError</failure></testcase></testsuite></testsuites>

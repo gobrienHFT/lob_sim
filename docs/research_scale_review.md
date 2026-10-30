@@ -1,341 +1,353 @@
 # Research scale and recovery review
 
-Status: work in progress, 2026-10-29. This is not a completed scale,
-crash-recovery or empirical research release.
+2026-10-30. **Limited-scale engineering evidence, not a completed empirical
+study or HFT release.** The pipeline now has durable case-level restart and
+measured copy/checksum improvements. The complete registered experiment is
+not established practical on the available hardware. There are still zero
+admitted real UTC research days.
 
-## Starting evidence
+## Evidence and review boundary
 
-The canonical checkout is `C:/bitbucket/kibert/lob_sim`, with origin
-`https://github.com/gobrienHFT/lob_sim.git`. Refreshed remote master remains
-`063906e821ace02db8aa9dc9dbaa3298162533e1`. PR #100 remains open and draft at
-`ec49b9a0fba2f18201c72691f5103a3ece1db8df`; it has not been merged. Its ten
-October 7 hosted jobs are green, but are historical evidence, not reruns of
-this review's subsequent changes.
+The canonical repository is `C:/bitbucket/kibert/lob_sim`, origin
+`https://github.com/gobrienHFT/lob_sim.git`. This work is on
+`codex/research-scale-recovery`, based on the unmerged
+[draft PR #100](https://github.com/gobrienHFT/lob_sim/pull/100), head
+`ec49b9a0fba2f18201c72691f5103a3ece1db8df`. Master was independently checked
+at `063906e821ace02db8aa9dc9dbaa3298162533e1`; PR #100's October 7 green
+checks do not verify these later changes. Neither PR #100 nor master was merged
+or rewritten by this review.
 
-Scale/recovery work starts on `codex/research-scale-recovery`, based on that
-unmerged head. This dependency does not imply human approval of PR #100.
+The [byte inventory](research_scale_evidence/inventory.json) preserves 64
+selected producer reports, including every measured trial and failure listed
+below. It is independently checked in the ordinary test suite. It authenticates
+neither benchmark authorship nor venue provenance. Producer source identities
+and timestamps remain intact; reports from different commits are not silently
+relabelled as one release. Full raw tapes, temporary indexes and native audit
+trees remain local rather than becoming large Git commits.
 
-## Reproduced verification defect
+[Reproduction commands](research_scale_methods.md) cover synthetic input,
+paired measurements, full audit, resource monitoring, source forensics and the
+next continuous public capture. All output directories must be fresh.
 
-The case reader checked each artifact's hash and the native auditor checked
-canonical files. However, two graph labels could refer to the wrong genuine
-file: `summary_csv` and `hmm_model` could each be rebound to `summary.json`.
-Neither the file bytes nor their real hash needed alteration. Verification
-accepted the incorrect role bindings, making the serialized graph misleading.
+## Correctness repairs, separate from optimization
 
-Two minimal mutations reproduced this on PR #100's implementation. Genuine
-native baseline/observe bundles were first verified as controls; the graph
-bindings alone were then changed. Both regression tests failed before repair
-because verification did not raise. The failure report is retained at
-`outputs/scale_artifact_alias_before_20261029.xml`, SHA-256
-`271c9ff097b45f960b5981a1ab7d9e054866ce19508a9efe4af71e682b3b443d`.
+Each actual defect had a failing reproduction before its repair. These are
+storage/verification changes, not changes to matching, latency, fees, feature
+warmup or statistical admission.
 
-The research case reader now binds each label to its canonical filename and
-requires the exact binding schema before checking hashes. The ordinary engine,
-matching, fees, accounting and HMM code are unchanged. All ten actual bounded
-replay/case tests pass after repair; Mypy and Ruff/format checks pass for the
-changed reader/test. Full current-source verification remains separate work.
+| Defect | Repair and permanent regression | Retained before / after evidence |
+| --- | --- | --- |
+| Genuine artifact hashes could be assigned to the wrong semantic role. | Bind every label to its canonical filename and exact binding schema; `test_research_study_replay.py`. | [Role mutation](research_scale_evidence/artifact_role_before.xml), [native case tests](research_scale_evidence/case_race_after.xml). |
+| Python equality accepted boolean/integer/float substitutions in frozen identities. | Canonical JSON at case/configuration, graph-plan/cell, fit-ledger/provenance and prepared-feature/cadence boundaries; dedicated native and boundary controls. | [Case](research_scale_evidence/case_types_before.xml), [graph](research_scale_evidence/graph_types_before.xml), [fit](research_scale_evidence/fit_types_before.xml), [features](research_scale_evidence/feature_types_before.xml); [31 feature/graph/fit checks](research_scale_evidence/feature_types_after.xml). |
+| A caller could mutate a nested receipt payload between serialization and hashing. | Freeze one serialized snapshot, check its receipt CRC before writing/rotation, hash that same snapshot and latch failures. `test_capture_payload_aliasing.py`. | [Two failures](research_scale_evidence/payload_alias_before.xml), [45 passing checks](research_scale_evidence/payload_alias_after.xml). |
+| Corrupt input retained one potentially huge diagnostic per record. | Cap details at 128 messages of 512 characters, plus omitted count; still validate all records and fail closed. | [Two failures](research_scale_evidence/diagnostic_bounds_before.xml), [52 passing checks](research_scale_evidence/diagnostic_bounds_after.xml). |
+| A native file could change after semantic reading but before a case was reported verified. | Recheck all native hashes/finalization and the table hash before return, in baseline and HMM branches. | [Actual model-mutation failure](research_scale_evidence/case_race_before.xml), [33 passing case/store/publication/reader checks](research_scale_evidence/case_race_after.xml). |
 
-Reproduce the focused tests with:
+The last guard detects observed drift; it is not a filesystem snapshot or a
+defense against a hostile writer restoring bytes between reads. Exclusive
+executor ownership remains required. Diagnostic caps do not bound a single
+input row's decoding allocation.
 
-```powershell
-python -m pytest tests/test_research_study_replay.py -q
-```
+Historical clock/risk fixes remain standalone **core PR #99**, followed by
+**HMM PR #98**. There are no HMM-off exceptions. The corrected reference was
+not regenerated to accept changes: at clean `203d5f9`, all **112 cases and
+648 checkpoint/resume comparisons** match behavioral SHA-256
+`de0409402a588284e528f2df939e828c7b7f5fc538f6856ff4a7bbc2d64c23a0`.
+See the [full comparison](research_scale_evidence/corrected_core_112.json).
+That source predates the final feature/case-reader repairs; current-source
+release/hosted checks must be reported separately.
 
-### Clean initial gate and strict JSON identity repair
+## Measured optimization and exact parity
 
-Clean `1fe8610b05113f5cff5125c56338512264e0cc8e` subsequently passed all
-15 reviewer steps: 1,819 Python tests, 16 Rust tests, Mypy/Ruff/format,
-published primitive/composed differential references, deterministic/artifact
-and fault checks, installed-wheel smoke and the short diagnostic benchmark.
-The retained native report is `outputs/research_scale_initial_gate_20261029.json`,
-SHA-256 `5bda9f3fd5c5f01932d4d22be5a9c95d32a6ca901c3aeef2ae5847aeda099185`.
-Elapsed time was 2,668.23 seconds under competing diagnostic work; this is
-correctness evidence, not a controlled performance baseline. The extended
-graph marker is not included in this fast gate.
+A profile identified redundant recursive payload serialization, repeated CRC
+work and a second deep copy of already-owned risk rows. Three changes remove
+only that work. Envelope construction still recomputes/validates the payload
+CRC before its outer storage binding is checked; nested risk stages remain
+detached before a sink sees them. No risk boundary or audit row was removed.
 
-A second actual defect was reproduced afterward: Python dictionary equality
-accepted boolean `false` in place of the frozen numeric `0.0` new-order
-latency in a study record. The genuine native bundle and its expected numeric
-configuration were unchanged. That failing regression is retained in
-`outputs/scale_boolean_binding_before_20261029.xml`, SHA-256
-`8e789f1d12872930abc7f4259ba7c47bd1e611b6054da87ac6f574e4176f932c`.
+An independent stdlib serializer/bitwise CRC oracle covers 1,000 generated
+nested payloads, including inner/outer corruption and legacy metadata. Hostile
+caller/sink mutations and checkpoint tests cover ownership. All [233 focused
+checks](research_scale_evidence/optimization_oracles.xml) pass.
 
-Case/configuration and native configuration bindings now compare canonical
-JSON, not Python's boolean/numeric equality. All 11 focused native replay/case
-tests pass, together with Mypy and Ruff/format. This later repair is **not**
-retrospectively covered by the clean `1fe8610` full-gate report. It changes the
-research verifier only; ordinary matching, clocks and accounting are untouched.
+The [interleaved experiment](research_scale_evidence/paired_16012.json) uses
+the same current engine with four selected old function bodies from
+`f18c458e37d24a1606a7cc831f78ea64507dec29`, not an old whole binary. Each
+mode has one warmup pair and three measured pairs, with balanced old/new order.
+Full state, events, fills, markouts, accounting and risk-continuation probes
+agree in every pair; HMM-off and observation-only core probes also agree.
 
-A later front-of-reader audit reproduced the same Python equality pitfall at
-two additional graph boundaries: a rehashed `plan.json` could replace latency
-`0` with `false` or `claim_ready: false` with `0`, and a comparison cell could
-replace its zero latency with `false`. Three focused tests currently fail
-before the repair; the genuine numeric control reaches the next reader
-boundary. Parent admission is deliberately substituted only inside these
-boundary tests, which stop before any native case audit. This is not a claim
-that the substitute graph is a complete admitted study. The failure report is
-`outputs/scale_plan_identity_before_v2_20261029.xml`, SHA-256
-`d0125b6870c4d35de4c66ab0328487a789dcff401c8fa3aaf678851230c3dab3`.
-Four further failing controls reproduced integer/boolean/float substitutions
-in a retained failed-fit ledger and its training provenance. Their pre-repair
-report is `outputs/scale_fit_ledger_identity_before_20261029.xml`, SHA-256
-`21f9941a40ca5edeeacd57b13dadd6d13d87af4c443e9fd10dbc5febd798b2bd`.
-No fitting or test-partition admission was needed to reproduce this problem.
-
-Both readers now compare canonical JSON for these frozen identities. Fitted
-provenance/selection bindings and state-permutation indices also retain exact
-types. All 18 focused graph-boundary and successful/failed-fit tests pass,
-including every new failure, and Mypy passes. The post-repair report is
-`outputs/scale_graph_fit_identity_after_20261030.xml`, SHA-256
-`6655fe658674da3e1c323f0a9a69ac8a2642bf78d10637c1aa86de0ec0a800b9`.
-Full native-graph mutations and clean-source release verification remain
-separate required checks. These reader repairs do not change replay physics
-or the HMM-off behavioral reference.
-
-## Case storage and publication components
-
-### Subsequent capture aliasing repair
-
-Two new failing tests reproduced a distinct storage defect: nested payloads
-remain caller-owned even when their `EventEnvelope` dataclass is frozen.
-Changing such a payload before writing allowed a completed manifest whose
-receipt checksum was invalid. Changing it between serialization and content
-hashing also allowed a completed segment with a mismatched trailer digest.
-This is not a claim that the observed interrupted public capture suffered
-either defect; its terminal cause remains unknown.
-
-The failure report is `outputs/scale_payload_aliasing_before_20261029.xml`,
-SHA-256 `3c5b0bb24d0587861e4826644b707f2a3ad3ef2f8b714f9b52768a27b223b4a4`.
-The writer now freezes one serialized snapshot, checks its payload against
-the original receipt checksum before rotation/writing, and hashes exactly
-that same snapshot. A mismatch latches failure and leaves incomplete evidence;
-it cannot publish a complete manifest. Ordinary simulation/HMM logic is not
-changed. This correctness repair is committed separately from optimizations.
-
-All 45 targeted aliasing, preservation, segment-recovery and forensic checks
-pass, as does Mypy. The report is
-`outputs/scale_payload_aliasing_after_20261029.xml`, SHA-256
-`bbda6ac3d7ac9db1f5016d02f02bbad5c877f1d8630f99cda8d0203c7786e5bf`.
-The earlier 112-case/648-checkpoint comparison matches the unchanged behavioral
-digest `de0409402a588284e528f2df939e828c7b7f5fc538f6856ff4a7bbc2d64c23a0`;
-its file hash is `b3113214041498a7cf3377db3e4b5c975fcd36376feb5edfd9fa08c311007abb`.
-That comparison predates this storage repair, so a final current-source rerun
-is still required. Its reference has not been rewritten.
-
-### Corrupt-tape diagnostic bounds
-
-Two further failing controls showed that segment validation retained 1,000
-messages for 1,000 unknown records and a 20,030-character message for one
-oversized record label. Diagnostic retention therefore grew with corrupt
-tape length. The pre-repair report is
-`outputs/scale_segment_diagnostic_bounds_before_20261029.xml`, SHA-256
-`3622f7ca9e7a18846f5273c7b5e1842fc884fe6390bf131f2ff060fba561a79c`.
-
-The validator now retains at most 128 detailed messages of at most 512
-characters, plus an explicit omitted-count message. Validation still rejects
-the entire damaged tape; forensic recovery still stops at the first invalid
-record. This does not bound the size of an input row or change valid receipts.
-All 52 targeted storage/wire/recovery checks and Mypy pass afterward. The
-report is `outputs/scale_segment_diagnostic_bounds_after_20261029.xml`, SHA-256
-`7a02397004c724b5d0edbfa6db614ceee380b92113b3c75712e9728de3032306`.
-
-`research.case_store.CaseStore` now provides a frozen full-plan snapshot,
-exclusive OS-backed executor lock, exclusive attempt directories, immutable
-completion receipts and mandatory independent verification on both first
-completion and reuse. Failed/interrupted attempts remain separate and are
-never reinterpreted as completed cases. The controller is sequential and
-rejects case execution from a different process/thread owner. Retry and case
-counts have explicit caps.
-
-Seven component/native-bundle tests pass. The interruption test launches and
-kills a real child holding the executor lock mid-attempt, then proves that
-restart reuses the verified earlier completion without rerunning it, retries
-the interrupted case, and retains its partial bytes. Separate checks reject
-corruption, plan drift, boolean/integer plan substitution and cross-thread
-execution. The control payload in that kill test is deliberately not a market
-simulation; full-study interrupted/resumed matching equivalence remains open.
-
-`research.case_publication.materialize_case` hard-links verified native files
-into a fresh publication tree without rewriting their bytes or stored origin
-paths. Baseline, observe and policy bundles independently reverify after this
-relocation; source/destination file identities agree. A cross-volume failure
-is explicit, with no silent copying or metadata repair fallback.
-
-Reproduce these components with:
-
-```powershell
-python -m pytest tests/test_research_case_store.py tests/test_research_case_publication.py -q
-```
-
-The registered study now accepts opt-in `--case-store` and `--resume-store`.
-The existing one-shot v1 path remains available. Durable v2 publications bind
-the full frozen census, independently verified case receipts and external
-failed-attempt identities; a separate reader verifies that evidence without
-running cases. Eight mutation/control tests pass for this serialized reader,
-including a rehashed boolean/numeric plan substitution, missing cases, aliased
-receipts, changed attempt ordering, unsafe paths and typed-size corruption.
-
-The complete native matching interruption/restart test now passes (932.95
-seconds on the contended host). It kills a live process during the second
-case, independently reuses the first completion without running it, retries
-the interrupted case, and preserves the original partial bytes. Resumed and
-clean three-case synthetic graphs independently verify and agree on exact
-event/fill/markout/regime/policy/risk/model/table bytes and every non-runtime
-summary/manifest field. Explicit exceptions are output paths, creation and
-file-modification times, and summary hashes/sizes derived from those paths.
-A third publication forbids all matching and reuses all three verified cases.
-A rehashed missing-case mutation is rejected by the separate graph reader.
-
-The passing JUnit report is
-`outputs/scale_native_matching_recovery_v3_20261029.xml`, SHA-256
-`8369e5d252c6f24ede5d835cdf7799dab6c5f9b9d51acb5c77049ee37c378d5b`.
-The raw synthetic test tree was copied, without rewriting origin metadata,
-to `outputs/research_scale_native_recovery_evidence_20261029` before ordinary
-pytest temporary-directory retention can remove it. These are working-tree
-Windows test results, not a clean-clone release or real-day/grid recovery.
-No physical power failure or execution-order permutation is certified.
-
-Thirty focused case, reader, publication and legacy replay tests also pass;
-the four original extended graph cases remain separate. The report is
-`outputs/scale_case_execution_focused_20261029.xml`, SHA-256
-`ad1a695dbf65df6709b15ff676c0e1ec45c0a65b840d406fa7e3e9a69bfd6e51`.
-Mypy passes with both Windows and Linux targets; Linux runtime remains
-unverified until hosted checks run. Reproduce the native recovery test with:
-
-```powershell
-python -m pytest tests/test_research_study_recovery.py -m long_research -q
-```
-
-File fsync and POSIX parent-directory fsync do not establish a filesystem/
-controller-wide durability guarantee. Linux runtime and physical reboot/
-power-loss testing remain separate from Windows process-termination checks.
-
-The corrected-core behavioral reference remains immutable. Clock/risk repairs
-are standalone historical fixes, not HMM-off exceptions; all HMM-off behavior
-must match that repaired baseline exactly. This research work does not change
-the ordinary engine or refresh the 112-case/648-checkpoint reference to accept
-changed outputs.
-
-## Existing public capture: incomplete, not missing or successfully finished
-
-The original `outputs/real_market_soak_25h_c88970e_20261007` directory exists.
-Inspection found 167 finalized compressed segments, one partial segment,
-partial telemetry, the original request and reserved capture identity. There
-is no final capture manifest or soak completion record. Process inspection
-found no running Python collector matching the capture/soak entrypoints.
-
-The last retained telemetry row has sample index 10,070 and receive wall time
-`1791384096513406500` ns. It is a historical observation, not current liveness
-or proof of final delivery. The producer's terminal cause is unknown: absent
-failure metadata cannot distinguish power loss, forced termination or another
-interruption. No source bytes were altered or tails finalized by this review.
-The full segment/prefix census has now completed. All 167 finalized segments
-pass native envelope/checksum/trailer checks, containing 2,712,607 records.
-The partial segment retains another 13,252 fully checked records, followed
-by an unterminated JSON string and no completion trailer. Checked receive
-sequence ranges are contiguous through record 2,725,859. This is **not**
-proof of upstream packet delivery, valid book/trade/clock intervals, or a
-complete capture. Source size, modification time and SHA-256 snapshots agree
-before and after the read; no bytes were repaired, renamed or finalized.
-
-The retained forensic report is
-`outputs/research_scale_incomplete_capture_forensics_20261029.json`, SHA-256
-`a91e104ccd49915905b5387d7ee61f56ff2d3a4bab4b2a78e902dc54ce160c04`.
-It records each segment's file/content hashes, record count, sequence range
-and failure details. The processor was loaded at clean `1fe8610`; relevant
-capture validators were unchanged during the run. Elapsed time was 5,096.90
-seconds under competing work, not a controlled validation benchmark. This
-audit checks serialized receipts, not an independent book reconstruction.
-
-The existing independent completion command correctly rejects this directory
-with exit code 2:
-
-```powershell
-python -m lob_sim.cli capture-soak-verify --bundle outputs/real_market_soak_25h_c88970e_20261007
-```
-
-It therefore cannot establish a successful 25-hour soak, venue packet loss,
-or an admitted UTC day. Other local tapes still require individual inventory
-and audit; this finding does not assert that all available input is absent.
-No new network collector has been launched.
-
-## Full objective and outstanding proof
-
-### Measured copy/checksum optimization
-
-A 16,012-record joint-book null-sink profile identified redundant payload
-serialization/CRC work and a second deep copy of already-owned risk rows.
-Risk observation accounted for 150.60 cumulative seconds in a 263.70-second
-profiled run; the 30 actual valid HMM updates accounted for 0.0278 seconds.
-These overlapping call-tree times are not additive or uninstrumented latency.
-No risk boundary, feature cadence, audit row, quote timer or warmup was removed.
-
-Three narrowly scoped changes remove the discarded recursive `asdict` payload
-copy, reuse the CRC just recomputed by envelope construction when checking the
-outer storage binding, and avoid copying an independently detached risk row
-twice. Corrupt inner/outer checksums still fail separately. A stdlib serializer
-and bitwise CRC oracle cover 1,000 generated nested payloads; hostile sink and
-caller-mutation tests cover risk ownership. The 233 focused checks pass.
-
-The interleaved 16,012-record experiment uses the current engine with four
-explicitly selected old function bodies from `f18c458e`, not a historical
-whole-binary build. Each mode has one warmup pair and three measured pairs;
-mode and old/new execution order are balanced. Every repeated event, fill,
-markout, accounting and complete checkpoint-state probe agrees, including
-HMM-risk continuation. Baseline and observation-only core probes agree too.
-
-| Mode | Before median wall seconds | After median wall seconds | Change |
+| Mode, 16,012 normalized records | Before median wall s | After median wall s | Change |
 | --- | ---: | ---: | ---: |
 | HMM off | 10.4485 | 9.3937 | -10.10% |
 | HMM observe | 43.2092 | 26.0330 | -39.75% |
 | HMM policy | 33.1093 | 21.6837 | -34.51% |
 
-Raw rows and full identities are retained at
-`outputs/research_scale_paired_16012_20261029/report.json`. The shared,
-unpinned Windows host exhibited large within-pair variation, including some
-slower candidate trials. These are diagnostic medians, not a confidence
-interval, causal certification of the earlier approximately 4x cross-run
-timing difference, per-event tail latency, or an HFT performance claim.
+The shared unpinned host varied substantially; some candidate trials were
+slower. N=3 does not support a stable-host threshold or an inferential interval.
+The earlier approximately 4x difference between separate runs is **not** a
+causal speedup claim.
 
-Separate full-audit before/after runs independently reverify and match all
-event/fill/markout/regime/policy/risk/model/table bytes and non-provenance
-summary fields. Their common artifact fingerprint is
+[Full-audit comparison](research_scale_evidence/audit_comparison_16012.json)
+independently reopens the native outputs and matches all CSV/model/table bytes
+and non-provenance summary fields, common fingerprint
 `f373743e2c88b0b05359cf9b31207afa7a42cd9cebde418018543540cec4e60f`.
-The comparison report is
-`outputs/research_scale_audit_observe_comparison_20261029.json`, SHA-256
-`85aedcc35ae17a3be80a700f60c4e0a0b495b2609355a45b095f71ada4527882`.
-Audit size was 64,954,729 versus 64,954,685 bytes; the 44-byte difference is
-metadata, not suppressed audit evidence. Separate monitored 3,212-record
-audit runs used approximately 19.15 MB peak managed logical file lengths
-including temporary indexes in both versions. Peak process RSS was about
-101.1 versus 102.1 MB: there is **no measured whole-process memory reduction**.
-The disk sampler is not physical filesystem allocation or a continuous peak.
+Before/after retained bytes are 64,954,729 / 64,954,685: the 44-byte difference
+is metadata, not audit thinning. Separate [before](research_scale_evidence/resources_before.json)
+and [after](research_scale_evidence/resources_after.json) 3,212-record resource
+runs peak at approximately 19.15 MB managed logical file lengths in both
+versions, including temporary indexes. OS RSS is 101.1 / 102.1 MB: no
+whole-process memory reduction is established. The sampler deduplicates
+hardlinks; it is not a physical-cluster or continuous disk-peak measurement.
 
-| Phase | Current status / required evidence |
+## Substantial offline workloads
+
+Synthetic paired-symbol tapes use 20 book levels, four records per 10 ms
+round, a frozen five-state synthetic model, 40 ms quoting and the unchanged
+30-second feature warmup. They are performance inputs, not empirical admission.
+New diagnostic contracts set `registry_sha256: null`; older measured contracts
+retain their original placeholder identities and are not registrations.
+
+| Workload | Wall s | CPU s | Peak process RSS MB | Measured repetitions |
+| --- | ---: | ---: | ---: | ---: |
+| 100,012 validated decoding | 28.423 | 28.109 | 64.16 | 3, plus 1 warmup |
+| 400,012 validated decoding | 123.900 | 122.234 | 64.08 | 3, plus 1 warmup |
+| 100,012 HMM-off null sink | 91.021 | 90.594 | 63.32 | 1 |
+| 100,012 HMM-observe null sink | 257.378 | 255.766 | 67.30 | 1 |
+| 100,012 HMM-policy null sink | 142.575 | 142.016 | 64.09 | 1 |
+| 400,012 HMM-off null sink | 391.179 | 389.156 | 63.45 | 1 |
+| 400,012 HMM-observe null sink | 1,012.961 | 1,007.922 | 67.63 | 1 |
+| 400,012 HMM-policy null sink | 575.030 | 571.719 | 63.50 | 1 |
+
+Decoding rows are medians. The 400,012-record measured trials are 123.900,
+136.997 and 122.590 s after a 120.637 s warmup; no favorable trial is omitted.
+All [raw and null reports](research_scale_evidence/inventory.json) retain
+identities and individual timings. The larger observation process took
+565.2 ms for package import and 12.1 ms for first model/configuration loading;
+these are not total process-spawn latency. Every trial constructs a fresh
+engine; loaded model/code and OS caches may remain warm. No cache flush is
+claimed.
+
+Both larger baseline/observe pairs have identical core probes, including
+11,000 / 48,500 fills. The larger observation run emits 1,163,763 trace rows
+to `NullSink`, retaining zero, with 990 valid HMM observations and ten warmup
+samples. RSS grows from 67.30 to 67.63 MB across 4x input. This supports
+bounded retention on these finite workloads, not an infinite-soak guarantee.
+**Both policy cells place zero quotes and fills**: the frozen policy prevents
+entry despite valid inference. Their cost is not active-policy throughput;
+no threshold was tuned to conceal this result.
+
+A separate [allocation-traced 3,212-record run](research_scale_evidence/allocation_3212.json)
+takes 34.553 s, retains 2,321,613 traced bytes, peaks at 2,482,734, and ends
+with 22,383 live traced allocations. These are not allocation churn or proof
+of no per-event allocation. OS peak includes the runtime/imports/prior trials.
+
+### Full audit is the material scale blocker
+
+The [100,012-record full-audit run](research_scale_evidence/audit_observe_100012.json)
+covers 250.01 synthetic seconds, retains **630,005,639 bytes** (6,299.30 bytes
+per normalized record), and passes independent native audit. It produces three
+complete clock-table rows, not a day of research observations.
+
+| Stage | Wall seconds | CPU seconds |
+| --- | ---: | ---: |
+| Replay, export and finalization | 1,763.795 | 1,628.328 |
+| Independent native verification | 776.965 | Not separately measured |
+| Table reduction | 1,191.899 | Not separately measured |
+
+OS peak is 77,836,288 bytes; bounded RAM does not mean cheap disk or CPU.
+**Table reduction includes external stack sampling and a concurrent short
+diagnostic test.** Its wall time is not a clean uninstrumented measurement.
+The worker's `profiled: false` describes its internal cProfile setting only.
+The [sampling context](research_scale_evidence/sampling_context.json) records
+this explicitly. Replay/export and native verification finished before that
+sampling began. These measurements also predate the final reader guards;
+they do not quantify those guards' additional file reads.
+
+### Profiling: where the time went
+
+The [before](research_scale_evidence/profile_before.json) and
+[after](research_scale_evidence/profile_after.json) intrusive profiles each
+cover 16,012 records. Before, risk observation accounts for 150.60 cumulative
+seconds of a 263.70 s run; 30 valid filter updates take 0.02777 s. There are
+53,028 **regime-state**, not book, snapshots. Book construction is separately
+visible in 32,017 `nlargest` / `nsmallest` calls (1.098 / 0.750 cumulative s),
+with bid/ask tuple generators at 0.183 / 0.133 s. Quote scheduling, cancel
+handling and level consumption take 1.031 / 0.191 / 0.980 cumulative s.
+These call-tree times overlap and must not be summed as exclusive costs.
+
+After, deepcopy calls fall from about 9.30 million to 4.62 million, payload
+checksum calls from 64,048 to 32,024; risk-row construction falls from 88.05
+to 59.66 cumulative s. Total profiled wall time is 268.23 s under a different
+shared-host load, so this is call-path evidence, not the speedup estimate.
+The balanced unprofiled pairs above are the timing comparison. The model's
+30 forward updates are not a measured exchange-latency distribution.
+
+Live stack inspection of the large audit identifies repeated serialized risk
+validation/economic reconstruction inside reduction, not fitting/EM. A
+[short checked flamegraph](research_scale_evidence/reduction_checked.svg)
+contains 249 samples with zero read errors, all within economic reconstruction
+and reduction. Its companion folded stack is a separate 10-second window,
+not the rendering's source. Earlier nonblocking windows have many read errors
+and are retained/excluded from quantitative percentages. None is an unbiased
+whole-run CPU allocation. Duplicate full audit/reduction scans remain an
+identified next engineering bottleneck, not a claimed implemented speedup.
+
+## Conditional capacity projections — not measurements
+
+Project by simulated duration as well as ingress: quote/risk timers continue
+between observations. At the 1,000.01 s null-sink workload, constant-cost
+day-equivalents are 9.39 h off / 24.31 h observe / 13.80 h policy-with-no-orders.
+Ten such paths are 93.88 / 243.11 / 138.00 h, excluding audit, preparation and
+fitting. This is not a prediction for a quiet or different real tape.
+
+Holding the short full-audit rate constant implies **217.72 GB retained per
+day per case** and 358.32 wall hours for all three stages; ten day-equivalents
+imply 2.18 TB and 3,583.21 h. The reduction instrumentation caveat transfers
+to these illustrations. They are neither bounds nor measured full-day costs.
+
+Ten admitted days split 60/20/20 give two test days × two symbols = four
+source/day/symbol units: **648 registered cases**, not 3,240. The maximum is
+32 units / **5,184 cases**. Repeating the measured three-mode null-sink mixture
+unchanged implies approximately 427 / 3,420 serial days respectively. Repeating
+the observation full-audit case alone 5,184 times would imply about 1.13 PB
+retained. These deliberately conditional illustrations ignore varying
+cadence, latency, execution, policy activity and market regimes; the inactive
+policy can make the mixture optimistic. Neither is a grid forecast or a
+parallel-speedup promise. Full-grid feasibility is **not established**.
+
+## Durable execution and actual interruption proof
+
+`research.case_store.CaseStore` freezes the complete content-addressed census,
+uses an exclusive OS lock and sequential owner, creates exclusive immutable
+attempts, and fsyncs atomic completion records only after independent native
+verification. Every reuse independently reverifies artifacts. Changed plans,
+corruption, missing cases and mixed-type identities fail closed. Case/attempt
+counts are capped at 5,184 / 128. Failed/partial evidence is retained, not
+rewritten as success. Publication hard-links canonical files into a fresh
+tree and reverifies them; cross-volume failure has no silent copy fallback.
+
+The registered CLI has opt-in `--case-store` and `--resume-store`; the v1
+one-shot path remains. Resume publishes to a **new** output tree, never appends
+an old streaming export. The final v2 graph binds the full census and failed
+attempt history; hashes are not trusted-author signatures.
+
+All [eight extended native graph/recovery tests](research_scale_evidence/native_graph_recovery.xml)
+pass at clean `203d5f9` (2,016.72 s on the shared Windows host). A real child
+is killed during its second case. Restart reuses the first verified case,
+retries the interrupted case, preserves partial bytes and matches a clean
+run plus a reverse-order run: exact event/fill/markout/policy/risk/model/table
+bytes and all non-runtime summary/manifest fields. Exceptions are explicit
+output paths, creation/mtime and hashes/sizes derived from those paths. A
+completed-only reuse forbids all matching. Rehashed missing-case and full
+native-graph typed-identity attacks are rejected.
+
+These tests deliberately use synthetic mechanics and pytest-only parent
+admission/fitting substitutions. Production has no admission bypass. They do
+not prove real-day/grid feasibility, physical reboot/power-loss durability or
+filesystem-wide atomicity. File fsync and POSIX directory fsync are mechanisms,
+not storage-controller guarantees. Local native trees remain under
+`outputs/research_scale_native_final_20261030`; the final-source Windows/Linux
+hosted run is a separate required result.
+
+## Real data readiness: preserve, exclude, do not invent
+
+The original `outputs/real_market_soak_25h_c88970e_20261007` exists but has no
+final manifest or completion record. Its [read-only forensic census](capture_results/incomplete_soak_prefix_20261029.json)
+checks 167 finalized segments / 2,712,607 records, then 13,252 fully checked
+partial-tail records before an unterminated JSON string. Checked sequence
+ranges are contiguous through 2,725,859. Initial/final hashes, sizes and mtimes
+agree. Nothing was finalized, repaired, renamed or deleted. Terminal cause
+remains unknown; the payload-aliasing repair is **not** an explanation for it.
+This is receipt integrity, not upstream zero-drop, book validity or a soak pass.
+`capture-soak-verify` correctly rejects the attempt with exit code 2.
+
+The [unchanged UTC admission report](research_scale_evidence/day_admission.json)
+audits three finalized short local sources: zero eligible days. One is
+BTC-only with unknown empirical provenance; the paired declared-public source
+lasts 69.586 s with 83.76% joint validity; another paired short source has
+89.86% joint validity and undeclared provenance. Every exclusion is retained;
+no provenance, threshold or day denominator was rewritten to admit a tape.
+This is a census of accessible relevant workspace captures, not a claim that
+data is unavailable everywhere.
+
+The interrupted attempt retains 778,375,430 bytes through its last sampled
+telemetry about 50,345.425 s after start. At that observed rate a fresh 48 h
+attempt needs about 2.67 GB, or **5.62 GB starting free space** with a 30%
+data allowance plus the 2 GiB free-disk floor. This is planning, not a bound.
+At 2026-10-30 06:30 UTC the host had about 3.74 GB free disk and 989,436 KiB
+free physical RAM. These are point observations, not current reservations.
+No new collector was launched or old evidence deleted. The reproduction page
+requires a fresh liveness/resource check and 6 GiB starting disk headroom.
+A 48 h window contains a whole UTC date, not a guarantee of validity or the
+ten eligible days required for research.
+
+## Maker evidence: insufficient, not a profitable headline
+
+The [six-cell public diagnostic](research_scale_evidence/short_public_cases.json)
+retains all scenarios/invalid tail, unchanged 30 s warmup and frozen
+observation-only synthetic model. It is unregistered, not test admission.
+
+| Execution profile / transit ms | Modeled maker fills | Modeled taker fills |
+| --- | ---: | ---: |
+| Conservative / 0 | 0 | 22 |
+| Conservative / 50 | 0 | 22 |
+| Base / 0 | 1 | 0 |
+| Base / 50 | 0 | 0 |
+| Aggressive / 0 | 1 | 0 |
+| Aggressive / 50 | 0 | 0 |
+
+All six native bundles independently audit. The maker is depth-inferred,
+not a private exchange fill; base/aggressive share the passive rule and repeat
+the **same observation**, not two independent samples or true bounds. Its
+100 ms/1 s markouts resolve; 5 s/30 s are epoch-invalidated (100% missing),
+not zero. Zero maker cells return null means; one-maker event/quantity weights
+coincide trivially. Conservative fills are immediate taker-order fills, with
+22/22 one-second coverage. Pending-cancel fill count is zero in every cell.
+All ESS and inferential intervals remain null: **insufficient maker evidence**.
+Independent unequal-quantity hand calculations test weighting; this sample
+cannot establish a meaningful weighting difference or effective sample size.
+
+Every non-flat cell has an unavailable final mark and null gross/net total
+PnL. Realized cash is not substituted for a marked portfolio. Peak absolute
+inventory is 0.022 BTC against the 0.05 limit (one-maker cells 0.001 BTC).
+This is not a comprehensive risk stress test. Per-horizon sample reports in
+the inventory bind all native artifacts and input children and remain
+`claim_ready: false`. Synthetic FIFO, public-L2 inference and actual exchange
+executions remain distinct.
+
+## Final review, verification and remaining gates
+
+The source review covered first-receipt anchoring/full UTC geometry/freshness,
+market/action ties, queue/trade-depth exclusivity, pending cancels and joint
+reservations, ownership/checkpoints, partition isolation and frozen models,
+available-at-time state labels, missing marks, ratio denominators/block
+boundaries, and serialized/exclusive publication. The reproducible defects
+above were fixed. Independent negative controls live in the corresponding
+clock/day/admission, core-risk/lifecycle, feature/fit, primary/statistics,
+case-store/graph and ownership test modules. Source inspection does not prove
+private venue behavior or make two consumers of one model independent truth.
+
+The [initial clean full gate](research_scale_evidence/initial_gate.json) is
+historical `1fe8610`: 15 steps, 1,819 Python / 16 Rust tests, type/style/fmt,
+primitive/composed parity, deterministic/artifact/fault/wheel checks and short
+benchmark. It does **not** cover subsequent commits. The separate new bounded
+workload CI runs synthetic decoding/full audit and the immutable 112-case
+reference on Windows/Linux, without noisy speed thresholds. Existing fast
+and extended graph gates are not weakened. Final current-source reviewer gate
+and hosted results must be checked on the delivery PR before approval.
+
+| Mission component | What is established / what remains |
 | --- | --- |
-| Adversarial audit | Partial: role-binding defect reproduced/repaired. Clock, lifecycle, queue, risk, aliasing, fitting, valuation, statistics and crash-publication review remain open. Preserve corrected-core historical references. |
-| Workload measurement | Open: several sizes including substantial replay; raw timings, CPU/wall/RSS/allocations, cold/warm initialization, profiles, snapshots/scheduling/inference/queue/export costs and bytes/event. |
-| Optimization | Not started. Duplicate scans/reductions and repeated regime inspection are hypotheses, not measured bottlenecks. Require identical-workload before/after performance, memory/disk and behavioral parity. |
-| Durable execution | CLI integration, 30 focused checks and the complete real-process interruption/clean-equivalence/all-completed-reuse synthetic test pass on Windows. Full-grid, execution-order permutations, Linux-runtime and power-loss evidence remain open. |
-| Real-market readiness | Original attempt remains incomplete. All 167 finalized segments pass native structural/checksum checks; the checked partial prefix ends in truncated JSON. Audit other available tapes and apply unchanged UTC eligibility. Capture planning needs resource/liveness checks first. |
-| Execution evidence | Open: count maker/taker, queue/crossing, pending-cancel and missing-markout samples; compare event/quantity weighting and dependence. No maker sufficiency claim. |
-| Verification | Focused repair tests pass. Full current Python/Rust/golden/checkpoint/audit/wheel checks and bounded extended workload workflow remain required. |
-| Public package | This initial review exists; measured tables, projections with explicit assumptions, profiler evidence, actual interruption/recovery reports and final adversarial review remain required. |
+| Adversarial repairs | Failing-before regressions and independent controls; human signoff on venue/risk/statistical claims remains. |
+| Measurement/optimization | Several sizes through 400,012 normalized records; paired exact parity, bounded retention and complete audit costs. No dedicated-host latency or allocation-churn proof. |
+| Recovery | Actual Windows process kill, verified reuse, clean/reverse-order equality; no physical power-loss or full-grid proof. |
+| Data/research | Original incomplete attempt preserved; zero eligible days and insufficient maker sample. Ten-day holdout remains blocked by data, not replaced by a diagnostic. |
+| Practical scale | Null/metrics retention is bounded; audit CPU/disk and repeated reducers remain expensive. Full registered study is not demonstrated feasible on this host. |
 
-## Scope and resource guardrails
-
-The frozen research grid remains 162 cases per source/day/symbol unit and up
-to 32 units. No input thinning, missing cases, changed fees, shortened warmup
-or relaxed admission rule is permitted to improve timing. Before measurement,
-full-day, ten-day and 5,184-case runtime/storage costs are **unknown**, not
-benchmarks. The complete experiment's feasibility on this host is unproven.
-
-Available C: storage was approximately 6.3 billion free bytes during initial
-inspection and can change independently of this project. Preserve prior
-evidence; do not delete it to make a benchmark fit. Existing short synthetic
-graph tests are not substantial-scale performance or real-maker evidence.
-
-This work does not claim production readiness, private Binance fills, actual
-gateway latency, historical FIFO, profitable alpha or completed empirical
-research. Canonical portfolio state has not been modified.
+Next proof-bearing work is reducing repeated verified native scans with strict
+independent parity, then a resource-budgeted complete UTC-day measurement and
+representative capture. Do not add another strategy, model, UI or venue to
+hide these gaps. This release does not claim profitability, production HFT,
+private FIFO, measured gateway latency, employer endorsement or completion
+of the original full-engine Rust roadmap. Canonical Drive update: **none**.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="35.151" timestamp="2026-10-30T08:18:03.622101+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="outputs.test_scale_case_identity_race_20261030" name="test_changed_model_after_reduction_cannot_return_a_verified_case" time="32.321"><failure message="Failed: DID NOT RAISE ValueError">bounded_pair = [(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-35/research_bounded_pair0/study'), {'case': {'case_i...3333333333333333333333', 'registry_sha256': '4444444444444444444444444444444444444444444444444444444444444444', ...}})]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023947DAB5C0&gt;
+
+    def test_changed_model_after_reduction_cannot_return_a_verified_case(bounded_pair, monkeypatch):
+        args = bounded_pair[1]
+        assert reader.verify_case(*args) == ()  # Genuine full native control.
+        root, record, *_ = args
+        model = root / record["run_directory"] / "hmm_model.json"
+        prior = model.read_bytes()
+        original = reader.reduce_tables
+    
+        def change_after_reading(*a, **k):
+            result = original(*a, **k)
+            model.write_bytes(b"{}")
+            return result
+    
+        monkeypatch.setattr(reader, "reduce_tables", change_after_reading)
+        try:
+&gt;           with pytest.raises(ValueError, match="artifact.*changed|identity.*changed"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+outputs\test_scale_case_identity_race_20261030.py:30: Failed</failure></testcase></testsuite></testsuites>

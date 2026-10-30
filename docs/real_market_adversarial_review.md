@@ -56,7 +56,11 @@ evidence that the outstanding empirical requirements are met.
 
 Required next evidence is a completed 24-hour-plus reliability report, at least
 ten eligible real UTC days, a frozen registry and untouched held-out results.
-Full-day grid resource cost is unmeasured; the current native CSV audit format
-can require substantial disk/runtime. No throughput, economic benefit or HFT
+Full-day grid resource cost remains projected, not measured. The later
+[limited-scale review](research_scale_review.md) measures substantial synthetic
+workloads and approximately 630 MB of full audit for 100,012 records, with
+repeated validation/reduction still expensive. It also adds actual native
+process-kill/restart, independently verified reuse and reverse-order parity.
+These results do not establish complete-grid feasibility. No economic benefit or HFT
 equivalence is inferred from the implementation or short tests. Human review
 of venue, risk, ordering, statistics and public claims remains necessary.

@@ -75,9 +75,17 @@ There is no defensible single “percent finished” for these independent gates
 A green fixture suite is not soak evidence, a throughput target is not a
 measurement, and synthetic FIFO is not historical Binance FIFO.
 
-The [scale and recovery review](research_scale_review.md) is in progress.
-The former 25-hour attempt remains incomplete on disk, not a completed soak.
-Full-grid feasibility and durable study-case recovery are still unproven.
+The [scale and recovery review](research_scale_review.md) now includes bounded
+workloads through 400,012 synthetic records, measured copy/checksum changes,
+independently verified durable case reuse, real process interruption and exact
+clean/restarted/reverse-order artifact parity. Full-audit output at 100,012
+records retains approximately 630 MB; repeated serialized validation/reduction
+is still expensive. This is limited-scale engineering evidence, not proof that
+the registered grid fits this host. The former 25-hour attempt remains incomplete
+on disk; all three audited finalized short sources admit zero UTC days. The
+six-cell short public diagnostic has insufficient maker observations for
+inference and no fully marked non-flat PnL. Final-source release and hosted
+checks must be read separately from historical reports in that review.
 
 ## Causal regime research in progress
 
