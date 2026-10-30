@@ -15,3 +15,6 @@ Makefile text eol=lf
 
 # Native hash matrix: keep reproducible bytes, collapse generated evidence in reviews.
 docs/regression_results/repaired_core_baseline.json linguist-generated=true
+docs/regression_results/*.xml text eol=lf
+# Published diagnostic receipts retain producer bytes on Windows and Linux.
+docs/research_scale_evidence/** -text linguist-generated=true
