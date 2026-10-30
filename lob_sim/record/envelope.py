@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, fields
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
 
@@ -187,7 +187,9 @@ class EventEnvelope:
         return LogicalTime(self.recv_monotonic_ns, self.recv_seq)
 
     def as_dict(self) -> dict[str, Any]:
-        result = asdict(self)
+        # Metadata leaves are immutable. Preserve the original shallow payload
+        # contract without first deep-copying a tree that is then discarded.
+        result = {field.name: getattr(self, field.name) for field in fields(self)}
         result["payload"] = dict(self.payload)
         return result
 

@@ -25,6 +25,30 @@ except ImportError:  # pragma: no cover - exercised only on minimal installs
     zstd = None  # type: ignore[assignment]
 
 _READ_ERRORS = (OSError, EOFError, UnicodeError) + ((zstd.ZstdError,) if zstd is not None else ())
+MAX_SEGMENT_ISSUES = 128
+MAX_SEGMENT_ISSUE_CHARS = 512
+
+
+class _SegmentIssues:
+    """Bound retained diagnostics, not validation or fail-closed decisions."""
+
+    def __init__(self) -> None:
+        self._messages: list[str] = []
+        self._omitted = 0
+
+    def append(self, message: str) -> None:
+        if len(self._messages) >= MAX_SEGMENT_ISSUES:
+            self._omitted += 1
+            return
+        suffix = " [diagnostic truncated]"
+        if len(message) > MAX_SEGMENT_ISSUE_CHARS:
+            message = message[: MAX_SEGMENT_ISSUE_CHARS - len(suffix)] + suffix
+        self._messages.append(message)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self._messages
+        if self._omitted:
+            yield f"{self._omitted} additional issues omitted; validation remains failed"
 
 
 def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -209,20 +233,26 @@ class SegmentedCaptureWriter:
             raise
 
     def _write_event(self, envelope: EventEnvelope) -> None:
+        # Freeze exactly the snapshot that will be stored. A frozen dataclass
+        # does not freeze nested caller-owned payloads, including while this
+        # envelope waits behind the off-loop writer queue.
+        event = json.loads(envelope.to_json())
+        if event["raw_payload_checksum"] != payload_checksum(event["payload"]):
+            raise SegmentIntegrityError("serialized payload does not match its receipt checksum")
+        content = canonical_json(event)
         if self._should_rotate(envelope):
             self.finalize()
             self._segment_index += 1
             self._open_segment()
-        payload = envelope.to_json()
         self._write_json(
             {
                 "record": "event",
                 "recv_seq": envelope.recv_seq,
-                "payload_checksum": envelope.raw_payload_checksum or payload_checksum(envelope.payload),
-                "event": json.loads(payload),
+                "payload_checksum": event["raw_payload_checksum"],
+                "event": event,
             }
         )
-        self._content_hash.update(canonical_json(envelope.as_dict()))
+        self._content_hash.update(content)
         self._segment_count += 1
         self._first_seq = envelope.recv_seq if self._first_seq is None else self._first_seq
         self._last_seq = envelope.recv_seq
@@ -440,9 +470,10 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
                 or envelope.capture_id != header_capture_id
             ):
                 break
-            checksum = row.get("payload_checksum")
-            computed_checksum = payload_checksum(envelope.payload)
-            if checksum != computed_checksum or envelope.raw_payload_checksum != computed_checksum:
+            # Construction has just recomputed and checked this decoded row's
+            # inner CRC. Bind the outer CRC to that verified value, not to an
+            # unchecked declaration or a cache shared with another payload.
+            if row.get("payload_checksum") != envelope.raw_payload_checksum:
                 break
             if previous_seq is not None and envelope.recv_seq <= previous_seq:
                 break
@@ -456,7 +487,7 @@ def recover_valid_envelopes(path: str | Path) -> Iterator[EventEnvelope]:
 
 def validate_segment(path: str | Path) -> SegmentValidationReport:
     source = Path(path)
-    issues: list[str] = []
+    issues = _SegmentIssues()
     count = 0
     first_seq: int | None = None
     last_seq: int | None = None
@@ -523,11 +554,9 @@ def validate_segment(path: str | Path) -> SegmentValidationReport:
                 row_seq = row.get("recv_seq")
                 if isinstance(row_seq, bool) or not isinstance(row_seq, int) or row_seq != envelope.recv_seq:
                     issues.append(f"line {line_number}: row recv_seq does not match envelope recv_seq")
-                computed_checksum = payload_checksum(envelope.payload)
-                if (
-                    row.get("payload_checksum") != computed_checksum
-                    or envelope.raw_payload_checksum != computed_checksum
-                ):
+                # from_dict already recomputed/validated the payload CRC;
+                # this separately verifies the enclosing storage-row binding.
+                if row.get("payload_checksum") != envelope.raw_payload_checksum:
                     issues.append(f"line {line_number}: payload checksum mismatch")
                 if last_seq is not None and envelope.recv_seq <= last_seq:
                     issues.append(f"line {line_number}: receive sequence is not strictly increasing")

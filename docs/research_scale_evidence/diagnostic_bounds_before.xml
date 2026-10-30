@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.386" timestamp="2026-10-29T22:52:49.735888+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="tests.test_segment_diagnostic_bounds" name="test_invalid_tape_issue_count_is_bounded_and_omissions_are_explicit" time="0.064"><failure message="assert 1000 &lt;= 129">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-23/test_invalid_tape_issue_count_0')
+
+    def test_invalid_tape_issue_count_is_bounded_and_omissions_are_explicit(tmp_path):
+        segment, lines = _segment(tmp_path)
+        lines[2:2] = [json.dumps({"record": "unknown"}) for _ in range(1000)]
+        segment.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        report = validate_segment(segment)
+        issue_count = len(report.issues)
+        assert not report.ok
+&gt;       assert issue_count &lt;= 129
+E       assert 1000 &lt;= 129
+
+tests\test_segment_diagnostic_bounds.py:20: AssertionError</failure></testcase><testcase classname="tests.test_segment_diagnostic_bounds" name="test_single_retained_issue_has_a_fixed_visible_size_budget" time="0.063"><failure message="assert 20030 &lt;= 512">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-23/test_single_retained_issue_has0')
+
+    def test_single_retained_issue_has_a_fixed_visible_size_budget(tmp_path):
+        segment, lines = _segment(tmp_path)
+        lines.insert(2, json.dumps({"record": "x" * 20_000}))
+        segment.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        report = validate_segment(segment)
+        maximum = max(map(len, report.issues))
+        assert not report.ok
+&gt;       assert maximum &lt;= 512
+E       assert 20030 &lt;= 512
+
+tests\test_segment_diagnostic_bounds.py:34: AssertionError</failure></testcase></testsuite></testsuites>

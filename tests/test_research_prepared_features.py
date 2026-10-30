@@ -184,6 +184,23 @@ def test_trailing_window_and_availability_never_bridge_invalid_or_epoch_interval
     gate.finish()
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [("mm_enabled", 0), ("sim_order_latency_ms", False), ("feature_interval_ns", 1_000_000_000.0)],
+)
+def test_rehashed_prepared_configuration_and_cadence_preserve_json_types(tmp_path, monkeypatch, field, value):
+    root, protocol, manifest, _, _ = mechanical_prepared(tmp_path, monkeypatch)
+    load_prepared(root, protocol, registry_sha256=protocol.digest)
+    if field == "feature_interval_ns":
+        manifest["cadences"][0]["features"]["interval_ns"] = value
+    else:
+        manifest["configuration"][field] = value
+    manifest["prepared_sha256"] = identity({k: v for k, v in manifest.items() if k != "prepared_sha256"})
+    (root / "manifest.json").write_text(canonical_json(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="configuration differs|cadence identity mismatch"):
+        load_prepared(root, protocol, registry_sha256=protocol.digest)
+
+
 def test_fit_reader_opens_only_calibration_rows_and_rejects_test_before_any_io(tmp_path, monkeypatch):
     root, protocol, _, parents, _ = mechanical_prepared(tmp_path, monkeypatch)
     original = Path.open

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="2.932" timestamp="2026-10-29T23:31:49.215432+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="tests.test_research_study_plan_identity" name="test_canonical_numeric_control_reaches_the_next_boundary" time="0.124" /><testcase classname="tests.test_research_study_plan_identity" name="test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access[plan_latency]" time="0.107"><failure message="test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted">front_graph = (WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_0'), {'registry_sha2...sion': 'lob_sim.registered_real_study.v1', 'complete': True, 'claim_ready': False, 'registry_sha256': 'registry', ...})
+mutation = 'plan_latency'
+
+    @pytest.mark.parametrize("mutation", ["plan_latency", "plan_claim_flag", "comparison_latency"])
+    def test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access(front_graph, mutation):
+        _, plan, manifest = front_graph
+        if mutation == "plan_latency":
+            plan["cases"][0]["latency_ms"] = False
+        elif mutation == "plan_claim_flag":
+            plan["claim_ready"] = 0
+        else:
+            manifest["comparisons"][0]["cell"][3] = False
+        with pytest.raises(ValueError, match="study plan differs|comparison cell/path differs"):
+&gt;           verify(front_graph)
+
+tests\test_research_study_plan_identity.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_research_study_plan_identity.py:81: in verify
+    reader.verify_registered_study(
+lob_sim\research\study_reader.py:119: in verify_registered_study
+    if read_json(receipt_path) != {
+       ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_0/test_access.json')
+kwargs = {}
+
+    def read(path, **kwargs):
+        if path.name == "test_access.json":
+&gt;           raise PassedPlanBoundary("typed plan gate accepted")
+E           test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted
+
+tests\test_research_study_plan_identity.py:39: PassedPlanBoundary</failure></testcase><testcase classname="tests.test_research_study_plan_identity" name="test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access[plan_claim_flag]" time="0.091"><failure message="test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted">front_graph = (WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_1'), {'registry_sha2...sion': 'lob_sim.registered_real_study.v1', 'complete': True, 'claim_ready': False, 'registry_sha256': 'registry', ...})
+mutation = 'plan_claim_flag'
+
+    @pytest.mark.parametrize("mutation", ["plan_latency", "plan_claim_flag", "comparison_latency"])
+    def test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access(front_graph, mutation):
+        _, plan, manifest = front_graph
+        if mutation == "plan_latency":
+            plan["cases"][0]["latency_ms"] = False
+        elif mutation == "plan_claim_flag":
+            plan["claim_ready"] = 0
+        else:
+            manifest["comparisons"][0]["cell"][3] = False
+        with pytest.raises(ValueError, match="study plan differs|comparison cell/path differs"):
+&gt;           verify(front_graph)
+
+tests\test_research_study_plan_identity.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_research_study_plan_identity.py:81: in verify
+    reader.verify_registered_study(
+lob_sim\research\study_reader.py:119: in verify_registered_study
+    if read_json(receipt_path) != {
+       ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_1/test_access.json')
+kwargs = {}
+
+    def read(path, **kwargs):
+        if path.name == "test_access.json":
+&gt;           raise PassedPlanBoundary("typed plan gate accepted")
+E           test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted
+
+tests\test_research_study_plan_identity.py:39: PassedPlanBoundary</failure></testcase><testcase classname="tests.test_research_study_plan_identity" name="test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access[comparison_latency]" time="0.090"><failure message="test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted">front_graph = (WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_2'), {'registry_sha2...sion': 'lob_sim.registered_real_study.v1', 'complete': True, 'claim_ready': False, 'registry_sha256': 'registry', ...})
+mutation = 'comparison_latency'
+
+    @pytest.mark.parametrize("mutation", ["plan_latency", "plan_claim_flag", "comparison_latency"])
+    def test_rehashed_boolean_numeric_substitution_is_rejected_before_case_access(front_graph, mutation):
+        _, plan, manifest = front_graph
+        if mutation == "plan_latency":
+            plan["cases"][0]["latency_ms"] = False
+        elif mutation == "plan_claim_flag":
+            plan["claim_ready"] = 0
+        else:
+            manifest["comparisons"][0]["cell"][3] = False
+        with pytest.raises(ValueError, match="study plan differs|comparison cell/path differs"):
+&gt;           verify(front_graph)
+
+tests\test_research_study_plan_identity.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_research_study_plan_identity.py:81: in verify
+    reader.verify_registered_study(
+lob_sim\research\study_reader.py:119: in verify_registered_study
+    if read_json(receipt_path) != {
+       ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-30/test_rehashed_boolean_numeric_2/test_access.json')
+kwargs = {}
+
+    def read(path, **kwargs):
+        if path.name == "test_access.json":
+&gt;           raise PassedPlanBoundary("typed plan gate accepted")
+E           test_research_study_plan_identity.PassedPlanBoundary: typed plan gate accepted
+
+tests\test_research_study_plan_identity.py:39: PassedPlanBoundary</failure></testcase></testsuite></testsuites>

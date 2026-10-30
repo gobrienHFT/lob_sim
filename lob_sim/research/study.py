@@ -7,6 +7,7 @@ calibration/refit/parameter selection occurs after held-out replay access.
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import ExitStack
 from pathlib import Path
 import os
 import shutil
@@ -14,21 +15,19 @@ from typing import Any
 
 from lob_sim.config import Config
 from lob_sim.regime.dataset import publish_json
-from lob_sim.regime.study import core_audit_hashes
 from lob_sim.regime.validation import canonical_json, identity
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.research.evidence_io import retain_failure, STUDY_JSON_LIMIT
+from lob_sim.research.case_store import CaseStore
+from lob_sim.research.execution_evidence import ExecutionPublication, execution_specification
 from lob_sim.research.feature_reader import admitted_parents, verify_prepared
 from lob_sim.research.fit_bundle import load_model_set, verify_registered_models
 from lob_sim.research.registered_protocol import load_protocol
-from lob_sim.research.replay_engine import ReplayWindow
 from lob_sim.research.study_cases import expected_cases, case_configuration
-from lob_sim.research.study_replay import run_study_replay
+from lob_sim.research.study_case_execution import execute_case
 from lob_sim.research.study_statistics import compare_units
-from lob_sim.research.study_tables import reduce_tables, publish_tables
 from lob_sim.research.study_views import load_views, verify_views
 from lob_sim.sim.checkpoint import checkpoint_code_identity
-from lob_sim.sim.run_manifest import config_snapshot
 
 
 def run_registered_study(
@@ -42,8 +41,12 @@ def run_registered_study(
     cfg: Config,
     *,
     registry_sha256: str,
+    case_store: Path | None = None,
+    resume_store: bool = False,
 ) -> dict[str, Any]:
     protocol = load_protocol(registry_path, registry_sha256=registry_sha256)
+    if type(resume_store) is not bool or (resume_store and case_store is None):
+        raise ValueError("resume-store requires an existing case-store")
     registered = protocol.snapshot()
     if checkpoint_code_identity() != registered["code_identity"]:
         raise ValueError("study processing source differs from frozen registry")
@@ -57,14 +60,18 @@ def run_registered_study(
     views = load_views(view_root, protocol, models, registry_sha256=registry_sha256)
     cases = expected_cases(protocol, views)
     root = directory.resolve()
-    if any(
-        p.resolve().is_relative_to(root)
-        for p in (*inputs, day_bundle, registry_path, prepared_root, model_root, view_root)
+    parent_paths = (*inputs, day_bundle, registry_path, prepared_root, model_root, view_root)
+    store_path = case_store.resolve() if case_store is not None else None
+    if store_path is not None and any(
+        store_path.is_relative_to(p.resolve()) or p.resolve().is_relative_to(store_path) for p in (root, *parent_paths)
     ):
+        raise ValueError("case-store must be disjoint from publication and immutable parents")
+    if any(p.resolve().is_relative_to(root) for p in parent_paths):
         raise ValueError("study output contains immutable parents")
     root.mkdir(parents=True, exist_ok=False)
     results: list[dict[str, Any]] = []
     comparisons: list[dict[str, Any]] = []
+    execution = None
     try:
         publish_json(
             root / "plan.json",
@@ -89,7 +96,20 @@ def run_registered_study(
         unit_map = {u["unit_id"]: u for u in views["units"]}
         # Only a single unit/cell's tables need to remain in memory. Completed
         # runs are independently re-read for pooling after all matching passes.
-        with (root / "attempts.jsonl.partial").open("xb") as journal:
+        with ExitStack() as context, (root / "attempts.jsonl.partial").open("xb") as journal:
+            store = None
+            publication = None
+            if store_path is not None:
+                store = context.enter_context(
+                    CaseStore(
+                        store_path,
+                        execution_specification(
+                            registered, protocol.digest, models["models_sha256"], views["views_sha256"], cases
+                        ),
+                        resume=resume_store,
+                    ).opened()
+                )
+                publication = ExecutionPublication(root, store)
             for case in cases:
                 unit = unit_map[case["unit_id"]]
                 path = view_root / unit["directory"] / unit["view"]["path"]
@@ -103,26 +123,10 @@ def run_registered_study(
                 ):
                     raise ValueError("registered source/view changed during study")
                 try:
-                    files, summary = run_study_replay(
-                        cfg_case, path, ReplayWindow(**unit["contract"]["window"]), minimum_free_disk_bytes=floor
-                    )
-                    tables = (
-                        None
-                        if case["variant"] == "baseline"
-                        else publish_tables(
-                            files["summary"].parent / "clock_periods.jsonl",
-                            reduce_tables(files, summary, unit["contract"]),
-                        )
-                    )
-                    record: dict[str, Any] = {
-                        "case": case,
-                        "configuration": config_snapshot(cfg_case),
-                        "run_directory": files["summary"].parent.relative_to(root).as_posix(),
-                        "artifacts": {k: {"path": p.name, "sha256": file_sha256(p)} for k, p in files.items()},
-                        "core_audits": core_audit_hashes(files),
-                        "tables": tables,
-                        "status": "completed",
-                    }
+                    record, attempt = execute_case(root, case, cfg_case, path, unit, floor, store=store)
+                    if publication is not None:
+                        assert attempt is not None
+                        publication.add(case, record, attempt)
                     results.append(record)
                 except BaseException as exc:
                     journal.write(
@@ -143,6 +147,8 @@ def run_registered_study(
                 )
                 journal.flush()
                 os.fsync(journal.fileno())
+            if publication is not None:
+                execution = publication.manifest()
         os.link(root / "attempts.jsonl.partial", root / "attempts.jsonl")
         (root / "attempts.jsonl.partial").unlink()
         grouped: dict[Any, list[Any]] = defaultdict(list)
@@ -200,7 +206,9 @@ def run_registered_study(
         if checkpoint_code_identity() != registered["code_identity"]:
             raise ValueError("study source changed before publication")
         manifest = {
-            "schema_version": "lob_sim.registered_real_study.v1",
+            "schema_version": "lob_sim.registered_real_study.v2"
+            if execution is not None
+            else "lob_sim.registered_real_study.v1",
             "complete": True,
             "claim_ready": False,
             "registry_sha256": protocol.digest,
@@ -213,6 +221,8 @@ def run_registered_study(
             "plan_sha256": file_sha256(root / "plan.json"),
             "scope": "complete registered held-out conditional source/day grid;simulated public-L2 execution and pre-funding economics;not a profitability,significance,private-fill or production claim",
         }
+        if execution is not None:
+            manifest["execution"] = execution
         manifest["study_sha256"] = identity(manifest)
         if len(canonical_json(manifest).encode("utf-8")) + 1 > STUDY_JSON_LIMIT:
             raise ValueError("registered study metadata exceeds its explicit publication budget")

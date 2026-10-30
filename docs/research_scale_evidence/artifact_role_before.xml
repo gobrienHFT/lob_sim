@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="49.104" timestamp="2026-10-29T19:26:14.633815+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="tests.test_research_study_replay" name="test_case_artifact_labels_cannot_alias_another_valid_hashed_file[0-summary_csv]" time="30.795"><failure message="Failed: DID NOT RAISE ValueError">bounded_pair = [(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-0/research_bounded_pair0/study'), {'case': {'case_id...3333333333333333333333', 'registry_sha256': '4444444444444444444444444444444444444444444444444444444444444444', ...}})]
+variant_index = 0, label = 'summary_csv'
+
+    @pytest.mark.parametrize("variant_index,label", [(0, "summary_csv"), (1, "hmm_model")])
+    def test_case_artifact_labels_cannot_alias_another_valid_hashed_file(bounded_pair, variant_index, label):
+        root, original, case, configuration, path, unit = bounded_pair[variant_index]
+        # Keep every real native file intact and pass its genuine hash. The graph
+        # binding alone is forged: these labels must not refer to summary.json.
+        assert verify_case(root, original, case, configuration, path, unit) is None or variant_index == 1
+        changed = deepcopy(original)
+        changed["artifacts"][label] = deepcopy(changed["artifacts"]["summary"])
+&gt;       with pytest.raises(ValueError, match="artifact.*binding"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_study_replay.py:121: Failed</failure></testcase><testcase classname="tests.test_research_study_replay" name="test_case_artifact_labels_cannot_alias_another_valid_hashed_file[1-hmm_model]" time="11.633"><failure message="Failed: DID NOT RAISE ValueError">bounded_pair = [(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-0/research_bounded_pair0/study'), {'case': {'case_id...3333333333333333333333', 'registry_sha256': '4444444444444444444444444444444444444444444444444444444444444444', ...}})]
+variant_index = 1, label = 'hmm_model'
+
+    @pytest.mark.parametrize("variant_index,label", [(0, "summary_csv"), (1, "hmm_model")])
+    def test_case_artifact_labels_cannot_alias_another_valid_hashed_file(bounded_pair, variant_index, label):
+        root, original, case, configuration, path, unit = bounded_pair[variant_index]
+        # Keep every real native file intact and pass its genuine hash. The graph
+        # binding alone is forged: these labels must not refer to summary.json.
+        assert verify_case(root, original, case, configuration, path, unit) is None or variant_index == 1
+        changed = deepcopy(original)
+        changed["artifacts"][label] = deepcopy(changed["artifacts"]["summary"])
+&gt;       with pytest.raises(ValueError, match="artifact.*binding"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_study_replay.py:121: Failed</failure></testcase></testsuite></testsuites>
