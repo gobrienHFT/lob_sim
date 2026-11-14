@@ -29,6 +29,7 @@ from ..replay.inspection import file_sha256
 from ..replay.reader import iter_records
 from ..sim.metrics import FILL_AUDIT_CHAIN_DOMAIN, MARKOUT_AUDIT_CHAIN_DOMAIN
 from ..sim.run_manifest import CLAIM_GATE_SCHEMA_VERSION, RUN_MANIFEST_SCHEMA_VERSION, config_digest
+from .csv_limits import aggregate_csv_fields
 
 
 STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION = "lob_sim.streaming_bundle_audit.v1"
@@ -847,19 +848,36 @@ def _audit_manifest_and_artifacts(
             if manifest_config.get(field_name) != summary.get(field_name):
                 issues.add(f"{_display(manifest_path)} {field_name} does not match summary.json")
 
+    expected_files = dict(EXPECTED_FILES)
+    hmm_config = manifest_config.get("hmm") if isinstance(manifest_config, dict) else None
+    if hmm_config is not None:
+        expected_files.update(
+            {
+                "hmm_model": "hmm_model.json",
+                "regime_trace": "regime_trace.csv",
+                "regime_execution": "regime_execution.csv",
+                "regime_quotes": "regime_quotes.csv",
+                "regime_risk": "regime_risk.csv",
+            }
+        )
+        hmm_summary = summary.get("hmm")
+        if not isinstance(hmm_summary, dict) or hmm_summary.get("config") != hmm_config:
+            issues.add("manifest HMM configuration does not match the regime summary")
+    elif any(k.startswith("hmm") for k in summary):
+        issues.add("HMM-disabled bundle contains unexpected regime summaries")
     output_files = summary.get("output_files")
-    if not isinstance(output_files, dict) or set(output_files) != set(EXPECTED_FILES):
+    if not isinstance(output_files, dict) or set(output_files) != set(expected_files):
         issues.add("summary.output_files does not match the bounded bundle contract")
     outputs = manifest.get("outputs")
-    if not isinstance(outputs, dict) or set(outputs) != set(EXPECTED_FILES):
+    if not isinstance(outputs, dict) or set(outputs) != set(expected_files):
         issues.add("manifest.outputs does not match the bounded bundle contract")
 
     artifacts = manifest.get("output_artifacts")
-    if not isinstance(artifacts, dict) or set(artifacts) != set(EXPECTED_FILES):
+    if not isinstance(artifacts, dict) or set(artifacts) != set(expected_files):
         issues.add(f"{_display(manifest_path)} output_artifacts does not match the bounded bundle contract")
         return
     actual_artifacts: dict[str, Any] = {}
-    for label, filename in EXPECTED_FILES.items():
+    for label, filename in expected_files.items():
         artifact = artifacts.get(label)
         target = pack_dir / filename
         if not isinstance(artifact, dict):
@@ -957,7 +975,7 @@ def _audit_summary_csv(pack_dir: Path, summary: Mapping[str, Any], issues: _Issu
     # Summary CSV intentionally has a dynamic aggregate schema. Read it
     # independently here, but retain at most its single contract row.
     try:
-        with path.open("r", encoding="utf-8", newline="") as handle:
+        with aggregate_csv_fields(), path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             first = next(reader, None)
             second = next(reader, None)
@@ -1081,8 +1099,9 @@ def _scan_input(
     manifest: Mapping[str, Any],
     index: _AuditIndex,
     issues: _Issues,
+    input_override: Path | None = None,
 ) -> tuple[Path | None, dict[str, int], int]:
-    path = _resolve_input_path(pack_dir, manifest)
+    path = input_override if input_override is not None else _resolve_input_path(pack_dir, manifest)
     if path is None:
         issues.add(f"{_display(_artifact_path(pack_dir, 'manifest'))} is missing input.path")
         return None, {field_name: 0 for field_name in MARKET_RECORD_SOURCE_TO_SUMMARY_FIELD.values()}, 0
@@ -1203,6 +1222,8 @@ def _audit_queue_consumption(
     details: Mapping[str, Any],
     state: _TraceState,
     issues: _Issues,
+    *,
+    trade_consumes_queue: bool = True,
 ) -> None:
     if source not in PUBLIC_CONSUMPTION_SOURCES:
         issues.add(f"{_display(trace_path)}:{row_number} has invalid queue_consumption source {source!r}")
@@ -1219,7 +1240,15 @@ def _audit_queue_consumption(
         return
     if parsed["observed_lots"] < parsed["modeled_lots"]:
         issues.add(f"{_display(trace_path)}:{row_number} queue_consumption models more lots than observed")
-    if parsed["overlap_netted_lots"] != parsed["observed_lots"] - parsed["modeled_lots"]:
+    # In a depth-only scenario a trade can corroborate an overlap without
+    # being a queue-consumption signal. The rest is ignored by that scenario,
+    # not necessarily netted. This distinction exists in the core trace.
+    if source == "agg_trade" and not trade_consumes_queue:
+        if any(parsed[k] != 0 for k in ("modeled_lots", "queue_consumed_lots", "unmatched_lots")):
+            issues.add(f"{_display(trace_path)}:{row_number} disabled trade signal consumes queue")
+        if parsed["overlap_netted_lots"] > parsed["observed_lots"]:
+            issues.add(f"{_display(trace_path)}:{row_number} queue_consumption nets more lots than observed")
+    elif parsed["overlap_netted_lots"] != parsed["observed_lots"] - parsed["modeled_lots"]:
         issues.add(f"{_display(trace_path)}:{row_number} queue_consumption netted lots are inconsistent")
     if parsed["queue_consumed_lots"] > parsed["modeled_lots"]:
         issues.add(f"{_display(trace_path)}:{row_number} queue_consumption consumes more queue than modeled")
@@ -1232,6 +1261,8 @@ def _scan_trace(
     fill_issues: _Issues,
     markout_issues: _Issues,
     issues: _Issues,
+    *,
+    trade_consumes_queue: bool = True,
 ) -> _TraceState:
     trace_path = _artifact_path(pack_dir, "event_trace")
     fill_iter = _iter_fill_rows(_artifact_path(pack_dir, "trades"), fill_issues)
@@ -1302,7 +1333,15 @@ def _scan_trace(
         elif event_type == "cancel_ack":
             state.lifecycle_counts["cancel_acknowledged"] += 1
         elif event_type == "queue_consumption":
-            _audit_queue_consumption(trace_path, row_number, row.get("source", ""), details, state, issues)
+            _audit_queue_consumption(
+                trace_path,
+                row_number,
+                row.get("source", ""),
+                details,
+                state,
+                issues,
+                trade_consumes_queue=trade_consumes_queue,
+            )
         elif event_type == "fill":
             state.fill_count += 1
             for field_name in ("side", "price_tick", "qty_lots", "order_id", "fill_source"):
@@ -1539,12 +1578,17 @@ def _audit_chain_contract(
             issues.add(f"summary.audit_retention.{field_name} does not match the serialized audit chain")
 
 
-def audit_streaming_bundle(pack_dir: Path, *, max_issues: int = 250) -> dict[str, Any]:
+def audit_streaming_bundle(
+    pack_dir: Path, *, max_issues: int = 250, input_override: Path | None = None
+) -> dict[str, Any]:
     """Audit one completed bounded-streaming run with duration-independent memory.
 
     The returned ``memory_contract`` describes the implementation mechanism;
     it is not a measured peak-memory claim.  Large files are streamed and the
     only exact growing sets live in a temporary SQLite database on disk.
+    An explicit relocated input still has to reproduce the recorded size,
+    SHA-256, event census and every referenced evidence identity. The original
+    manifest is never rewritten to accommodate relocation.
     """
 
     pack_dir = pack_dir.resolve()
@@ -1564,10 +1608,15 @@ def audit_streaming_bundle(pack_dir: Path, *, max_issues: int = 250) -> dict[str
             fill_state = _scan_fill_audit(_artifact_path(pack_dir, "trades"), summary, index, issues)
             markout_state = _scan_markout_audit(_artifact_path(pack_dir, "markouts"), issues)
             index.commit()
-            _, input_counts, records_processed = _scan_input(pack_dir, manifest, index, issues)
+            _, input_counts, records_processed = _scan_input(pack_dir, manifest, index, issues, input_override)
             trace_decode_issues = _Issues(limit=issues.limit)
             markout_decode_issues = _Issues(limit=issues.limit)
-            trace_state = _scan_trace(pack_dir, trace_decode_issues, markout_decode_issues, issues)
+            configuration = manifest.get("config")
+            assumption = configuration.get("fill_assumption", {}) if isinstance(configuration, dict) else {}
+            trade_consumes = not isinstance(assumption, dict) or assumption.get("agg_trades_consume_queue") is not False
+            trace_state = _scan_trace(
+                pack_dir, trace_decode_issues, markout_decode_issues, issues, trade_consumes_queue=trade_consumes
+            )
             for message in trace_decode_issues.messages:
                 issues.add(message)
             for message in markout_decode_issues.messages:
@@ -1586,6 +1635,16 @@ def audit_streaming_bundle(pack_dir: Path, *, max_issues: int = 250) -> dict[str
         _audit_trace_summary(summary, trace_state, issues)
         _audit_input_summary(summary, input_counts, records_processed, issues)
         _audit_chain_contract(summary, fill_state, markout_state, issues)
+        if isinstance(manifest.get("config"), dict) and manifest["config"].get("hmm") is not None:
+            # The regime re-reader does not call the matching engine. It
+            # checks the saved model, filter/state counts, quote/execution
+            # linkage, risk boundaries and reconstructed economic ledger.
+            from ..regime.diagnostics import inspect_run
+
+            try:
+                inspect_run(pack_dir)
+            except (OSError, ArithmeticError, KeyError, TypeError, ValueError) as exc:
+                issues.add("Regime sidecar audit failed: " + type(exc).__name__)
 
     return {
         "schema_version": STREAMING_BUNDLE_AUDIT_SCHEMA_VERSION,

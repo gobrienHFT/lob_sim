@@ -1,0 +1,47 @@
+name: Extended research verification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/extended-research.yml"
+      - "lob_sim/research/**"
+      - "lob_sim/audit/**"
+      - "tests/test_research_*.py"
+      - "tests/test_streaming_bundle_audit.py"
+      - "pyproject.toml"
+      - "requirements.txt"
+  schedule:
+    - cron: "15 5 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  serialized-graph:
+    name: Synthetic graph on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Native matching and independently reopened graph
+        run: python -m pytest tests/test_research_study_graph.py -m long_research -q --durations=10 --junitxml=outputs/research-integration.xml
+      - name: Retain source-bound test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-research-graph-${{ matrix.os }}
+          path: outputs/research-integration.xml
+          if-no-files-found: error

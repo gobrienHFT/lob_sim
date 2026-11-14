@@ -133,7 +133,7 @@ def build_reviewer_gate_steps(
     cargo_executable: str = "cargo",
 ) -> list[GateStep]:
     steps = [
-        GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q")),
+        GateStep("unit and invariant tests", (python_executable, "-m", "pytest", "-q", "-m", "not long_research")),
         GateStep(
             "type check core replay, record, and simulation modules",
             (python_executable, "-m", "mypy", *MYPY_TARGETS),
