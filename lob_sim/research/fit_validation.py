@@ -100,16 +100,20 @@ def verify_fit_candidate(
         raise ValueError("saved fit report identity differs")
     if (
         canonical_json(report["fit_config"]) != canonical_json(cfg.as_dict())
-        or report["training"] != train.provenance()
-        or report["validation"] != validation.provenance()
+        or canonical_json(report["training"]) != canonical_json(train.provenance())
+        or canonical_json(report["validation"]) != canonical_json(validation.provenance())
     ):
         raise ValueError("saved fit parents or configuration differ")
     attempts = report["attempts"]
     expected = [(k, r, restart_seed(cfg.seed, k, r)) for k in cfg.state_counts for r in range(cfg.restarts)]
-    if not isinstance(attempts, list) or [(a.get("k"), a.get("restart"), a.get("seed")) for a in attempts] != expected:
+    if not isinstance(attempts, list) or canonical_json(
+        [(a.get("k"), a.get("restart"), a.get("seed")) for a in attempts]
+    ) != canonical_json(expected):
         raise ValueError("saved fit attempt ledger is incomplete or reordered")
     candidates = report["candidates"]
-    if not isinstance(candidates, list) or [c.get("k") for c in candidates] != list(cfg.state_counts):
+    if not isinstance(candidates, list) or canonical_json([c.get("k") for c in candidates]) != canonical_json(
+        list(cfg.state_counts)
+    ):
         raise ValueError("saved candidate census differs")
     for candidate in candidates:
         if candidate["status"] == "valid":
@@ -117,13 +121,13 @@ def verify_fit_candidate(
             if not valid:
                 raise ValueError("selected K has no valid training restart")
             winner = max(valid, key=lambda a: finite(a["training_log_likelihood"], "restart likelihood"))
-            if candidate["restart"] != winner["restart"]:
+            if canonical_json(candidate["restart"]) != canonical_json(winner["restart"]):
                 raise ValueError("validation cannot select a non-winning training restart")
             _close(candidate["training_log_likelihood"], winner["training_log_likelihood"], "restart winner likelihood")
         elif candidate["status"] != "failed":
             raise ValueError("unsupported fitted candidate status")
     selected = select_validation_candidate(candidates, cfg.validation_tie_per_observation)
-    if report["selected"] != selected:
+    if canonical_json(report["selected"]) != canonical_json(selected):
         raise ValueError("saved validation selection differs from the frozen rule")
     if selected is None:
         if model is not None or report["status"] != "no_valid_candidate" or report["model_sha256"] is not None:
@@ -138,12 +142,19 @@ def verify_fit_candidate(
         raise ValueError("saved model differs from fit report")
     provenance = strict_json(model.provenance_json)
     for key in ("training", "validation", "fit_config", "attempts", "candidates", "state_characterization"):
-        if provenance.get(key) != report[key]:
+        if canonical_json(provenance.get(key)) != canonical_json(report[key]):
             raise ValueError("model provenance differs from saved fit ledger: " + key)
-    if provenance.get("selection") != selected or provenance.get("claim_ready") is not False:
+    if (
+        canonical_json(provenance.get("selection")) != canonical_json(selected)
+        or provenance.get("claim_ready") is not False
+    ):
         raise ValueError("model selection/claim provenance differs")
     order = provenance.get("canonical_to_raw_state")
-    if not isinstance(order, list) or sorted(order) != list(range(model.parameters.state_count)):
+    if (
+        not isinstance(order, list)
+        or any(type(value) is not int for value in order)
+        or sorted(order) != list(range(model.parameters.state_count))
+    ):
         raise ValueError("model state permutation is invalid")
     raw = model.parameters.permute(tuple(order.index(i) for i in range(len(order))))
     if identity(raw.as_dict()) != selected["convergence"]["parameter_sha256"]:

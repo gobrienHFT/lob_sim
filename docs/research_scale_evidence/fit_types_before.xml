@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="34.080" timestamp="2026-10-29T23:35:07.430451+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="tests.test_research_fit_verification" name="test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types[restart_boolean]" time="0.192"><failure message="Failed: DID NOT RAISE ValueError">mutation = 'restart_boolean'
+
+    @pytest.mark.parametrize("mutation", ["restart_boolean", "seed_float", "candidate_k_float", "training_rows_float"])
+    def test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types(mutation):
+        # Too few rows deliberately produces a complete failed ledger without EM.
+        # Failed outcomes deserve the same immutable identity as successful fits.
+        train = partition("calibration", sequences=1, samples=10)
+        validation = partition("validation", sequences=1, samples=10, seed=19)
+        cfg = FitConfig(state_counts=(2,), restarts=1)
+        result = fit_candidates(train, validation, cfg)
+        assert result.model is None
+        verify_fit_candidate(result.report(), None, train, validation, cfg)
+        report = deepcopy(result.report())
+        if mutation == "restart_boolean":
+            report["attempts"][0]["restart"] = False
+        elif mutation == "seed_float":
+            report["attempts"][0]["seed"] = float(report["attempts"][0]["seed"])
+        elif mutation == "candidate_k_float":
+            report["candidates"][0]["k"] = 2.0
+        else:
+            report["training"]["rows"] = float(report["training"]["rows"])
+        report["report_sha256"] = identity({k: v for k, v in report.items() if k != "report_sha256"})
+&gt;       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_fit_verification.py:106: Failed</failure></testcase><testcase classname="tests.test_research_fit_verification" name="test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types[seed_float]" time="0.019"><failure message="Failed: DID NOT RAISE ValueError">mutation = 'seed_float'
+
+    @pytest.mark.parametrize("mutation", ["restart_boolean", "seed_float", "candidate_k_float", "training_rows_float"])
+    def test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types(mutation):
+        # Too few rows deliberately produces a complete failed ledger without EM.
+        # Failed outcomes deserve the same immutable identity as successful fits.
+        train = partition("calibration", sequences=1, samples=10)
+        validation = partition("validation", sequences=1, samples=10, seed=19)
+        cfg = FitConfig(state_counts=(2,), restarts=1)
+        result = fit_candidates(train, validation, cfg)
+        assert result.model is None
+        verify_fit_candidate(result.report(), None, train, validation, cfg)
+        report = deepcopy(result.report())
+        if mutation == "restart_boolean":
+            report["attempts"][0]["restart"] = False
+        elif mutation == "seed_float":
+            report["attempts"][0]["seed"] = float(report["attempts"][0]["seed"])
+        elif mutation == "candidate_k_float":
+            report["candidates"][0]["k"] = 2.0
+        else:
+            report["training"]["rows"] = float(report["training"]["rows"])
+        report["report_sha256"] = identity({k: v for k, v in report.items() if k != "report_sha256"})
+&gt;       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_fit_verification.py:106: Failed</failure></testcase><testcase classname="tests.test_research_fit_verification" name="test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types[candidate_k_float]" time="0.025"><failure message="Failed: DID NOT RAISE ValueError">mutation = 'candidate_k_float'
+
+    @pytest.mark.parametrize("mutation", ["restart_boolean", "seed_float", "candidate_k_float", "training_rows_float"])
+    def test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types(mutation):
+        # Too few rows deliberately produces a complete failed ledger without EM.
+        # Failed outcomes deserve the same immutable identity as successful fits.
+        train = partition("calibration", sequences=1, samples=10)
+        validation = partition("validation", sequences=1, samples=10, seed=19)
+        cfg = FitConfig(state_counts=(2,), restarts=1)
+        result = fit_candidates(train, validation, cfg)
+        assert result.model is None
+        verify_fit_candidate(result.report(), None, train, validation, cfg)
+        report = deepcopy(result.report())
+        if mutation == "restart_boolean":
+            report["attempts"][0]["restart"] = False
+        elif mutation == "seed_float":
+            report["attempts"][0]["seed"] = float(report["attempts"][0]["seed"])
+        elif mutation == "candidate_k_float":
+            report["candidates"][0]["k"] = 2.0
+        else:
+            report["training"]["rows"] = float(report["training"]["rows"])
+        report["report_sha256"] = identity({k: v for k, v in report.items() if k != "report_sha256"})
+&gt;       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_fit_verification.py:106: Failed</failure></testcase><testcase classname="tests.test_research_fit_verification" name="test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types[training_rows_float]" time="0.020"><failure message="Failed: DID NOT RAISE ValueError">mutation = 'training_rows_float'
+
+    @pytest.mark.parametrize("mutation", ["restart_boolean", "seed_float", "candidate_k_float", "training_rows_float"])
+    def test_rehashed_failed_fit_preserves_exact_json_ledger_and_parent_types(mutation):
+        # Too few rows deliberately produces a complete failed ledger without EM.
+        # Failed outcomes deserve the same immutable identity as successful fits.
+        train = partition("calibration", sequences=1, samples=10)
+        validation = partition("validation", sequences=1, samples=10, seed=19)
+        cfg = FitConfig(state_counts=(2,), restarts=1)
+        result = fit_candidates(train, validation, cfg)
+        assert result.model is None
+        verify_fit_candidate(result.report(), None, train, validation, cfg)
+        report = deepcopy(result.report())
+        if mutation == "restart_boolean":
+            report["attempts"][0]["restart"] = False
+        elif mutation == "seed_float":
+            report["attempts"][0]["seed"] = float(report["attempts"][0]["seed"])
+        elif mutation == "candidate_k_float":
+            report["candidates"][0]["k"] = 2.0
+        else:
+            report["training"]["rows"] = float(report["training"]["rows"])
+        report["report_sha256"] = identity({k: v for k, v in report.items() if k != "report_sha256"})
+&gt;       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_research_fit_verification.py:106: Failed</failure></testcase></testsuite></testsuites>

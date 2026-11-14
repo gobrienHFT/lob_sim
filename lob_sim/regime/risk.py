@@ -235,7 +235,10 @@ class RegimeRiskAudit:
             )
         ):
             raise ValueError("risk boundary clock/trace regression")
-        return deepcopy(row)
+        # The top-level mapping is new; its only nested value, stage, was
+        # independently detached by _stage. Every other validated leaf is an
+        # immutable JSON scalar. Retain ownership without copying it twice.
+        return row
 
     def _integrate(self, end: int) -> None:
         previous = self._anchor

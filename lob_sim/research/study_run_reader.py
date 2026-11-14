@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from lob_sim.audit.streaming_bundle import audit_streaming_bundle
+from lob_sim.audit.streaming_bundle import EXPECTED_FILES, audit_streaming_bundle
 from lob_sim.regime.diagnostics import inspect_run
 from lob_sim.regime.study import core_audit_hashes
-from lob_sim.regime.validation import canonical_json
+from lob_sim.regime.validation import canonical_json, require_keys
 from lob_sim.replay.inspection import file_sha256
-from lob_sim.research.evidence_io import read_json
+from lob_sim.research.evidence_io import read_json, require_finalized
 from lob_sim.research.study_tables import iter_tables, reduce_tables
 from lob_sim.sim.run_manifest import config_snapshot
 from lob_sim.research.replay_engine import ResearchConfig
@@ -21,7 +21,11 @@ def verify_case(
     root: Path, record: dict[str, Any], case: dict[str, Any], cfg: ResearchConfig, view_path: Path, unit: dict[str, Any]
 ) -> tuple[dict[str, Any], ...] | None:
     # Never follow a record's directory until its full registered case binds.
-    if record.get("case") != case or record.get("configuration") != config_snapshot(cfg):
+    # JSON identity, not Python numeric equality: False == 0.0 must not
+    # silently change an externally frozen configuration or case binding.
+    if canonical_json(record.get("case")) != canonical_json(case) or canonical_json(
+        record.get("configuration")
+    ) != canonical_json(config_snapshot(cfg)):
         raise ValueError("research case/scenario/configuration correspondence differs")
     folder = (root / record["run_directory"]).resolve()
     if not folder.is_relative_to(root.resolve()) or not record["run_directory"].startswith(
@@ -31,14 +35,29 @@ def verify_case(
     summary = read_json(folder / "summary.json")
     manifest = read_json(folder / "manifest.json")
     if (
-        manifest.get("config") != config_snapshot(cfg)
+        canonical_json(manifest.get("config")) != canonical_json(config_snapshot(cfg))
         or summary.get("input_sha256") != unit["view"]["sha256"]
         or manifest.get("input", {}).get("sha256") != unit["view"]["sha256"]
     ):
         raise ValueError("native run configuration/view identity differs")
+    expected = dict(EXPECTED_FILES)
+    if case["variant"] != "baseline":
+        expected.update(
+            hmm_model="hmm_model.json",
+            regime_trace="regime_trace.csv",
+            regime_execution="regime_execution.csv",
+            regime_quotes="regime_quotes.csv",
+            regime_risk="regime_risk.csv",
+        )
+    artifacts = require_keys(record.get("artifacts"), set(expected), "research case artifact binding")
     files = {}
-    for key, binding in record["artifacts"].items():
+    for key, filename in expected.items():
+        binding = require_keys(artifacts[key], {"path", "sha256"}, "research case artifact binding")
         name = binding["path"]
+        # A genuine hash proves bytes, not their semantic role. Bind the graph
+        # label to the same canonical file inspected by the native auditor.
+        if name != filename:
+            raise ValueError("research case artifact role/path binding differs")
         path = (folder / name).resolve()
         if (
             not isinstance(name, str)
@@ -64,13 +83,34 @@ def verify_case(
     if case["variant"] == "baseline":
         if record["tables"] is not None or any(k.startswith("hmm") for k in summary):
             raise ValueError("baseline acquired regime-specific outputs")
+        _require_unchanged(folder, files, artifacts)
         return None
     inspect_run(folder)  # Model, state, lifecycle, risk, markout and economics chains.
-    if cfg.hmm is None or summary["hmm"]["config"] != cfg.hmm.as_dict():
+    if cfg.hmm is None or canonical_json(summary["hmm"]["config"]) != canonical_json(cfg.hmm.as_dict()):
         raise ValueError("serialized regime runtime differs from registered model/policy")
     actual = reduce_tables(files, summary, unit["contract"])
     path = folder / record["tables"]["path"]
     stored = iter_tables(path, record["tables"])
     if any(canonical_json(a) != canonical_json(b) for a, b in zip(actual, stored, strict=True)):
         raise ValueError("serialized clock tables differ from native audit reducers")
+    _require_unchanged(folder, files, artifacts)
+    if file_sha256(path) != record["tables"]["sha256"]:
+        raise ValueError("native case table identity changed during verification")
     return actual
+
+
+def _require_unchanged(folder: Path, files: dict[str, Path], artifacts: Any) -> None:
+    """Do not publish a completion for artifacts changed during long readers.
+
+    This detects observed drift; it is not a filesystem snapshot or a defense
+    against a hostile process restoring bytes between observations. The case
+    executor's exclusive ownership remains necessary.
+    """
+    try:
+        require_finalized(folder, "manifest.json")
+        if (folder / "_INCOMPLETE.json").exists() or any(
+            file_sha256(path) != artifacts[label]["sha256"] for label, path in files.items()
+        ):
+            raise ValueError("native case artifact identity changed during verification")
+    except (OSError, ValueError) as exc:
+        raise ValueError("native case artifact identity changed during verification") from exc

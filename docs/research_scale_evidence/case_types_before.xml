@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="47.755" timestamp="2026-10-29T19:50:29.279379+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname=".tooling.test_scale_typed_case_binding" name="test_boolean_cannot_impersonate_frozen_zero_latency" time="41.685"><failure message="Failed: DID NOT RAISE ValueError">bounded_pair = [(WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-3/research_bounded_pair0/study'), {'case': {'case_id...3333333333333333333333', 'registry_sha256': '4444444444444444444444444444444444444444444444444444444444444444', ...}})]
+
+    def test_boolean_cannot_impersonate_frozen_zero_latency(bounded_pair):
+        root, original, case, cfg, view, unit = bounded_pair[0]
+        assert verify_case(root, original, case, cfg, view, unit) is None
+        changed = deepcopy(original)
+        assert changed["configuration"]["sim_order_latency_ms"] == 0.0
+        changed["configuration"]["sim_order_latency_ms"] = False
+&gt;       with pytest.raises(ValueError, match="correspondence"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+.tooling\test_scale_typed_case_binding.py:18: Failed</failure></testcase></testsuite></testsuites>

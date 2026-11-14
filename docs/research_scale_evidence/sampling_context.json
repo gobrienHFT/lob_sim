@@ -1,0 +1,68 @@
+{
+  "schema_version": "lob_sim.research_scale_sampling_context.v1",
+  "claim_ready": false,
+  "target_pid": 6224,
+  "worker_report": "outputs/research_scale_audit_observe_100010_20261030/report.json",
+  "sampler": {
+    "name": "py-spy",
+    "version": "0.4.1",
+    "binary_sha256": "ae893db8c26730a8158cfefde9a65833c137eee8fe72b56aee061b318aa8effe",
+    "installation": "isolated .tooling target;not installed into the benchmark interpreter",
+    "documentation": "https://github.com/benfred/py-spy"
+  },
+  "initial_stack_observation": [
+    "risk._row",
+    "risk.observe",
+    "risk.verify_risk_trace",
+    "economics.reconstruct_economics",
+    "study_pnl.read_pnl_periods",
+    "study_tables.reduce_tables"
+  ],
+  "windows": [
+    {
+      "file": "reduction.folded",
+      "format": "raw",
+      "duration_seconds": 20,
+      "rate_hz": 25,
+      "nonblocking": true,
+      "accepted_sample_weight": 345,
+      "errors_observed": true,
+      "exact_error_count_retained": null,
+      "assessment": "many concurrent-memory-read errors and occasional partial frames;do not use for quantitative percentages"
+    },
+    {
+      "file": "reduction.svg",
+      "format": "flamegraph",
+      "duration_seconds": 20,
+      "rate_hz": 25,
+      "nonblocking": true,
+      "accepted_samples": 399,
+      "errors": 100,
+      "assessment": "lossy separate sampling window;not a quantitative CPU allocation estimate"
+    },
+    {
+      "file": "reduction_checked.folded",
+      "format": "raw",
+      "duration_seconds": 10,
+      "rate_hz": 25,
+      "nonblocking": false,
+      "accepted_samples": 249,
+      "errors": 0,
+      "samples_inside_reconstruct_economics": 249,
+      "samples_inside_reduce_tables": 249,
+      "assessment": "short regional stack diagnostic;not whole-run frequency or event latency"
+    },
+    {
+      "file": "reduction_checked.svg",
+      "format": "flamegraph",
+      "duration_seconds": 10,
+      "rate_hz": 25,
+      "nonblocking": false,
+      "accepted_samples": 249,
+      "errors": 0,
+      "assessment": "separate subsequent sampling window,not a rendering of reduction_checked.folded"
+    }
+  ],
+  "measurement_caveat": "Sampling and a small concurrent diagnostic pytest run occurred during table reduction after the worker had recorded replay/export and independent native-verification durations. The table-reduction timer includes this instrumentation/competition;it is not a clean unprofiled release measurement. Logical simulation outputs are unaffected by wall-clock profiling.",
+  "scope": "qualitative CPU-stack evidence for repeated serialized risk validation and economic reconstruction;not unbiased whole-run percentages,measured exchange latency or a new optimization claim"
+}

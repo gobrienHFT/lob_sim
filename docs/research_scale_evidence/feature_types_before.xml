@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="3.128" timestamp="2026-10-30T06:59:02.595537+00:00" hostname="DESKTOP-ERUEAFP"><testcase classname="outputs.test_scale_feature_identity_regression_20261030" name="test_prepared_configuration_types_are_frozen[mm_enabled-0]" time="0.291"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-34/test_prepared_configuration_ty0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000197364DFBB0&gt;
+field = 'mm_enabled', value = 0
+
+    @pytest.mark.parametrize("field,value", [("mm_enabled", 0), ("sim_order_latency_ms", False), ("feature_interval_ns", 1_000_000_000.0)])
+    def test_prepared_configuration_types_are_frozen(tmp_path, monkeypatch, field, value):
+        root, protocol, manifest, _, _ = mechanical_prepared(tmp_path, monkeypatch)
+        load_prepared(root, protocol, registry_sha256=protocol.digest)
+        if field == "feature_interval_ns":
+            manifest["cadences"][0]["features"]["interval_ns"] = value
+        else:
+            manifest["configuration"][field] = value
+        manifest["prepared_sha256"] = identity({k: v for k, v in manifest.items() if k != "prepared_sha256"})
+        (root / "manifest.json").write_text(canonical_json(manifest), encoding="utf-8")
+&gt;       with pytest.raises(ValueError, match="configuration differs|cadence identity mismatch"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+outputs\test_scale_feature_identity_regression_20261030.py:26: Failed</failure></testcase><testcase classname="outputs.test_scale_feature_identity_regression_20261030" name="test_prepared_configuration_types_are_frozen[sim_order_latency_ms-False]" time="0.170"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-34/test_prepared_configuration_ty1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000197364DF5C0&gt;
+field = 'sim_order_latency_ms', value = False
+
+    @pytest.mark.parametrize("field,value", [("mm_enabled", 0), ("sim_order_latency_ms", False), ("feature_interval_ns", 1_000_000_000.0)])
+    def test_prepared_configuration_types_are_frozen(tmp_path, monkeypatch, field, value):
+        root, protocol, manifest, _, _ = mechanical_prepared(tmp_path, monkeypatch)
+        load_prepared(root, protocol, registry_sha256=protocol.digest)
+        if field == "feature_interval_ns":
+            manifest["cadences"][0]["features"]["interval_ns"] = value
+        else:
+            manifest["configuration"][field] = value
+        manifest["prepared_sha256"] = identity({k: v for k, v in manifest.items() if k != "prepared_sha256"})
+        (root / "manifest.json").write_text(canonical_json(manifest), encoding="utf-8")
+&gt;       with pytest.raises(ValueError, match="configuration differs|cadence identity mismatch"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+outputs\test_scale_feature_identity_regression_20261030.py:26: Failed</failure></testcase><testcase classname="outputs.test_scale_feature_identity_regression_20261030" name="test_prepared_configuration_types_are_frozen[feature_interval_ns-1000000000.0]" time="0.198"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/PC/AppData/Local/Temp/pytest-of-PC/pytest-34/test_prepared_configuration_ty2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000197365367B0&gt;
+field = 'feature_interval_ns', value = 1000000000.0
+
+    @pytest.mark.parametrize("field,value", [("mm_enabled", 0), ("sim_order_latency_ms", False), ("feature_interval_ns", 1_000_000_000.0)])
+    def test_prepared_configuration_types_are_frozen(tmp_path, monkeypatch, field, value):
+        root, protocol, manifest, _, _ = mechanical_prepared(tmp_path, monkeypatch)
+        load_prepared(root, protocol, registry_sha256=protocol.digest)
+        if field == "feature_interval_ns":
+            manifest["cadences"][0]["features"]["interval_ns"] = value
+        else:
+            manifest["configuration"][field] = value
+        manifest["prepared_sha256"] = identity({k: v for k, v in manifest.items() if k != "prepared_sha256"})
+        (root / "manifest.json").write_text(canonical_json(manifest), encoding="utf-8")
+&gt;       with pytest.raises(ValueError, match="configuration differs|cadence identity mismatch"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+outputs\test_scale_feature_identity_regression_20261030.py:26: Failed</failure></testcase></testsuite></testsuites>

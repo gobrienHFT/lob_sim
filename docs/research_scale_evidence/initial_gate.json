@@ -1,0 +1,291 @@
+{
+  "complete": true,
+  "completed_step_count": 15,
+  "elapsed_seconds": 2668.233962,
+  "exit_code": 0,
+  "failed_step": null,
+  "finished_at_utc": "2026-10-29T20:14:10.786191Z",
+  "invocation": {
+    "benchmark_json": "outputs/research_scale_initial_benchmark_20261029.json",
+    "cargo_argument": "cargo",
+    "determinism_json": "outputs/research_scale_initial_determinism_20261029.json",
+    "environment": ".env.example",
+    "fixture": "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
+    "include_benchmark": true,
+    "include_rust": true,
+    "python_argument": "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+    "recorded_fixture": "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson"
+  },
+  "repo_runtime": {
+    "cargo_version": "cargo 1.82.0 (8f40fc59f 2024-08-21)",
+    "git_branch": "codex/research-scale-recovery",
+    "git_commit": "1fe8610b05113f5cff5125c56338512264e0cc8e",
+    "git_dirty": false,
+    "os_name": "nt",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_executable": "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+    "python_version": "3.13.1 (tags/v3.13.1:0671451, Dec  3 2024, 19:06:28) [MSC v.1942 64 bit (AMD64)]",
+    "root": "C:\\bitbucket\\kibert\\lob_sim",
+    "rustc_version": "rustc 1.82.0 (f6e511eec 2024-10-15)"
+  },
+  "schema_version": "lob_sim.reviewer_gate_report.v1",
+  "started_at_utc": "2026-10-29T19:29:42.552240Z",
+  "status": "passed",
+  "step_count": 15,
+  "steps": [
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not long_research"
+      ],
+      "elapsed_seconds": 2346.058663,
+      "index": 1,
+      "name": "unit and invariant tests",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T19:29:42.552486Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "-m",
+        "mypy",
+        "lob_sim/book",
+        "lob_sim/replay",
+        "lob_sim/record",
+        "lob_sim/binance/ws.py",
+        "lob_sim/cli.py",
+        "lob_sim/config.py",
+        "lob_sim/oracle_kernel.py",
+        "lob_sim/util.py",
+        "lob_sim/sim/fill_model.py",
+        "lob_sim/sim/engine.py",
+        "lob_sim/sim/export.py",
+        "lob_sim/sim/runner.py",
+        "lob_sim/sim/metrics.py",
+        "lob_sim/sim/run_manifest.py",
+        "lob_sim/sim/mm_strategy.py",
+        "lob_sim/sim/contracts.py",
+        "lob_sim/sim/observation.py",
+        "lob_sim/sim/latency.py",
+        "lob_sim/sim/sinks.py",
+        "lob_sim/sim/synthetic_exchange.py",
+        "lob_sim/sim/synthetic_demo.py",
+        "lob_sim/audit",
+        "lob_sim/research",
+        "lob_sim/regime",
+        "experiments/benchmark_hmm_overhead.py",
+        "experiments/run_hmm_regime_study.py",
+        "experiments/run_hmm_synthetic_recovery.py",
+        "scripts/core_regression_probe.py"
+      ],
+      "elapsed_seconds": 7.873659,
+      "index": 2,
+      "name": "type check core replay, record, and simulation modules",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:08:48.632789Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "elapsed_seconds": 4.54326,
+      "index": 3,
+      "name": "ruff lint",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:08:56.509577Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "elapsed_seconds": 0.897722,
+      "index": 4,
+      "name": "ruff format check",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:09:01.053566Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "elapsed_seconds": 2.307665,
+      "index": 5,
+      "name": "rust format check",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:09:01.951595Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "elapsed_seconds": 4.995916,
+      "index": 6,
+      "name": "rust kernel tests",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:09:04.270988Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "elapsed_seconds": 75.224954,
+      "index": 7,
+      "name": "rust clippy all features",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:09:09.267177Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/check_rust_python_parity.py",
+        "--cargo",
+        "cargo",
+        "--cases",
+        "10000",
+        "--expected",
+        "docs/differential_results/rust_python_parity_v3.json"
+      ],
+      "elapsed_seconds": 39.340897,
+      "index": 8,
+      "name": "python/rust differential parity",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:10:24.500807Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/verify_committed_artifacts.py"
+      ],
+      "elapsed_seconds": 2.092975,
+      "index": 9,
+      "name": "committed artifact verification",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:03.842133Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "elapsed_seconds": 0.195854,
+      "index": 10,
+      "name": "whitespace check",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:05.935341Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/check_futures_determinism.py",
+        "--file",
+        "docs/sample_outputs/futures_replay_walkthrough/input_fixture.ndjson",
+        "--env",
+        ".env.example",
+        "--json-out",
+        "outputs/research_scale_initial_determinism_20261029.json"
+      ],
+      "elapsed_seconds": 2.403174,
+      "index": 11,
+      "name": "committed fixture determinism",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:06.135747Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/audit_futures_pack.py",
+        "--committed-futures"
+      ],
+      "elapsed_seconds": 2.778504,
+      "index": 12,
+      "name": "committed futures pack audit",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:08.539145Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/check_fault_injection.py"
+      ],
+      "elapsed_seconds": 3.803067,
+      "index": 13,
+      "name": "fault-injection fail-closed matrix",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:11.318225Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "scripts/check_installed_package.py"
+      ],
+      "elapsed_seconds": 158.66028,
+      "index": 14,
+      "name": "isolated installed-wheel demo",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:11:15.121680Z",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "C:\\bitbucket\\kibert\\lob_sim\\.tooling\\hmm-reviewer-env-20261006\\Scripts\\python.exe",
+        "experiments/benchmark_futures_replay.py",
+        "--file",
+        "docs/sample_outputs/futures_recorded_clip_case/input_clip.ndjson",
+        "--env",
+        ".env.example",
+        "--mode",
+        "all",
+        "--pack",
+        "docs/sample_outputs/futures_stress_case",
+        "--json-out",
+        "outputs/research_scale_initial_benchmark_20261029.json"
+      ],
+      "elapsed_seconds": 17.000159,
+      "index": 15,
+      "name": "recorded clip benchmark",
+      "returncode": 0,
+      "started_at_utc": "2026-10-29T20:13:53.783954Z",
+      "status": "passed"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ from lob_sim.config import Config
 from lob_sim.regime.validation import identity, require_keys, strict_json, canonical_json
 from lob_sim.replay.inspection import file_sha256
 from lob_sim.research.evidence_io import read_json, require_finalized, STUDY_JSON_LIMIT
+from lob_sim.research.execution_reader import verify_execution_evidence
 from lob_sim.research.feature_reader import admitted_parents, verify_prepared
 from lob_sim.research.fit_bundle import load_model_set, verify_registered_models
 from lob_sim.research.registered_protocol import load_protocol
@@ -71,11 +72,12 @@ def verify_registered_study(
             "plan_sha256",
             "scope",
             "study_sha256",
-        },
+        }
+        | ({"execution"} if manifest.get("schema_version") == "lob_sim.registered_real_study.v2" else set()),
         "registered study manifest",
     )
     if (
-        manifest["schema_version"] != "lob_sim.registered_real_study.v1"
+        manifest["schema_version"] not in {"lob_sim.registered_real_study.v1", "lob_sim.registered_real_study.v2"}
         or manifest["complete"] is not True
         or manifest["claim_ready"] is not False
         or manifest["registry_sha256"] != protocol.digest
@@ -93,20 +95,22 @@ def verify_registered_study(
         raise ValueError("paired sensitivity grid census differs")
     for key, binding in zip(cells, manifest["comparisons"], strict=True):
         require_keys(binding, {"cell", "path", "sha256"}, "paired comparison binding")
-        if binding["cell"] != list(key) or binding["path"] != (
+        if canonical_json(binding["cell"]) != canonical_json(list(key)) or binding["path"] != (
             "comparisons/" + identity({"registry_sha256": protocol.digest, "cell": key}) + ".json"
         ):
             raise ValueError("paired comparison cell/path differs")
     plan = read_json(root / "plan.json")
     if (
-        plan
-        != {
-            "registry_sha256": protocol.digest,
-            "models_sha256": models["models_sha256"],
-            "views_sha256": views["views_sha256"],
-            "cases": cases,
-            "claim_ready": False,
-        }
+        canonical_json(plan)
+        != canonical_json(
+            {
+                "registry_sha256": protocol.digest,
+                "models_sha256": models["models_sha256"],
+                "views_sha256": views["views_sha256"],
+                "cases": cases,
+                "claim_ready": False,
+            }
+        )
         or file_sha256(root / "plan.json") != manifest["plan_sha256"]
     ):
         raise ValueError("study plan differs from its complete registered grid")
@@ -155,6 +159,18 @@ def verify_registered_study(
                 raise ValueError("attempt ledger omits, duplicates or changes a case")
         if handle.read(1) or file_sha256(root / "attempts.jsonl") != manifest["attempts_sha256"]:
             raise ValueError("attempt ledger tail/checksum differs")
+    execution = None
+    if manifest["schema_version"] == "lob_sim.registered_real_study.v2":
+        execution = verify_execution_evidence(
+            root,
+            manifest["execution"],
+            registered,
+            protocol.digest,
+            models["models_sha256"],
+            views["views_sha256"],
+            cases,
+            results,
+        )
     for index in range(0, len(results), 3):
         baseline, observed, policy = results[index : index + 3]
         if baseline["core_audits"] != observed["core_audits"]:
@@ -174,7 +190,7 @@ def verify_registered_study(
         name = "comparisons/" + identity({"registry_sha256": protocol.digest, "cell": key}) + ".json"
         path = (root / name).resolve()
         if (
-            binding["cell"] != list(key)
+            canonical_json(binding["cell"]) != canonical_json(list(key))
             or binding["path"] != name
             or not path.is_relative_to(root)
             or file_sha256(path) != binding["sha256"]
@@ -195,7 +211,7 @@ def verify_registered_study(
         }
         if canonical_json(read_json(path)) != canonical_json(expected):
             raise ValueError("stored paired statistics differ from verified native tables")
-    return {
+    proof = {
         "schema_version": "lob_sim.registered_real_study_verification.v1",
         "verified": True,
         "registry_sha256": protocol.digest,
@@ -208,3 +224,6 @@ def verify_registered_study(
         "claim_ready": False,
         "scope": "serialized raw/day/registry/feature/model/view/scenario/lifecycle/risk/accounting/state and paired-statistic graph;not matching-engine re-execution,independent exchange truth or provenance authentication",
     }
+    if execution is not None:
+        proof["execution"] = execution
+    return proof

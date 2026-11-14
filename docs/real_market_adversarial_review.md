@@ -38,9 +38,12 @@ or exceptions to the HMM-off reference.
 
 The committed public smoke contains zero eligible full UTC days. The separate
 25-hour capture started at `2026-10-07 00:42:31 UTC` from the independently
-installed `c88970e` wheel. While in progress, its partial telemetry is not a
-completed soak, a joint-validity percentage or venue-packet-loss evidence.
-It must be finalized and independently audited before publication.
+installed `c88970e` wheel. October 29 inspection found that attempt incomplete,
+with partial telemetry/segment evidence, no final capture manifest/completion
+record and no matching collector process. Its terminal cause is unknown.
+See the [scale/recovery review](research_scale_review.md). Retained segment
+checks do not turn it into a completed soak or an eligible research day;
+do not finalize or rewrite the old attempt to manufacture that evidence.
 Its off-midnight 25-hour window does not itself supply a complete eligible UTC
 day. Subsequent capture planning must cover whole dates without overlapping
 sources or rewriting the attempt's request.
@@ -53,7 +56,11 @@ evidence that the outstanding empirical requirements are met.
 
 Required next evidence is a completed 24-hour-plus reliability report, at least
 ten eligible real UTC days, a frozen registry and untouched held-out results.
-Full-day grid resource cost is unmeasured; the current native CSV audit format
-can require substantial disk/runtime. No throughput, economic benefit or HFT
+Full-day grid resource cost remains projected, not measured. The later
+[limited-scale review](research_scale_review.md) measures substantial synthetic
+workloads and approximately 630 MB of full audit for 100,012 records, with
+repeated validation/reduction still expensive. It also adds actual native
+process-kill/restart, independently verified reuse and reverse-order parity.
+These results do not establish complete-grid feasibility. No economic benefit or HFT
 equivalence is inferred from the implementation or short tests. Human review
 of venue, risk, ordering, statistics and public claims remains necessary.
