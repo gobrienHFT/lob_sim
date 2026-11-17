@@ -9,7 +9,7 @@ observable.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 from ..oracle import state_hash
@@ -19,6 +19,11 @@ from .sinks import EventSink, NullSink
 Side = Literal["bid", "ask"]
 TimeInForce = Literal["GTC", "IOC"]
 SelfTradePrevention = Literal["cancel_aggressor", "cancel_resting"]
+
+
+def _positive_i64(value: object) -> bool:
+    """Match the Rust MBO unit domain without coercing bools, strings or floats."""
+    return type(value) is int and 0 < value < 2**63
 
 
 @dataclass
@@ -95,7 +100,8 @@ class SyntheticExchange:
 
     @property
     def orders(self) -> dict[str, SyntheticOrder]:
-        return dict(self._orders)
+        """Return detached order records; callers cannot edit resting liquidity."""
+        return {key: replace(order) for key, order in self._orders.items()}
 
     def best_bid_tick(self) -> int | None:
         return max(self._bids, default=None)
@@ -159,9 +165,9 @@ class SyntheticExchange:
             return "empty_participant_id"
         if side not in ("bid", "ask"):
             return "invalid_side"
-        if isinstance(qty_lots, bool) or qty_lots <= 0:
+        if not _positive_i64(qty_lots):
             return "invalid_quantity"
-        if price_tick is not None and (isinstance(price_tick, bool) or price_tick <= 0):
+        if price_tick is not None and not _positive_i64(price_tick):
             return "invalid_price"
         if time_in_force not in ("GTC", "IOC"):
             return "invalid_time_in_force"

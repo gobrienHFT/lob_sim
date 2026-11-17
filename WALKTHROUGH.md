@@ -24,6 +24,14 @@ The historical feed gives quantities at prices but cannot locate our
 hypothetical order among private participants. The synthetic exchange owns
 every order and can check exact price-time priority.
 
+One way to challenge that FIFO claim: put two asks at the same tick, then
+try replacing the first with a fractional lot. The synthetic venue rejects
+the request before cancelling the old ask. A subsequent buy must still fill
+the original two makers in order. Prices and quantities use positive signed
+64-bit integers (ticks and lots); a market IOC has no limit price. Run
+`python -m pytest -q tests/test_synthetic_exchange.py` to check this example,
+along with partial fills, self-trade prevention and detached order snapshots.
+
 ## Why queue and cancel timing matter
 
 Suppose ten lots are displayed at our bid when a one-lot buy joins. In a

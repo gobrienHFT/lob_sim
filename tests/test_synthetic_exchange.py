@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from lob_sim.record.envelope import LogicalTime
 from lob_sim.sim.synthetic_demo import run_exact_synthetic_demo
 from lob_sim.sim.synthetic_exchange import SyntheticExchange
@@ -88,6 +90,55 @@ def test_ioc_partial_fill_expires_remainder() -> None:
     assert result.terminal_state == "expired"
     assert exchange.orders["ioc"].remaining_lots == 2
     assert exchange.best_ask_tick() is None
+
+
+@pytest.mark.parametrize("action", ["new", "replace"])
+@pytest.mark.parametrize(("field", "reason"), [("price_tick", "invalid_price"), ("qty_lots", "invalid_quantity")])
+@pytest.mark.parametrize("bad", [False, 0, -1, 1.5, 2.0, float("nan"), float("inf"), "2", 2**63])
+def test_invalid_wire_units_reject_without_fills_or_loss_of_priority(action, field, reason, bad) -> None:
+    exchange = SyntheticExchange()
+    _seed_asks(exchange)
+    before = exchange.state_sha256()
+    # Validation must precede matching a new bid or cancelling the first ask.
+    fields = {"price_tick": 101, "qty_lots": 1, field: bad}
+    if action == "new":
+        result = exchange.submit_new(order_id="bad", participant_id="other", side="bid", **fields)
+    else:
+        result = exchange.replace("ask-a", new_order_id="bad", **fields)
+
+    assert not result.accepted
+    assert result.fills == ()
+    assert [(t.event, t.reason) for t in result.transitions] == [
+        ("rejected" if action == "new" else "replace_rejected", reason)
+    ]
+    assert exchange.state_sha256() == before
+    buy = exchange.submit_new(
+        order_id="take", participant_id="other", side="bid", price_tick=None, qty_lots=3, time_in_force="IOC"
+    )
+    assert [(f.maker_order_id, f.qty_lots) for f in buy.fills] == [("ask-a", 2), ("ask-b", 1)]
+
+
+def test_largest_signed_64_bit_tick_and_lot_count_match_exactly() -> None:
+    limit = 2**63 - 1
+    exchange = SyntheticExchange()
+    exchange.submit_new(order_id="ask", participant_id="maker", side="ask", price_tick=limit, qty_lots=limit)
+    buy = exchange.submit_new(order_id="buy", participant_id="taker", side="bid", price_tick=limit, qty_lots=limit)
+    assert [(f.price_tick, f.qty_lots) for f in buy.fills] == [(limit, limit)]
+    assert exchange.best_ask_tick() is None
+
+
+def test_inspecting_orders_cannot_change_future_fills_or_rewrite_a_prior_view() -> None:
+    exchange = SyntheticExchange()
+    _seed_asks(exchange)
+    before = exchange.state_sha256()
+    view = exchange.orders
+    view["ask-a"].remaining_lots = -2
+    view["ask-a"].participant_id = "taker"
+    assert exchange.state_sha256() == before
+    buy = exchange.submit_new(order_id="take", participant_id="taker", side="bid", price_tick=101, qty_lots=3)
+    assert [(f.maker_order_id, f.qty_lots) for f in buy.fills] == [("ask-a", 2), ("ask-b", 1)]
+    assert view["ask-b"].remaining_lots == 2
+    assert exchange.orders["ask-b"].remaining_lots == 1
 
 
 def test_cancel_aggressor_self_trade_prevention() -> None:
