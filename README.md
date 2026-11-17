@@ -36,6 +36,10 @@ No API key or live connection is needed. In the JSON, look for
 would immediately trade. `deterministic_run` contains the separate public-L2
 simulation; its fixture PnL checks accounting mechanics.
 
+To see the difference without running code, [follow one modeled buy](docs/sample_outputs/futures_replay_walkthrough/walkthrough.md#why-the-bid-fills):
+the displayed bid shrinks, yet the hypothetical order does not move forward.
+The notes show which later print triggers the fill and when the next mark is actually observed.
+
 First run? With Python 3.11 or later installed:
 
 ```bash

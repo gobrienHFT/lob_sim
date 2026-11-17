@@ -1320,6 +1320,21 @@ def test_futures_walkthrough_pack_is_linked_from_front_door_docs() -> None:
     assert "futures_recorded_clip_case/case_notes.md" in sample_outputs
 
 
+def test_walkthrough_queue_table_matches_committed_trace() -> None:
+    trace = FUTURES_WALKTHROUGH_NOTES.with_name("event_trace.csv")
+    with trace.open(encoding="utf-8", newline="") as handle:
+        expected = []
+        for row in csv.DictReader(handle):
+            if row["event_type"] == "queue_consumption":
+                details = json.loads(row["details"])
+                expected.append(
+                    f"| {row['ts_local']} | {row['source']} | {details['observed_lots']} | "
+                    f"{details['queue_consumed_lots']} | {details['unmatched_lots']} |"
+                )
+    notes = FUTURES_WALKTHROUGH_NOTES.read_text(encoding="utf-8")
+    assert expected and [line for line in notes.splitlines() if line.startswith("| ") and line[2].isdigit()] == expected
+
+
 def test_futures_walkthrough_refresh_command_is_documented_consistently() -> None:
     sample_outputs = SAMPLE_OUTPUTS_README.read_text(encoding="utf-8")
     futures_pack = FUTURES_WALKTHROUGH_README.read_text(encoding="utf-8")

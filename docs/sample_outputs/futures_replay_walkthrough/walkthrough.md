@@ -5,7 +5,7 @@
 - Source: [`input_fixture.ndjson`](input_fixture.ndjson)
 - Input type: synthetic deterministic walkthrough fixture
 - Symbol: `BTCUSDT`
-- Purpose: show snapshot seeding, `U/u/pu` continuity, one queue-ahead reduction, and one passive fill in the smallest committed pack
+- Purpose: distinguish a change in displayed depth from the trade that triggers a modeled passive fill.
 
 ## Exact Command Used
 
@@ -20,19 +20,28 @@ python scripts/refresh_futures_showcase.py
 - The next diff at `ts_local=2.2` has `pu=105`, which matches the prior `u=105`.
 - The final diff at `ts_local=3.6` has `pu=106`, which matches the prior `u=106`.
 
-## Queue-Ahead Example
+## Why the bid fills
 
-- At `ts_local=2.0`, the baseline strategy posts a passive bid at `100.0` for `0.001`.
-- The visible bid queue ahead at `100.0` is `0.002` from the seeded snapshot.
-- At `ts_local=2.2`, the depth diff updates the bid level from `0.002` to `0.001`.
-- Under the synthetic visible queue-ahead model, that reduction consumes one modeled lot ahead of the strategy order, so queue ahead falls from `2` lots to `1` lot at the same price level. This does not identify historical participant FIFO.
+At `ts_local=2.0` the strategy joins the bid at `100.0` for one lot
+(`0.001` BTC). Two lots are displayed ahead of it. Here are the two
+`queue_consumption` rows from [the trace](event_trace.csv); applied lots
+include consumption ahead **and** any resulting fill.
 
-## Passive-Fill Example
+| Local time (s) | Source | Observed lots | Applied lots | Unmatched lots |
+| --- | --- | ---: | ---: | ---: |
+| 2.2 | depth_update | 1 | 0 | 1 |
+| 2.4 | agg_trade | 3 | 3 | 0 |
 
-- At `ts_local=2.4`, `aggTrade` prints `p=100.0`, `q=0.002`, `m=true`.
-- In this model that is sell pressure into the bid at `100.0`.
-- The remaining visible lot ahead is consumed first, then the resting strategy bid fills for `0.001` at `100.0`.
-- The resulting passive fill is the single row in [`trades.csv`](trades.csv), and [`summary.json`](summary.json) records one fill with non-adverse 1-second markout.
+The displayed bid shrinks, but that observation does not advance the order
+in this trade-triggered scenario. Next, a sell print of `0.003` BTC at
+`100.0` consumes the two modeled lots ahead and fills the one-lot bid.
+In [the fill row](trades.csv), `evidence_ids` points to input rows 3 and 5:
+the book observation used at arrival and the triggering trade. These are
+public-L2 **scenario** mechanics on a synthetic tape, not private FIFO evidence.
+
+The one-second markout is due at 3.4 s. The next observed mid is at 3.6 s:
+`100.05`, or `+0.05` per BTC relative to the buy price. That is a mark
+observed 200 ms after the target, not a quote observed exactly at the horizon.
 
 ## What to Inspect First
 
